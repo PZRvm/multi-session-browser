@@ -93,7 +93,8 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
         canGoForward: tab.view.webContents.navigationHistory.canGoForward()
       })
     }
-    return { tabs: list, activeTabId: activeId }
+    // devtoolsOpen 占位 false：契约冻结（步骤 2）的类型桥，步骤 3 接每 Tab 真实状态后替换
+    return { tabs: list, activeTabId: activeId, devtoolsOpen: false }
   }
 
   function emitChange(): void {

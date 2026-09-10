@@ -1,6 +1,6 @@
 // 浏览器内嵌共享契约（主进程 / preload / renderer 三方共用）。
 // 修改本文件的类型或通道名前，必须先修订
-// notes/plans/20260910211644-阶段2浏览器内嵌开发计划.md 第 3 节。
+// notes/plans/20260911014828-阶段3开发者模式对接开发计划.md 第 3 节。
 //
 // 事实源约定：tab 列表与全部状态由主进程持有并推送，renderer 只是镜像；
 // tab id 由主进程生成（tab-<自增 seq>），renderer 不得自造。
@@ -16,6 +16,8 @@ export const BROWSER_CHANNELS = {
   reload: 'browser:reload',
   stop: 'browser:stop',
   setBounds: 'browser:set-bounds',
+  toggleDevTools: 'browser:toggle-devtools',
+  setDevToolsBounds: 'browser:set-devtools-bounds',
   stateChanged: 'browser:state-changed',
   focusAddress: 'browser:focus-address'
 } as const
@@ -31,10 +33,12 @@ export interface BrowserTabState {
   canGoForward: boolean
 }
 
-/** 主进程推送的全量快照：tab 有序列表 + 当前激活项 */
+/** 主进程推送的全量快照：tab 有序列表 + 当前激活项 + 激活 Tab 的 DevTools 开关态 */
 export interface BrowserSnapshot {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** 激活 Tab 的 DevTools 是否开启（无激活 Tab 时恒 false）；停靠区显隐随此字段 */
+  devtoolsOpen: boolean
 }
 
 export interface NewTabPayload {
@@ -60,6 +64,9 @@ export interface SetBoundsPayload {
   width: number
   height: number
 }
+
+/** DevTools 停靠区矩形（与页面矩形同构同坐标系），renderer 双锚点之一 */
+export type SetDevToolsBoundsPayload = SetBoundsPayload
 
 export interface OkResult {
   ok: true
