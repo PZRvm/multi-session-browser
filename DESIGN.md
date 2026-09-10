@@ -256,7 +256,11 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 
-Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标题 12px 单行省略、favicon `<img>`（CSP 已放行 img-src https:，null 时灰阶圆点占位）、加载中 LoadingOutlined 旋转替位、hover 显关闭钮、最后一个 tab 关闭钮禁用）+ 可用的新建按钮（PlusOutlined）。工具栏（#f1f3f4，40px）：后退/前进/刷新/主页四枚 28px 圆形按钮按 canGoBack/canGoForward 与激活态启停（禁用 chrome-disabled 色），加载中刷新钮切 CloseOutlined 停止态 + 居中胶囊地址栏（真实 input：28px 药丸度量不变、文字左对齐 ink 色、about:blank 显示空、无效地址边框短暂 Chrome 错误红 #d93025 并 aria-invalid）+ 右侧「F12 开发者工具」提示（11px，阶段 3 实装）。内容区是纯锚点容器（白底）：主进程 WebContentsView 按上报 bounds 覆盖其上，about:blank 呈深色是 Chromium 跟随系统深色模式的原生行为，不是样式缺陷。右侧控件的 :focus-visible 一律灰阶化（outline:none + 蒙版/描边加深），琥珀不进右侧。
+Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标题 12px 单行省略、favicon `<img>`（CSP 已放行 img-src https:，null 时灰阶圆点占位）、加载中 LoadingOutlined 旋转替位、hover 显关闭钮、最后一个 tab 关闭钮禁用）+ 可用的新建按钮（PlusOutlined）。工具栏（#f1f3f4，40px）：后退/前进/刷新/主页四枚 28px 圆形按钮按 canGoBack/canGoForward 与激活态启停（禁用 chrome-disabled 色），加载中刷新钮切 CloseOutlined 停止态 + 居中胶囊地址栏（真实 input：28px 药丸度量不变、文字左对齐 ink 色、about:blank 显示空、无效地址边框短暂 Chrome 错误红 #d93025 并 aria-invalid）+ 右侧「开发者工具」开关按钮（阶段 3 实装：11px chrome-ink-dim 文字、`aria-pressed` 随 DevTools 开关态翻转、title 随态提示「打开/关闭开发者工具（F12/Esc）」、按下态与 hover 走灰阶蒙版加深、无激活 tab 时禁用）。内容区自阶段 3 起为双态分栏（`.chrome-body` 包裹）：DevTools 关闭时页面锚点（`.chrome-content`，白底纯锚点容器）占满；开启时上页面锚点 + 横向 DevTools 分隔条 + 下停靠锚点（`.chrome-devtools-anchor`），主进程 WebContentsView 分别按两个锚点的上报 bounds 覆盖，about:blank 呈深色是 Chromium 跟随系统深色模式的原生行为，不是样式缺陷。右侧控件的 :focus-visible 一律灰阶化（outline:none + 蒙版/描边加深），琥珀不进右侧。
+
+### DevTools 停靠区与分隔条（DevTools Dock）— 阶段 3 新增
+
+底部停靠的原生 Chromium DevTools（主进程自管 WebContentsView 宿主，非独立窗口）：停靠区本体是 DevTools 自己的界面，应用不注入任何可见元素。分界分隔条：5px 命中区、`::before` 1px 视觉线（`--chrome-line`），hover 或拖拽中加深为 `--chrome-ink-dim`；拖拽时 `body.devtools-row-resizing` 提供全局 `row-resize` 光标；`role="separator"` + `aria-orientation="horizontal"` + `aria-label="调整开发者工具高度"`。停靠高度为 renderer 内存态（默认 40%，clamp [80px, 分栏区高−160px]），不持久化。分界线是右区元素，全程 chrome-* 灰阶——「琥珀不出板」在右区的延续：右区分隔条不沿用左栏分隔条的琥珀 hover（两个色域不互通）。
 
 ### 分隔条（Panel Divider）
 
@@ -287,13 +291,14 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 3 前有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 4 前有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **右侧已是真实浏览器（阶段 2 交付）**：主进程 WebContentsView（persist:browse 分区）+ 多 Tab 管理 + 导航/地址栏/最小快捷键；tab 栏/工具栏/地址栏沿用既有度量与灰阶。浏览器是未绑定会话的单例：切会话不影响浏览器，右侧不得出现任何会话信息或板面元素。
-- **会话状态灯 loading 仍未触发**：`dot-pulse` 动画与琥珀状态字、状态三信号文案就绪，但 `sessions` store 没有任何 action 会把 status 置为 `loading`。原预期"阶段 2 接真实加载事件直接驱动"已修正——阶段 2 浏览器与会话无绑定，驱动会话灯即伪造绑定事实；驱动时点推迟到阶段 4 会话绑定时，仍用既有视觉，不另造加载动画。浏览器的 loading 视觉存在于 Tab（LoadingOutlined）与工具栏（刷新↔停止），与会话状态灯无关。
-- **会话元数据已持久化**：主进程 `userData/sessions.json`（schema version 1，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写；演示种子数据与「演示数据」签已随持久化接入移除，首启空列表呈现「尚无会话」空态。持久化不改变任何视觉决策，仅移除诚实性标注。
+- **右侧已是真实浏览器 + 停靠 DevTools（阶段 2/3 交付）**：主进程 WebContentsView（persist:browse 分区）+ 多 Tab 管理 + 导航/地址栏/最小快捷键 + 每 Tab 原生 DevTools（F12 唤起、ESC 关闭、底部停靠、可拖拽分栏）；tab 栏/工具栏/地址栏/停靠分栏沿用既有度量与灰阶。浏览器是未绑定会话的单例：切会话不影响浏览器，右侧不得出现任何会话信息或板面元素；DevTools 绑定粒度是 Tab（一对一 webContents），"跟随会话环境切换"的完整语义在阶段 4 绑定后自然成立，界面文案不得提前宣称会话级。
+- **DevTools 停靠比例是内存态**：默认 40%、可拖拽、clamp [80px, 分栏区高−160px]，不持久化、不进快照；DevTools 开关态由主进程持有（快照 devtoolsOpen 字段）并推送，renderer 只镜像。
+- **会话状态灯 loading 仍未触发**：`dot-pulse` 动画与琥珀状态字、状态三信号文案就绪，但 `sessions` store 没有任何 action 会把 status 置为 `loading`。原预期"阶段 2 接真实加载事件直接驱动"已修正——浏览器与会话无绑定，驱动会话灯即伪造绑定事实；驱动时点推迟到阶段 4 会话绑定时，仍用既有视觉，不另造加载动画。浏览器的 loading 视觉存在于 Tab（LoadingOutlined）与工具栏（刷新↔停止），与会话状态灯无关。
+- **会话元数据已持久化**：主进程 `userData/sessions.json`（schema version 1，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写；演示种子数据与「演示数据」签已随持久化接入移除，首启空列表呈现「尚无会话」空态。持久化不改变任何视觉决策，仅移除诚实性标注。浏览器侧（Tab/URL/DevTools）不持久化，重启复位为单个新标签页。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
 - **`--amber-ink-dim`（#4a3a00）在 `:root` 定义但零引用**：源码里存在、体系里未启用，未收录进本记录的 token 表；启用前不要引用。
 - **无断点体系**：弹性由窗口最小尺寸（1080×680）与左栏 220–420px 拖拽承担；不要引入媒体查询断点。

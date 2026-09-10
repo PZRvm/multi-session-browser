@@ -390,8 +390,13 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     return buildSnapshot()
   }
 
-  /** 记录 DevTools 停靠区矩形并作用于激活 Tab 的宿主 view；未开启时仅缓存 */
+  /**
+   * 记录 DevTools 停靠区矩形并作用于激活 Tab 的宿主 view；未开启时仅缓存。
+   * 零矩形（renderer 锚点卸载/收起时的清理上报）不缓存也不应用：它不是布局意图，
+   * 若当真缓存会形成"墓碑"击穿「无缓存按页面矩形 40% 兜底」不变量，重开即 0×0。
+   */
   function setDevToolsBounds(rect: SetBoundsPayload): void {
+    if (rect.width === 0 || rect.height === 0) return
     devtoolsBounds = rect
     if (activeId === null) return
     const tab = tabs.get(activeId)

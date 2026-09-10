@@ -35,17 +35,32 @@ function createWindow(): void {
   })
 
   // 防误刷新守卫（AGENTS.md 坑点闭环）：脚手架 optimizer 的窗口快捷键接管接线已移除——
-  // 它会在 dev 态抢走 F12（打开 shell 自身的 Electron DevTools）与 Ctrl+R，与产品语义冲突。
-  // 其 prod 拦 Cmd/Ctrl+R 的防误刷新职责由此自接管：仅 prod 拦 shell 重载快捷键（Cmd/Ctrl+R 与 F5），
-  // dev 放行保 HMR 便利（renderer 误触刷新可自愈：bounds 会重报）。
+  // 它会在 dev 态抢走 F12（打开 shell 自身的 Electron DevTools），与产品语义冲突。
+  // 其余职责由此自接管（对照 @electron-toolkit/utils watchWindowShortcuts 默认行为逐一交接）：
+  // 仅 prod 拦 shell 重载与 shell DevTools 热键（Cmd/Ctrl+R、F5、Cmd+Opt+I / Ctrl+Shift+I），
+  // dev 放行保 HMR 便利（renderer 误触刷新可自愈：bounds 会重报）；缩放键（Cmd/Ctrl+- 与
+  // Cmd/Ctrl+Shift+=）两种模式都拦（shell UI 不缩放，optimizer 原本恒拦）。
   // dev 态 shell 自身的 DevTools 经 Alt 唤出菜单栏 View 可达，F12 已归产品语义（唤起会话 DevTools）；
   // 本层不做任何 F12/ESC 处理（页面侧在 manager 的 before-input-event，shell 侧在 renderer keydown）。
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (is.dev || input.type !== 'keyDown') return
-    const isCmdCtrlR =
-      (input.control || input.meta) && !input.shift && !input.alt && input.key.toLowerCase() === 'r'
-    const isF5 = !input.control && !input.meta && !input.shift && !input.alt && input.key === 'F5'
-    if (isCmdCtrlR || isF5) {
+    if (input.type !== 'keyDown') return
+    const withCmdCtrl = input.control || input.meta
+    // 缩放键阻断（dev/prod 一致）：Minus = 缩小，Shift+Equal = 放大
+    if (
+      withCmdCtrl &&
+      !input.alt &&
+      (input.code === 'Minus' || (input.shift && input.code === 'Equal'))
+    ) {
+      event.preventDefault()
+      return
+    }
+    if (is.dev) return
+    const isCmdCtrlR = withCmdCtrl && !input.shift && !input.alt && input.key.toLowerCase() === 'r'
+    const isF5 = !withCmdCtrl && !input.shift && !input.alt && input.key === 'F5'
+    // shell 自身 DevTools 热键（optimizer 原 prod 拦截项）
+    const isShellDevToolsHotkey =
+      input.code === 'KeyI' && ((input.alt && input.meta) || (input.control && input.shift))
+    if (isCmdCtrlR || isF5 || isShellDevToolsHotkey) {
       event.preventDefault()
     }
   })
