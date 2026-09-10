@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：十条通道的业务实现，命令转发给 TabManager。
+// 浏览器 IPC handlers：十四条通道的业务实现，命令转发给 TabManager。
 // 通道名一律取自 shared/browser 的 BROWSER_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
@@ -180,5 +180,25 @@ export function registerBrowserIpc(
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（10 条通道）')
+  // toggleDevTools：无 payload，作用于激活 Tab；无激活 Tab 时 manager 静默 no-op 返回当前快照
+  ipcMain.handle(BROWSER_CHANNELS.toggleDevTools, (): BrowserSnapshot =>
+    logFailure(BROWSER_CHANNELS.toggleDevTools, undefined, () => manager.toggleDevTools())
+  )
+
+  // setDevToolsBounds：四个坐标必须为有限数字；转发 manager（DevTools 未开时仅缓存矩形）
+  ipcMain.handle(BROWSER_CHANNELS.setDevToolsBounds, (_event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.setDevToolsBounds, payload, () => {
+      if (!isRecord(payload)) throw invalidParams()
+      const rect: SetBoundsPayload = {
+        x: requiredNumber(payload.x),
+        y: requiredNumber(payload.y),
+        width: requiredNumber(payload.width),
+        height: requiredNumber(payload.height)
+      }
+      manager.setDevToolsBounds(rect)
+      return { ok: true }
+    })
+  )
+
+  console.log('[browser] IPC handlers 已注册（14 条通道）')
 }

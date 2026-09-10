@@ -1,7 +1,6 @@
-import { app, shell, BrowserWindow, WebContentsView } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { writeFileSync } from 'fs'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerBrowserIpc } from './browser/ipc'
@@ -35,6 +34,22 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // 防误刷新守卫（AGENTS.md 坑点闭环）：脚手架 optimizer 的窗口快捷键接管接线已移除——
+  // 它会在 dev 态抢走 F12（打开 shell 自身的 Electron DevTools）与 Ctrl+R，与产品语义冲突。
+  // 其 prod 拦 Cmd/Ctrl+R 的防误刷新职责由此自接管：仅 prod 拦 shell 重载快捷键（Cmd/Ctrl+R 与 F5），
+  // dev 放行保 HMR 便利（renderer 误触刷新可自愈：bounds 会重报）。
+  // dev 态 shell 自身的 DevTools 经 Alt 唤出菜单栏 View 可达，F12 已归产品语义（唤起会话 DevTools）；
+  // 本层不做任何 F12/ESC 处理（页面侧在 manager 的 before-input-event，shell 侧在 renderer keydown）。
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (is.dev || input.type !== 'keyDown') return
+    const isCmdCtrlR =
+      (input.control || input.meta) && !input.shift && !input.alt && input.key.toLowerCase() === 'r'
+    const isF5 = !input.control && !input.meta && !input.shift && !input.alt && input.key === 'F5'
+    if (isCmdCtrlR || isF5) {
+      event.preventDefault()
+    }
+  })
+
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -54,13 +69,6 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
   // 注册会话持久化 IPC handlers（须在窗口创建前就绪，保证 renderer 首帧即可调用）
   registerSessionIpc()
 
@@ -74,69 +82,6 @@ app.whenReady().then(() => {
 
   // 初始单个新标签页（无 url，about:blank）；浏览器状态不持久化，重启即回到此初始态
   tabManager.newTab()
-
-  // ===== [smoke3] 阶段3步骤1 DevTools 嵌入冒烟临时接线（正式装配时移除，见计划步骤 6） =====
-  // 文档模式验证：new WebContentsView() 宿主 → addChildView → setBounds →
-  // setDevToolsWebContents → openDevTools；12s 双 view 截屏取证；13s 关闭 / 16s 重开
-  setTimeout(() => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (!win) return
-    // 开一个真实页面作为 DevTools 的观察对象（newTab 后即成为激活 Tab）
-    const snapshot = tabManager?.newTab('https://example.com')
-    console.log('[smoke3] newTab snapshot =', JSON.stringify(snapshot))
-    const wc = tabManager?.getActiveWebContents()
-    if (!wc) return
-    wc.on('did-navigate', (_e, url) => console.log('[smoke3] page did-navigate:', url))
-    wc.on('did-fail-load', (_e, code, desc, url) =>
-      console.log('[smoke3] page did-fail-load:', code, desc, url)
-    )
-    const host = new WebContentsView()
-    host.webContents.on('did-finish-load', () => {
-      console.log('[smoke3] devtools wc did-finish-load, url =', host.webContents.getURL())
-    })
-    host.webContents.on('did-fail-load', (_e, code, desc, url) =>
-      console.log('[smoke3] devtools wc did-fail-load:', code, desc, url.slice(0, 80))
-    )
-    host.webContents.on('render-process-gone', () =>
-      console.log('[smoke3] devtools wc render-gone!')
-    )
-    win.contentView.addChildView(host)
-    const [w, h] = win.getContentSize()
-    host.setBounds({ x: 0, y: h - 320, width: w, height: 320 })
-    wc.setDevToolsWebContents(host.webContents)
-    wc.openDevTools()
-    console.log('[smoke3] opened: isDevToolsOpened =', wc.isDevToolsOpened())
-    // 12s：对页面 view 与 DevTools 宿主 view 各截一张，落 /tmp 供目视核对
-    setTimeout(() => {
-      void (async () => {
-        try {
-          const pageImg = await wc.capturePage()
-          writeFileSync('/tmp/smoke3-page.png', pageImg.toPNG())
-          const hostImg = await host.webContents.capturePage()
-          writeFileSync('/tmp/smoke3-host.png', hostImg.toPNG())
-          console.log(
-            '[smoke3] capture done: page =',
-            pageImg.getSize(),
-            'host =',
-            hostImg.getSize()
-          )
-        } catch (err) {
-          console.log('[smoke3] capture failed:', String(err))
-        }
-      })()
-    }, 12000)
-    setTimeout(() => {
-      wc.closeDevTools()
-      win.contentView.removeChildView(host)
-      console.log('[smoke3] closed: isDevToolsOpened =', wc.isDevToolsOpened())
-    }, 13000)
-    setTimeout(() => {
-      win.contentView.addChildView(host)
-      wc.openDevTools()
-      console.log('[smoke3] reopened: isDevToolsOpened =', wc.isDevToolsOpened())
-    }, 16000)
-  }, 5000)
-  // ===== [/smoke3] =====
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
