@@ -121,7 +121,7 @@ components:
 
 **Creative North Star: "到发信息板（The Departure Board）"**
 
-这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：近黑蓝底（#101418）上的行式栅格，1px 发丝线分隔，航显琥珀（#FFB000）只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮。右侧是列车本身：完全交给 Chrome 的原生语法（灰阶 tab 栏、工具栏、药丸地址栏），板面语言不得越界。翻牌数字砖是两个世界之间唯一的使者——它把板面的深色砖与琥珀数字带进右侧空态，作为当前会话的「航班号」。
+这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：近黑蓝底（#101418）上的行式栅格，1px 发丝线分隔，航显琥珀（#FFB000）只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮。右侧是列车本身：完全交给 Chrome 的原生语法（灰阶 tab 栏、工具栏、药丸地址栏），板面语言不得越界。翻牌数字砖只生活在板面（左栏计数与序号）；阶段 2 起右侧成为真实的 Chromium 浏览区（WebContentsView 覆盖内容锚点），右侧世界完全交给 Chrome 原生语法，不再承载任何板面元素。
 
 密度是桌面效率工具的密度：13px 基准字号、双行会话行、一切状态静置可读。深度不靠阴影——全应用 0 box-shadow——靠发丝线与色阶（board-bg / board-bg-raised / board-tile 三层）。动效只有一个签名时刻：翻牌砖的 rotateX 翻转（0.4s，指数缓出），其余状态过渡压在 120ms。
 
@@ -240,7 +240,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 翻牌计数（FlapCounter）— 签名组件
 
-22×30 深色砖（board-tile 底 + tile-line 描边 + 4px 圆角），砖面 50% 处一条中缝，砖内 16px/600 琥珀 mono 数字（tabular-nums）。按位拆分（`FlapCounter value pad=2`，位置 key），数值变化时该位触发一次翻转：`rotateX(-84deg → 0)`，0.4s `cubic-bezier(0.16, 1, 0.3, 1)`——指数缓出，越翻越慢的物理感。砖本体 `aria-hidden`，语义在容器 `aria-label` 上。右侧空态复用同款砖显示会话序号（含「--」空位态）。
+22×30 深色砖（board-tile 底 + tile-line 描边 + 4px 圆角），砖面 50% 处一条中缝，砖内 16px/600 琥珀 mono 数字（tabular-nums）。按位拆分（`FlapCounter value pad=2`，位置 key），数值变化时该位触发一次翻转：`rotateX(-84deg → 0)`，0.4s `cubic-bezier(0.16, 1, 0.3, 1)`——指数缓出，越翻越慢的物理感。砖本体 `aria-hidden`，语义在容器 `aria-label` 上。
 
 ### 新建会话按钮（Primary Button）
 
@@ -252,11 +252,11 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 空态（Empty State）
 
-左栏：居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」，板面墨/次墨两级。右侧：翻牌序号砖 + 当前会话名（15px Title 级）+ 状态行 +「Chromium 渲染区将在阶段 2 接入」提示；无选中时砖显「--」。
+仅存在于左栏：居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」，板面墨/次墨两级。右侧没有空态——阶段 2 起它是常驻的真实浏览器（初始单个「新标签页」）。
 
-### Chrome 框架（BrowserFrame）— 阶段 1 为占位
+### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 
-Tab 栏（#dee1e6）：单个 active 白底 tab（「新标签页」）+ 禁用的新建按钮（not-allowed 光标，Tooltip「浏览器引擎将在阶段 2 接入」）。工具栏（#f1f3f4）：后退/前进/刷新/主页四枚 28px 圆形禁用按钮（@ant-design/icons：LeftOutlined / RightOutlined / ReloadOutlined / HomeOutlined，16px，chrome-disabled 色）+ 居中胶囊地址栏（白底、chrome-line 描边、14px 圆角、居中灰字「会话浏览器引擎 · 阶段 2 接入」）+ 右侧「F12 开发者工具」提示（11px）。
+Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标题 12px 单行省略、favicon `<img>`（CSP 已放行 img-src https:，null 时灰阶圆点占位）、加载中 LoadingOutlined 旋转替位、hover 显关闭钮、最后一个 tab 关闭钮禁用）+ 可用的新建按钮（PlusOutlined）。工具栏（#f1f3f4，40px）：后退/前进/刷新/主页四枚 28px 圆形按钮按 canGoBack/canGoForward 与激活态启停（禁用 chrome-disabled 色），加载中刷新钮切 CloseOutlined 停止态 + 居中胶囊地址栏（真实 input：28px 药丸度量不变、文字左对齐 ink 色、about:blank 显示空、无效地址边框短暂 Chrome 错误红 #d93025 并 aria-invalid）+ 右侧「F12 开发者工具」提示（11px，阶段 3 实装）。内容区是纯锚点容器（白底）：主进程 WebContentsView 按上报 bounds 覆盖其上，about:blank 呈深色是 Chromium 跟随系统深色模式的原生行为，不是样式缺陷。右侧控件的 :focus-visible 一律灰阶化（outline:none + 蒙版/描边加深），琥珀不进右侧。
 
 ### 分隔条（Panel Divider）
 
@@ -287,14 +287,13 @@ Tab 栏（#dee1e6）：单个 active 白底 tab（「新标签页」）+ 禁用�
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 2 前有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 3 前有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **右侧 Chrome 框架是占位**：无浏览器引擎；导航四键与新建 tab 全部 disabled（`cursor: not-allowed`，Tooltip「浏览器引擎将在阶段 2 接入」）；内容区是空态预演，阶段 2 接入 Chromium 渲染区后将被整体替换——替换时保留 tab 栏/工具栏/地址栏的既有度量与灰阶。
-- **loading 态已设计、未触发**：`dot-pulse` 动画与琥珀状态字、状态三信号文案全部就绪，但 `sessions` store 没有任何 action 会把 status 置为 `loading`。阶段 2 接真实加载事件时直接驱动，不要另造加载视觉。
+- **右侧已是真实浏览器（阶段 2 交付）**：主进程 WebContentsView（persist:browse 分区）+ 多 Tab 管理 + 导航/地址栏/最小快捷键；tab 栏/工具栏/地址栏沿用既有度量与灰阶。浏览器是未绑定会话的单例：切会话不影响浏览器，右侧不得出现任何会话信息或板面元素。
+- **会话状态灯 loading 仍未触发**：`dot-pulse` 动画与琥珀状态字、状态三信号文案就绪，但 `sessions` store 没有任何 action 会把 status 置为 `loading`。原预期"阶段 2 接真实加载事件直接驱动"已修正——阶段 2 浏览器与会话无绑定，驱动会话灯即伪造绑定事实；驱动时点推迟到阶段 4 会话绑定时，仍用既有视觉，不另造加载动画。浏览器的 loading 视觉存在于 Tab（LoadingOutlined）与工具栏（刷新↔停止），与会话状态灯无关。
 - **会话元数据已持久化**：主进程 `userData/sessions.json`（schema version 1，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写；演示种子数据与「演示数据」签已随持久化接入移除，首启空列表呈现「尚无会话」空态。持久化不改变任何视觉决策，仅移除诚实性标注。
-- **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / HomeOutlined / PlusOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
+- **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
 - **`--amber-ink-dim`（#4a3a00）在 `:root` 定义但零引用**：源码里存在、体系里未启用，未收录进本记录的 token 表；启用前不要引用。
-- **单 tab**：Chrome 侧只渲染一个 active tab 示意，多 tab 管理是阶段 2 范围。
 - **无断点体系**：弹性由窗口最小尺寸（1080×680）与左栏 220–420px 拖拽承担；不要引入媒体查询断点。

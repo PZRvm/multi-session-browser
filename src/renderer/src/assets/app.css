@@ -477,23 +477,105 @@ body.col-resizing {
 .chrome-tab {
   display: flex;
   align-items: center;
+  gap: 8px;
   height: 30px;
   padding: 0 14px;
   border-radius: 8px 8px 0 0;
   background: transparent;
+  min-width: 0;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
 }
 
 .chrome-tab.active {
   background: var(--chrome-white);
 }
 
+/* 非激活 tab 悬停 / 键盘聚焦：半透明蒙版加深，不引入新色 */
+.chrome-tab:not(.active):hover,
+.chrome-tab:not(.active):focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* 右侧控件不使用全局琥珀焦点环，聚焦反馈由蒙版 / 描边承担 */
+.chrome-tab:focus-visible {
+  outline: none;
+}
+
 .chrome-tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 180px;
   font-size: 12px;
   color: var(--chrome-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chrome-tab-favicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+
+img.chrome-tab-favicon {
+  object-fit: contain;
+}
+
+/* favicon 缺省（about:blank 等未取到图标）时用灰阶占位圆点，不用远程占位图 */
+.chrome-tab-favicon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chrome-disabled);
+}
+
+/* 关闭钮：悬停所在 tab 时显现（始终占位，不引发标题回流）；最后一个 tab 禁用 */
+.chrome-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.chrome-tab:hover .chrome-tab-close,
+.chrome-tab-close:focus-visible {
+  opacity: 1;
+}
+
+.chrome-tab-close:focus-visible {
+  outline: none;
+}
+
+.chrome-tab-close:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--chrome-ink);
+}
+
+.chrome-tab-close:disabled {
+  cursor: not-allowed;
+}
+
+.chrome-tab:hover .chrome-tab-close:disabled {
+  opacity: 0.4;
 }
 
 .chrome-newtab {
@@ -506,9 +588,21 @@ body.col-resizing {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--chrome-disabled);
+  color: var(--chrome-ink-dim);
   font-size: 13px;
-  cursor: not-allowed;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.chrome-newtab:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--chrome-ink);
+}
+
+.chrome-newtab:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--chrome-ink);
 }
 
 .chrome-toolbar {
@@ -541,22 +635,63 @@ body.col-resizing {
   cursor: not-allowed;
 }
 
+.chrome-nav button:not(:disabled) {
+  color: var(--chrome-ink-dim);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-nav button:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--chrome-ink);
+}
+
+.chrome-nav button:focus-visible {
+  outline: none;
+}
+
+.chrome-nav button:not(:disabled):focus-visible {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--chrome-ink);
+}
+
+/* 真实地址栏输入框：完整 URL 展示（不做 scheme 折叠），聚焦后描边加深示意焦点 */
 .chrome-omnibox {
   flex: 1;
   max-width: 560px;
   margin: 0 auto;
   height: 28px;
-  line-height: 28px;
   padding: 0 14px;
   border: 1px solid var(--chrome-line);
   border-radius: 14px;
   background: var(--chrome-white);
+  font-family: inherit;
   font-size: 12px;
-  color: var(--chrome-ink-dim);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--chrome-ink);
+  text-align: left;
+  cursor: text;
+  user-select: text;
+}
+
+.chrome-omnibox::placeholder {
+  color: var(--chrome-disabled);
+}
+
+.chrome-omnibox:disabled {
+  color: var(--chrome-disabled);
+  cursor: default;
+}
+
+.chrome-omnibox:focus-visible {
+  outline: none;
+  border-color: var(--chrome-ink-dim);
+}
+
+/* 输入无效行内提示：边框短暂转 Chrome 错误红（#d93025），2.5s 自动消退或下次输入即消 */
+.chrome-omnibox.chrome-omnibox-invalid {
+  border-color: #d93025;
 }
 
 .chrome-devtools-hint {
@@ -565,37 +700,9 @@ body.col-resizing {
   color: var(--chrome-ink-dim);
 }
 
-/* 内容区空态 */
+/* 内容锚点：WebContentsView 按此矩形覆盖在 shell 之上，内部不放任何可见内容 */
 .chrome-content {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 32px;
+  min-height: 0;
   background: var(--chrome-white);
-  text-align: center;
-}
-
-.content-flap {
-  display: inline-flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.content-session-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--chrome-ink);
-}
-
-.content-session-status {
-  font-size: 12px;
-  color: var(--chrome-ink-dim);
-}
-
-.content-hint {
-  font-size: 12px;
-  color: var(--chrome-ink-dim);
 }
