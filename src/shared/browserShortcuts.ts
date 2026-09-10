@@ -17,12 +17,7 @@
 // - 数字键（Cmd/Ctrl+1~9）切 Tab
 
 export type BrowserShortcutId =
-  | 'reload'
-  | 'new-tab'
-  | 'close-tab'
-  | 'focus-address'
-  | 'toggle-devtools'
-  | 'close-devtools'
+  'reload' | 'new-tab' | 'close-tab' | 'focus-address' | 'toggle-devtools' | 'close-devtools'
 
 /** 单条键位：key 为 KeyboardEvent.key / before-input-event 的 key（字母小写、功能键原名） */
 export interface BrowserShortcut {

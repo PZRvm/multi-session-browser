@@ -97,7 +97,9 @@ app.whenReady().then(() => {
     host.webContents.on('did-fail-load', (_e, code, desc, url) =>
       console.log('[smoke3] devtools wc did-fail-load:', code, desc, url.slice(0, 80))
     )
-    host.webContents.on('render-process-gone', () => console.log('[smoke3] devtools wc render-gone!'))
+    host.webContents.on('render-process-gone', () =>
+      console.log('[smoke3] devtools wc render-gone!')
+    )
     win.contentView.addChildView(host)
     const [w, h] = win.getContentSize()
     host.setBounds({ x: 0, y: h - 320, width: w, height: 320 })
@@ -112,7 +114,12 @@ app.whenReady().then(() => {
           writeFileSync('/tmp/smoke3-page.png', pageImg.toPNG())
           const hostImg = await host.webContents.capturePage()
           writeFileSync('/tmp/smoke3-host.png', hostImg.toPNG())
-          console.log('[smoke3] capture done: page =', pageImg.getSize(), 'host =', hostImg.getSize())
+          console.log(
+            '[smoke3] capture done: page =',
+            pageImg.getSize(),
+            'host =',
+            hostImg.getSize()
+          )
         } catch (err) {
           console.log('[smoke3] capture failed:', String(err))
         }

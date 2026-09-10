@@ -14,12 +14,14 @@ const INVALID_HINT_MS = 2500
 function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
+  const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
   const focusTick = useBrowserStore((s) => s.focusTick)
   const goBack = useBrowserStore((s) => s.goBack)
   const goForward = useBrowserStore((s) => s.goForward)
   const reload = useBrowserStore((s) => s.reload)
   const stop = useBrowserStore((s) => s.stop)
   const navigate = useBrowserStore((s) => s.navigate)
+  const toggleDevTools = useBrowserStore((s) => s.toggleDevTools)
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
@@ -158,8 +160,18 @@ function Toolbar(): React.JSX.Element {
         onBlur={() => setDraft(null)}
         onKeyDown={onKeyDown}
       />
-      {/* F12 开发者工具阶段 3 实装，提示字样按设计保留 */}
-      <span className="chrome-devtools-hint">F12 开发者工具</span>
+      {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
+      <button
+        type="button"
+        className="chrome-devtools-toggle"
+        aria-label="开发者工具"
+        aria-pressed={devtoolsOpen}
+        title={devtoolsOpen ? '关闭开发者工具（Esc）' : '打开开发者工具（F12）'}
+        disabled={!activeTab}
+        onClick={() => void toggleDevTools()}
+      >
+        开发者工具
+      </button>
     </div>
   )
 }

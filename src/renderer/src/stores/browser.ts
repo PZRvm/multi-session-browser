@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import type { BrowserSnapshot, BrowserTabState } from '../../../shared/browser'
 
-// 浏览器状态是主进程快照的纯镜像：tabs/activeTabId 原样存储不加工，本地不造任何 tab 字段；
-// 激活 tab 等派生值由组件用 selector 自行计算。setBounds 属布局上报，不进 store。
+// 浏览器状态是主进程快照的纯镜像：tabs/activeTabId/devtoolsOpen 原样存储不加工，
+// 本地不造任何 tab 字段；激活 tab 等派生值由组件用 selector 自行计算。
+// setBounds / setDevToolsBounds 属布局上报，不进 store。
 interface BrowserState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  devtoolsOpen: boolean
   focusTick: number
   init: () => Promise<void>
   newTab: (url?: string) => Promise<void>
@@ -16,6 +18,8 @@ interface BrowserState {
   goForward: () => Promise<void>
   reload: () => Promise<void>
   stop: () => Promise<void>
+  toggleDevTools: () => Promise<void>
+  closeDevTools: () => Promise<void>
 }
 
 let initialized = false
@@ -23,14 +27,15 @@ let initialized = false
 // 推送与命令返回值同构，以主进程数据为唯一事实源；双到达重复 set 幂等无害
 const applySnapshot = (
   set: (partial: Partial<BrowserState>) => void,
-  { tabs, activeTabId }: BrowserSnapshot
+  { tabs, activeTabId, devtoolsOpen }: BrowserSnapshot
 ): void => {
-  set({ tabs, activeTabId })
+  set({ tabs, activeTabId, devtoolsOpen })
 }
 
-export const useBrowserStore = create<BrowserState>((set) => ({
+export const useBrowserStore = create<BrowserState>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  devtoolsOpen: false,
   focusTick: 0,
 
   // 先订阅推送、再拉取初始快照：订阅先就位后拉取期间到达的推送不会丢失，避免推送与拉取竞态
@@ -123,6 +128,26 @@ export const useBrowserStore = create<BrowserState>((set) => ({
       applySnapshot(set, await window.api.browser.stop())
     } catch (error) {
       console.error('停止加载失败', error)
+    }
+  },
+
+  // 开发者工具开关与既有命令同规：不乐观更新，IPC 成功后以返回快照更新，失败保持原状态
+  toggleDevTools: async () => {
+    try {
+      applySnapshot(set, await window.api.browser.toggleDevTools())
+    } catch (error) {
+      console.error('切换开发者工具失败', error)
+    }
+  },
+
+  // 关闭走同一 toggle 通道（契约只暴露 toggle 一个开关通道）：已开启时再 toggle 即关闭；
+  // 未开启时 no-op，保证「close」语义不会被误用为开启
+  closeDevTools: async () => {
+    if (!get().devtoolsOpen) return
+    try {
+      applySnapshot(set, await window.api.browser.toggleDevTools())
+    } catch (error) {
+      console.error('关闭开发者工具失败', error)
     }
   }
 }))
