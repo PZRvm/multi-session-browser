@@ -1,34 +1,71 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { App as AntdApp, ConfigProvider } from 'antd'
+import zhCN from 'antd/locale/zh_CN'
+import SessionPanel from './components/SessionPanel'
+import BrowserFrame from './components/BrowserFrame'
+
+const PANEL_MIN = 220
+const PANEL_MAX = 420
+const PANEL_DEFAULT = 280
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const dragging = useRef(false)
+
+  const onPointerMove = useCallback((e: PointerEvent): void => {
+    if (!dragging.current) return
+    const width = Math.min(PANEL_MAX, Math.max(PANEL_MIN, e.clientX))
+    setPanelWidth(width)
+  }, [])
+
+  const stopDrag = useCallback((): void => {
+    dragging.current = false
+    document.body.classList.remove('col-resizing')
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', stopDrag)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', stopDrag)
+    }
+  }, [onPointerMove, stopDrag])
+
+  const startDrag = (): void => {
+    dragging.current = true
+    document.body.classList.add('col-resizing')
+  }
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        token: {
+          colorPrimary: '#FFB000',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif'
+        }
+      }}
+    >
+      <AntdApp>
+        <div className="app-shell">
+          <div className="panel-left" style={{ width: panelWidth }}>
+            <SessionPanel />
+          </div>
+          <div
+            className="panel-divider"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="调整面板宽度"
+            onPointerDown={startDrag}
+          />
+          <div className="panel-right">
+            <BrowserFrame />
+          </div>
         </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
-      </div>
-      <Versions></Versions>
-    </>
+      </AntdApp>
+    </ConfigProvider>
   )
 }
 

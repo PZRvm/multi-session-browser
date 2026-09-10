@@ -1,5 +1,7 @@
 out
 dist
+.zcode
+.impeccable
 pnpm-lock.yaml
 LICENSE.md
 tsconfig.json

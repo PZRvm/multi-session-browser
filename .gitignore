@@ -4,3 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+
+# 本地工具产物
+.impeccable/
+.zcode/

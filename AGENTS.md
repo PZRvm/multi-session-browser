@@ -1,0 +1,51 @@
+# AGENTS.md
+
+多会话测试浏览器（multi-session-browser）：面向软件测试人员的 Electron 桌面工具。左侧管理多个完全隔离的浏览器会话（Cookie/缓存/登录态互不影响），右侧是 Chrome 式浏览区，每个会话可独立唤起 DevTools。npm 管理（勿用 pnpm/yarn）。
+
+## 改动前必读
+
+- `PRD.md`（根目录）：需求、业务规则、验收标准的唯一依据；`docs/PRD.md` 是早期副本，可能过期，勿作为依据
+- `notes/steps/step-01~08.md`：8 阶段开发计划（1-7 为一期，8 为二期），按阶段顺序开发，二期功能不要提前实现
+- `PRODUCT.md`：产品事实与设计原则（界面纯中文、产品名"多会话测试浏览器"）
+
+## 常用命令
+
+```bash
+npm run dev          # 开发（electron-vite dev，主/preload 改动会重启应用，renderer 走 HMR）
+npm run typecheck    # tsc 双检查（node + web），改完必跑
+npm run lint         # eslint --cache
+npm run format       # prettier
+npm run build        # typecheck + 构建
+npm run build:win    # Windows 安装包（另有 build:mac / build:linux / build:unpack）
+```
+
+无测试框架；验证手段是 typecheck + lint + `npm run dev` 手动验证。
+
+## 架构与分层规则
+
+Electron 三进程结构（electron-vite 脚手架）：
+
+- `src/main/`：主进程。窗口创建、IPC handler、会话管理都将在这里（见 src/main/index.ts）。可用 Node API。
+- `src/preload/`：contextBridge 桥。暴露给 renderer 的 API 写在 `api` 对象，同步更新 `index.d.ts` 类型。
+- `src/renderer/`：React UI（React 19 + antd 6 + zustand 5）。路径别名 `@renderer` → `src/renderer/src`。禁止直接访问 Node/Electron API，一切经 preload 暴露的 `window.api` IPC 通信。
+- `resources/`：需打包的静态资源，主进程用 `?asset` 导入；`build/`：electron-builder 图标与签名配置；`out/`：构建产物，勿手改。
+
+核心领域规则（PRD 4.x，违反即事故）：会话隔离用主进程 `session.fromPartition('persist:sess-<id>')`，每会话独立分区，禁止共享；浏览器嵌入用 `WebContentsView`（BrowserView 已废弃，勿用）；DevTools 挂在具体 webContents 上，与会话强绑定。
+
+## 代码约定
+
+- Prettier：无分号、单引号、行宽 100、无尾逗号；.editorconfig：LF、2 空格缩进
+- ESLint 用 @electron-toolkit ts 配置 + react-hooks 规则，提交前 lint 和 typecheck 必须通过
+- 界面文案一律中文；面向专业测试人员，不写引导式提示文案
+
+## 界面设计
+
+- 前端页面设计（新界面、布局与视觉改动、组件风格调整）必须使用 impeccable 技能进行：动手前先走 `$impeccable` 对应命令的流程（新界面用 new-work 路径，已有界面微调用 polish/critique 等 scoped 命令），不要绕过技能直接凭感觉写样式
+- 设计决策以 `PRODUCT.md` 的产品事实与设计原则为依据（纯中文界面、效率优先、Chrome 交互惯例）
+
+## 坑点
+
+- `.npmrc` 配了 npmmirror 镜像下载 Electron 二进制（国内网络环境），不要删除；`postinstall` 会执行 electron-builder install-app-deps
+- 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
+- PRD 5.1 提到的 Playwright 一期不使用（会话隔离由 Electron 原生 partition 承担），勿引入
+- 平台差异：macOS 关窗不退出（模板行为）；打包后 `resources/icon.png` 仅 Linux 用，Windows/Mac 用 `build/` 下的 ico/icns

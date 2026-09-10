@@ -1,0 +1,601 @@
+/* ============================================================
+   多会话测试浏览器 — 到发信息板设计系统
+   左：站台信息板（深色行式栅格） · 右：列车本身（Chrome 语法）
+   ============================================================ */
+
+:root {
+  /* 信息板 */
+  --board-bg: #101418;
+  --board-bg-raised: #1a2026;
+  --board-hairline: #232830;
+  --board-tile: #1a2026;
+  --board-tile-line: #2a313a;
+  --board-ink: #f5f0e8;
+  --board-ink-dim: #9aa3ad;
+  --amber: #ffb000;
+  --amber-strong: #ffc133;
+  --amber-press: #e6a000;
+  --amber-ink: #221a00;
+  --amber-ink-dim: #4a3a00;
+  --idle: #6b7280;
+  --loading: #ffb000;
+
+  /* Chrome 右侧 */
+  --chrome-tabbar: #dee1e6;
+  --chrome-toolbar: #f1f3f4;
+  --chrome-line: #c7cbd1;
+  --chrome-ink: #3c4043;
+  --chrome-ink-dim: #5f6368;
+  --chrome-disabled: #b0b4b9;
+  --chrome-white: #ffffff;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root,
+#root .ant-app {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+  background: var(--board-bg);
+  line-height: 1.5;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: var(--board-ink);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--amber);
+  color: var(--amber-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ---------- 布局骨架 ---------- */
+
+.app-shell {
+  display: flex;
+  height: 100%;
+}
+
+.panel-left {
+  flex: none;
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.panel-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-divider {
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 10;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+
+.panel-divider::before {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 100%;
+  margin-left: 2px;
+  background: #0b0e11;
+}
+
+.panel-divider:hover::before,
+body.col-resizing .panel-divider::before {
+  width: 2px;
+  background: var(--amber);
+}
+
+body.col-resizing {
+  cursor: col-resize;
+}
+
+/* ---------- 翻牌计数砖 ---------- */
+
+.flap-counter {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.flap-tile {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 30px;
+  background: var(--board-tile);
+  border: 1px solid var(--board-tile-line);
+  border-radius: 4px;
+  perspective: 120px;
+  overflow: hidden;
+}
+
+/* 翻牌中缝 */
+.flap-tile::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+.flap-digit {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--amber);
+  line-height: 1;
+}
+
+.flap-flip {
+  animation: flap-turn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes flap-turn {
+  0% {
+    transform: rotateX(-84deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+
+/* ---------- 左侧：会话信息板 ---------- */
+
+.session-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--board-bg);
+}
+
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--board-hairline);
+}
+
+.board-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--board-ink);
+}
+
+.board-title-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.board-count-label {
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.session-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.session-list::-webkit-scrollbar-thumb {
+  background: var(--board-tile-line);
+  border-radius: 4px;
+}
+
+.session-list::-webkit-scrollbar-thumb:hover {
+  background: #3a434e;
+}
+
+.session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-row {
+  padding: 10px 12px 9px 14px;
+  border-bottom: 1px solid var(--board-hairline);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.session-row:hover {
+  background: var(--board-bg-raised);
+}
+
+/* 选中行：机场信息屏的高亮航班——琥珀反白 */
+.session-row.selected {
+  background: var(--amber);
+}
+
+.session-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.session-dot.idle {
+  background: var(--idle);
+}
+
+.session-dot.loading {
+  background: var(--loading);
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.session-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--board-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-page {
+  margin-left: auto;
+  flex: none;
+  max-width: 45%;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  padding-left: 15px;
+}
+
+.session-note {
+  font-size: 12px;
+  color: var(--board-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-status {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.session-status.idle {
+  color: var(--board-ink-dim);
+}
+
+.session-status.loading {
+  color: var(--loading);
+}
+
+.session-menu {
+  flex: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.session-row:hover .session-menu,
+.session-row.selected .session-menu {
+  display: inline-flex;
+}
+
+.session-menu:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--board-ink);
+}
+
+.session-rename {
+  min-width: 0;
+  flex: 1;
+  font-weight: 600;
+}
+
+/* 反白行内的文字与控件配色 */
+.session-row.selected .session-name,
+.session-row.selected .session-note,
+.session-row.selected .session-page {
+  color: var(--amber-ink);
+}
+
+.session-row.selected .session-note,
+.session-row.selected .session-page {
+  opacity: 0.72;
+}
+
+.session-row.selected .session-status {
+  color: var(--amber-ink);
+}
+
+.session-row.selected .session-dot.idle {
+  background: var(--amber-ink);
+}
+
+.session-row.selected .session-menu {
+  color: var(--amber-ink);
+}
+
+.session-row.selected .session-menu:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.session-row.selected .ant-input {
+  color: var(--amber-ink);
+}
+
+/* 空态 */
+.session-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.session-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+
+.session-empty-desc {
+  font-size: 12px;
+  color: var(--board-ink-dim);
+}
+
+/* 底部新建 */
+.board-foot {
+  padding: 12px;
+  border-top: 1px solid var(--board-hairline);
+}
+
+.new-session {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  border: none;
+  border-radius: 6px;
+  background: var(--amber);
+  color: var(--amber-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.new-session:hover {
+  background: var(--amber-strong);
+}
+
+.new-session:active {
+  background: var(--amber-press);
+}
+
+/* ---------- 右侧：Chrome 浏览器框架 ---------- */
+
+.browser-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--chrome-white);
+}
+
+.chrome-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+  padding: 6px 10px 0;
+  background: var(--chrome-tabbar);
+}
+
+.chrome-tab {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+}
+
+.chrome-tab.active {
+  background: var(--chrome-white);
+}
+
+.chrome-tab-title {
+  max-width: 180px;
+  font-size: 12px;
+  color: var(--chrome-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chrome-newtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 3px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-disabled);
+  font-size: 13px;
+  cursor: not-allowed;
+}
+
+.chrome-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+
+.chrome-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-disabled);
+  font-size: 16px;
+  cursor: not-allowed;
+}
+
+.chrome-omnibox {
+  flex: 1;
+  max-width: 560px;
+  margin: 0 auto;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 14px;
+  background: var(--chrome-white);
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chrome-devtools-hint {
+  flex: none;
+  font-size: 11px;
+  color: var(--chrome-ink-dim);
+}
+
+/* 内容区空态 */
+.chrome-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  background: var(--chrome-white);
+  text-align: center;
+}
+
+.content-flap {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.content-session-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chrome-ink);
+}
+
+.content-session-status {
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+
+.content-hint {
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
