@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, WebContentsView } from 'electron'
 import { join } from 'path'
+import { writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
@@ -73,6 +74,62 @@ app.whenReady().then(() => {
 
   // 初始单个新标签页（无 url，about:blank）；浏览器状态不持久化，重启即回到此初始态
   tabManager.newTab()
+
+  // ===== [smoke3] 阶段3步骤1 DevTools 嵌入冒烟临时接线（正式装配时移除，见计划步骤 6） =====
+  // 文档模式验证：new WebContentsView() 宿主 → addChildView → setBounds →
+  // setDevToolsWebContents → openDevTools；12s 双 view 截屏取证；13s 关闭 / 16s 重开
+  setTimeout(() => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    // 开一个真实页面作为 DevTools 的观察对象（newTab 后即成为激活 Tab）
+    const snapshot = tabManager?.newTab('https://example.com')
+    console.log('[smoke3] newTab snapshot =', JSON.stringify(snapshot))
+    const wc = tabManager?.getActiveWebContents()
+    if (!wc) return
+    wc.on('did-navigate', (_e, url) => console.log('[smoke3] page did-navigate:', url))
+    wc.on('did-fail-load', (_e, code, desc, url) =>
+      console.log('[smoke3] page did-fail-load:', code, desc, url)
+    )
+    const host = new WebContentsView()
+    host.webContents.on('did-finish-load', () => {
+      console.log('[smoke3] devtools wc did-finish-load, url =', host.webContents.getURL())
+    })
+    host.webContents.on('did-fail-load', (_e, code, desc, url) =>
+      console.log('[smoke3] devtools wc did-fail-load:', code, desc, url.slice(0, 80))
+    )
+    host.webContents.on('render-process-gone', () => console.log('[smoke3] devtools wc render-gone!'))
+    win.contentView.addChildView(host)
+    const [w, h] = win.getContentSize()
+    host.setBounds({ x: 0, y: h - 320, width: w, height: 320 })
+    wc.setDevToolsWebContents(host.webContents)
+    wc.openDevTools()
+    console.log('[smoke3] opened: isDevToolsOpened =', wc.isDevToolsOpened())
+    // 12s：对页面 view 与 DevTools 宿主 view 各截一张，落 /tmp 供目视核对
+    setTimeout(() => {
+      void (async () => {
+        try {
+          const pageImg = await wc.capturePage()
+          writeFileSync('/tmp/smoke3-page.png', pageImg.toPNG())
+          const hostImg = await host.webContents.capturePage()
+          writeFileSync('/tmp/smoke3-host.png', hostImg.toPNG())
+          console.log('[smoke3] capture done: page =', pageImg.getSize(), 'host =', hostImg.getSize())
+        } catch (err) {
+          console.log('[smoke3] capture failed:', String(err))
+        }
+      })()
+    }, 12000)
+    setTimeout(() => {
+      wc.closeDevTools()
+      win.contentView.removeChildView(host)
+      console.log('[smoke3] closed: isDevToolsOpened =', wc.isDevToolsOpened())
+    }, 13000)
+    setTimeout(() => {
+      win.contentView.addChildView(host)
+      wc.openDevTools()
+      console.log('[smoke3] reopened: isDevToolsOpened =', wc.isDevToolsOpened())
+    }, 16000)
+  }, 5000)
+  // ===== [/smoke3] =====
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
