@@ -22,7 +22,7 @@ web
 
 - 桌面客户端（Windows/Mac），所有会话本地运行，不依赖第三方浏览器，无远程/分布式形态
 - 典型使用：测试人员全天开着它，多会话并行挂不同账号，高频在会话间切换、批量打开测试地址、随时按 F12 查看当前会话的请求和存储
-- 需求依据是根目录 `PRD.md`（docs/ 下有副本），分阶段开发计划在 `notes/steps/step-01~08.md`；设计工作应对齐这两处文档
+- 需求依据是根目录 `PRD.md`（docs/ 下有副本），分阶段开发计划在 `notes/steps/step-01~step-08`（文件名含阶段主题）；设计工作应对齐这两处文档
 
 ## Capabilities and Constraints
 
@@ -44,7 +44,7 @@ web
 ## Evidence on Hand
 
 - `PRD.md` / `docs/PRD.md`：完整需求、业务规则、验收标准
-- `notes/steps/step-01~08.md`：8 阶段开发计划（一期 1-7，二期 8）
+- `notes/steps/step-01~step-08`（文件名含阶段主题）：8 阶段开发计划（一期 1-7，二期 8）
 - 脚手架已就绪：electron-vite + Electron 39 + React 19 + TypeScript + antd 6 + zustand + electron-store，UI 尚为模板初始状态，无既有设计
 - 无真实用户数据、案例、截图或宣传素材；后续工作不得虚构此类内容
 
