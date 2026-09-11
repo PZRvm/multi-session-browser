@@ -1,23 +1,17 @@
 import { useEffect } from 'react'
-import { BROWSER_SHORTCUTS, type BrowserShortcutId } from '../../../../shared/browserShortcuts'
+import { matchBrowserShortcut, type BrowserShortcutId } from '../../../../shared/browserShortcuts'
 import { useBrowserStore } from '../../stores/browser'
+import { useUiStore } from '../../stores/ui'
 
-/**
- * 键位精确匹配，与 manager 侧（before-input-event）同一规则：字母键 = control||meta
- * 命中且 shift/alt 均未按下（避免吞掉 Cmd+Shift+R 等组合），多字符功能键（F5/F12/
- * Escape）不带任何修饰；未命中返回 null 放行。
- */
+/** 键盘事件适配 shared 单源匹配函数（规则见 shared/browserShortcuts），keydown 由挂载点保证 */
 function matchShortcut(e: KeyboardEvent): BrowserShortcutId | null {
-  const key = e.key.toLowerCase()
-  for (const shortcut of BROWSER_SHORTCUTS) {
-    if (shortcut.key.toLowerCase() !== key) continue
-    if (shortcut.key.length === 1) {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) return shortcut.id
-    } else if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-      return shortcut.id
-    }
-  }
-  return null
+  return matchBrowserShortcut({
+    key: e.key,
+    ctrl: e.ctrlKey,
+    meta: e.metaKey,
+    shift: e.shiftKey,
+    alt: e.altKey
+  })
 }
 
 /** Cmd/Ctrl+L 不经主进程：直接聚焦 shell 内地址栏，效果与 Toolbar 消费 focus-address 推送一致 */
@@ -47,6 +41,9 @@ export function useBrowserShortcuts(): void {
     const onKeyDown = (e: KeyboardEvent): void => {
       // 输入法组合态的按键属于候选操作，不触发快捷键
       if (e.isComposing) return
+      // 全局弹层（删除确认框等）打开期间冻结浏览器快捷键：原生层已收起，
+      // F12/Cmd+W 等若照常生效是对隐藏浏览器的盲操作（登记方见 stores/ui.ts）
+      if (useUiStore.getState().overlayDepth > 0) return
       const action = matchShortcut(e)
       if (!action) return
       // 事件时刻现读 store 取最新 activeTabId，避免闭包快照过期；动作失败由 store 内部吞错

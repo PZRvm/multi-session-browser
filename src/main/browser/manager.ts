@@ -5,29 +5,27 @@
 import { BrowserWindow, WebContentsView } from 'electron'
 import type { Input, WebContents } from 'electron'
 import type { BrowserSnapshot, BrowserTabState, SetBoundsPayload } from '../../shared/browser'
-import { BROWSER_SHORTCUTS, type BrowserShortcutId } from '../../shared/browserShortcuts'
+import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
+import { isOpenableUrl, logLoadFailure } from './url'
 
 const BROWSE_PARTITION = 'persist:browse'
 const BLANK_URL = 'about:blank'
 const BLANK_TITLE = '新标签页'
+/** tab title 钳制上限，与会话侧 clampString 一致，防超长 title 刷全量快照推送 */
+const TITLE_MAX = 200
+/** 悬挂（确认框等弹层）时的收起矩形 */
+const HIDDEN_RECT: SetBoundsPayload = { x: 0, y: 0, width: 0, height: 0 }
 
-/**
- * 页面侧快捷键精确匹配（键位表见 shared/browserShortcuts）：字母键要求
- * control||meta 命中且 shift/alt 均未按下（避免吞掉 Cmd+Shift+R 等组合），
- * 多字符功能键（F5）不带任何修饰；仅处理 keyDown，未命中返回 null 放行。
- */
+/** 页面侧快捷键匹配：Input 适配 shared 单源匹配函数（规则见 shared/browserShortcuts） */
 function matchShortcut(input: Input): BrowserShortcutId | null {
   if (input.type !== 'keyDown') return null
-  const key = input.key.toLowerCase()
-  for (const shortcut of BROWSER_SHORTCUTS) {
-    if (shortcut.key.toLowerCase() !== key) continue
-    if (shortcut.key.length === 1) {
-      if ((input.control || input.meta) && !input.shift && !input.alt) return shortcut.id
-    } else if (!input.control && !input.meta && !input.shift && !input.alt) {
-      return shortcut.id
-    }
-  }
-  return null
+  return matchBrowserShortcut({
+    key: input.key,
+    ctrl: input.control,
+    meta: input.meta,
+    shift: input.shift,
+    alt: input.alt
+  })
 }
 
 interface TabEntry {
@@ -75,6 +73,9 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
   let seq = 0
   let activeId: string | null = null
   let bounds: SetBoundsPayload | null = null
+  // 悬挂态：renderer 上报零矩形（确认框等弹层收起原生层）期间置位，
+  // 此后挂入的 view 一律按 HIDDEN_RECT 收起；布局缓存保留最后有效值，悬挂解除自动恢复
+  let suspended = false
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
 
@@ -109,11 +110,16 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     for (const cb of listeners) cb(snapshot)
   }
 
+  /** 挂入 view 时应应用的矩形：悬挂收起优先，其次最后缓存的有效布局，均无则零矩形 */
+  function currentRect(): SetBoundsPayload {
+    return suspended ? HIDDEN_RECT : (bounds ?? HIDDEN_RECT)
+  }
+
   function attachView(tab: TabEntry): void {
     const win = getWindow()
     if (!win) return
     win.contentView.addChildView(tab.view)
-    if (bounds) tab.view.setBounds(bounds)
+    tab.view.setBounds(currentRect())
   }
 
   function detachView(tab: TabEntry): void {
@@ -176,7 +182,7 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
       emitChange()
     })
     wc.on('page-title-updated', (_event, title) => {
-      tab.title = title
+      tab.title = title.length > TITLE_MAX ? title.slice(0, TITLE_MAX) : title
       emitChange()
     })
     wc.on('page-favicon-updated', (_event, icons) => {
@@ -237,17 +243,18 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
       }
     })
 
-    // target=_blank / window.open 一律拒绝弹窗，转为本浏览器新 Tab
+    // target=_blank / window.open 一律拒绝弹窗，转为本浏览器新 Tab；
+    // URL 是页面可控输入，仅放行与地址栏一致的 scheme 白名单，其余（mailto: 等）拒绝且不建 Tab
     wc.setWindowOpenHandler(({ url: openUrl }) => {
-      if (openUrl) newTab(openUrl)
+      if (openUrl && isOpenableUrl(openUrl)) newTab(openUrl)
       return { action: 'deny' }
     })
 
     // 先激活（挂入 contentView、应用当前 bounds），再发起加载——保证首条快照已带 activeTabId
     activate(id)
 
-    // 导航失败（坏域名等）由 Chromium 内建错误页呈现，此处只吞掉 reject 防未处理异常
-    void wc.loadURL(target).catch(() => {})
+    // 导航失败（坏域名等）由 Chromium 内建错误页呈现；reject 走统一日志（ERR_ABORTED 静默）
+    void wc.loadURL(target).catch((error: unknown) => logLoadFailure(target, error))
 
     emitChange()
     return buildSnapshot()
@@ -286,7 +293,14 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
   }
 
   function setBounds(rect: SetBoundsPayload): void {
-    bounds = rect
+    // 零矩形是"收起信号"（确认框等弹层悬挂）而非布局：置悬挂态并作用于激活 view，
+    // 不污染布局缓存；非零矩形解除悬挂并记忆布局
+    if (rect.width <= 0 || rect.height <= 0) {
+      suspended = true
+    } else {
+      suspended = false
+      bounds = rect
+    }
     // 仅作用于激活 view；未激活 view 保持脱离状态，切回时由 activate 应用
     if (activeId === null) return
     const tab = tabs.get(activeId)
@@ -346,11 +360,11 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     const tab = tabs.get(activeId)
     const win = getWindow()
     if (!tab || !win || tab.view.webContents.isDestroyed()) return
-    // 已挂入时只同步 bounds；未挂入则复用 attachView 路径（activate 与重挂两路共用）
+    // 已挂入时只同步 bounds（含悬挂收起）；未挂入则复用 attachView 路径（activate 与重挂两路共用）
     if (!win.contentView.children.includes(tab.view)) {
       attachView(tab)
-    } else if (bounds) {
-      tab.view.setBounds(bounds)
+    } else {
+      tab.view.setBounds(currentRect())
     }
   }
 

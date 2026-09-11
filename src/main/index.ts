@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -8,6 +8,59 @@ import { createTabManager, type TabManager } from './browser/manager'
 
 // 模块级持有：createWindow 在窗口（重）建时需调用 attachToWindow 重挂激活 view
 let tabManager: TabManager | null = null
+
+/**
+ * 安装中文应用菜单（替代 Electron 默认英文菜单）。默认菜单的问题有二：
+ * ① macOS 菜单栏恒显示（autoHideMenuBar 仅影响 Win/Linux），英文 File/Edit/View
+ *   违反「界面纯中文」产品原则；② 默认 File/View 角色带 ⌘W（关窗）/⌘R（重载 shell）
+ *   等加速键，与产品键位（⌘W 关 Tab、⌘R 刷页面）语义冲突，且菜单加速键优先于
+ *   before-input-event——故直接裁掉 File/View 菜单，只保留 mac 文本编辑必需的
+ *   Edit 角色与窗口管理项，全部中文文案。
+ */
+function installChineseMenu(): void {
+  const appName = '多会话测试浏览器'
+  const appMenu =
+    process.platform === 'darwin'
+      ? {
+          label: appName,
+          submenu: [
+            { role: 'about' as const, label: `关于${appName}` },
+            { type: 'separator' as const },
+            { role: 'services' as const, label: '服务' },
+            { type: 'separator' as const },
+            { role: 'hide' as const, label: `隐藏${appName}` },
+            { role: 'hideOthers' as const, label: '隐藏其他' },
+            { role: 'unhide' as const, label: '全部显示' },
+            { type: 'separator' as const },
+            { role: 'quit' as const, label: `退出${appName}` }
+          ]
+        }
+      : { label: appName, submenu: [{ role: 'quit' as const, label: '退出' }] }
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      appMenu,
+      {
+        label: '编辑',
+        submenu: [
+          { role: 'undo', label: '撤销' },
+          { role: 'redo', label: '重做' },
+          { type: 'separator' },
+          { role: 'cut', label: '剪切' },
+          { role: 'copy', label: '复制' },
+          { role: 'paste', label: '粘贴' },
+          { role: 'selectAll', label: '全选' }
+        ]
+      },
+      {
+        label: '窗口',
+        submenu: [
+          { role: 'minimize', label: '最小化' },
+          { role: 'zoom', label: '缩放' }
+        ]
+      }
+    ])
+  )
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -86,6 +139,9 @@ app.whenReady().then(() => {
 
   // 注册会话持久化 IPC handlers（须在窗口创建前就绪，保证 renderer 首帧即可调用）
   registerSessionIpc()
+
+  // 中文应用菜单：先于窗口创建安装，mac 菜单栏首帧即为中文且无冲突加速键
+  installChineseMenu()
 
   // 浏览器装配：manager 持有全部 WebContentsView，IPC handlers 在窗口创建前就绪；
   // 窗口引用一律现取不缓存（macOS 关窗重建场景）

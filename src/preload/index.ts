@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import { BROWSER_CHANNELS } from '../shared/browser'
 import type {
   BrowserSnapshot,
@@ -53,6 +52,8 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.setBounds, payload),
     toggleDevTools: (): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.toggleDevTools),
+    closeDevTools: (): Promise<BrowserSnapshot> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.closeDevTools),
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {
@@ -75,19 +76,16 @@ const api = {
   }
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
+// 只暴露白名单 api 桥，不再暴露 @electron-toolkit/preload 的 electronAPI
+// （其含原始 ipcRenderer 与 process 对象，会让 renderer 绕过 api 白名单任意
+// invoke 全部 IPC 通道——安全边界收口，renderer 一律经 window.api 通信）。
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
 }

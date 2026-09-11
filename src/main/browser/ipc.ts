@@ -10,53 +10,11 @@ import {
   type OkResult,
   type SetBoundsPayload
 } from '../../shared/browser'
+import { createIpcGuards, logFailure } from '../ipc-utils'
 import type { TabManager } from './manager'
-import { normalizeInput } from './url'
+import { logLoadFailure, normalizeInput } from './url'
 
-/** 守卫失败统一抛出的业务错误 */
-function invalidParams(): Error {
-  return new Error('无效的浏览器参数')
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */
-function optionalString(value: unknown): string | undefined {
-  if (value === undefined) return undefined
-  if (typeof value !== 'string') throw invalidParams()
-  return value
-}
-
-/** 读取必填有限 number 字段：缺省或非有限数字判为非法入参 */
-function requiredNumber(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidParams()
-  return value
-}
-
-/** 入参内容摘要（截断，避免垃圾入参刷屏控制台） */
-function summarize(data: unknown): string {
-  let text: string
-  try {
-    text = JSON.stringify(data) ?? String(data)
-  } catch {
-    text = String(data)
-  }
-  const MAX = 200
-  return text.length > MAX ? `${text.slice(0, MAX)}...(截断，总长 ${text.length})` : text
-}
-
-/** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + 入参摘要）后原样 rethrow */
-function logFailure<T>(channel: string, payload: unknown, run: () => T): T {
-  try {
-    return run()
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.warn(`[browser] ${channel} 失败: ${message} payload=${summarize(payload)}`)
-    throw err
-  }
-}
+const { invalidParams, isRecord, optionalString, parseRect } = createIpcGuards('无效的浏览器参数')
 
 /** id 存在性校验：不存在抛错（manager 对不存在 id 是静默 no-op，必须在 handler 层拦截） */
 function requireTabId(manager: TabManager, id: string): void {
@@ -121,14 +79,15 @@ export function registerBrowserIpc(
   )
 
   // navigate：作用于激活 Tab；规范化失败抛「无效的网址」；导航失败由 Chromium
-  // 内建错误页如实呈现，loadURL 的 reject 在此吞掉（与 manager 内 newTab 同策略）
+  // 内建错误页如实呈现，loadURL 的 reject 走统一日志（ERR_ABORTED 静默）
   ipcMain.handle(BROWSER_CHANNELS.navigate, (_event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.navigate, payload, () => {
       if (!isRecord(payload) || typeof payload.url !== 'string') throw invalidParams()
       const normalized = normalizeInput(payload.url)
       if (!normalized) throw new Error('无效的网址')
       const wc = manager.getActiveWebContents()
-      if (wc) void wc.loadURL(normalized).catch(() => {})
+      if (wc)
+        void wc.loadURL(normalized).catch((error: unknown) => logLoadFailure(normalized, error))
       return manager.getSnapshot()
     })
   )
@@ -165,16 +124,11 @@ export function registerBrowserIpc(
     })
   )
 
-  // setBounds：四个坐标必须为有限数字；转发 manager（仅作用于激活 view）
+  // setBounds：四字段必须为有限非负数（零合法——renderer 以零矩形作收起信号）；
+  // 转发 manager（仅作用于激活 view）
   ipcMain.handle(BROWSER_CHANNELS.setBounds, (_event, payload: unknown): OkResult =>
     logFailure(BROWSER_CHANNELS.setBounds, payload, () => {
-      if (!isRecord(payload)) throw invalidParams()
-      const rect: SetBoundsPayload = {
-        x: requiredNumber(payload.x),
-        y: requiredNumber(payload.y),
-        width: requiredNumber(payload.width),
-        height: requiredNumber(payload.height)
-      }
+      const rect: SetBoundsPayload = parseRect(payload)
       manager.setBounds(rect)
       return { ok: true }
     })
@@ -185,5 +139,11 @@ export function registerBrowserIpc(
     logFailure(BROWSER_CHANNELS.toggleDevTools, undefined, () => manager.toggleDevTools())
   )
 
-  console.log('[browser] IPC handlers 已注册（13 条通道）')
+  // closeDevTools：无 payload，只关不开（未开启时主进程原子 no-op）——renderer 的
+  // close 语义直连本通道，消除「读镜像态守卫 + toggle」的毫秒级 TOCTOU 误重开窗口
+  ipcMain.handle(BROWSER_CHANNELS.closeDevTools, (): BrowserSnapshot =>
+    logFailure(BROWSER_CHANNELS.closeDevTools, undefined, () => manager.closeDevTools())
+  )
+
+  console.log('[browser] IPC handlers 已注册（14 条通道）')
 }

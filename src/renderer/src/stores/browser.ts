@@ -32,7 +32,7 @@ const applySnapshot = (
   set({ tabs, activeTabId, devtoolsOpen })
 }
 
-export const useBrowserStore = create<BrowserState>((set, get) => ({
+export const useBrowserStore = create<BrowserState>((set) => ({
   tabs: [],
   activeTabId: null,
   devtoolsOpen: false,
@@ -140,12 +140,11 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     }
   },
 
-  // 关闭走同一 toggle 通道（契约只暴露 toggle 一个开关通道）：已开启时再 toggle 即关闭；
-  // 未开启时 no-op，保证「close」语义不会被误用为开启
+  // 关闭走独立 close 通道（只关不开，未开启时主进程原子 no-op）：
+  // 不读镜像态做守卫，消除「守卫 + toggle」之间推送在途导致的误重开窗口
   closeDevTools: async () => {
-    if (!get().devtoolsOpen) return
     try {
-      applySnapshot(set, await window.api.browser.toggleDevTools())
+      applySnapshot(set, await window.api.browser.closeDevTools())
     } catch (error) {
       console.error('关闭开发者工具失败', error)
     }

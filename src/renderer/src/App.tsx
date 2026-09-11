@@ -10,7 +10,6 @@ const PANEL_DEFAULT = 280
 
 function App(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
-  const [browserSuspended, setBrowserSuspended] = useState(false)
   const dragging = useRef(false)
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
@@ -27,13 +26,19 @@ function App(): React.JSX.Element {
   useEffect(() => {
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', stopDrag)
+    // 指针取消（系统接管/设备切换）同样结束拖拽，防 dragging 残留
+    window.addEventListener('pointercancel', stopDrag)
     return () => {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', stopDrag)
+      window.removeEventListener('pointercancel', stopDrag)
     }
   }, [onPointerMove, stopDrag])
 
-  const startDrag = (): void => {
+  // 捕获指针：拖出窗口外松开时 pointerup 仍送达分隔条（冒泡到 window 收尾），
+  // 否则事件丢失导致 dragging 残留——鼠标回窗后无按键移动持续改宽度
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>): void => {
+    e.currentTarget.setPointerCapture(e.pointerId)
     dragging.current = true
     document.body.classList.add('col-resizing')
   }
@@ -52,7 +57,7 @@ function App(): React.JSX.Element {
       <AntdApp>
         <div className="app-shell">
           <div className="panel-left" style={{ width: panelWidth }}>
-            <SessionPanel onDeleteDialogOpenChange={setBrowserSuspended} />
+            <SessionPanel />
           </div>
           <div
             className="panel-divider"
@@ -62,7 +67,7 @@ function App(): React.JSX.Element {
             onPointerDown={startDrag}
           />
           <div className="panel-right">
-            <BrowserFrame suspended={browserSuspended} />
+            <BrowserFrame />
           </div>
         </div>
       </AntdApp>

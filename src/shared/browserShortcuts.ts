@@ -1,8 +1,7 @@
 // 浏览器最小快捷键键位表（Chrome 对齐）：主进程 view 的 before-input-event
-// 与 renderer shell 的 keydown 两侧共用本表，键位只在表内维护，防两端漂移。
-// 表本身平台无关：修饰键语义（macOS meta / 其他平台 ctrl）由两侧消费方解释，
-// 双方约定同一规则——字母键 = control||meta 命中且 shift/alt 均未按下，
-// 多字符功能键（F5/F12/Escape）不带任何修饰，且只处理 keyDown。
+// 与 renderer shell 的 keydown 两侧共用本表，键位与匹配规则都只在本文件维护，防两端漂移。
+// 表本身平台无关：修饰键语义（macOS meta / 其他平台 ctrl）由 matchBrowserShortcut 解释，
+// 两侧消费方只做按键事件 → ShortcutInput 的形状适配。
 //
 // DevTools 键位的两条豁免规则（两侧消费方各自落实）：
 // - close-devtools（ESC）：仅在对应 tab 的 DevTools 已开启时生效并吞键，未开启放行；
@@ -34,3 +33,30 @@ export const BROWSER_SHORTCUTS: readonly BrowserShortcut[] = [
   { id: 'toggle-devtools', key: 'F12' },
   { id: 'close-devtools', key: 'Escape' }
 ]
+
+/** 匹配所需的最小按键形状：Electron Input 与 KeyboardEvent 均可一行适配到此 */
+export interface ShortcutInput {
+  key: string
+  ctrl: boolean
+  meta: boolean
+  shift: boolean
+  alt: boolean
+}
+
+/**
+ * 键位精确匹配的唯一实现：字母键要求 ctrl||meta 命中且 shift/alt 均未按下
+ * （避免吞掉 Cmd+Shift+R 等组合），多字符功能键（F5/F12/Escape）不带任何修饰；
+ * 未命中返回 null 放行。keydown/keyup 的过滤由各消费方自理。
+ */
+export function matchBrowserShortcut(input: ShortcutInput): BrowserShortcutId | null {
+  const key = input.key.toLowerCase()
+  for (const shortcut of BROWSER_SHORTCUTS) {
+    if (shortcut.key.toLowerCase() !== key) continue
+    if (shortcut.key.length === 1) {
+      if ((input.ctrl || input.meta) && !input.shift && !input.alt) return shortcut.id
+    } else if (!input.ctrl && !input.meta && !input.shift && !input.alt) {
+      return shortcut.id
+    }
+  }
+  return null
+}

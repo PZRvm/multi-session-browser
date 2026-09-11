@@ -5,22 +5,17 @@ import { MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import FlapCounter from './FlapCounter'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
+import { useUiStore } from '../stores/ui'
 
 const statusText: Record<SessionItem['status'], string> = {
   idle: '空闲',
   loading: '加载中'
 }
 
-interface SessionPanelProps {
-  onDeleteDialogOpenChange: (open: boolean) => void
-}
-
-interface SessionRowProps extends SessionPanelProps {
-  session: SessionItem
-}
-
-function SessionRow({ session, onDeleteDialogOpenChange }: SessionRowProps): React.JSX.Element {
+function SessionRow({ session }: { session: SessionItem }): React.JSX.Element {
   const { activeId, renameSession, removeSession, selectSession } = useSessionsStore()
+  const openOverlay = useUiStore((s) => s.openOverlay)
+  const closeOverlay = useUiStore((s) => s.closeOverlay)
   const { modal } = App.useApp()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.name)
@@ -49,17 +44,25 @@ function SessionRow({ session, onDeleteDialogOpenChange }: SessionRowProps): Rea
       setDraft(session.name)
       setEditing(true)
     } else if (key === 'delete') {
-      // WebContentsView 是 renderer DOM 之上的原生层；先收起页面视图，确保确认框完整可见。
-      onDeleteDialogOpenChange(true)
-      modal.confirm({
-        title: '删除会话',
-        content: `将永久删除「${session.name}」及其全部本地数据，且不可恢复。`,
-        okText: '删除',
-        okButtonProps: { danger: true },
-        cancelText: '取消',
-        onOk: () => removeSession(session.id),
-        afterClose: () => onDeleteDialogOpenChange(false)
-      })
+      // WebContentsView 是 renderer DOM 之上的原生层；先登记弹层（ui store overlayDepth）
+      // 收起页面视图，确保确认框完整可见。约束见 stores/ui.ts：新增任何可能延伸到
+      // 右区的 portal 弹层都必须走同一登记，否则会被原生层遮挡。
+      openOverlay()
+      try {
+        modal.confirm({
+          title: '删除会话',
+          content: `将永久删除「${session.name}」及其全部本地数据，且不可恢复。`,
+          okText: '删除',
+          okButtonProps: { danger: true },
+          cancelText: '取消',
+          onOk: () => removeSession(session.id),
+          afterClose: () => closeOverlay()
+        })
+      } catch (error) {
+        // confirm 同步异常时回滚弹层登记，防页面视图永久隐藏
+        closeOverlay()
+        console.error('打开删除确认框失败', error)
+      }
     }
   }
 
@@ -120,7 +123,7 @@ function SessionRow({ session, onDeleteDialogOpenChange }: SessionRowProps): Rea
   )
 }
 
-function SessionPanel({ onDeleteDialogOpenChange }: SessionPanelProps): React.JSX.Element {
+function SessionPanel(): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const addSession = useSessionsStore((s) => s.addSession)
 
@@ -155,11 +158,7 @@ function SessionPanel({ onDeleteDialogOpenChange }: SessionPanelProps): React.JS
         ) : (
           <ul className="session-list">
             {sessions.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                onDeleteDialogOpenChange={onDeleteDialogOpenChange}
-              />
+              <SessionRow key={session.id} session={session} />
             ))}
           </ul>
         )}

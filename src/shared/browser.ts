@@ -17,6 +17,7 @@ export const BROWSER_CHANNELS = {
   stop: 'browser:stop',
   setBounds: 'browser:set-bounds',
   toggleDevTools: 'browser:toggle-devtools',
+  closeDevTools: 'browser:close-devtools',
   stateChanged: 'browser:state-changed',
   focusAddress: 'browser:focus-address'
 } as const

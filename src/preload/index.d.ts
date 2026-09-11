@@ -1,4 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   CloseTabPayload,
   NavigatePayload,
@@ -19,7 +18,6 @@ import type {
 
 declare global {
   interface Window {
-    electron: ElectronAPI
     api: {
       sessions: {
         list(): Promise<SessionsSnapshot>
@@ -40,6 +38,7 @@ declare global {
         stop(): Promise<BrowserSnapshot>
         setBounds(payload: SetBoundsPayload): Promise<OkResult>
         toggleDevTools(): Promise<BrowserSnapshot>
+        closeDevTools(): Promise<BrowserSnapshot>
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
       }

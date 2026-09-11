@@ -49,6 +49,9 @@ function TabStrip(): React.JSX.Element {
                 e.stopPropagation()
                 closeTab(tab.id)
               }}
+              // 键盘激活（Enter/Space）不冒泡到父级 tab：父级 onKeyDown 会
+              // preventDefault 吞掉按钮原生激活，导致键盘永远关不掉标签页
+              onKeyDown={(e) => e.stopPropagation()}
             >
               <CloseOutlined />
             </button>
