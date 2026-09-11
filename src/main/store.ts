@@ -9,8 +9,8 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import type { SessionsSnapshot, StoredSession } from '../shared/sessions'
 
-/** 当前落盘 schema 版本；读到不认识的版本一律按坏数据回退 */
-const SNAPSHOT_VERSION = 1
+/** 当前落盘 schema 版本（v2 增 lastUrl 字段）；读到不认识的版本一律按坏数据回退，v1 按 lastUrl='' 迁移 */
+const SNAPSHOT_VERSION = 2
 
 /** 回退用的空快照（每次新建，避免共享可变数组） */
 function emptySnapshot(): SessionsSnapshot {
@@ -26,7 +26,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** 元素级校验：四个字段齐全且类型正确（多余字段容忍，读取时剔除） */
+/**
+ * 元素级校验：id/name/note/pageTitle 四字段齐全且类型正确（多余字段容忍，读取时剔除）。
+ * lastUrl 不参与此校验：v1 落盘文件无此字段，缺失或类型错一律在重建处按 '' 迁移，
+ * 不作坏数据回退（写入端恒出合法 string，类型错只可能来自外力篡改，宽容处理）
+ */
 function isStoredSession(value: unknown): value is StoredSession {
   if (!isRecord(value)) return false
   return (
@@ -54,6 +58,7 @@ export function summarize(data: unknown): string {
  * 加载会话快照。任何形式的坏数据（非法 JSON、缺字段、类型错、version 不认识、
  * sessions 非数组、元素缺字段、activeId 类型错）一律回退空快照并 console.warn
  * 原始坏数据摘要；activeId 指向不存在的会话时仅置 null，不整包丢弃。
+ * v1 落盘文件兼容读取：元素缺 lastUrl 时按 '' 迁移，其余字段照常校验。
  */
 export async function loadSnapshot(): Promise<SessionsSnapshot> {
   let raw: string
@@ -114,9 +119,10 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
  * 解析并校验快照。对抗性坏数据矩阵（步骤 7 已逐项核对，2026-09-10）：
  * - 非法 JSON（截断 / BOM / 二进制垃圾 / 空串）：JSON.parse 抛错 → 回退空快照并告警
  * - 根节点为数组 / 字符串 / null 等非普通对象：回退空快照（深嵌套数组即使解析成功也在此被拒）
- * - version 缺失或非 1（含 0、2、字符串 "1"）：回退空快照
+ * - version 缺失或非 1/2（含 0、3、字符串 "1"）：回退空快照（v1 按 lastUrl='' 迁移，写盘恒出 v2）
  * - sessions 为对象 / 字符串等非数组，或元素为 null / 嵌套数组 / 缺字段 / 字段类型错：回退空快照
- * - 元素含多余字段：容忍，但重建时只保留四个契约字段（注入的未知字段不会被回存落盘）
+ *   （lastUrl 例外：v1 落盘无此字段，缺失或类型错按 '' 迁移，不回退）
+ * - 元素含多余字段：容忍，但重建时只保留五个契约字段（注入的未知字段不会被回存落盘）
  * - sessions 内重复 id：保留首个、剔除后续重复项并告警
  * - activeId 为数字等非 string/null：回退空快照；为空串或悬空 id：按悬空处理，置 null 保留列表
  */
@@ -140,7 +146,8 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     fallback('根节点不是对象')
     return emptySnapshot()
   }
-  if (data.version !== SNAPSHOT_VERSION) {
+  // v1（无 lastUrl，读取时迁移）与当前 v2 均接受，其余版本按坏数据回退
+  if (data.version !== 1 && data.version !== SNAPSHOT_VERSION) {
     fallback(`version 不认识: ${JSON.stringify(data.version)}`)
     return emptySnapshot()
   }
@@ -158,8 +165,7 @@ function parseSnapshot(raw: string): SessionsSnapshot {
   }
 
   // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段。
-  // lastUrl 容忍读取（v1 落盘无此字段，运行时为 undefined 补 ''）——
-  // 阶段 4 步骤 5 落地正式的 v1→v2 迁移与校验，此前本行为编译占位
+  // lastUrl 迁移（schema v1 → v2）：v1 落盘元素无此字段，缺失或类型错一律补空串
   const sessions: StoredSession[] = data.sessions.map((item) => ({
     id: item.id,
     name: item.name,

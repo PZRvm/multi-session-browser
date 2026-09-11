@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：十三条通道的业务实现，命令转发给 TabManager。
+// 浏览器 IPC handlers：十四条通道的业务实现，命令经注册表路由到当前激活会话的 TabManager。
 // 通道名一律取自 shared/browser 的 BROWSER_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
@@ -11,20 +11,25 @@ import {
   type SetBoundsPayload
 } from '../../shared/browser'
 import { createIpcGuards, logFailure } from '../ipc-utils'
-import type { TabManager } from './manager'
+import type { SessionBrowserRegistry } from './registry'
 import { logLoadFailure, normalizeInput } from './url'
 
 const { invalidParams, isRecord, optionalString, parseRect } = createIpcGuards('无效的浏览器参数')
 
+/** 会话守卫：命令通道一律作用于激活会话；零会话空态（快照 sessionId === null）时拒绝 */
+function requireActiveSession(manager: SessionBrowserRegistry): void {
+  if (manager.getSnapshot().sessionId === null) throw new Error('未选择会话')
+}
+
 /** id 存在性校验：不存在抛错（manager 对不存在 id 是静默 no-op，必须在 handler 层拦截） */
-function requireTabId(manager: TabManager, id: string): void {
+function requireTabId(manager: SessionBrowserRegistry, id: string): void {
   if (!manager.getSnapshot().tabs.some((tab) => tab.id === id)) {
     throw new Error('标签页不存在')
   }
 }
 
 export function registerBrowserIpc(
-  manager: TabManager,
+  manager: SessionBrowserRegistry,
   getMainWindow: () => BrowserWindow | null
 ): void {
   // 快照变化推送到当前主窗口：主进程是唯一事实源，renderer 只做镜像；
@@ -47,6 +52,7 @@ export function registerBrowserIpc(
   // 携带 url 时先规范化，失败抛「无效的网址」
   ipcMain.handle(BROWSER_CHANNELS.newTab, (_event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.newTab, payload, () => {
+      requireActiveSession(manager)
       const raw = isRecord(payload) ? payload : {}
       const url = optionalString(raw.url)
       if (url === undefined) {
@@ -63,6 +69,7 @@ export function registerBrowserIpc(
   // closeTab：id 必须存在；「最后留一」由 manager 静默 no-op，不在 handler 层拦截
   ipcMain.handle(BROWSER_CHANNELS.closeTab, (_event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.closeTab, payload, () => {
+      requireActiveSession(manager)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
       requireTabId(manager, payload.id)
       return manager.closeTab(payload.id)
@@ -72,6 +79,7 @@ export function registerBrowserIpc(
   // switchTab：id 必须存在；已激活时 manager 静默 no-op
   ipcMain.handle(BROWSER_CHANNELS.switchTab, (_event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.switchTab, payload, () => {
+      requireActiveSession(manager)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
       requireTabId(manager, payload.id)
       return manager.switchTab(payload.id)
@@ -82,6 +90,7 @@ export function registerBrowserIpc(
   // 内建错误页如实呈现，loadURL 的 reject 走统一日志（ERR_ABORTED 静默）
   ipcMain.handle(BROWSER_CHANNELS.navigate, (_event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.navigate, payload, () => {
+      requireActiveSession(manager)
       if (!isRecord(payload) || typeof payload.url !== 'string') throw invalidParams()
       const normalized = normalizeInput(payload.url)
       if (!normalized) throw new Error('无效的网址')
@@ -96,6 +105,7 @@ export function registerBrowserIpc(
   // 动作引发的快照变化经事件重算推送，handler 返回动作发起时的快照
   ipcMain.handle(BROWSER_CHANNELS.back, (): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.back, undefined, () => {
+      requireActiveSession(manager)
       const wc = manager.getActiveWebContents()
       if (wc && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
       return manager.getSnapshot()
@@ -104,6 +114,7 @@ export function registerBrowserIpc(
 
   ipcMain.handle(BROWSER_CHANNELS.forward, (): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.forward, undefined, () => {
+      requireActiveSession(manager)
       const wc = manager.getActiveWebContents()
       if (wc && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
       return manager.getSnapshot()
@@ -112,6 +123,7 @@ export function registerBrowserIpc(
 
   ipcMain.handle(BROWSER_CHANNELS.reload, (): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.reload, undefined, () => {
+      requireActiveSession(manager)
       manager.getActiveWebContents()?.reload()
       return manager.getSnapshot()
     })
@@ -119,6 +131,7 @@ export function registerBrowserIpc(
 
   ipcMain.handle(BROWSER_CHANNELS.stop, (): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.stop, undefined, () => {
+      requireActiveSession(manager)
       manager.getActiveWebContents()?.stop()
       return manager.getSnapshot()
     })
@@ -136,13 +149,19 @@ export function registerBrowserIpc(
 
   // toggleDevTools：无 payload，作用于激活 Tab；无激活 Tab 时 manager 静默 no-op 返回当前快照
   ipcMain.handle(BROWSER_CHANNELS.toggleDevTools, (): BrowserSnapshot =>
-    logFailure(BROWSER_CHANNELS.toggleDevTools, undefined, () => manager.toggleDevTools())
+    logFailure(BROWSER_CHANNELS.toggleDevTools, undefined, () => {
+      requireActiveSession(manager)
+      return manager.toggleDevTools()
+    })
   )
 
   // closeDevTools：无 payload，只关不开（未开启时主进程原子 no-op）——renderer 的
   // close 语义直连本通道，消除「读镜像态守卫 + toggle」的毫秒级 TOCTOU 误重开窗口
   ipcMain.handle(BROWSER_CHANNELS.closeDevTools, (): BrowserSnapshot =>
-    logFailure(BROWSER_CHANNELS.closeDevTools, undefined, () => manager.closeDevTools())
+    logFailure(BROWSER_CHANNELS.closeDevTools, undefined, () => {
+      requireActiveSession(manager)
+      return manager.closeDevTools()
+    })
   )
 
   console.log('[browser] IPC handlers 已注册（14 条通道）')

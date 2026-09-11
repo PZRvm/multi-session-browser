@@ -1,16 +1,32 @@
-// 会话 IPC handlers：五条通道的业务实现，读写一律经 store.ts 的快照接口。
+// 会话 IPC handlers：六条 invoke 通道（五条既有 + get-statuses 拉取）的业务实现，
+// 读写一律经 store.ts 的快照接口；status-changed 推送不经本文件（index.ts 直连 registry）。
 // 通道名一律取自 shared/sessions 的 SESSIONS_CHANNELS，禁止手写字符串。
 // 快照读-改-写一律经 mutateSnapshot 串行执行；入参先过运行时守卫
 // （shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
+// 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
+// （装配在 index.ts，契约见开发计划第 3 节契约点 4）。
 
 import { ipcMain } from 'electron'
 import {
   SESSIONS_CHANNELS,
   type OkResult,
+  type SessionStatusesPayload,
   type SessionsSnapshot,
   type StoredSession
 } from '../shared/sessions'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
+
+/**
+ * 阶段 4 编排依赖（冻结签名，见开发计划第 3 节契约点 4），由 index.ts 注入：
+ * - onActiveChanged：setActive 落盘成功后通知编排层切换浏览器
+ * - onDeleted：delete 落盘成功后通知编排层销毁该会话并跟随级联后的 activeId
+ * - getStatuses：get-statuses 拉取通道的数据源（registry 状态聚合）
+ */
+interface SessionIpcDeps {
+  onActiveChanged(id: string | null): void
+  onDeleted(id: string, nextActiveId: string | null): void
+  getStatuses(): SessionStatusesPayload
+}
 
 /** id 自增序列（模块级，跨多次 create 递增） */
 let seq = 0
@@ -50,7 +66,7 @@ function logFailure<T>(channel: string, payload: unknown, run: () => Promise<T>)
   })
 }
 
-export function registerSessionIpc(): void {
+export function registerSessionIpc(deps: SessionIpcDeps): void {
   // list：返回完整快照（含 version/sessions/activeId）。只读，不进入写临界区
   ipcMain.handle(SESSIONS_CHANNELS.list, async (): Promise<SessionsSnapshot> =>
     logFailure(SESSIONS_CHANNELS.list, undefined, async () => loadSnapshot())
@@ -115,34 +131,49 @@ export function registerSessionIpc(): void {
       // id 必须为 string
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
       const id = payload.id
-      return mutateSnapshot((snapshot) => {
+      // 级联后的 activeId 须在闭包内捕获传出（快照互斥期间才可见），供编排层跟随切换
+      const nextActiveId = await mutateSnapshot((snapshot) => {
         const index = snapshot.sessions.findIndex((s) => s.id === id)
         if (index === -1) throw new Error('会话不存在')
         const [removed] = snapshot.sessions.splice(index, 1)
         if (snapshot.activeId === removed.id) {
           snapshot.activeId = snapshot.sessions[0]?.id ?? null
         }
-        return { ok: true }
+        return snapshot.activeId
       })
+      // 落盘成功后联动（删除守卫或写盘失败时抛错，不联动）
+      deps.onDeleted(id, nextActiveId)
+      return { ok: true }
     })
   )
 
-  // setActive：null 合法（清空选中）；非 null 时 id 必须存在
+  // setActive：null 合法（清空选中）；非 null 时 id 必须存在；
+  // 落盘成功后经 onActiveChanged 触发主进程内浏览器切换（副作用声明见 shared/sessions）
   ipcMain.handle(SESSIONS_CHANNELS.setActive, async (_event, payload: unknown): Promise<OkResult> =>
     logFailure(SESSIONS_CHANNELS.setActive, payload, async () => {
       // id 必须为 string 或 null；undefined 等其他类型显式拒绝，不误报「会话不存在」
       if (!isRecord(payload)) throw invalidParams()
       if (payload.id !== null && typeof payload.id !== 'string') throw invalidParams()
       const nextId = payload.id
-      return mutateSnapshot((snapshot) => {
+      await mutateSnapshot((snapshot) => {
         if (nextId !== null && !snapshot.sessions.some((s) => s.id === nextId)) {
           throw new Error('会话不存在')
         }
         snapshot.activeId = nextId
         return { ok: true }
       })
+      // 落盘成功后联动（id 守卫或写盘失败时抛错，不联动）
+      deps.onActiveChanged(nextId)
+      return { ok: true }
     })
   )
 
-  console.log('[sessions] IPC handlers 已注册（5 条通道）')
+  // get-statuses：全量会话状态 map 拉取（renderer 启动竞态兜底），
+  // 数据源经 deps 注入（registry 聚合「任一 Tab loading」），本文件不自持状态
+  ipcMain.handle(SESSIONS_CHANNELS.getStatuses, async (): Promise<SessionStatusesPayload> =>
+    logFailure(SESSIONS_CHANNELS.getStatuses, undefined, async () => deps.getStatuses())
+  )
+
+  // 本文件注册 6 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 7 条
+  console.log('[sessions] IPC handlers 已注册（7 条通道）')
 }
