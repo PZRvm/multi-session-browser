@@ -11,6 +11,7 @@ import { basename, join } from 'path'
 import type { BrowserSnapshot, SetBoundsPayload } from '../../shared/browser'
 import {
   PAGE_TITLE_MAX,
+  SESSION_ID_RE,
   type SessionStatus,
   type SessionStatusesPayload,
   type SessionsSnapshot
@@ -25,22 +26,24 @@ import {
 } from './manager'
 import { isOpenableUrl, logLoadFailure } from './url'
 
-/** 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享） */
+/**
+ * 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享）。
+ * 读入口拦截（F5 定案）：id 先过 SESSION_ID_RE 单源校验——被篡改的落盘 id 在拼分区串
+ * 之前拒绝，否则非法分区串会被用于 WebContentsView/fromPartition 创建 session
+ */
 function partitionFor(sessionId: string): string {
+  if (!SESSION_ID_RE.test(sessionId)) {
+    throw new Error(`非法会话 id "${sessionId}"（疑似落盘数据被篡改），拒绝拼装分区`)
+  }
   return `persist:sess-${sessionId}`
 }
 
-/**
- * 分区名合法字符集（与 sessions.ts 的 id 生成规则 sess-<base36 时间戳>-<seq> 对齐）。
- * 纵深防御：被篡改的落盘 id（如 x/../../foo）会让 rm 递归删除穿越后的目录，
- * 在此拦截（正常路径生成的 id 不可能含 / 或 . 之外的违禁字符）
- */
-const PARTITION_NAME_RE = /^sess-[a-z0-9-]+$/
-
-/** 分区落盘目录：userData/Partitions/<去掉 persist: 前缀>（阶段4步骤1 冒烟定案路径） */
+/** 分区落盘目录：userData/Partitions/<去掉 persist: 前缀>（阶段4步骤1 冒烟定案路径）。
+ *  目录名 = sess-<id>，与 SESSION_ID_RE 同构（partitionFor 已在入口拦截，此处为
+ *  删除路径的第二道防线——rm 的边界校验不依赖上游调用序） */
 function partitionDir(partition: string): string {
   const name = partition.replace(/^persist:/, '')
-  if (!PARTITION_NAME_RE.test(name)) {
+  if (!SESSION_ID_RE.test(name)) {
     throw new Error(`非法分区名 "${name}"（疑似落盘数据被篡改），拒绝解析目录路径`)
   }
   return join(app.getPath('userData'), 'Partitions', name)
@@ -147,6 +150,13 @@ export function createSessionBrowserRegistry(deps: {
    * 防复制落盘期间被提前懒创建
    */
   const cloningIds = new Set<string>()
+  /**
+   * 待补载集合（R1 定案）：ensureManager 安排了"缓存未命中现读补载"的会话 id。
+   * openUrlInSessions 的空白 Tab 复用路径在发出 loadURL 前先撤销补载资格——否则
+   * 补载 .then 的 BLANK_URL 守卫看不到在途导航（快照 url 仍显示 about:blank），
+   * 后到的补载会把批量地址覆盖回 lastUrl
+   */
+  const pendingBackfill = new Set<string>()
 
   function activeManager(): TabManager | null {
     return activeSessionId !== null ? (managers.get(activeSessionId) ?? null) : null
@@ -353,8 +363,13 @@ export function createSessionBrowserRegistry(deps: {
     // promise 快照也不含它，故必须现读）。读回后若激活 Tab 仍是空白页则补载该会话的
     // 上次打开页（用户已自行导航则不打扰），保住 PRD 3.1.4 的恢复语义
     if (!lastUrls.has(id)) {
+      pendingBackfill.add(id)
       void loadSnapshot()
         .then((snapshot) => {
+          // 已注销守卫（F2 定案）与补载资格守卫（R1 定案：复用路径已撤销），
+          // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
+          const armed = pendingBackfill.delete(id)
+          if (!managers.has(id) || !armed) return
           for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
           const url = snapshot.sessions.find((item) => item.id === id)?.lastUrl
           if (!url || !isOpenableUrl(url)) return
@@ -374,6 +389,14 @@ export function createSessionBrowserRegistry(deps: {
   function switchSession(id: string | null): void {
     initHandled = true
     if (id === activeSessionId) return // 同 id no-op
+    // 被篡改 id 前置拒绝（R2 定案）：在任何副作用（摘旧 view、置 activeSessionId）之前
+    // 早退——深层 ensureManager→partitionFor 的抛错点晚于摘 view，会让浏览器区冻结在
+    // "有快照无视图"状态；此处早退保住旧会话画面可用（后续推送被 renderer 守卫丢弃
+    // 属篡改数据固有的一致性破损，点击任一合法会话即恢复）
+    if (id !== null && !SESSION_ID_RE.test(id)) {
+      console.warn(`[registry] 拒绝切换到非法会话 id "${id}"（疑似落盘数据被篡改）`)
+      return
+    }
     // 克隆窗口期守卫：源/目标分区正被复制，中途激活会重建源 manager 使副本落入活库
     // （renderer 该行有「克隆中…」反馈；数秒窗口后 clone 收尾的 setActive 接管画面）
     if (id !== null && cloningIds.has(id)) return
@@ -539,7 +562,10 @@ export function createSessionBrowserRegistry(deps: {
               cleanupError
             )
           }
-          console.warn(`[registry] 克隆分区目录失败（${srcDir} → ${dstDir}），已清理目标残留:`, error)
+          console.warn(
+            `[registry] 克隆分区目录失败（${srcDir} → ${dstDir}），已清理目标残留:`,
+            error
+          )
           throw error
         }
       }
@@ -564,7 +590,26 @@ export function createSessionBrowserRegistry(deps: {
     for (const id of ids) {
       // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
       if (cloningIds.has(id)) continue
+      const existed = managers.has(id)
       const manager = ensureManager(id)
+      if (!existed) {
+        // 刚懒创建且初始 Tab 仍是空白页（无 lastUrl 可恢复的会话）：复用该 Tab 直接
+        // 加载目标地址，避免"新标签页 + 目标页"双 Tab；lastUrl 已在加载的会话不复用
+        // （初始 Tab 有内容，叠加新 Tab 才符合"打开测试地址"语义）
+        const snap = manager.getSnapshot()
+        const activeTab = snap.tabs.find((tab) => tab.id === snap.activeTabId)
+        if (activeTab && activeTab.url === BLANK_URL) {
+          const wc = manager.getActiveWebContents()
+          if (wc && !wc.isDestroyed()) {
+            // R1：复用在途导航先撤销该会话的补载资格——补载 .then 的 BLANK_URL 守卫
+            // 看不到在途 loadURL（快照 url 仍是 about:blank），不撤销会被覆盖回 lastUrl
+            pendingBackfill.delete(id)
+            void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
+            if (id !== activeSessionId) detachActiveView(manager)
+            continue
+          }
+        }
+      }
       manager.newTab(url)
       if (id !== activeSessionId) detachActiveView(manager)
     }
@@ -577,12 +622,17 @@ export function createSessionBrowserRegistry(deps: {
     if (activeId === null) return
     // 启动恢复（PRD 3.1.4）：读盘完成后恢复上次激活会话，懒创建经 lastUrls 缓存重载上次打开页；
     // 读盘期间已有显式切换/销毁（极端竞态）则跳过，以显式操作为准
-    void storeReady.then(() => {
-      if (initHandled) return
-      initHandled = true
-      if (!lastUrls.has(activeId)) return // 悬空 activeId（loadSnapshot 已会重置，双保险）
-      switchSession(activeId)
-    })
+    void storeReady
+      .then(() => {
+        if (initHandled) return
+        initHandled = true
+        if (!lastUrls.has(activeId)) return // 悬空 activeId（loadSnapshot 已会重置，双保险）
+        switchSession(activeId)
+      })
+      .catch((error: unknown) => {
+        // 含被篡改 id 被 partitionFor 读入口拒绝等场景：启动恢复失败如实告警，不崩进程
+        console.warn('[registry] 启动恢复激活会话失败:', error)
+      })
   }
 
   // —— TabManager 兼容命令面：全部委托激活 manager ——

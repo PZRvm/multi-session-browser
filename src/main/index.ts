@@ -12,10 +12,21 @@ import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessio
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
 // userData（sessions.json、Partitions 分区数据）整体指向该目录，开发期验证/冒烟
 // 永不触碰用户真实数据。背景：2026-09-12 修复轮曾用过期备份还原用户 sessions.json
-// 并误删分区目录（见 process.md 数据事故记录），此后一切运行时验证强制走本隔离。
+// 并误删分区目录（见 notes/process.md 执行决策记录「阶段 4 修复轮……数据事故记录」），
+// 此后一切运行时验证强制走本隔离。
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
-  mkdirSync(override, { recursive: true })
+  try {
+    mkdirSync(override, { recursive: true })
+  } catch (error) {
+    // fail-fast 保留（隔离目录不可用则无法保证"不触碰真实数据"），但带中文说明退出，
+    // 不以原始堆栈裸崩（F4 定案）
+    console.error(
+      `[main] MSB_USER_DATA 目录创建失败（${override}），退出以保护真实用户数据:`,
+      error
+    )
+    throw error
+  }
   app.setPath('userData', override)
 }
 
@@ -173,10 +184,18 @@ app.whenReady().then(() => {
       created.switchSession(id)
     },
     onDeleted: (id: string, nextActiveId: string | null): void => {
-      // 先切后毁：切换即时响应 UI，销毁（含清分区数据）异步收尾；
-      // nextActiveId 与当前相同则 switchSession 自然 no-op
-      created.switchSession(nextActiveId)
-      void created.destroySession(id)
+      // 先切后毁：切换即时响应 UI，销毁（含清分区数据）异步收尾。
+      // switchSession 包 catch（R3 定案）：切换抛错（如级联落到的 next id 被判非法）
+      // 不得跳过销毁——否则盘已删净而分区残留。destroy 的 catch 兜底：销毁链含
+      // partitionFor 读入口校验等抛错路径，fire-and-forget 不接 catch 会成未处理拒绝
+      try {
+        created.switchSession(nextActiveId)
+      } catch (error) {
+        console.warn(`[main] 删除后级联切换到 ${nextActiveId} 失败:`, error)
+      }
+      void created.destroySession(id).catch((error: unknown) => {
+        console.warn(`[main] 销毁会话 ${id} 失败:`, error)
+      })
     },
     getStatuses: (): SessionStatusesPayload => created.getStatuses(),
     // 克隆：分区数据复制全在 registry 内完成（关闭源 webContents 收尾活库 → 排除缓存
@@ -187,7 +206,11 @@ app.whenReady().then(() => {
     // （N 次逐条切换不可取——主进程一次切空 + 并行销毁，计划契约点 3 定案）
     onAllDeleted: (ids: string[]): void => {
       created.switchSession(null)
-      for (const id of ids) void created.destroySession(id)
+      for (const id of ids) {
+        void created.destroySession(id).catch((error: unknown) => {
+          console.warn(`[main] 销毁会话 ${id} 失败:`, error)
+        })
+      }
     },
     // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
     onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url)

@@ -98,6 +98,9 @@ function SessionRow({
     <li
       className={rowClass}
       tabIndex={0}
+      // 批量态声明 checkbox 语义（aria-checked 才对辅助技术可达）；非批量态保持
+      // 默认 listitem + aria-current 的激活语义
+      role={batchMode ? 'checkbox' : undefined}
       aria-current={!batchMode && selected ? 'true' : undefined}
       aria-checked={batchMode ? checked : undefined}
       onClick={() => (batchMode ? onToggleCheck(session.id) : selectSession(session.id))}
@@ -190,7 +193,7 @@ function SessionPanel(): React.JSX.Element {
   // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
   const [urlInvalid, setUrlInvalid] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [cloningId, setCloningId] = useState<string | null>(null)
+  const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
 
   // 勾选集以现存会话为准（已删除会话的残留 id 不计数、不参与批量指令）
   const checkedIds = sessions.filter((s) => checked.has(s.id)).map((s) => s.id)
@@ -217,13 +220,17 @@ function SessionPanel(): React.JSX.Element {
   }
 
   // 克隆含分区复制可能数秒：以 store.cloneSession 的函数体为耗时边界，
-  // 前后置位/复位 cloningId，该行状态字临时显示「克隆中…」
+  // 前后置位/复位 cloningIds（Set 支持并发克隆互不覆盖指示），该行状态字临时显示「克隆中…」
   const handleClone = async (id: string): Promise<void> => {
-    setCloningId(id)
+    setCloningIds((prev) => new Set(prev).add(id))
     try {
       await cloneSession(id)
     } finally {
-      setCloningId(null)
+      setCloningIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 
@@ -336,7 +343,7 @@ function SessionPanel(): React.JSX.Element {
                 session={session}
                 batchMode={batchMode}
                 checked={checked.has(session.id)}
-                cloning={cloningId === session.id}
+                cloning={cloningIds.has(session.id)}
                 onToggleCheck={toggleChecked}
                 onClone={handleClone}
               />
@@ -358,6 +365,7 @@ function SessionPanel(): React.JSX.Element {
                   danger
                   size="small"
                   className="batch-close-all"
+                  disabled={sessions.length === 0}
                   onClick={confirmCloseAll}
                 >
                   关闭全部会话
@@ -401,7 +409,9 @@ function SessionPanel(): React.JSX.Element {
             setUrlInvalid(false)
           }}
         />
-        {urlInvalid && <p className="batch-url-invalid">打开失败：地址无效或选中会话已变化，请修正后重试</p>}
+        {urlInvalid && (
+          <p className="batch-url-invalid">打开失败：地址无效或选中会话已变化，请修正后重试</p>
+        )}
       </Modal>
     </ConfigProvider>
   )

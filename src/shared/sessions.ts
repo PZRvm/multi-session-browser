@@ -24,6 +24,14 @@ export const SESSIONS_CHANNELS = {
 } as const
 
 /**
+ * 会话 id 的格式契约：sess-<base36 时间戳>-<自增 seq>。
+ * 单一事实源——生成端（main/sessions.ts 的 generateSessionId）与校验端
+ * （main/browser/registry.ts 的分区拼装/目录解析）共同引用本常量，规则变更只改此处，
+ * 防两模块靠注释互相同步的漂移（纵深防御：被篡改的落盘 id 在拼分区串前即被拒绝）
+ */
+export const SESSION_ID_RE = /^sess-[a-z0-9-]+$/
+
+/**
  * pageTitle / tab title 的截断上限（按 UTF-16 码元切，中文不受影响）。
  * 单一事实源：sessions IPC 入口 clamp、manager 的 tab title、registry 的落盘上报
  * 三处消费同一值，禁止各持字面量（防改一处漏两处）。

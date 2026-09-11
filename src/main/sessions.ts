@@ -10,6 +10,7 @@
 import { ipcMain } from 'electron'
 import {
   PAGE_TITLE_MAX,
+  SESSION_ID_RE,
   SESSIONS_CHANNELS,
   type OkResult,
   type SessionStatusesPayload,
@@ -78,6 +79,8 @@ function generateSessionId(existingIds: Set<string>): string {
   } while (existingIds.has(id))
   return id
 }
+// 生成的 id 恒满足 shared/sessions.ts 的 SESSION_ID_RE（格式契约单源，registry 的
+// 分区拼装/目录解析按该校验拦截被篡改 id）——本函数与其共同引用同一格式定义
 
 /** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + payload 摘要）后原样 rethrow */
 function logFailure<T>(channel: string, payload: unknown, run: () => Promise<T>): Promise<T> {
@@ -209,20 +212,31 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // 生成的 id 此后无需复核：本运行期落盘新增的 id 同样出自单调 seq，必不与之相同；
         // 既往旧 id 已在生成时避开，mutateSnapshot 串行队列内无并发改写落盘的旁路
         await deps.clonePartition(srcId, newId)
-        return mutateSnapshot((data) => {
-          // 取最新落盘的源条目复制元数据（closeSession 冲刷的上报可能刚更新 pageTitle/
-          // lastUrl）；源在复制期间被并发删除时退回校验时点的快照值（分区已复制完成）
-          const source = data.sessions.find((item) => item.id === srcId) ?? src
-          const cloned: StoredSession = {
-            id: newId,
-            name: clampString(`${source.name} 副本`, NAME_MAX),
-            note: source.note,
-            pageTitle: source.pageTitle,
-            lastUrl: source.lastUrl
-          }
-          data.sessions.push(cloned)
-          return cloned
-        })
+        try {
+          return await mutateSnapshot((data) => {
+            // 取最新落盘的源条目复制元数据（closeSession 冲刷的上报可能刚更新 pageTitle/
+            // lastUrl）；源在复制期间被并发删除时退回校验时点的快照值（分区已复制完成）
+            const source = data.sessions.find((item) => item.id === srcId) ?? src
+            const cloned: StoredSession = {
+              id: newId,
+              name: clampString(`${source.name} 副本`, NAME_MAX),
+              note: source.note,
+              pageTitle: source.pageTitle,
+              lastUrl: source.lastUrl
+            }
+            data.sessions.push(cloned)
+            return cloned
+          })
+        } catch (error) {
+          // 跨资源事务补偿告警（分区已复制、元数据写盘失败）：dst 分区目录成为无会话
+          // 指向的孤儿残留——本文件分层不持 fs（registry 才 owns 分区路径），如实告知
+          // 残留位置交人工核查（对齐 destroySession 的残留告警标准）
+          console.warn(
+            `[sessions] 克隆会话 ${srcId} 的元数据写盘失败，目标分区目录可能残留（userData/Partitions/sess-${newId}），请手动核查:`,
+            error
+          )
+          throw error
+        }
       })
   )
 
@@ -261,6 +275,12 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           throw invalidParams()
         }
         const ids = payload.ids
+        // id 格式预校验（R4 定案）：被篡改的落盘 id 能通过存在性检查（isStoredSession
+        // 只查非空 string），若放行到 registry 的逐会话开 Tab，会在中途抛错前已对
+        // 前序合法会话产生副作用——违背整单拒绝契约。格式校验前置，非法即整单拒绝
+        if (!ids.every((id) => SESSION_ID_RE.test(id))) {
+          throw new Error('会话 id 非法（疑似数据被篡改）')
+        }
         // 逐 id 存在性校验（读盘）；校验通过后立即触发编排——校验与执行间的毫秒级
         // 竞态窗口（窗口内被并发删除的会话）按已通过处理，不在此二次设防
         const snapshot = await loadSnapshot()
