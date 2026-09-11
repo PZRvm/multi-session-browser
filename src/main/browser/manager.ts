@@ -7,12 +7,12 @@ import { BrowserWindow, WebContentsView } from 'electron'
 import type { Input, WebContents } from 'electron'
 import type { BrowserSnapshot, BrowserTabState, SetBoundsPayload } from '../../shared/browser'
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
+import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { isOpenableUrl, logLoadFailure } from './url'
 
 const BLANK_URL = 'about:blank'
 const BLANK_TITLE = '新标签页'
-/** tab title 钳制上限，与会话侧 clampString 一致，防超长 title 刷全量快照推送 */
-const TITLE_MAX = 200
+export { BLANK_URL }
 /** 悬挂（确认框等弹层）时的收起矩形 */
 const HIDDEN_RECT: SetBoundsPayload = { x: 0, y: 0, width: 0, height: 0 }
 
@@ -202,7 +202,7 @@ export function createTabManager(
       emitChange()
     })
     wc.on('page-title-updated', (_event, title) => {
-      tab.title = title.length > TITLE_MAX ? title.slice(0, TITLE_MAX) : title
+      tab.title = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
       emitChange()
     })
     wc.on('page-favicon-updated', (_event, icons) => {

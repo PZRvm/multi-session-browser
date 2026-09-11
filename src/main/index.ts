@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, Menu } from 'electron'
+import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -7,6 +8,16 @@ import { registerBrowserIpc } from './browser/ipc'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
 import { loadSnapshot } from './store'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
+
+// 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
+// userData（sessions.json、Partitions 分区数据）整体指向该目录，开发期验证/冒烟
+// 永不触碰用户真实数据。背景：2026-09-12 修复轮曾用过期备份还原用户 sessions.json
+// 并误删分区目录（见 process.md 数据事故记录），此后一切运行时验证强制走本隔离。
+if (process.env['MSB_USER_DATA']) {
+  const override = process.env['MSB_USER_DATA']
+  mkdirSync(override, { recursive: true })
+  app.setPath('userData', override)
+}
 
 // 模块级持有：createWindow 在窗口（重）建时需调用 attachToWindow 重挂当前激活会话的 view，
 // 启动恢复亦经此引用（registry 在 app ready 内创建，此前为 null）
@@ -187,6 +198,12 @@ app.whenReady().then(() => {
       registry?.init(snapshot.activeId)
     })
     .catch(() => undefined)
+
+  // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl）：导航后 500ms 内 Cmd+Q 会丢最后一次
+  // 上报，重启恢复到上上次页面。写盘异步，属尽力而为（小 JSON 通常毫秒级完成于进程退出前）
+  app.on('before-quit', () => {
+    registry?.flushPendingReports()
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

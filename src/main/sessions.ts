@@ -8,6 +8,7 @@
 
 import { ipcMain } from 'electron'
 import {
+  PAGE_TITLE_MAX,
   SESSIONS_CHANNELS,
   type OkResult,
   type SessionStatusesPayload,
@@ -31,10 +32,9 @@ interface SessionIpcDeps {
 /** id 自增序列（模块级，跨多次 create 递增） */
 let seq = 0
 
-/** IPC 入口字段长度上限（超出直接截断，不报错，防止 MB 级字符串写穿落盘） */
+/** IPC 入口字段长度上限（超出直接截断，不报错，防止 MB 级字符串写穿落盘）；pageTitle 上限取 shared 单源 */
 const NAME_MAX = 50
 const NOTE_MAX = 200
-const PAGE_TITLE_MAX = 200
 
 /** 守卫失败统一抛出的业务错误 */
 function invalidParams(): Error {

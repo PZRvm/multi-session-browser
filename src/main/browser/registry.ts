@@ -9,30 +9,47 @@ import type { BrowserWindow, WebContents } from 'electron'
 import { rm } from 'fs/promises'
 import { join } from 'path'
 import type { BrowserSnapshot, SetBoundsPayload } from '../../shared/browser'
-import type { SessionStatus, SessionStatusesPayload } from '../../shared/sessions'
+import {
+  PAGE_TITLE_MAX,
+  type SessionStatus,
+  type SessionStatusesPayload,
+  type SessionsSnapshot
+} from '../../shared/sessions'
 import { loadSnapshot, mutateSnapshot } from '../store'
 import {
+  BLANK_URL,
   createTabManager,
   type FocusAddressListener,
   type SnapshotListener,
   type TabManager
 } from './manager'
-import { isOpenableUrl } from './url'
+import { isOpenableUrl, logLoadFailure } from './url'
 
 /** 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享） */
 function partitionFor(sessionId: string): string {
   return `persist:sess-${sessionId}`
 }
 
+/**
+ * 分区名合法字符集（与 sessions.ts 的 id 生成规则 sess-<base36 时间戳>-<seq> 对齐）。
+ * 纵深防御：被篡改的落盘 id（如 x/../../foo）会让 rm 递归删除穿越后的目录，
+ * 在此拦截（正常路径生成的 id 不可能含 / 或 . 之外的违禁字符）
+ */
+const PARTITION_NAME_RE = /^sess-[a-z0-9-]+$/
+
 /** 分区落盘目录：userData/Partitions/<去掉 persist: 前缀>（阶段4步骤1 冒烟定案路径） */
 function partitionDir(partition: string): string {
-  return join(app.getPath('userData'), 'Partitions', partition.replace(/^persist:/, ''))
+  const name = partition.replace(/^persist:/, '')
+  if (!PARTITION_NAME_RE.test(name)) {
+    throw new Error(`非法分区名 "${name}"（疑似落盘数据被篡改），拒绝解析目录路径`)
+  }
+  return join(app.getPath('userData'), 'Partitions', name)
 }
 
 /** pageTitle/lastUrl 上报去抖（trailing）：导航与标题事件密集，写盘前先静默一段时间 */
 const REPORT_DEBOUNCE_MS = 500
-/** pageTitle 落盘截断上限，与会话侧 clampString / manager 的 TITLE_MAX 一致 */
-const PAGE_TITLE_MAX = 200
+/** lastUrl 落盘截断上限：合法 URL 可达数 KB，超长截断防写穿落盘（读取端另有白名单校验兜底） */
+const LAST_URL_MAX = 2000
 /** wc.close() 后等待自然销毁的宽限；超时（unload 卡住等极端场景）跳过 beforeunload 强制销毁 */
 const DESTROY_GRACE_MS = 3000
 /** 销毁重扫轮数上限：unload 期间页面仍可能经 window.open 在同分区补生 webContents */
@@ -49,6 +66,8 @@ export interface SessionBrowserRegistry extends TabManager {
   onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void
   /** 当前全量状态 map 的同步快照（sessions:get-statuses 拉取通道的数据源，兜底启动期推送竞态） */
   getStatuses(): SessionStatusesPayload
+  /** 退出前冲刷全部待写的上报去抖（index.ts 的 before-quit 钩子调用；写盘异步，尽力而为） */
+  flushPendingReports(): void
 }
 
 export function createSessionBrowserRegistry(deps: {
@@ -62,6 +81,28 @@ export function createSessionBrowserRegistry(deps: {
   let globalBounds: SetBoundsPayload | null = null
   /** 各会话 lastUrl 缓存（init 读盘填充 + 上报写盘时同步），懒创建初始 Tab 的取用源 */
   const lastUrls = new Map<string, string>()
+  /** lastUrls 读盘是否已就绪：未就绪时的首次懒创建走空白页 + 异步补载（见 ensureManager） */
+  let lastUrlsLoaded = false
+  /** 共享的读盘 promise（init 与 ensureManager 复用同一 in-flight，防重复读盘） */
+  let lastUrlsPreload: Promise<SessionsSnapshot | null> | null = null
+
+  function preloadLastUrls(): Promise<SessionsSnapshot | null> {
+    if (!lastUrlsPreload) {
+      lastUrlsPreload = loadSnapshot()
+        .then((snapshot) => {
+          for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
+          lastUrlsLoaded = true
+          return snapshot
+        })
+        .catch((error: unknown) => {
+          // loadSnapshot 坏数据自回退空快照、设计上不 reject；此处兜底 fs 层异常，置位防永久未就绪
+          lastUrlsLoaded = true
+          console.warn('[registry] 预读会话 lastUrl 失败:', error)
+          return null
+        })
+    }
+    return lastUrlsPreload
+  }
   /** init 已被显式切换（switchSession/destroySession）打断即不再补做启动恢复 */
   let initHandled = false
 
@@ -120,6 +161,9 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   function setStatus(id: string, status: SessionStatus): void {
+    // 已注销会话（destroySession 摘除后垂死 manager 的残余快照事件）不再回填，
+    // 防幽灵状态条目常驻 map（id 含时间戳不复用，一旦回填无法自然清除）
+    if (!managers.has(id)) return
     if (statuses.get(id) === status) return
     statuses.set(id, status)
     notifyStatuses()
@@ -165,17 +209,26 @@ export function createSessionBrowserRegistry(deps: {
     const tab = snapshot.tabs.find((item) => item.id === snapshot.activeTabId) ?? null
     const url = tab?.url ?? ''
     const title = tab ? tab.title : ''
-    reported.set(id, { url, title })
+    // fn 返回截断后的 lastUrl（会话已从落盘移除时返回 undefined）；
+    // lastUrls/reported 两个缓存的更新放在 mutateSnapshot resolve 之后——mutateSnapshot
+    // 是"先 fn 后 save"，缓存若在 fn 内前移，写盘失败（saveSnapshot reject）时判据已
+    // 认为"已上报"而磁盘停留旧值（复审 F1）；后置到成功回调则失败路径不前移，下次
+    // 快照仍判"有变化"会重试，判据与磁盘不脱节
     void mutateSnapshot((data) => {
       const target = data.sessions.find((item) => item.id === id)
-      if (!target) return // 会话已从落盘数据移除（删除竞态），静默跳过
+      if (!target) return undefined // 会话已从落盘数据移除（删除竞态），静默跳过，缓存不前移
       target.pageTitle = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
-      target.lastUrl = url
-      // 同步本地缓存：会话若被销毁重建（实践不会发生，id 含时间戳），懒创建也能读到最新值
-      lastUrls.set(id, url)
-    }).catch((error: unknown) => {
-      console.warn(`[registry] 写会话 ${id} 的 pageTitle/lastUrl 失败:`, error)
+      target.lastUrl = url.length > LAST_URL_MAX ? url.slice(0, LAST_URL_MAX) : url
+      return target.lastUrl
     })
+      .then((saved) => {
+        if (saved === undefined) return
+        lastUrls.set(id, saved)
+        reported.set(id, { url, title })
+      })
+      .catch((error: unknown) => {
+        console.warn(`[registry] 写会话 ${id} 的 pageTitle/lastUrl 失败:`, error)
+      })
   }
 
   function scheduleReport(id: string): void {
@@ -188,6 +241,15 @@ export function createSessionBrowserRegistry(deps: {
         flushReport(id)
       }, REPORT_DEBOUNCE_MS)
     )
+  }
+
+  /** 退出前冲刷全部待写的上报去抖：清定时器并立即落一次盘（尽力而为，见接口注释） */
+  function flushPendingReports(): void {
+    for (const [id, timer] of reportTimers) {
+      clearTimeout(timer)
+      reportTimers.delete(id)
+      flushReport(id)
+    }
   }
 
   /** 懒创建该会话的 manager（persist:sess-<id>）并接线：快照驱动转发/状态聚合/上报去抖 */
@@ -225,6 +287,22 @@ export function createSessionBrowserRegistry(deps: {
     // lastUrl 来自落盘文件（跨信任边界），按 window.open 同一白名单校验，坏值回退空白页
     const lastUrl = lastUrls.get(id)
     manager.newTab(lastUrl && isOpenableUrl(lastUrl) ? lastUrl : undefined)
+    // init 读盘未就绪（毫秒级窗口）时缓存可能未填：补读一次，就绪后若激活 Tab 仍是空白页
+    // 则补载该会话的上次打开页（用户已自行导航则不打扰），保住 PRD 3.1.4 的恢复语义
+    if (!lastUrlsLoaded) {
+      void preloadLastUrls().then((snapshot) => {
+        if (!snapshot) return
+        const url = snapshot.sessions.find((item) => item.id === id)?.lastUrl
+        if (!url || !isOpenableUrl(url)) return
+        const current = manager.getSnapshot()
+        const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
+        if (!activeTab || activeTab.url !== BLANK_URL) return
+        const wc = manager.getActiveWebContents()
+        if (wc && !wc.isDestroyed()) {
+          void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
+        }
+      })
+    }
     return manager
   }
 
@@ -293,28 +371,33 @@ export function createSessionBrowserRegistry(deps: {
         )
       }
     }
-    // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默
+    // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
+    //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
     try {
       await target.clearStorageData()
     } catch (error) {
-      console.warn(`[registry] 清除会话 ${id} 分区存储失败:`, error)
+      console.warn(
+        `[registry] 清除会话 ${id} 分区存储失败（分区 ${partition}，目录 userData/Partitions/ 下可能残留，请手动核查）:`,
+        error
+      )
     }
-    // ③ 删分区落盘目录（force 容忍目录本就不存在——从未激活过的会话）
+    // ③ 删分区落盘目录（force 容忍目录本就不存在——从未激活过的会话；
+    //    partitionDir 对被篡改 id 抛错也落此 catch，目录不会被误删）
     try {
       await rm(partitionDir(partition), { recursive: true, force: true })
     } catch (error) {
-      console.warn(`[registry] 删除会话 ${id} 分区目录失败:`, error)
+      console.warn(
+        `[registry] 删除会话 ${id} 分区目录失败（分区 ${partition}，目录位于 userData/Partitions/ 下，残留请手动核查）:`,
+        error
+      )
     }
     if (wasActive) notifySnapshot()
   }
 
   function init(activeId: string | null): void {
-    // 读盘一次，缓存各会话 lastUrl：switchSession 是同步签名，取值只能前置到缓存里
-    const storeReady = loadSnapshot()
-      .then((snapshot) => {
-        for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
-      })
-      .catch(() => undefined) // loadSnapshot 自带回退空快照不 reject，此处仅兜底防未处理拒绝
+    // 读盘一次缓存各会话 lastUrl（与 ensureManager 的补载共享同一 in-flight promise）：
+    // switchSession 是同步签名，取值只能前置到缓存里
+    const storeReady = preloadLastUrls()
     if (activeId === null) return
     // 启动恢复（PRD 3.1.4）：读盘完成后恢复上次激活会话，懒创建经 lastUrls 缓存重载上次打开页；
     // 读盘期间已有显式切换/销毁（极端竞态）则跳过，以显式操作为准
@@ -417,6 +500,7 @@ export function createSessionBrowserRegistry(deps: {
     destroySession,
     init,
     onSessionStatus,
-    getStatuses
+    getStatuses,
+    flushPendingReports
   }
 }

@@ -19,6 +19,13 @@ export const SESSIONS_CHANNELS = {
 } as const
 
 /**
+ * pageTitle / tab title 的截断上限（按 UTF-16 码元切，中文不受影响）。
+ * 单一事实源：sessions IPC 入口 clamp、manager 的 tab title、registry 的落盘上报
+ * 三处消费同一值，禁止各持字面量（防改一处漏两处）。
+ */
+export const PAGE_TITLE_MAX = 200
+
+/**
  * 落盘的会话元数据（status 为运行时状态，不落盘）。
  * lastUrl：该会话上次打开页（激活 Tab 的 URL），空串 = 无记录；
  * 重启后首次激活该会话时自动重载（PRD 3.1.4"上次打开页面"）。
