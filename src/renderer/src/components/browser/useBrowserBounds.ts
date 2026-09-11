@@ -6,10 +6,15 @@ const ZERO_RECT = { x: 0, y: 0, width: 0, height: 0 }
 /**
  * 内容锚点矩形采集：ResizeObserver 观察锚点，rAF 合并节流后上报主进程
  * （一帧内多次变化只发一次 IPC，覆盖窗口缩放与左栏分隔条拖动）；挂载即上报首帧。
- * 卸载时上报零矩形并断开观察，防止视图残留旧矩形形成错位。
+ * 卸载或暂停时上报零矩形并断开观察，防止视图残留旧矩形形成错位或遮挡 renderer 弹层。
  */
-export function useBrowserBounds(ref: RefObject<HTMLDivElement | null>): void {
+export function useBrowserBounds(ref: RefObject<HTMLDivElement | null>, enabled = true): void {
   useEffect(() => {
+    if (!enabled) {
+      window.api.browser.setBounds(ZERO_RECT).catch(() => {})
+      return
+    }
+
     const el = ref.current
     if (!el) return
 
@@ -41,5 +46,5 @@ export function useBrowserBounds(ref: RefObject<HTMLDivElement | null>): void {
       observer.disconnect()
       window.api.browser.setBounds(ZERO_RECT).catch(() => {})
     }
-  }, [ref])
+  }, [enabled, ref])
 }

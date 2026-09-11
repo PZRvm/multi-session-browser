@@ -11,7 +11,15 @@ const statusText: Record<SessionItem['status'], string> = {
   loading: '加载中'
 }
 
-function SessionRow({ session }: { session: SessionItem }): React.JSX.Element {
+interface SessionPanelProps {
+  onDeleteDialogOpenChange: (open: boolean) => void
+}
+
+interface SessionRowProps extends SessionPanelProps {
+  session: SessionItem
+}
+
+function SessionRow({ session, onDeleteDialogOpenChange }: SessionRowProps): React.JSX.Element {
   const { activeId, renameSession, removeSession, selectSession } = useSessionsStore()
   const { modal } = App.useApp()
   const [editing, setEditing] = useState(false)
@@ -41,13 +49,16 @@ function SessionRow({ session }: { session: SessionItem }): React.JSX.Element {
       setDraft(session.name)
       setEditing(true)
     } else if (key === 'delete') {
+      // WebContentsView 是 renderer DOM 之上的原生层；先收起页面视图，确保确认框完整可见。
+      onDeleteDialogOpenChange(true)
       modal.confirm({
         title: '删除会话',
         content: `将永久删除「${session.name}」及其全部本地数据，且不可恢复。`,
         okText: '删除',
         okButtonProps: { danger: true },
         cancelText: '取消',
-        onOk: () => removeSession(session.id)
+        onOk: () => removeSession(session.id),
+        afterClose: () => onDeleteDialogOpenChange(false)
       })
     }
   }
@@ -109,7 +120,7 @@ function SessionRow({ session }: { session: SessionItem }): React.JSX.Element {
   )
 }
 
-function SessionPanel(): React.JSX.Element {
+function SessionPanel({ onDeleteDialogOpenChange }: SessionPanelProps): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const addSession = useSessionsStore((s) => s.addSession)
 
@@ -144,7 +155,11 @@ function SessionPanel(): React.JSX.Element {
         ) : (
           <ul className="session-list">
             {sessions.map((session) => (
-              <SessionRow key={session.id} session={session} />
+              <SessionRow
+                key={session.id}
+                session={session}
+                onDeleteDialogOpenChange={onDeleteDialogOpenChange}
+              />
             ))}
           </ul>
         )}

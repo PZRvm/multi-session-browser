@@ -10,6 +10,7 @@ const PANEL_DEFAULT = 280
 
 function App(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const [browserSuspended, setBrowserSuspended] = useState(false)
   const dragging = useRef(false)
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
@@ -51,7 +52,7 @@ function App(): React.JSX.Element {
       <AntdApp>
         <div className="app-shell">
           <div className="panel-left" style={{ width: panelWidth }}>
-            <SessionPanel />
+            <SessionPanel onDeleteDialogOpenChange={setBrowserSuspended} />
           </div>
           <div
             className="panel-divider"
@@ -61,7 +62,7 @@ function App(): React.JSX.Element {
             onPointerDown={startDrag}
           />
           <div className="panel-right">
-            <BrowserFrame />
+            <BrowserFrame suspended={browserSuspended} />
           </div>
         </div>
       </AntdApp>
