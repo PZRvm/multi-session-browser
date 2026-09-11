@@ -47,6 +47,8 @@ export interface SessionBrowserRegistry extends TabManager {
   init(activeId: string | null): void
   /** 订阅会话运行状态（idle/loading）全量 map；状态 map 有变化时回调，返回退订函数 */
   onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void
+  /** 当前全量状态 map 的同步快照（sessions:get-statuses 拉取通道的数据源，兜底启动期推送竞态） */
+  getStatuses(): SessionStatusesPayload
 }
 
 export function createSessionBrowserRegistry(deps: {
@@ -377,6 +379,10 @@ export function createSessionBrowserRegistry(deps: {
     return () => statusListeners.delete(cb)
   }
 
+  function getStatuses(): SessionStatusesPayload {
+    return statusesPayload()
+  }
+
   return {
     newTab,
     closeTab,
@@ -392,6 +398,7 @@ export function createSessionBrowserRegistry(deps: {
     switchSession,
     destroySession,
     init,
-    onSessionStatus
+    onSessionStatus,
+    getStatuses
   }
 }
