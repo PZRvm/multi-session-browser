@@ -16,6 +16,7 @@ import type {
   DeleteSessionPayload,
   OkResult,
   RenameSessionPayload,
+  SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
   StoredSession
@@ -32,7 +33,19 @@ const api = {
     delete: (payload: DeleteSessionPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.delete, payload),
     setActive: (payload: SetActiveSessionPayload): Promise<OkResult> =>
-      ipcRenderer.invoke(SESSIONS_CHANNELS.setActive, payload)
+      ipcRenderer.invoke(SESSIONS_CHANNELS.setActive, payload),
+    getStatuses: (): Promise<SessionStatusesPayload> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.getStatuses),
+    // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
+    onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(SESSIONS_CHANNELS.statusChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(SESSIONS_CHANNELS.statusChanged, listener)
+      }
+    }
   },
   browser: {
     getState: (): Promise<BrowserSnapshot> => ipcRenderer.invoke(BROWSER_CHANNELS.getState),

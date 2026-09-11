@@ -77,7 +77,9 @@ export function registerSessionIpc(): void {
             name: clampString(inputName || `会话 ${seq}`, NAME_MAX),
             note: clampString(inputNote, NOTE_MAX),
             // 创建时标题为固定占位文案，仍过一道截断以维持入口上限不变式
-            pageTitle: clampString('未打开页面', PAGE_TITLE_MAX)
+            pageTitle: clampString('未打开页面', PAGE_TITLE_MAX),
+            // 阶段 4 契约（步骤 2 冻结）：新建会话无上次打开页，恒空串
+            lastUrl: ''
           }
           snapshot.sessions.push(session)
           return session

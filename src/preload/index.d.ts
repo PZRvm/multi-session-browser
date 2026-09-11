@@ -11,6 +11,7 @@ import type {
   CreateSessionPayload,
   DeleteSessionPayload,
   RenameSessionPayload,
+  SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
   StoredSession
@@ -25,6 +26,8 @@ declare global {
         rename(payload: RenameSessionPayload): Promise<StoredSession>
         delete(payload: DeleteSessionPayload): Promise<OkResult>
         setActive(payload: SetActiveSessionPayload): Promise<OkResult>
+        getStatuses(): Promise<SessionStatusesPayload>
+        onStatusChanged(callback: (payload: SessionStatusesPayload) => void): () => void
       }
       browser: {
         getState(): Promise<BrowserSnapshot>

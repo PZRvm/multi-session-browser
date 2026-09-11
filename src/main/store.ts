@@ -157,12 +157,15 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     return emptySnapshot()
   }
 
-  // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段
+  // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段。
+  // lastUrl 容忍读取（v1 落盘无此字段，运行时为 undefined 补 ''）——
+  // 阶段 4 步骤 5 落地正式的 v1→v2 迁移与校验，此前本行为编译占位
   const sessions: StoredSession[] = data.sessions.map((item) => ({
     id: item.id,
     name: item.name,
     note: item.note,
-    pageTitle: item.pageTitle
+    pageTitle: item.pageTitle,
+    lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : ''
   }))
 
   // 重复 id 去重：保留首个、剔除后续重复项，防止重复条目进入列表与 id 索引

@@ -1,9 +1,11 @@
 // 浏览器内嵌共享契约（主进程 / preload / renderer 三方共用）。
 // 修改本文件的类型或通道名前，必须先修订
-// notes/plans/20260911014828-阶段3开发者模式对接开发计划.md 第 3 节。
+// notes/plans/20260911191316-阶段4多会话浏览器绑定开发计划.md 第 3 节。
 //
 // 事实源约定：tab 列表与全部状态由主进程持有并推送，renderer 只是镜像；
 // tab id 由主进程生成（tab-<自增 seq>），renderer 不得自造。
+// 阶段 4 起：命令通道一律作用于"当前激活会话"的浏览器（注册表路由，见
+// src/main/browser/registry.ts），通道名与 payload 不随会话维度变化。
 
 export const BROWSER_CHANNELS = {
   getState: 'browser:get-state',
@@ -33,8 +35,14 @@ export interface BrowserTabState {
   canGoForward: boolean
 }
 
-/** 主进程推送的全量快照：tab 有序列表 + 当前激活项 + 激活 Tab 的 DevTools 开关态 */
+/**
+ * 主进程推送的全量快照：tab 有序列表 + 当前激活项 + 激活 Tab 的 DevTools 开关态。
+ * sessionId：该快照归属的会话（阶段 4 会话绑定）；null = 无激活会话的空浏览器态，
+ * 此时 tabs 恒 []、activeTabId 恒 null、devtoolsOpen 恒 false。renderer 据此丢弃
+ * 与当前选中会话不符的过期快照（快速连续切换时旧会话推送可能晚到）。
+ */
 export interface BrowserSnapshot {
+  sessionId: string | null
   tabs: BrowserTabState[]
   activeTabId: string | null
   /** 激活 Tab 的 DevTools 是否开启（无激活 Tab 时恒 false）；停靠区显隐随此字段 */

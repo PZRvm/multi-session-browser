@@ -102,7 +102,14 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     }
     // devtoolsOpen 取激活 Tab 的真实开关态；无激活 Tab 时恒 false
     const active = activeId !== null ? tabs.get(activeId) : undefined
-    return { tabs: list, activeTabId: activeId, devtoolsOpen: active?.devtoolsOpen ?? false }
+    // sessionId 契约占位（阶段 4 步骤 2 冻结必填字段）：本文件尚无会话维度，
+    // 步骤 3 参数化 createTabManager({ sessionId, partition }) 时替换为真实值
+    return {
+      sessionId: null,
+      tabs: list,
+      activeTabId: activeId,
+      devtoolsOpen: active?.devtoolsOpen ?? false
+    }
   }
 
   function emitChange(): void {
