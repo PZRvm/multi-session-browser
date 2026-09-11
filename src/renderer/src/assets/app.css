@@ -892,3 +892,12 @@ img.chrome-tab-favicon {
   line-height: 1.5;
   color: var(--chrome-ink-dim);
 }
+
+/* URL 弹层行内错误提示（整单拒绝时保持弹层开启）：12px 次墨级红字提示，
+   无新色 token 之外的颜色——antd error 语义由 Input status=error 承担，此处仅排版 */
+.batch-url-invalid {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--board-ink-dim);
+}

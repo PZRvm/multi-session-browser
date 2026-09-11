@@ -105,11 +105,10 @@ export function createSessionBrowserRegistry(deps: {
   let activeSessionId: string | null = null
   /** 最近一次非零内容区矩形：新建 manager 的 initialBounds（无窗口先建 manager 时的挂入兜底） */
   let globalBounds: SetBoundsPayload | null = null
-  /** 各会话 lastUrl 缓存（init 读盘填充 + 上报写盘时同步），懒创建初始 Tab 的取用源 */
+  /** 各会话 lastUrl 缓存（init 读盘填充 + 上报写盘时同步），懒创建初始 Tab 的取用源；
+   *  未命中缓存的 id（启动预读窗口/运行期新增如克隆产物）由 ensureManager 现读落盘补载 */
   const lastUrls = new Map<string, string>()
-  /** lastUrls 读盘是否已就绪：未就绪时的首次懒创建走空白页 + 异步补载（见 ensureManager） */
-  let lastUrlsLoaded = false
-  /** 共享的读盘 promise（init 与 ensureManager 复用同一 in-flight，防重复读盘） */
+  /** 共享的读盘 promise（init 启动预读复用同一 in-flight，防重复读盘） */
   let lastUrlsPreload: Promise<SessionsSnapshot | null> | null = null
 
   function preloadLastUrls(): Promise<SessionsSnapshot | null> {
@@ -117,18 +116,17 @@ export function createSessionBrowserRegistry(deps: {
       lastUrlsPreload = loadSnapshot()
         .then((snapshot) => {
           for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
-          lastUrlsLoaded = true
           return snapshot
         })
         .catch((error: unknown) => {
-          // loadSnapshot 坏数据自回退空快照、设计上不 reject；此处兜底 fs 层异常，置位防永久未就绪
-          lastUrlsLoaded = true
+          // loadSnapshot 坏数据自回退空快照、设计上不 reject；此处兜底 fs 层异常返回 null
           console.warn('[registry] 预读会话 lastUrl 失败:', error)
           return null
         })
     }
     return lastUrlsPreload
   }
+
   /** init 已被显式切换（switchSession/destroySession）打断即不再补做启动恢复 */
   let initHandled = false
 
@@ -142,6 +140,13 @@ export function createSessionBrowserRegistry(deps: {
   /** 会话 → 最近一次写盘的 {url,title}，上报去抖的变化判据 */
   const reported = new Map<string, { url: string; title: string }>()
   const reportTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /**
+   * 克隆进行中的会话 id（closeSession 源 → cp 完成 的窗口期，秒级）：期间禁止对其
+   * 切换激活/批量打开/销毁——源分区正处于"已收尾待复制/复制中"状态，任何中途重建
+   * manager 的路径都会让活库并发写入污染克隆副本（且无告警）。目标 id 一并占用，
+   * 防复制落盘期间被提前懒创建
+   */
+  const cloningIds = new Set<string>()
 
   function activeManager(): TabManager | null {
     return activeSessionId !== null ? (managers.get(activeSessionId) ?? null) : null
@@ -343,21 +348,25 @@ export function createSessionBrowserRegistry(deps: {
     // lastUrl 来自落盘文件（跨信任边界），按 window.open 同一白名单校验，坏值回退空白页
     const lastUrl = lastUrls.get(id)
     manager.newTab(lastUrl && isOpenableUrl(lastUrl) ? lastUrl : undefined)
-    // init 读盘未就绪（毫秒级窗口）时缓存可能未填：补读一次，就绪后若激活 Tab 仍是空白页
-    // 则补载该会话的上次打开页（用户已自行导航则不打扰），保住 PRD 3.1.4 的恢复语义
-    if (!lastUrlsLoaded) {
-      void preloadLastUrls().then((snapshot) => {
-        if (!snapshot) return
-        const url = snapshot.sessions.find((item) => item.id === id)?.lastUrl
-        if (!url || !isOpenableUrl(url)) return
-        const current = manager.getSnapshot()
-        const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
-        if (!activeTab || activeTab.url !== BLANK_URL) return
-        const wc = manager.getActiveWebContents()
-        if (wc && !wc.isDestroyed()) {
-          void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
-        }
-      })
+    // 缓存未命中即现读一次落盘补载：命中不了的两类场景——①启动预读未完成的毫秒窗口；
+    // ②运行期新增的会话（克隆产物：其 id 只在落盘里，永不进内存缓存，启动预读的共享
+    // promise 快照也不含它，故必须现读）。读回后若激活 Tab 仍是空白页则补载该会话的
+    // 上次打开页（用户已自行导航则不打扰），保住 PRD 3.1.4 的恢复语义
+    if (!lastUrls.has(id)) {
+      void loadSnapshot()
+        .then((snapshot) => {
+          for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
+          const url = snapshot.sessions.find((item) => item.id === id)?.lastUrl
+          if (!url || !isOpenableUrl(url)) return
+          const current = manager.getSnapshot()
+          const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
+          if (!activeTab || activeTab.url !== BLANK_URL) return
+          const wc = manager.getActiveWebContents()
+          if (wc && !wc.isDestroyed()) {
+            void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
+          }
+        })
+        .catch(() => undefined) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
     }
     return manager
   }
@@ -365,6 +374,9 @@ export function createSessionBrowserRegistry(deps: {
   function switchSession(id: string | null): void {
     initHandled = true
     if (id === activeSessionId) return // 同 id no-op
+    // 克隆窗口期守卫：源/目标分区正被复制，中途激活会重建源 manager 使副本落入活库
+    // （renderer 该行有「克隆中…」反馈；数秒窗口后 clone 收尾的 setActive 接管画面）
+    if (id !== null && cloningIds.has(id)) return
     // ① 摘除旧激活 manager 的激活 view：webContents 全部保活（Tab、滚动、登录态原样保留），
     //    切回时由 attachToWindow 按其缓存矩形重挂
     const prev = activeManager()
@@ -383,6 +395,12 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   async function destroySession(id: string): Promise<void> {
+    // 克隆窗口期守卫：正被复制的分区销毁会让 cp 半途落空且清数据与复制竞态；
+    // 如实告警后跳过（会话元数据已删，分区残留由克隆失败清理路径或人工处理）
+    if (cloningIds.has(id)) {
+      console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
+      return
+    }
     const manager = managers.get(id)
     // 先摘注册表引用再清除：清除后不得再实例化该分区（fromPartition 会惰性重建空目录，
     // 阶段4步骤1 冒烟定案），从 Map 移除 manager 即天然保证——本函数此后也不再触碰该分区 session
@@ -477,41 +495,62 @@ export function createSessionBrowserRegistry(deps: {
    * IPC 错误，元数据不落盘），残留路径如实告警不静默
    */
   async function clonePartition(srcId: string, dstId: string): Promise<void> {
-    await closeSession(srcId)
-    const srcDir = partitionDir(partitionFor(srcId))
-    const dstDir = partitionDir(partitionFor(dstId))
-    // 源分区目录不存在：从未激活过的会话无数据可复制，产物为空白环境（零异常）
-    let srcStat: Awaited<ReturnType<typeof stat>> | null = null
+    cloningIds.add(srcId)
+    cloningIds.add(dstId)
+    // closeSession 会置空 activeSessionId（当源是激活会话）：失败恢复的判据须先行捕获
+    const wasActive = activeSessionId === srcId
+    let failed = false
     try {
-      srcStat = await stat(srcDir)
-    } catch (error) {
-      if (!isENOENT(error)) throw error
-    }
-    if (!srcStat) return
-    if (!srcStat.isDirectory()) {
-      throw new Error(`源分区路径不是目录（${srcDir}），疑似数据损坏，拒绝克隆`)
-    }
-    try {
-      await cp(srcDir, dstDir, {
-        recursive: true,
-        // 按 basename 排除缓存类目录（返回 false 的目录整体跳过，子内容不再遍历）
-        filter: (srcPath: string): boolean => !CLONE_EXCLUDED_DIR_BASENAMES.has(basename(srcPath))
-      })
-      // 复制完成后目标目录就位性复核：半成品复制在此暴露（失败走下方清理路径）
-      const dstStat = await stat(dstDir)
-      if (!dstStat.isDirectory()) {
-        throw new Error(`目标分区路径不是目录（${dstDir}）`)
-      }
-    } catch (error) {
-      // 任何失败先清目标残留再上抛：半成品目录会让新会话挂在不一致环境上；
-      // 残留路径如实告警（清理自身失败也告警，交人工核查），不静默
+      await closeSession(srcId)
+      const srcDir = partitionDir(partitionFor(srcId))
+      const dstDir = partitionDir(partitionFor(dstId))
+      // 源分区目录不存在：从未激活过的会话无数据可复制，产物为空白环境（零异常）
+      let srcStat: Awaited<ReturnType<typeof stat>> | null = null
       try {
-        await rm(dstDir, { recursive: true, force: true })
-      } catch (cleanupError) {
-        console.warn(`[registry] 清理克隆目标残留目录失败（${dstDir}，请手动核查）:`, cleanupError)
+        srcStat = await stat(srcDir)
+      } catch (error) {
+        if (!isENOENT(error)) throw error
       }
-      console.warn(`[registry] 克隆分区目录失败（${srcDir} → ${dstDir}），已清理目标残留:`, error)
-      throw error
+      if (srcStat) {
+        if (!srcStat.isDirectory()) {
+          throw new Error(`源分区路径不是目录（${srcDir}），疑似数据损坏，拒绝克隆`)
+        }
+        try {
+          await cp(srcDir, dstDir, {
+            recursive: true,
+            // 按 basename 排除缓存类目录（返回 false 的目录整体跳过，子内容不再遍历）
+            filter: (srcPath: string): boolean =>
+              !CLONE_EXCLUDED_DIR_BASENAMES.has(basename(srcPath))
+          })
+          // 复制完成后目标目录就位性复核：半成品复制在此暴露（失败走下方清理路径）
+          const dstStat = await stat(dstDir)
+          if (!dstStat.isDirectory()) {
+            throw new Error(`目标分区路径不是目录（${dstDir}）`)
+          }
+        } catch (error) {
+          failed = true
+          // 任何失败先清目标残留再上抛：半成品目录会让新会话挂在不一致环境上；
+          // 残留路径如实告警（清理自身失败也告警，交人工核查），不静默
+          try {
+            await rm(dstDir, { recursive: true, force: true })
+          } catch (cleanupError) {
+            console.warn(
+              `[registry] 清理克隆目标残留目录失败（${dstDir}，请手动核查）:`,
+              cleanupError
+            )
+          }
+          console.warn(`[registry] 克隆分区目录失败（${srcDir} → ${dstDir}），已清理目标残留:`, error)
+          throw error
+        }
+      }
+    } finally {
+      cloningIds.delete(srcId)
+      cloningIds.delete(dstId)
+      // 失败恢复（M2）：源是激活会话且克隆失败时，closeSession 已摘 view 置空激活标记、
+      // renderer 侧 setActive 未发生（clone handler 抛错）——不恢复会让浏览器区冻结在
+      // "有快照无视图"状态直到用户手动点击。守卫已解除，切回源会话（manager 重建 +
+      // lastUrl 重载）即可恢复可用（活页面状态不还原，如实代价）
+      if (failed && wasActive) switchSession(srcId)
     }
   }
 
@@ -523,6 +562,8 @@ export function createSessionBrowserRegistry(deps: {
    */
   function openUrlInSessions(ids: string[], url: string): void {
     for (const id of ids) {
+      // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
+      if (cloningIds.has(id)) continue
       const manager = ensureManager(id)
       manager.newTab(url)
       if (id !== activeSessionId) detachActiveView(manager)

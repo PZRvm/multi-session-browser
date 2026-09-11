@@ -187,6 +187,8 @@ function SessionPanel(): React.JSX.Element {
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [urlOpen, setUrlOpen] = useState(false)
   const [urlDraft, setUrlDraft] = useState('')
+  // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
+  const [urlInvalid, setUrlInvalid] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cloningId, setCloningId] = useState<string | null>(null)
 
@@ -229,13 +231,19 @@ function SessionPanel(): React.JSX.Element {
     // portal 弹层可能延伸到右区，开关经 overlay 悬挂登记（声明式 Modal 无同步
     // 抛出路径，登记释放在 afterClose，含 Esc/取消关闭）
     openOverlay()
+    setUrlInvalid(false)
     setUrlOpen(true)
   }
 
   const confirmUrl = async (): Promise<void> => {
     const url = urlDraft.trim()
     if (!url) return
-    await batchOpenUrl(checkedIds, url)
+    const ok = await batchOpenUrl(checkedIds, url)
+    if (!ok) {
+      // 整单拒绝（地址无效或选中会话已变化）：保持弹层开启，行内提示（不静默）
+      setUrlInvalid(true)
+      return
+    }
     setUrlOpen(false)
     setUrlDraft('')
   }
@@ -386,8 +394,14 @@ function SessionPanel(): React.JSX.Element {
           placeholder="输入测试地址，将打开在每个选中会话的新标签页"
           value={urlDraft}
           autoFocus
-          onChange={(e) => setUrlDraft(e.target.value)}
+          status={urlInvalid ? 'error' : undefined}
+          aria-invalid={urlInvalid}
+          onChange={(e) => {
+            setUrlDraft(e.target.value)
+            setUrlInvalid(false)
+          }}
         />
+        {urlInvalid && <p className="batch-url-invalid">打开失败：地址无效或选中会话已变化，请修正后重试</p>}
       </Modal>
     </ConfigProvider>
   )

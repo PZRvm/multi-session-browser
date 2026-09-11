@@ -233,7 +233,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 会话行（Session Row）— 世界的原子
 
-两行栅格：第一行 = 状态点（7px 圆，idle 灰 / loading 琥珀脉冲）+ 会话名（13/600）+ 页面标题（12px 次墨，右对齐，`max-width: 45%`）；第二行 = 账号备注（12px 次墨，空则「未填写备注」）+ 状态字（11px，letter-spacing 0.08em）+ 悬停菜单。所有文字单行省略。整行可点选、可键盘聚焦（tabIndex 0，Enter/Space 选中，`aria-current`）。悬停显 `...` 菜单（20×20，4px 圆角，Dropdown：重命名 / 删除会话-danger）。重命名是行内 borderless Input（antd，small），Enter/失焦提交，Esc 取消。删除走 `modal.confirm`，明示影响范围。
+两行栅格：第一行 = 状态点（7px 圆，idle 灰 / loading 琥珀脉冲）+ 会话名（13/600）+ 页面标题（12px 次墨，右对齐，`max-width: 45%`）；第二行 = 账号备注（12px 次墨，空则「未填写备注」）+ 状态字（11px，letter-spacing 0.08em）+ 悬停菜单。所有文字单行省略。整行可点选、可键盘聚焦（tabIndex 0，Enter/Space 选中，`aria-current`）。悬停显 `...` 菜单（20×20，4px 圆角，Dropdown：重命名 / 克隆会话 / 删除会话-danger）。重命名是行内 borderless Input（antd，small），Enter/失焦提交，Esc 取消。克隆期间该行状态字位置临时显示「克隆中…」（琥珀 label 字，完成后真实状态接管）。删除走 `modal.confirm`，明示影响范围。
 
 - **Default:** board-bg 底 + board-ink 字；hover 抬升到 board-bg-raised（0.12s）。
 - **Selected:** 整行琥珀反白，见 Inversion Rule。
@@ -270,6 +270,10 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 5px 命中区、1px 视觉发丝线（#0b0e11），hover 或拖拽中变 2px 琥珀；拖拽时全局 `col-resize` 光标。`role="separator"` + aria-label。
 
+### 批量模式（Batch Mode）— 阶段 5 新增
+
+板头的批量入口：计数标签左侧一枚 20×20 图标钮（CheckSquareOutlined，12px，board-ink-dim，hover 抬升），激活批量模式时琥珀底 amber-ink 字（点级信号）；空会话列表禁用（批量态中删光后保持可点以退出，防死锁）。批量态内：行首插入 antd Checkbox（暗色嵌套层，勾中琥珀）；整行单击/Enter = 勾选（不再激活）；勾选行背景常驻 board-bg-raised；**激活反白在此模式隐藏**（反白语义专属激活，当前会话由右侧浏览器表明）；行内「...」菜单隐藏（模式互斥）；状态点/标题/备注/状态字照常。板脚由「新建会话」让位给两行操作栏：第一行 =「已选 N」（11px label，tabular-nums）+「全选/取消全选」文字钮 + 右缘 danger 文字钮「关闭全部会话」（antd danger 供色，作用于全部、不依赖勾选）；第二行 = 全宽琥珀主钮「打开测试地址」（复用新建会话的度量，作用于勾选项，空选禁用）——板脚唯一大面积琥珀的惯例由批量主操作承接。退出 = 板头钮再点或 Esc（焦点在输入框或弹层开启时豁免），退出清空勾选。两个弹层（URL 输入 Modal、关闭全部 modal.confirm danger）均经 overlay 悬挂登记收起原生层。
+
 ### antd 6 整合层
 
 根 `ConfigProvider`（zh_CN，colorPrimary #FFB000，系统栈字体）；`SessionPanel` 内再套一层 `ConfigProvider`（`theme.darkAlgorithm`，colorPrimary/colorInfo #FFB000，borderRadius 6）——antd 交互件只进板面世界并自动换暗色算法。滚动条、`::selection`（琥珀底 amber-ink 字）、`:focus-visible`（2px 琥珀外框，offset 2px）均已按世界主题化，antd 组件不例外。
@@ -295,11 +299,11 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 5 前有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 6 前有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **会话绑定浏览器已交付（阶段 4）**：每会话独立分区（`persist:sess-<id>`）的 TabManager 集群 + 注册表视图交换保活 + 状态灯/pageTitle/lastUrl 真实驱动 + 删除清分区 + 零会话空态（详见「会话绑定浏览器」条目）。仍属留白的：克隆会话与批量操作（阶段 5）、会话拖出独立窗口（阶段 6）、Tab 列表全量持久化（重启仅恢复每会话"上次打开页"单值）、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）。
+- **会话克隆与批量操作已交付（阶段 5）**：行菜单「克隆会话」（close-then-copy 分区复制 + 元数据随行 +「副本」命名 + 完成即激活）与批量模式（详见「批量模式」条目）。克隆语义边界：复制的是持久化环境数据（登录态/Cookie/LocalStorage 等），源会话活页面状态不进入克隆、克隆期间源 webContents 关闭（切回按 lastUrl 重载）；批量关闭 = 删除全部会话及数据。仍属留白的：会话拖出独立窗口（阶段 6，steps 文件待建）、克隆源活页面保真、批量重命名/批量删除选中项、Tab 列表全量持久化、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）。
 - **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
 - **会话元数据已持久化（schema v2）**：主进程 `userData/sessions.json`（version 2：id/name/note/pageTitle/lastUrl；v1 读取时按 lastUrl='' 迁移，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。浏览器 Tab 结构与 DevTools 状态不持久化，重启每会话回到单 Tab（激活会话自动重载上次打开页）。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。

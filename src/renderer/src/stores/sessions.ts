@@ -18,7 +18,7 @@ interface SessionsState {
   deleteAllSessions: () => Promise<void>
   renameSession: (id: string, name: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
-  batchOpenUrl: (ids: string[], url: string) => Promise<void>
+  batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
 }
 
 let initialized = false
@@ -167,12 +167,15 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   // 批量打开测试地址：无本地快照变更——各会话新 Tab 的快照经 statusChanged 推送
-  // 与激活路径自然到达。url 非空由调用方（弹层确定钮）保证，失败如实告警
+  // 与激活路径自然到达。url 非空由调用方（弹层确定钮）保证；与 navigate 同规，
+  // 失败不吞错返回 false，供弹层展示行内错误提示（整单拒绝时无部分打开）
   batchOpenUrl: async (ids, url) => {
     try {
       await window.api.sessions.batchOpenUrl({ ids, url })
+      return true
     } catch (error) {
       console.error('批量打开测试地址失败', error)
+      return false
     }
   }
 }))
