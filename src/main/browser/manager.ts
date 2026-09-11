@@ -60,6 +60,12 @@ export interface TabManager {
   getActiveWebContents: () => WebContents | null
   /** 窗口（重）建后重挂激活 Tab 的页面 view；macOS 关窗重开由 index.ts 调用 */
   attachToWindow: () => void
+  /**
+   * 注销本 manager：此后 newTab 一律 no-op。注册表销毁会话时于关闭 webContents 前
+   * 调用——销毁等待期内垂死页面仍可能经 window.open 触发 newTab，若放行会在同分区
+   * 复生 webContents（清除后数据覆写回盘 + 泄漏），dispose 后一切创建路径封死
+   */
+  dispose: () => void
   getSnapshot: () => BrowserSnapshot
   /** 订阅快照变化，返回退订函数 */
   onSnapshotChanged: (cb: SnapshotListener) => () => void
@@ -80,6 +86,8 @@ export function createTabManager(
   // 悬挂态：renderer 上报零矩形（确认框等弹层收起原生层）期间置位，
   // 此后挂入的 view 一律按 HIDDEN_RECT 收起；布局缓存保留最后有效值，悬挂解除自动恢复
   let suspended = false
+  // 注销标志（注册表销毁会话前置位）：封死 newTab 创建路径，防垂死页面复生 webContents
+  let disposed = false
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
 
@@ -151,6 +159,8 @@ export function createTabManager(
   }
 
   function newTab(url?: string): BrowserSnapshot {
+    // 已注销（注册表销毁会话）：拒绝一切创建，防垂死页面 window.open 复生 webContents
+    if (disposed) return buildSnapshot()
     seq += 1
     const id = `tab-${seq}`
     const view = new WebContentsView({
@@ -388,6 +398,10 @@ export function createTabManager(
     return () => focusListeners.delete(cb)
   }
 
+  function dispose(): void {
+    disposed = true
+  }
+
   return {
     newTab,
     closeTab,
@@ -397,6 +411,7 @@ export function createTabManager(
     closeDevTools,
     getActiveWebContents,
     attachToWindow,
+    dispose,
     getSnapshot,
     onSnapshotChanged,
     onFocusAddressRequest

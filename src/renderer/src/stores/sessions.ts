@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import type { SessionStatus, SessionStatusesPayload, StoredSession } from '../../../shared/sessions'
+// browser ↔ sessions 互相引用均为函数体内惰性取用（无模块级执行依赖），循环安全：
+// browser 的快照守卫读 sessions.activeId，sessions 删除会话后经 browser.resync 对齐
+import { useBrowserStore } from './browser'
 
 export interface SessionItem extends StoredSession {
   status: SessionStatus
@@ -62,18 +65,30 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  // id 由主进程生成，以返回值为准追加并选中
+  // id 由主进程生成，以返回值为准追加并选中。阶段 4 起"选中"必须落主进程（setActive
+  // 触发注册表切换浏览器分区）——只改本地 activeId 会让主进程仍激活旧会话、其快照
+  // 推送被 sessionId 守卫全部丢弃，右侧冻结（首次新建则永久卡在零会话空态）。
+  // 乐观先置 activeId（守卫随推送对齐），setActive 失败回滚到前值（新会话保留在列表）
   addSession: async () => {
+    const prev = get().activeId
     try {
       const created = await window.api.sessions.create({})
       const item: SessionItem = { ...created, status: 'idle' }
       set((state) => ({ sessions: [...state.sessions, item], activeId: item.id }))
+      try {
+        await window.api.sessions.setActive({ id: item.id })
+      } catch (error) {
+        console.error('激活新会话失败', error)
+        if (get().activeId === item.id) set({ activeId: prev })
+      }
     } catch (error) {
       console.error('新建会话失败', error)
     }
   },
 
-  // 删除成功后本地过滤；被删的是选中项时与主进程级联规则一致，指向剩余首项或 null
+  // 删除成功后本地过滤；被删的是选中项时与主进程级联规则一致，指向剩余首项或 null。
+  // 级联切换的快照推送在 delete 回复之前到达（推送时本地 activeId 仍旧值，被守卫
+  // 丢弃），故本地状态更新后必须重拉浏览器快照对齐当前激活会话
   removeSession: async (id) => {
     try {
       await window.api.sessions.delete({ id })
@@ -82,6 +97,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         const activeId = state.activeId === id ? (sessions[0]?.id ?? null) : state.activeId
         return { sessions, activeId }
       })
+      void useBrowserStore.getState().resync()
     } catch (error) {
       console.error('删除会话失败', error)
     }

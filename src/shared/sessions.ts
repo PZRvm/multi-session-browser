@@ -31,7 +31,7 @@ export interface StoredSession {
   lastUrl: string
 }
 
-/** renderer 运行時會话 = 落盘数据 + 状态 */
+/** renderer 运行时会话 = 落盘数据 + 状态 */
 export type SessionStatus = 'idle' | 'loading'
 
 /** 全量会话运行状态 map（key 为会话 id）；推送与拉取同构，整体替换不合并 */

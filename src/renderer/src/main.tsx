@@ -11,7 +11,11 @@ import { useSessionsStore } from './stores/sessions'
 // 守卫以 sessions 的 activeId 为准，而 browser:get-state（主进程同步 handler）几乎必然
 // 先于 sessions:list（异步读盘）resolve；并发触发会把启动期合法快照误判过期丢弃，
 // 右侧卡死在零会话空态（波次 4 检查点实测并修复的竞态）
-void useSessionsStore.getState().init().then(() => useBrowserStore.getState().init())
+void useSessionsStore
+  .getState()
+  .init()
+  .then(() => useBrowserStore.getState().init())
+  .catch(() => undefined)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

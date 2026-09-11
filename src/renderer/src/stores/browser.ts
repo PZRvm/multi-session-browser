@@ -12,6 +12,8 @@ interface BrowserState {
   devtoolsOpen: boolean
   focusTick: number
   init: () => Promise<void>
+  /** 重拉当前快照对齐主进程（删除会话等场景：级联推送先于命令回复到达而被守卫丢弃） */
+  resync: () => Promise<void>
   newTab: (url?: string) => Promise<void>
   closeTab: (id: string) => Promise<void>
   switchTab: (id: string) => Promise<void>
@@ -68,6 +70,15 @@ export const useBrowserStore = create<BrowserState>((set) => ({
       offFocusAddress?.()
       initialized = false
       console.error('初始化浏览器状态失败', error)
+    }
+  },
+
+  // 主动重拉快照（守卫照常生效）：用于推送已丢、命令回复又不含新快照的路径（删除级联）
+  resync: async () => {
+    try {
+      applySnapshot(set, await window.api.browser.getState())
+    } catch (error) {
+      console.error('重拉浏览器状态失败', error)
     }
   },
 

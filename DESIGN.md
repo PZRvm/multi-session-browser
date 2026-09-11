@@ -252,7 +252,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 空态（Empty State）
 
-仅存在于左栏：居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」，板面墨/次墨两级。右侧没有空态——阶段 2 起它是常驻的真实浏览器（初始单个「新标签页」）。
+两侧各有其形：左栏空态居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」（板面墨/次墨两级）；右侧零会话空态（阶段 4 起）——Chrome 侧语法，chrome-white 底上居中两级文字：标题「尚无会话」（Title 字槽，15/600 chrome-ink）+ 提示「在左侧新建或选择会话，开始隔离浏览」（12px chrome-ink-dim），gap 8px、padding 32px，无图标、无按钮、无动效（左栏板脚已有唯一的新建入口，右侧不重复；空态是静态事实陈述）。零会话时 Tab 栏与工具栏常驻渲染但控件禁用（Chrome 框体不消失）。
 
 ### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 
@@ -260,7 +260,11 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 ### 原生 DevTools（Managed DevTools）— 阶段 3 新增
 
-每个 Tab 直接调用其页面 `webContents.openDevTools()`，由 Electron/Chromium 创建并管理原生 DevTools；不再通过 `setDevToolsWebContents` 注入第二个 WebContentsView。DevTools 的停靠按钮、方向、分隔条、设备模拟页面和尺寸调整均为 Chromium 原生能力，并沿用其上次停靠状态。应用只维护激活 Tab 的 `devtoolsOpen` 快照和 F12/ESC 路由，不注入 DevTools 样式或布局。这样既保持 DevTools 与页面 webContents 一对一绑定，也避免应用停靠占位与 Chromium 设备模拟布局形成两套互相冲突的坐标系统。
+每个 Tab 直接调用其页面 `webContents.openDevTools()`，由 Electron/Chromium 创建并管理原生 DevTools；不再通过 `setDevToolsWebContents` 注入第二个 WebContentsView。DevTools 的停靠按钮、方向、分隔条、设备模拟页面和尺寸调整均为 Chromium 原生能力，并沿用其上次停靠状态。应用只维护激活 Tab 的 `devtoolsOpen` 快照和 F12/ESC 路由，不注入 DevTools 样式或布局。这样既保持 DevTools 与页面 webContents 一对一绑定，也避免应用停靠占位与 Chromium 设备模拟布局形成两套互相冲突的坐标系统。阶段 4 会话绑定后，DevTools 随所在 Tab 的 webContents 自然归属其会话分区，切换会话即整体交换（无需任何额外接线）。
+
+### 会话绑定浏览器（Session-bound Browser）— 阶段 4 新增
+
+右侧浏览器不再是未绑定会话的单例：主进程注册表为每个会话维护一个独立分区（`persist:sess-<id>`，一会话一分区禁止共享）的 TabManager，点击左侧会话行 = 视图级瞬时交换（旧会话全部 webContents 保活——Tab、滚动、输入、登录态、DevTools 实例原样保留，切回即恢复）。命令通道一律作用于当前激活会话；快照带 sessionId，renderer 丢弃与当前选中不符的过期快照。会话状态灯（idle 灰 / loading 琥珀脉冲）由该会话「任一 Tab 加载中」真实驱动（含后台会话），经全量状态 map 推送；会话行的 pageTitle 由激活 Tab 标题实时驱动并去抖落盘，`lastUrl`（上次打开页）持久化，重启后首次激活自动重载（PRD 3.1.4）。删除会话即销毁其全部 webContents 并彻底清除分区数据（clearStorageData + 删分区目录）。零会话时右侧呈现空态、控件禁用、命令拒绝（「未选择会话」）。
 
 ### 分隔条（Panel Divider）
 
@@ -291,14 +295,13 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 4 前有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 5 前有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **右侧已是真实浏览器 + 原生 DevTools（阶段 2/3 交付）**：主进程 WebContentsView（persist:browse 分区）+ 多 Tab 管理 + 导航/地址栏/最小快捷键 + 每 Tab 原生受管 DevTools（F12 唤起、ESC 关闭、Chromium 原生停靠与设备模拟）；tab 栏/工具栏/地址栏沿用既有度量与灰阶。浏览器是未绑定会话的单例：切会话不影响浏览器，右侧不得出现任何会话信息或板面元素；DevTools 绑定粒度是 Tab（一对一 webContents），"跟随会话环境切换"的完整语义在阶段 4 绑定后自然成立，界面文案不得提前宣称会话级。
+- **会话绑定浏览器已交付（阶段 4）**：每会话独立分区（`persist:sess-<id>`）的 TabManager 集群 + 注册表视图交换保活 + 状态灯/pageTitle/lastUrl 真实驱动 + 删除清分区 + 零会话空态（详见「会话绑定浏览器」条目）。仍属留白的：克隆会话与批量操作（阶段 5）、会话拖出独立窗口（阶段 6）、Tab 列表全量持久化（重启仅恢复每会话"上次打开页"单值）、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）。
 - **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
-- **会话状态灯 loading 仍未触发**：`dot-pulse` 动画与琥珀状态字、状态三信号文案就绪，但 `sessions` store 没有任何 action 会把 status 置为 `loading`。原预期"阶段 2 接真实加载事件直接驱动"已修正——浏览器与会话无绑定，驱动会话灯即伪造绑定事实；驱动时点推迟到阶段 4 会话绑定时，仍用既有视觉，不另造加载动画。浏览器的 loading 视觉存在于 Tab（LoadingOutlined）与工具栏（刷新↔停止），与会话状态灯无关。
-- **会话元数据已持久化**：主进程 `userData/sessions.json`（schema version 1，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写；演示种子数据与「演示数据」签已随持久化接入移除，首启空列表呈现「尚无会话」空态。持久化不改变任何视觉决策，仅移除诚实性标注。浏览器侧（Tab/URL/DevTools）不持久化，重启复位为单个新标签页。
+- **会话元数据已持久化（schema v2）**：主进程 `userData/sessions.json`（version 2：id/name/note/pageTitle/lastUrl；v1 读取时按 lastUrl='' 迁移，原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。浏览器 Tab 结构与 DevTools 状态不持久化，重启每会话回到单 Tab（激活会话自动重载上次打开页）。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
 - **`--amber-ink-dim`（#4a3a00）在 `:root` 定义但零引用**：源码里存在、体系里未启用，未收录进本记录的 token 表；启用前不要引用。
 - **无断点体系**：弹性由窗口最小尺寸（1080×680）与左栏 220–420px 拖拽承担；不要引入媒体查询断点。

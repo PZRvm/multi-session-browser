@@ -268,17 +268,29 @@ export function createSessionBrowserRegistry(deps: {
     const partition = partitionFor(id)
     const target = session.fromPartition(partition)
     if (manager) {
+      // ② 先注销 manager（封死 newTab）：销毁等待期内垂死页面仍可能经 window.open
+      //    触发 newTab 复生 webContents（复生 = 清除后数据覆写回盘 + 泄漏，H2 定案路径）
+      manager.dispose()
       detachActiveView(manager)
-      // ① 先销毁该分区全部页面 webContents（原生受管 DevTools 随宿主 wc.close() 自然带走）；
+      // ③ 先销毁该分区全部页面 webContents（原生受管 DevTools 随宿主 wc.close() 自然带走）；
       //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒）。
-      //    有界重扫：unload 期间页面仍可能经 window.open（manager 的 deny+newTab 转换）
-      //    在同分区补生 webContents，扫到即补杀，超轮按现状继续并靠后续如实告警兜底
+      //    有界重扫：unload 期间页面仍可能经 window.open 在同分区补生 webContents（manager
+      //    已 dispose，newTab 不再复生；此轮扫描兜底历史在途者），扫到即补杀，超轮告警不静默
       for (let round = 0; round < DESTROY_RESCAN_ROUNDS; round += 1) {
         const dying = webContents
           .getAllWebContents()
           .filter((wc) => !wc.isDestroyed() && wc.session === target)
         if (dying.length === 0) break
         await Promise.all(dying.map(closeGracefully))
+      }
+      // 重扫超轮仍有存活（unload 卡死等极端场景）：如实告警，不静默
+      const survivors = webContents
+        .getAllWebContents()
+        .filter((wc) => !wc.isDestroyed() && wc.session === target)
+      if (survivors.length > 0) {
+        console.warn(
+          `[registry] 会话 ${id} 销毁重扫 ${DESTROY_RESCAN_ROUNDS} 轮后仍有 ${survivors.length} 个 webContents 未死透（unload 卡死等极端场景），继续执行清除；残留进程随应用退出回收`
+        )
       }
     }
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默
@@ -383,6 +395,11 @@ export function createSessionBrowserRegistry(deps: {
     return statusesPayload()
   }
 
+  /** 注销全部 manager（封死一切 newTab 创建路径）；单会话销毁走 destroySession */
+  function dispose(): void {
+    for (const manager of managers.values()) manager.dispose()
+  }
+
   return {
     newTab,
     closeTab,
@@ -392,6 +409,7 @@ export function createSessionBrowserRegistry(deps: {
     closeDevTools,
     getActiveWebContents,
     attachToWindow,
+    dispose,
     getSnapshot,
     onSnapshotChanged,
     onFocusAddressRequest,
