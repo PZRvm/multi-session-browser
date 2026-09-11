@@ -8,6 +8,8 @@ import type {
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
 import type {
+  BatchOpenUrlPayload,
+  CloneSessionPayload,
   CreateSessionPayload,
   DeleteSessionPayload,
   RenameSessionPayload,
@@ -28,6 +30,9 @@ declare global {
         setActive(payload: SetActiveSessionPayload): Promise<OkResult>
         getStatuses(): Promise<SessionStatusesPayload>
         onStatusChanged(callback: (payload: SessionStatusesPayload) => void): () => void
+        clone(payload: CloneSessionPayload): Promise<StoredSession>
+        deleteAll(): Promise<OkResult>
+        batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
       }
       browser: {
         getState(): Promise<BrowserSnapshot>

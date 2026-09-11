@@ -12,6 +12,8 @@ import type {
 } from '../shared/browser'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
+  BatchOpenUrlPayload,
+  CloneSessionPayload,
   CreateSessionPayload,
   DeleteSessionPayload,
   OkResult,
@@ -36,6 +38,11 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.setActive, payload),
     getStatuses: (): Promise<SessionStatusesPayload> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.getStatuses),
+    clone: (payload: CloneSessionPayload): Promise<StoredSession> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.clone, payload),
+    deleteAll: (): Promise<OkResult> => ipcRenderer.invoke(SESSIONS_CHANNELS.deleteAll),
+    batchOpenUrl: (payload: BatchOpenUrlPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.batchOpenUrl, payload),
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
     onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {

@@ -1,12 +1,14 @@
 // 会话持久化共享契约（主进程 / preload / renderer 三方共用）。
 // 修改本文件的类型或通道名前，必须先修订
-// notes/plans/20260911191316-阶段4多会话浏览器绑定开发计划.md 第 3 节。
+// notes/plans/20260912013740-阶段5会话克隆与批量操作开发计划.md 第 3 节。
 //
-// 阶段 4 契约要点：
+// 契约要点：
 // - 落盘 schema version 2（v1 文件读取时按 lastUrl='' 迁移，写盘恒出 v2，见 src/main/store.ts）
 // - status 是运行时状态不落盘，由"该会话任一 Tab loading"聚合而来，经
 //   statusChanged 全量 map 推送；renderer 先订阅后拉取（getStatuses）防启动竞态
 // - setActive 通道在主进程内附带副作用：触发浏览器切换到目标会话（编排见 registry）
+// - 阶段 5 增量：clone（分区数据+元数据复制）、deleteAll（批量关闭=删除全部）、
+//   batchOpenUrl（选中会话统一开测试地址）；通道整单校验拒绝制，无部分成功
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -15,7 +17,10 @@ export const SESSIONS_CHANNELS = {
   delete: 'sessions:delete',
   setActive: 'sessions:set-active',
   getStatuses: 'sessions:get-statuses',
-  statusChanged: 'sessions:status-changed'
+  statusChanged: 'sessions:status-changed',
+  clone: 'sessions:clone',
+  deleteAll: 'sessions:delete-all',
+  batchOpenUrl: 'sessions:batch-open-url'
 } as const
 
 /**
@@ -68,6 +73,20 @@ export interface DeleteSessionPayload {
 
 export interface SetActiveSessionPayload {
   id: string | null
+}
+
+/** 克隆会话：复制源会话的分区数据（登录态等持久环境）与元数据，生成同款新环境 */
+export interface CloneSessionPayload {
+  id: string
+}
+
+/**
+ * 批量打开测试地址：全部选中会话各新建一个 Tab 加载该 URL。
+ * 整单校验拒绝制——ids 任一不存在或 URL 不合法时整单拒绝，无部分成功
+ */
+export interface BatchOpenUrlPayload {
+  ids: string[]
+  url: string
 }
 
 export interface OkResult {
