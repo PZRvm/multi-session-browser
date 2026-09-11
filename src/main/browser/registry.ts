@@ -5,9 +5,9 @@
 // 落盘读写一律经 store.ts 的 loadSnapshot / mutateSnapshot，不自行组合读写。
 
 import { app, session, webContents, WebContentsView } from 'electron'
-import type { BrowserWindow, WebContents } from 'electron'
-import { rm } from 'fs/promises'
-import { join } from 'path'
+import type { BrowserWindow, Session, WebContents } from 'electron'
+import { cp, rm, stat } from 'fs/promises'
+import { basename, join } from 'path'
 import type { BrowserSnapshot, SetBoundsPayload } from '../../shared/browser'
 import {
   PAGE_TITLE_MAX,
@@ -54,12 +54,38 @@ const LAST_URL_MAX = 2000
 const DESTROY_GRACE_MS = 3000
 /** 销毁重扫轮数上限：unload 期间页面仍可能经 window.open 在同分区补生 webContents */
 const DESTROY_RESCAN_ROUNDS = 3
+/**
+ * 克隆复制时排除的缓存类目录（按 basename 匹配，任意层级）：Chromium 分区内可再生的
+ * 纯缓存目录全集（Cache / GPUCache / Code Cache / DawnGraphiteCache / DawnWebGPUCache）；
+ * 登录态与站点数据（Cookies / Local Storage / IndexedDB 等）不在此列，全量保真复制
+ */
+const CLONE_EXCLUDED_DIR_BASENAMES = new Set([
+  'Cache',
+  'GPUCache',
+  'Code Cache',
+  'DawnGraphiteCache',
+  'DawnWebGPUCache'
+])
+
+/** fs 错误是否为 ENOENT（路径不存在）：clonePartition 判断源分区目录是否存在的唯一依据 */
+function isENOENT(error: unknown): boolean {
+  return error instanceof Error && (error as { code?: string }).code === 'ENOENT'
+}
 
 export interface SessionBrowserRegistry extends TabManager {
   /** 切换激活会话：旧 manager 激活 view 摘除但 webContents 全部保活，新 manager 即时挂入；null = 摘除全部 */
   switchSession(id: string | null): void
   /** 销毁该会话全部 webContents 并彻底清分区数据（销毁 → clearStorageData → 删分区目录，顺序不可颠倒） */
   destroySession(id: string): Promise<void>
+  /**
+   * 关闭该会话：销毁全部 webContents 但保留分区数据与元数据（与 destroySession 的语义分叉，
+   * 克隆前收尾活库用）；关后 manager 从注册表摘除，下次激活懒创建按 lastUrl 重载
+   */
+  closeSession(id: string): Promise<void>
+  /** 克隆分区目录（先 closeSession 源，再排除缓存目录递归复制）；源目录不存在时跳过复制（空白环境） */
+  clonePartition(srcId: string, dstId: string): Promise<void>
+  /** 批量打开测试地址：逐会话懒创建 manager 并新建 Tab 加载；后台会话摘 view 保活后台加载 */
+  openUrlInSessions(ids: string[], url: string): void
   /** 启动恢复：读盘缓存各会话 lastUrl，恢复上次激活会话并重载其上次打开页 */
   init(activeId: string | null): void
   /** 订阅会话运行状态（idle/loading）全量 map；状态 map 有变化时回调，返回退订函数 */
@@ -199,6 +225,36 @@ export function createSessionBrowserRegistry(deps: {
         done()
       }, DESTROY_GRACE_MS)
     })
+  }
+
+  /**
+   * 销毁某分区现存全部 webContents 的共享机制（destroySession 与 closeSession 复用，
+   * 抽此防两份拷贝漂移）：有界重扫逐轮优雅 close（走页面 unload）+ 宽限内未死透强制销毁；
+   * unload 期间页面仍可能经 window.open 在同分区补生 webContents（manager 已 dispose，
+   * newTab 不再复生；扫描兜底历史在途者），扫到即补杀，超轮如实告警不静默。
+   * 本函数只杀 webContents；清存储与删目录是 destroySession 独有步骤，closeSession 保留数据
+   */
+  async function killPartitionWebContents(
+    target: Session,
+    id: string,
+    nextLabel: string
+  ): Promise<void> {
+    for (let round = 0; round < DESTROY_RESCAN_ROUNDS; round += 1) {
+      const dying = webContents
+        .getAllWebContents()
+        .filter((wc) => !wc.isDestroyed() && wc.session === target)
+      if (dying.length === 0) break
+      await Promise.all(dying.map(closeGracefully))
+    }
+    // 重扫超轮仍有存活（unload 卡死等极端场景）：如实告警，不静默
+    const survivors = webContents
+      .getAllWebContents()
+      .filter((wc) => !wc.isDestroyed() && wc.session === target)
+    if (survivors.length > 0) {
+      console.warn(
+        `[registry] 会话 ${id} 销毁重扫 ${DESTROY_RESCAN_ROUNDS} 轮后仍有 ${survivors.length} 个 webContents 未死透（unload 卡死等极端场景），继续执行${nextLabel}；残留进程随应用退出回收`
+      )
+    }
   }
 
   /** 取 fire 时刻的最新值写盘（去抖期内后续变化不必再各写一次） */
@@ -351,25 +407,9 @@ export function createSessionBrowserRegistry(deps: {
       manager.dispose()
       detachActiveView(manager)
       // ③ 先销毁该分区全部页面 webContents（原生受管 DevTools 随宿主 wc.close() 自然带走）；
-      //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒）。
-      //    有界重扫：unload 期间页面仍可能经 window.open 在同分区补生 webContents（manager
-      //    已 dispose，newTab 不再复生；此轮扫描兜底历史在途者），扫到即补杀，超轮告警不静默
-      for (let round = 0; round < DESTROY_RESCAN_ROUNDS; round += 1) {
-        const dying = webContents
-          .getAllWebContents()
-          .filter((wc) => !wc.isDestroyed() && wc.session === target)
-        if (dying.length === 0) break
-        await Promise.all(dying.map(closeGracefully))
-      }
-      // 重扫超轮仍有存活（unload 卡死等极端场景）：如实告警，不静默
-      const survivors = webContents
-        .getAllWebContents()
-        .filter((wc) => !wc.isDestroyed() && wc.session === target)
-      if (survivors.length > 0) {
-        console.warn(
-          `[registry] 会话 ${id} 销毁重扫 ${DESTROY_RESCAN_ROUNDS} 轮后仍有 ${survivors.length} 个 webContents 未死透（unload 卡死等极端场景），继续执行清除；残留进程随应用退出回收`
-        )
-      }
+      //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒），
+      //    销毁机制由 killPartitionWebContents 共享（closeSession 同用）
+      await killPartitionWebContents(target, id, '清除')
     }
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
     //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
@@ -392,6 +432,101 @@ export function createSessionBrowserRegistry(deps: {
       )
     }
     if (wasActive) notifySnapshot()
+  }
+
+  /**
+   * 关闭该会话：销毁全部 webContents 但保留分区数据与元数据（与 destroySession 的语义
+   * 分叉：跳过 clearStorageData 与删目录），供 clonePartition 在复制前收尾活库（活库的
+   * LevelDB/Cookies journal 未落盘，直接 cp 会得到不一致副本）。关后 manager 从注册表
+   * 摘除（reported/状态条目/去抖定时器一并清掉），下次激活该会话由 ensureManager 懒创建
+   * 并按 lastUrls 缓存重载上次打开页。被关的是激活会话时只摘 view、置空激活标记，
+   * **不**切空态**不**广播空态快照——克隆完成后 renderer 的 setActive(新会话) 接管画面，
+   * 全程只切一次，避免中间空态闪烁。manager 不存在（从未激活过或已关闭）时 no-op resolve
+   */
+  async function closeSession(id: string): Promise<void> {
+    const manager = managers.get(id)
+    if (!manager) return
+    // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
+    // manager，让随后的分区复制重新落入"活库"状态
+    initHandled = true
+    // 摘引用前先冲刷该会话待写的上报去抖（flushReport 以注册表存在性为判据，须在摘除前
+    // 调用）：关后随即复制分区与元数据，pageTitle/lastUrl 取关前最新值落盘
+    const pending = reportTimers.get(id)
+    if (pending) {
+      clearTimeout(pending)
+      reportTimers.delete(id)
+      flushReport(id)
+    }
+    managers.delete(id)
+    // lastUrls 保留（与 destroySession 的分叉点之一）：该会话仍在落盘元数据里存活，
+    // 下次激活须按 lastUrl 重载（PRD 3.1.4 恢复语义，计划用例 A 的"源会话切回重载"）
+    reported.delete(id)
+    deleteStatus(id)
+    if (activeSessionId === id) activeSessionId = null
+    // 先 dispose 封死 newTab（销毁等待期内垂死页面 window.open 的复生路径），再摘 view、
+    // 杀 webContents（共享销毁机制，含宽限与有界重扫）
+    manager.dispose()
+    detachActiveView(manager)
+    await killPartitionWebContents(session.fromPartition(partitionFor(id)), id, '关闭')
+  }
+
+  /**
+   * 克隆分区目录（close-then-copy）：先 closeSession 源会话收尾活库，再递归复制分区目录
+   * 到目标（排除缓存类目录，登录态与站点数据全量保真）。源目录不存在（从未激活过的会话）
+   * 时跳过复制——产物为空白环境，克隆零异常边界。复制失败先清目标残留再上抛（handler 转
+   * IPC 错误，元数据不落盘），残留路径如实告警不静默
+   */
+  async function clonePartition(srcId: string, dstId: string): Promise<void> {
+    await closeSession(srcId)
+    const srcDir = partitionDir(partitionFor(srcId))
+    const dstDir = partitionDir(partitionFor(dstId))
+    // 源分区目录不存在：从未激活过的会话无数据可复制，产物为空白环境（零异常）
+    let srcStat: Awaited<ReturnType<typeof stat>> | null = null
+    try {
+      srcStat = await stat(srcDir)
+    } catch (error) {
+      if (!isENOENT(error)) throw error
+    }
+    if (!srcStat) return
+    if (!srcStat.isDirectory()) {
+      throw new Error(`源分区路径不是目录（${srcDir}），疑似数据损坏，拒绝克隆`)
+    }
+    try {
+      await cp(srcDir, dstDir, {
+        recursive: true,
+        // 按 basename 排除缓存类目录（返回 false 的目录整体跳过，子内容不再遍历）
+        filter: (srcPath: string): boolean => !CLONE_EXCLUDED_DIR_BASENAMES.has(basename(srcPath))
+      })
+      // 复制完成后目标目录就位性复核：半成品复制在此暴露（失败走下方清理路径）
+      const dstStat = await stat(dstDir)
+      if (!dstStat.isDirectory()) {
+        throw new Error(`目标分区路径不是目录（${dstDir}）`)
+      }
+    } catch (error) {
+      // 任何失败先清目标残留再上抛：半成品目录会让新会话挂在不一致环境上；
+      // 残留路径如实告警（清理自身失败也告警，交人工核查），不静默
+      try {
+        await rm(dstDir, { recursive: true, force: true })
+      } catch (cleanupError) {
+        console.warn(`[registry] 清理克隆目标残留目录失败（${dstDir}，请手动核查）:`, cleanupError)
+      }
+      console.warn(`[registry] 克隆分区目录失败（${srcDir} → ${dstDir}），已清理目标残留:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * 批量打开测试地址：逐会话懒创建 manager 并新建 Tab 加载 url（url 已在 handler 层过
+   * normalizeInput 白名单规范化）。newTab 会把该 manager 激活 Tab 的 view 挂入窗口——
+   * 对非当前激活的后台会话，newTab 后立即用 detachActiveView 摘回其 view（webContents
+   * 保活后台加载，加载态经既有 statusChanged 推送如实驱动）；仅当前激活会话的 view 保持挂入
+   */
+  function openUrlInSessions(ids: string[], url: string): void {
+    for (const id of ids) {
+      const manager = ensureManager(id)
+      manager.newTab(url)
+      if (id !== activeSessionId) detachActiveView(manager)
+    }
   }
 
   function init(activeId: string | null): void {
@@ -498,6 +633,9 @@ export function createSessionBrowserRegistry(deps: {
     onFocusAddressRequest,
     switchSession,
     destroySession,
+    closeSession,
+    clonePartition,
+    openUrlInSessions,
     init,
     onSessionStatus,
     getStatuses,

@@ -163,9 +163,10 @@ app.whenReady().then(() => {
   registry = created
 
   // IPC handlers 须在窗口创建前就绪（renderer 首帧即可调用）：浏览器命令经 ipc.ts 路由
-  // 注册表；会话侧编排回调在此注入（签名按计划第 3 节契约点 4 冻结，内联声明）——
+  // 注册表；会话侧编排回调在此注入（签名按计划第 3 节契约点 3/4 冻结，内联声明）——
   // 切换会话即切换浏览器（视图交换保活），删除先级联切换再异步销毁清分区，
-  // 状态拉取（get-statuses）兜底启动期推送竞态
+  // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
+  // 批量关闭（一次切空态 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
   registerBrowserIpc(created, getMainWindow)
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
@@ -177,7 +178,19 @@ app.whenReady().then(() => {
       created.switchSession(nextActiveId)
       void created.destroySession(id)
     },
-    getStatuses: (): SessionStatusesPayload => created.getStatuses()
+    getStatuses: (): SessionStatusesPayload => created.getStatuses(),
+    // 克隆：分区数据复制全在 registry 内完成（关闭源 webContents 收尾活库 → 排除缓存
+    // 目录递归复制 → 失败清目标残留上抛）；失败上抛即不落元数据，renderer 乐观态回滚
+    clonePartition: (srcId: string, dstId: string): Promise<void> =>
+      created.clonePartition(srcId, dstId),
+    // 批量关闭全部：一次切空态（同步摘 view、广播空态快照）再逐会话异步销毁清分区
+    // （N 次逐条切换不可取——主进程一次切空 + 并行销毁，计划契约点 3 定案）
+    onAllDeleted: (ids: string[]): void => {
+      created.switchSession(null)
+      for (const id of ids) void created.destroySession(id)
+    },
+    // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
+    onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url)
   })
 
   // 会话状态推送：注册表聚合的全量状态 map 直连主窗口（status-changed 通道不经

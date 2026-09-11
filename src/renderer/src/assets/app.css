@@ -456,6 +456,118 @@ body.col-resizing {
   background: var(--amber-press);
 }
 
+/* ---------- 批量模式 ---------- */
+
+/* 板头右端分组：批量入口钮与会话计数同组靠右 */
+.board-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* 批量模式入口：20×20 图标钮，激活态以琥珀底作点级信号 */
+.batch-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.batch-toggle:not(:disabled):hover {
+  background: var(--board-bg-raised);
+}
+
+.batch-toggle.active {
+  background: var(--amber);
+  color: var(--amber-ink);
+}
+
+/* 零会话时入口禁用（批量态中保持可点以便退出） */
+.batch-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* 行首复选框：行整列即勾选热区，复选框自身点击/空格亦切 */
+.session-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 勾选行背景常驻 raised；未勾选行维持 board-bg（默认透明叠底）。
+   批量态不渲染 .selected 反白——激活语义专属单选模式 */
+.session-row.batch-checked {
+  background: var(--board-bg-raised);
+}
+
+/* 板脚批量操作栏（整体替换新建按钮区） */
+.batch-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.batch-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.batch-bar-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.batch-count {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--board-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-select-all {
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 6px;
+  height: 20px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--board-ink);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.batch-select-all:hover {
+  background: var(--board-bg-raised);
+}
+
+/* danger 文字钮配色由 antd 暗色层供色，仅作右缘对齐微调 */
+.batch-close-all {
+  margin-right: -7px;
+}
+
+/* 「打开测试地址」复用 .new-session 度量；勾选为空时禁用（灰化不换底色）。
+   置于 :active 之后，禁用态钉住琥珀底不被 hover 覆盖 */
+.new-session:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 /* ---------- 右侧：Chrome 浏览器框架 ---------- */
 
 .browser-frame {

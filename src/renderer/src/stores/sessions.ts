@@ -13,9 +13,12 @@ interface SessionsState {
   activeId: string | null
   init: () => Promise<void>
   addSession: () => Promise<void>
+  cloneSession: (id: string) => Promise<void>
   removeSession: (id: string) => Promise<void>
+  deleteAllSessions: () => Promise<void>
   renameSession: (id: string, name: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
+  batchOpenUrl: (ids: string[], url: string) => Promise<void>
 }
 
 let initialized = false
@@ -86,6 +89,26 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
+  // 克隆：以主进程返回值追加并乐观激活（照 addSession 模式，setActive 失败回滚
+  // 到前值、新会话保留在列表）。分区复制可能耗时数秒，函数体即耗时边界，
+  // 调用方（组件）用它驱动行内「克隆中…」反馈
+  cloneSession: async (id) => {
+    const prev = get().activeId
+    try {
+      const cloned = await window.api.sessions.clone({ id })
+      const item: SessionItem = { ...cloned, status: 'idle' }
+      set((state) => ({ sessions: [...state.sessions, item], activeId: item.id }))
+      try {
+        await window.api.sessions.setActive({ id: item.id })
+      } catch (error) {
+        console.error('激活克隆会话失败', error)
+        if (get().activeId === item.id) set({ activeId: prev })
+      }
+    } catch (error) {
+      console.error('克隆会话失败', error)
+    }
+  },
+
   // 删除成功后本地过滤；被删的是选中项时与主进程级联规则一致，指向剩余首项或 null。
   // 级联切换的快照推送在 delete 回复之前到达（推送时本地 activeId 仍旧值，被守卫
   // 丢弃），故本地状态更新后必须重拉浏览器快照对齐当前激活会话
@@ -100,6 +123,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       void useBrowserStore.getState().resync()
     } catch (error) {
       console.error('删除会话失败', error)
+    }
+  },
+
+  // 批量关闭全部：主进程清空后本地同样原子清空。级联空态快照推送在 deleteAll
+  // 回复之前到达（推送时本地 activeId 仍旧值，被守卫丢弃），故本地清空后必须
+  // 重拉浏览器快照对齐空态（模式照 removeSession）
+  deleteAllSessions: async () => {
+    try {
+      await window.api.sessions.deleteAll()
+      set({ sessions: [], activeId: null })
+      void useBrowserStore.getState().resync()
+    } catch (error) {
+      console.error('关闭全部会话失败', error)
     }
   },
 
@@ -127,6 +163,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } catch (error) {
       console.error('切换选中会话失败', error)
       if (get().activeId === id) set({ activeId: prev })
+    }
+  },
+
+  // 批量打开测试地址：无本地快照变更——各会话新 Tab 的快照经 statusChanged 推送
+  // 与激活路径自然到达。url 非空由调用方（弹层确定钮）保证，失败如实告警
+  batchOpenUrl: async (ids, url) => {
+    try {
+      await window.api.sessions.batchOpenUrl({ ids, url })
+    } catch (error) {
+      console.error('批量打开测试地址失败', error)
     }
   }
 }))
