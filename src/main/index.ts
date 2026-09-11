@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
+import { app, shell, BrowserWindow, Menu, session, WebContentsView } from 'electron'
 import { join } from 'path'
+import { access, rm } from 'fs/promises'
 import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
@@ -130,6 +131,143 @@ function createWindow(): void {
   tabManager?.attachToWindow()
 }
 
+// [smoke4] 临时冒烟接线（阶段4步骤1；步骤6正式装配时移除）。
+// 三项前置验证：① 多分区 cookie 隔离；② 跨分区挂摘交换后页面状态保活；
+// ③ 分区数据清除时序（销毁 webContents → clearStorageData → 删分区目录 → 跨重启复查）。
+// 仅在 SMOKE4=1|2 时激活，避免后续步骤的 dev 运行被冒烟退出打断。
+const SMOKE4_A = 'persist:sess-smoke-a'
+const SMOKE4_B = 'persist:sess-smoke-b'
+
+function smoke4Log(...args: unknown[]): void {
+  console.log('[smoke4]', ...args)
+}
+
+function dirExists(path: string): Promise<boolean> {
+  return access(path)
+    .then(() => true)
+    .catch(() => false)
+}
+
+async function runSmoke4(): Promise<void> {
+  const phase = process.env['SMOKE4']
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+  const userData = app.getPath('userData')
+  const dirA = join(userData, 'Partitions', 'sess-smoke-a')
+  const dirB = join(userData, 'Partitions', 'sess-smoke-b')
+
+  // 阶段 2（SMOKE4=2）：重启后复查清除与保留是否成立
+  if (phase === '2') {
+    const a = await session.fromPartition(SMOKE4_A).cookies.get({})
+    const b = await session.fromPartition(SMOKE4_B).cookies.get({})
+    smoke4Log('阶段2 重启后 A cookies（预期空）:', JSON.stringify(a))
+    smoke4Log('阶段2 重启后 B cookies（预期含 smoke4-b）:', JSON.stringify(b))
+    smoke4Log('阶段2 A 目录存在（预期 false）:', await dirExists(dirA))
+    smoke4Log('阶段2 B 目录存在（预期 true）:', await dirExists(dirB))
+    await sleep(1000)
+    app.quit()
+    return
+  }
+
+  // 阶段 1（SMOKE4=1）：完整序列
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) {
+    smoke4Log('无主窗口，冒烟放弃')
+    return
+  }
+  try {
+    const rect = { x: 300, y: 300, width: 600, height: 400 }
+    const viewA = new WebContentsView({ webPreferences: { partition: SMOKE4_A } })
+    const viewB = new WebContentsView({ webPreferences: { partition: SMOKE4_B } })
+    viewA.setBackgroundColor('#ffffff')
+    viewB.setBackgroundColor('#ffffff')
+    const sA = session.fromPartition(SMOKE4_A)
+    const sB = session.fromPartition(SMOKE4_B)
+
+    const load = (view: WebContentsView, url: string): Promise<void> =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`加载超时 ${url}`)), 20000)
+        view.webContents.once('did-finish-load', () => {
+          clearTimeout(timer)
+          resolve()
+        })
+        void view.webContents.loadURL(url).catch(reject)
+      })
+    win.contentView.addChildView(viewA)
+    viewA.setBounds(rect)
+    await load(viewA, 'https://example.com')
+    // B 后台加载（不挂入），验证分区后台 webContents 可独立完成加载
+    await load(viewB, 'https://example.com')
+    smoke4Log('双分区页面加载完成（A 挂入 / B 后台）')
+
+    // ① 隔离：A 写 cookie，B 与 default 不得可见；反向同理。
+    // expirationDate 必带：不带则是会话 cookie（仅内存、重启即失），无法验证持久语义
+    const expires = Math.floor(Date.now() / 1000) + 3600
+    await sA.cookies.set({
+      url: 'https://example.com',
+      name: 'smoke4-a',
+      value: 'iso',
+      expirationDate: expires
+    })
+    const namesA = (await sA.cookies.get({ url: 'https://example.com' })).map((c) => c.name)
+    const namesB = (await sB.cookies.get({ url: 'https://example.com' })).map((c) => c.name)
+    const namesD = (await session.defaultSession.cookies.get({ url: 'https://example.com' })).map(
+      (c) => c.name
+    )
+    smoke4Log('隔离① A 写入——A 见（预期含 smoke4-a）:', JSON.stringify(namesA))
+    smoke4Log('隔离① B 见（预期不含）:', JSON.stringify(namesB))
+    smoke4Log('隔离① default 见（预期不含）:', JSON.stringify(namesD))
+    await sB.cookies.set({
+      url: 'https://example.com',
+      name: 'smoke4-b',
+      value: 'iso',
+      expirationDate: expires
+    })
+    const namesA2 = (await sA.cookies.get({ url: 'https://example.com' })).map((c) => c.name)
+    const namesB2 = (await sB.cookies.get({ url: 'https://example.com' })).map((c) => c.name)
+    smoke4Log('隔离② B 写入——B 见（预期含 smoke4-b）:', JSON.stringify(namesB2))
+    smoke4Log('隔离② A 见（预期不含）:', JSON.stringify(namesA2))
+
+    // ② 保活：A 落 DOM 标记 → 摘 A 挂 B → 脱离期间读 A 标记 → 挂回再读
+    await viewA.webContents.executeJavaScript(
+      "document.body.setAttribute('data-smoke4','kept'); 'ok'"
+    )
+    win.contentView.removeChildView(viewA)
+    win.contentView.addChildView(viewB)
+    viewB.setBounds(rect)
+    await sleep(1500)
+    const markerDetached = await viewA.webContents.executeJavaScript(
+      "document.body.getAttribute('data-smoke4')"
+    )
+    smoke4Log('保活① A 脱离期间 DOM 标记（预期 kept）:', markerDetached)
+    win.contentView.removeChildView(viewB)
+    win.contentView.addChildView(viewA)
+    viewA.setBounds(rect)
+    const markerBack = await viewA.webContents.executeJavaScript(
+      "document.body.getAttribute('data-smoke4')"
+    )
+    smoke4Log('保活② A 重挂后 DOM 标记（预期 kept）:', markerBack)
+
+    // ③ 清除时序：先销毁两分区全部 webContents，再 clearStorageData(A) + 删 A 目录
+    win.contentView.removeChildView(viewA)
+    viewA.webContents.close()
+    viewB.webContents.close()
+    await sleep(1000)
+    await sA.clearStorageData()
+    await rm(dirA, { recursive: true, force: true })
+    const afterA = (await sA.cookies.get({})).map((c) => c.name)
+    smoke4Log('清除① clearStorageData+rm 后 A cookies（预期空）:', JSON.stringify(afterA))
+    smoke4Log('清除② A 目录存在（预期 false）:', await dirExists(dirA))
+    smoke4Log('清除③ B 目录存在（预期 true，保留给阶段2复查）:', await dirExists(dirB))
+    smoke4Log('阶段1 完成，2 秒后退出；请以 SMOKE4=2 再启一次复查重启语义')
+    await sleep(2000)
+    app.quit()
+  } catch (error) {
+    smoke4Log('冒烟失败:', error)
+    await sleep(1000)
+    app.quit()
+  }
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -153,6 +291,9 @@ app.whenReady().then(() => {
 
   // 初始单个新标签页（无 url，about:blank）；浏览器状态不持久化，重启即回到此初始态
   tabManager.newTab()
+
+  // [smoke4] 冒烟入口（SMOKE4=1|2 时激活；步骤 6 移除）
+  if (process.env['SMOKE4']) void runSmoke4()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
