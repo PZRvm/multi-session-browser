@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import type { BrowserSnapshot, BrowserTabState } from '../../../shared/browser'
+import { useSessionsStore } from './sessions'
 
-// 浏览器状态是主进程快照的纯镜像：tabs/activeTabId/devtoolsOpen 原样存储不加工，
-// 本地不造任何 tab 字段；激活 tab 等派生值由组件用 selector 自行计算。
+// 浏览器状态是主进程快照的纯镜像：sessionId/tabs/activeTabId/devtoolsOpen 原样存储
+// 不加工，本地不造任何 tab 字段；激活 tab 等派生值由组件用 selector 自行计算。
 // setBounds 属布局上报，不进 store。
 interface BrowserState {
+  sessionId: string | null
   tabs: BrowserTabState[]
   activeTabId: string | null
   devtoolsOpen: boolean
@@ -24,15 +26,21 @@ interface BrowserState {
 
 let initialized = false
 
-// 推送与命令返回值同构，以主进程数据为唯一事实源；双到达重复 set 幂等无害
+// 推送与命令返回值同构，以主进程数据为唯一事实源；双到达重复 set 幂等无害。
+// 会话守卫：以会话 store 的 activeId 为准（selectSession 乐观先改 activeId），快照
+// sessionId 与之不符（会话切换期间旧会话推送晚到、命令返回晚归）时整体丢弃；
+// null 与 null 视为相符（零会话空态）。
 const applySnapshot = (
   set: (partial: Partial<BrowserState>) => void,
-  { tabs, activeTabId, devtoolsOpen }: BrowserSnapshot
+  snapshot: BrowserSnapshot
 ): void => {
-  set({ tabs, activeTabId, devtoolsOpen })
+  if (snapshot.sessionId !== useSessionsStore.getState().activeId) return
+  const { sessionId, tabs, activeTabId, devtoolsOpen } = snapshot
+  set({ sessionId, tabs, activeTabId, devtoolsOpen })
 }
 
 export const useBrowserStore = create<BrowserState>((set) => ({
+  sessionId: null,
   tabs: [],
   activeTabId: null,
   devtoolsOpen: false,

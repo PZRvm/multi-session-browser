@@ -1,4 +1,5 @@
-// 浏览器 Tab 管理器：主进程持有全部 WebContentsView，统一走 persist:browse 分区。
+// 浏览器 Tab 管理器：主进程持有全部 WebContentsView；分区与会话 id 由创建方传入
+// （registry 按一会话一分区注入 persist:sess-<id>，本模块不拼分区字符串）。
 // 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts 装配，见步骤 3）；
 // 窗口引用一律经 getWindow() 现取、禁止缓存（macOS 关窗重建场景）。
 
@@ -8,7 +9,6 @@ import type { BrowserSnapshot, BrowserTabState, SetBoundsPayload } from '../../s
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
 import { isOpenableUrl, logLoadFailure } from './url'
 
-const BROWSE_PARTITION = 'persist:browse'
 const BLANK_URL = 'about:blank'
 const BLANK_TITLE = '新标签页'
 /** tab title 钳制上限，与会话侧 clampString 一致，防超长 title 刷全量快照推送 */
@@ -67,12 +67,16 @@ export interface TabManager {
   onFocusAddressRequest: (cb: FocusAddressListener) => () => void
 }
 
-export function createTabManager(getWindow: () => BrowserWindow | null): TabManager {
+export function createTabManager(
+  getWindow: () => BrowserWindow | null,
+  opts: { sessionId: string; partition: string; initialBounds?: SetBoundsPayload }
+): TabManager {
   // Map 迭代序即创建序，快照 tabs 顺序直接按此输出
   const tabs = new Map<string, TabEntry>()
   let seq = 0
   let activeId: string | null = null
-  let bounds: SetBoundsPayload | null = null
+  // 布局缓存初值取创建方传入（registry 的全局 bounds 缓存），切换重挂即有矩形可用
+  let bounds: SetBoundsPayload | null = opts.initialBounds ?? null
   // 悬挂态：renderer 上报零矩形（确认框等弹层收起原生层）期间置位，
   // 此后挂入的 view 一律按 HIDDEN_RECT 收起；布局缓存保留最后有效值，悬挂解除自动恢复
   let suspended = false
@@ -102,10 +106,9 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     }
     // devtoolsOpen 取激活 Tab 的真实开关态；无激活 Tab 时恒 false
     const active = activeId !== null ? tabs.get(activeId) : undefined
-    // sessionId 契约占位（阶段 4 步骤 2 冻结必填字段）：本文件尚无会话维度，
-    // 步骤 3 参数化 createTabManager({ sessionId, partition }) 时替换为真实值
+    // sessionId 由创建方（registry）注入：快照归属会话，registry/renderer 据此丢弃过期快照
     return {
-      sessionId: null,
+      sessionId: opts.sessionId,
       tabs: list,
       activeTabId: activeId,
       devtoolsOpen: active?.devtoolsOpen ?? false
@@ -152,7 +155,7 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     const id = `tab-${seq}`
     const view = new WebContentsView({
       // 只设分区，不设 preload/nodeIntegration/contextIsolation（网页内容不可信）
-      webPreferences: { partition: BROWSE_PARTITION }
+      webPreferences: { partition: opts.partition }
     })
     // 页面加载前兜底白底，防透明闪烁
     view.setBackgroundColor('#ffffff')

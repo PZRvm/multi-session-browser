@@ -1,10 +1,12 @@
 import { CloseOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
 
-// Tab 栏：渲染主进程推送的真实 tab 列表；store 初始为空（init 未 resolve 前）只显示新建按钮
+// Tab 栏：渲染主进程推送的真实 tab 列表；store 初始为空（init 未 resolve 前）只显示新建按钮，
+// 零会话（快照 sessionId === null）时新建按钮禁用（主进程命令守卫同拒「未选择会话」）
 function TabStrip(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
+  const sessionId = useBrowserStore((s) => s.sessionId)
   const switchTab = useBrowserStore((s) => s.switchTab)
   const closeTab = useBrowserStore((s) => s.closeTab)
   const newTab = useBrowserStore((s) => s.newTab)
@@ -62,6 +64,7 @@ function TabStrip(): React.JSX.Element {
         type="button"
         className="chrome-newtab"
         aria-label="新建标签页"
+        disabled={sessionId === null}
         onClick={() => newTab()}
       >
         <PlusOutlined />

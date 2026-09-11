@@ -284,7 +284,11 @@ app.whenReady().then(() => {
   // 浏览器装配：manager 持有全部 WebContentsView，IPC handlers 在窗口创建前就绪；
   // 窗口引用一律现取不缓存（macOS 关窗重建场景）
   const getMainWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
-  tabManager = createTabManager(getMainWindow)
+  // [阶段4-步骤6] 临时占位 opts，正式装配时由注册表接管
+  tabManager = createTabManager(getMainWindow, {
+    sessionId: 'temp',
+    partition: 'persist:sess-temp'
+  })
   registerBrowserIpc(tabManager, getMainWindow)
 
   createWindow()

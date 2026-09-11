@@ -10,12 +10,15 @@ import { useBrowserStore } from '../../stores/browser'
 
 const INVALID_HINT_MS = 2500
 
-// 工具栏：导航四键 + 可编辑地址栏；无激活 tab（store 初始为空）时导航全禁用、地址栏留空
+// 工具栏：导航四键 + 可编辑地址栏；零会话（快照 sessionId === null）时地址栏禁用，
+// 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/主页/DevTools 钮
+// 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖
 function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
   const focusTick = useBrowserStore((s) => s.focusTick)
+  const sessionId = useBrowserStore((s) => s.sessionId)
   const goBack = useBrowserStore((s) => s.goBack)
   const goForward = useBrowserStore((s) => s.goForward)
   const reload = useBrowserStore((s) => s.reload)
@@ -148,7 +151,7 @@ function Toolbar(): React.JSX.Element {
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
-        disabled={!activeTab}
+        disabled={sessionId === null || !activeTab}
         value={draft ?? mainUrl}
         aria-invalid={invalid}
         title={invalid ? '无效的网址' : undefined}
