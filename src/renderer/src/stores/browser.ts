@@ -3,7 +3,7 @@ import type { BrowserSnapshot, BrowserTabState } from '../../../shared/browser'
 
 // 浏览器状态是主进程快照的纯镜像：tabs/activeTabId/devtoolsOpen 原样存储不加工，
 // 本地不造任何 tab 字段；激活 tab 等派生值由组件用 selector 自行计算。
-// setBounds / setDevToolsBounds 属布局上报，不进 store。
+// setBounds 属布局上报，不进 store。
 interface BrowserState {
   tabs: BrowserTabState[]
   activeTabId: string | null

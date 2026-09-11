@@ -733,7 +733,7 @@ img.chrome-tab-favicon {
   cursor: not-allowed;
 }
 
-/* 分栏容器：DevTools 关闭时仅含页面锚点，开启时切分为 页面锚点 + 分隔条 + 停靠锚点 */
+/* 内容容器：页面锚点始终占满；原生 DevTools 在 WebContentsView 内部自行停靠 */
 .chrome-body {
   flex: 1;
   min-height: 0;
@@ -744,45 +744,6 @@ img.chrome-tab-favicon {
 /* 内容锚点：WebContentsView 按此矩形覆盖在 shell 之上，内部不放任何可见内容 */
 .chrome-content {
   flex: 1;
-  min-height: 0;
-  background: var(--chrome-white);
-}
-
-/* 横向分隔条：5px 命中区承载拖拽，1px 视觉线（::before）对齐全局发丝线语言 */
-.chrome-devtools-divider {
-  position: relative;
-  flex: none;
-  height: 5px;
-  cursor: row-resize;
-  background: transparent;
-  touch-action: none;
-}
-
-.chrome-devtools-divider::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 2px;
-  height: 1px;
-  background: var(--chrome-line);
-  transition: background-color 0.12s ease;
-}
-
-/* hover / 拖拽中视觉线加深；拖拽态经 body 类生效，与全局 row-resize 光标同步 */
-.chrome-devtools-divider:hover::before,
-body.devtools-row-resizing .chrome-devtools-divider::before {
-  background: var(--chrome-ink-dim);
-}
-
-body.devtools-row-resizing {
-  cursor: row-resize;
-}
-
-/* DevTools 停靠锚点：被 DevTools 宿主 view 覆盖，内部不放任何可见内容；
-   高度默认 40%，拖拽后为像素值（renderer 内存态，不落盘） */
-.chrome-devtools-anchor {
-  flex: none;
   min-height: 0;
   background: var(--chrome-white);
 }

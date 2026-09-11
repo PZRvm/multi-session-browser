@@ -9,7 +9,6 @@ import type {
   NewTabPayload,
   OkResult as BrowserOkResult,
   SetBoundsPayload,
-  SetDevToolsBoundsPayload,
   SwitchTabPayload
 } from '../shared/browser'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
@@ -54,8 +53,6 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.setBounds, payload),
     toggleDevTools: (): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.toggleDevTools),
-    setDevToolsBounds: (payload: SetDevToolsBoundsPayload): Promise<BrowserOkResult> =>
-      ipcRenderer.invoke(BROWSER_CHANNELS.setDevToolsBounds, payload),
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {

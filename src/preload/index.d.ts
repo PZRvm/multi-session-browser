@@ -5,7 +5,6 @@ import type {
   NewTabPayload,
   OkResult,
   SetBoundsPayload,
-  SetDevToolsBoundsPayload,
   SwitchTabPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
@@ -41,7 +40,6 @@ declare global {
         stop(): Promise<BrowserSnapshot>
         setBounds(payload: SetBoundsPayload): Promise<OkResult>
         toggleDevTools(): Promise<BrowserSnapshot>
-        setDevToolsBounds(payload: SetDevToolsBoundsPayload): Promise<OkResult>
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
       }

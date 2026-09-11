@@ -17,7 +17,6 @@ export const BROWSER_CHANNELS = {
   stop: 'browser:stop',
   setBounds: 'browser:set-bounds',
   toggleDevTools: 'browser:toggle-devtools',
-  setDevToolsBounds: 'browser:set-devtools-bounds',
   stateChanged: 'browser:state-changed',
   focusAddress: 'browser:focus-address'
 } as const
@@ -64,9 +63,6 @@ export interface SetBoundsPayload {
   width: number
   height: number
 }
-
-/** DevTools 停靠区矩形（与页面矩形同构同坐标系），renderer 双锚点之一 */
-export type SetDevToolsBoundsPayload = SetBoundsPayload
 
 export interface OkResult {
   ok: true

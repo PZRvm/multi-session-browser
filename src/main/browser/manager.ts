@@ -37,8 +37,6 @@ interface TabEntry {
   title: string
   faviconUrl: string | null
   loading: boolean
-  /** 该 Tab 的 DevTools 宿主 view（懒创建，每 Tab 至多一个，与页面 webContents 一对一强绑定） */
-  devtoolsView: WebContentsView | null
   /** 该 Tab 的 DevTools 开关态；快照 devtoolsOpen 取激活 Tab 的此字段 */
   devtoolsOpen: boolean
 }
@@ -54,17 +52,15 @@ export interface TabManager {
   closeTab: (id: string) => BrowserSnapshot
   /** 切换激活 Tab；旧 view 脱离 contentView 但不销毁（页面状态保留） */
   switchTab: (id: string) => BrowserSnapshot
-  /** 设置内容区矩形（窗口内容坐标系 DIP），仅作用于激活 view；DevTools 宿主若开则跟随切分 */
+  /** 设置内容区矩形（窗口内容坐标系 DIP），仅作用于激活 view */
   setBounds: (rect: SetBoundsPayload) => void
-  /** 切换激活 Tab 的 DevTools：未开则开（懒建宿主嵌入）、已开则关；无激活 Tab 时 no-op；返回当前快照 */
+  /** 切换激活 Tab 的原生受管 DevTools；无激活 Tab 时 no-op；返回当前快照 */
   toggleDevTools: () => BrowserSnapshot
   /** 关闭激活 Tab 的 DevTools；未开或无激活 Tab 时 no-op；返回当前快照 */
   closeDevTools: () => BrowserSnapshot
-  /** 设置 DevTools 停靠区矩形（窗口内容坐标系 DIP）；未开启时仅缓存，开启后作用于激活 Tab */
-  setDevToolsBounds: (rect: SetBoundsPayload) => void
   /** 激活 Tab 的 webContents；无激活 Tab 或已销毁时返回 null（导航类命令的唯一取用口） */
   getActiveWebContents: () => WebContents | null
-  /** 窗口（重）建后重挂激活 Tab 的页面 view 与 DevTools view（若开）；macOS 关窗重开由 index.ts 调用 */
+  /** 窗口（重）建后重挂激活 Tab 的页面 view；macOS 关窗重开由 index.ts 调用 */
   attachToWindow: () => void
   getSnapshot: () => BrowserSnapshot
   /** 订阅快照变化，返回退订函数 */
@@ -79,8 +75,6 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
   let seq = 0
   let activeId: string | null = null
   let bounds: SetBoundsPayload | null = null
-  // 最近一次上报的 DevTools 停靠区矩形（renderer 双锚点之一）；为 null 时按页面矩形底部 40% 兜底切分
-  let devtoolsBounds: SetBoundsPayload | null = null
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
 
@@ -128,47 +122,16 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     win.contentView.removeChildView(tab.view)
   }
 
-  /** DevTools 停靠区矩形：优先 renderer 上报缓存，未上报时按页面矩形底部 40% 兜底切分 */
-  function resolveDevToolsRect(): SetBoundsPayload | null {
-    if (devtoolsBounds) return devtoolsBounds
-    if (!bounds) return null
-    const height = Math.round(bounds.height * 0.4)
-    return { x: bounds.x, y: bounds.y + bounds.height - height, width: bounds.width, height }
-  }
-
-  /** 挂入 DevTools 宿主 view 并应用矩形（调用方保证 z 序：页面 view 先挂、宿主 view 后挂） */
-  function attachDevToolsView(tab: TabEntry): void {
-    const win = getWindow()
-    if (!win || !tab.devtoolsView) return
-    win.contentView.addChildView(tab.devtoolsView)
-    const rect = resolveDevToolsRect()
-    if (rect) tab.devtoolsView.setBounds(rect)
-  }
-
-  /** 摘除 DevTools 宿主 view（webContents 存活，调试数据持续收集） */
-  function detachDevToolsView(tab: TabEntry): void {
-    const win = getWindow()
-    if (!win || !tab.devtoolsView) return
-    win.contentView.removeChildView(tab.devtoolsView)
-  }
-
   /**
-   * 激活指定 Tab：旧 Tab 的页面 view 与 DevTools 宿主 view 一并脱离（DevTools
-   * webContents 存活、数据持续收集）；新 Tab devtoolsOpen 为真则按「页面 view 先、
-   * 宿主 view 后」的 z 序一并重挂，为假则停靠区保持收起。
+   * 激活指定 Tab：旧 Tab 的页面 view 脱离但保持存活，新 Tab 的页面 view 挂入。
+   * 原生 DevTools 由对应页面 webContents 自己持有，随页面 view 一起切换，不另建宿主。
    */
   function activate(id: string): void {
     const prev = activeId !== null ? tabs.get(activeId) : undefined
-    if (prev && prev.id !== id) {
-      detachView(prev)
-      detachDevToolsView(prev)
-    }
+    if (prev && prev.id !== id) detachView(prev)
     activeId = id
     const next = tabs.get(id)
-    if (next) {
-      attachView(next)
-      if (next.devtoolsOpen) attachDevToolsView(next)
-    }
+    if (next) attachView(next)
   }
 
   function newTab(url?: string): BrowserSnapshot {
@@ -188,7 +151,6 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
       title: '',
       faviconUrl: null,
       loading: false,
-      devtoolsView: null,
       devtoolsOpen: false
     }
     tabs.set(id, tab)
@@ -222,12 +184,22 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
       tab.faviconUrl = icons.length > 0 ? icons[icons.length - 1] : null
       emitChange()
     })
-    // DevTools 经面板内途径自行关闭（如面板关闭钮）时兜底同步状态，防 devtoolsOpen 与实际脱节；
-    // 本方主动关闭也会触发本事件，但 closeTabDevTools 先复位标志，此处守卫可拦下重复处理
+    // DevTools 经原生关闭钮等途径关闭时同步状态；本方主动关闭已先复位，守卫拦下重复处理。
     wc.on('devtools-closed', () => {
       if (!tab.devtoolsOpen) return
-      closeTabDevTools(tab)
+      tab.devtoolsOpen = false
       emitChange()
+    })
+    // 原生受管 DevTools 每次打开都会创建自己的 webContents；在其聚焦时接管 F12 关闭语义。
+    wc.on('devtools-opened', () => {
+      const devtools = wc.devToolsWebContents
+      if (!devtools) return
+      devtools.on('before-input-event', (event, input) => {
+        if (!tab.devtoolsOpen || matchShortcut(input) !== 'toggle-devtools') return
+        event.preventDefault()
+        closeTabDevTools(tab)
+        emitChange()
+      })
     })
 
     // 页面侧快捷键（Chrome 对齐最小集，键位表 shared/browserShortcuts 与 renderer shell 侧共用）：
@@ -291,8 +263,8 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     const index = order.indexOf(id)
     tabs.delete(id)
     detachView(target)
-    // DevTools 一并清理：先关 DevTools（销毁其 webContents），宿主 view 摘除并销毁，防泄漏
-    disposeTabDevTools(target)
+    // 原生受管 DevTools 与页面 webContents 同生命周期，关闭后再销毁页面。
+    closeTabDevTools(target)
     if (activeId === id) {
       // 关闭激活 Tab：优先激活原位置右侧第一个，无右侧则左侧最后一个
       const nextId = order[index + 1] ?? (index > 0 ? order[index - 1] : null)
@@ -320,55 +292,23 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     const tab = tabs.get(activeId)
     if (!tab || tab.view.webContents.isDestroyed()) return
     tab.view.setBounds(rect)
-    // DevTools 宿主若开则跟随：显式缓存矩形优先，未上报时按新页面矩形兜底切分
-    if (tab.devtoolsOpen && tab.devtoolsView) {
-      const devRect = resolveDevToolsRect()
-      if (devRect) tab.devtoolsView.setBounds(devRect)
-    }
   }
 
-  /** 打开该 Tab 的 DevTools：懒创建宿主 view 并一对一绑定；重复开关仅走 open/closeDevTools */
+  /** 打开该 Tab 的原生受管 DevTools；停靠位置和设备模拟布局全部交由 Chromium 管理 */
   function openTabDevTools(tab: TabEntry): void {
     const wc = tab.view.webContents
     if (wc.isDestroyed()) return
-    if (!tab.devtoolsView) {
-      const host = new WebContentsView()
-      // DevTools 自身聚焦态的按键拦截（宿主每 Tab 仅创建一次，事件只挂一次）：
-      // 仅拦 F12（DevTools 聚焦时也可关闭，Chrome 对齐）；ESC 不拦（留给 DevTools 抽屉），其余放行
-      host.webContents.on('before-input-event', (event, input) => {
-        if (!tab.devtoolsOpen) return
-        if (matchShortcut(input) !== 'toggle-devtools') return
-        event.preventDefault()
-        closeTabDevTools(tab)
-        emitChange()
-      })
-      tab.devtoolsView = host
-      // setDevToolsWebContents 每 webContents 生命周期内只调一次，重复开关走 open/closeDevTools
-      wc.setDevToolsWebContents(host.webContents)
-    }
     wc.openDevTools()
     tab.devtoolsOpen = true
-    // 激活 Tab 的页面 view 已在 contentView，宿主 view 追加其后（z 序：页面下、DevTools 上）
-    attachDevToolsView(tab)
   }
 
-  /** 关闭该 Tab 的 DevTools：closeDevTools 销毁其 webContents；宿主 view 摘除保留待复用 */
+  /** 关闭该 Tab 的原生受管 DevTools */
   function closeTabDevTools(tab: TabEntry): void {
     if (!tab.devtoolsOpen) return
     // 先复位标志再关，防 closeDevTools 同步触发 devtools-closed 事件造成重入
     tab.devtoolsOpen = false
     const wc = tab.view.webContents
     if (!wc.isDestroyed()) wc.closeDevTools()
-    detachDevToolsView(tab)
-  }
-
-  /** 丢弃 Tab 前的 DevTools 清理：关 DevTools + 摘除并销毁宿主 view 的 webContents，防泄漏 */
-  function disposeTabDevTools(tab: TabEntry): void {
-    closeTabDevTools(tab)
-    if (!tab.devtoolsView) return
-    detachDevToolsView(tab)
-    if (!tab.devtoolsView.webContents.isDestroyed()) tab.devtoolsView.webContents.close()
-    tab.devtoolsView = null
   }
 
   /** 切换激活 Tab 的 DevTools：已开则关、未开则开；无激活 Tab 时 no-op 返回当前快照 */
@@ -388,20 +328,6 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     closeTabDevTools(tab)
     emitChange()
     return buildSnapshot()
-  }
-
-  /**
-   * 记录 DevTools 停靠区矩形并作用于激活 Tab 的宿主 view；未开启时仅缓存。
-   * 零矩形（renderer 锚点卸载/收起时的清理上报）不缓存也不应用：它不是布局意图，
-   * 若当真缓存会形成"墓碑"击穿「无缓存按页面矩形 40% 兜底」不变量，重开即 0×0。
-   */
-  function setDevToolsBounds(rect: SetBoundsPayload): void {
-    if (rect.width === 0 || rect.height === 0) return
-    devtoolsBounds = rect
-    if (activeId === null) return
-    const tab = tabs.get(activeId)
-    if (!tab || tab.view.webContents.isDestroyed()) return
-    if (tab.devtoolsOpen && tab.devtoolsView) tab.devtoolsView.setBounds(rect)
   }
 
   function getSnapshot(): BrowserSnapshot {
@@ -426,15 +352,6 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     } else if (bounds) {
       tab.view.setBounds(bounds)
     }
-    // DevTools 宿主 view（若开）一并重挂，保持「页面下、DevTools 上」的 z 序
-    if (tab.devtoolsOpen && tab.devtoolsView) {
-      if (!win.contentView.children.includes(tab.devtoolsView)) {
-        attachDevToolsView(tab)
-      } else {
-        const rect = resolveDevToolsRect()
-        if (rect) tab.devtoolsView.setBounds(rect)
-      }
-    }
   }
 
   function onSnapshotChanged(cb: SnapshotListener): () => void {
@@ -454,7 +371,6 @@ export function createTabManager(getWindow: () => BrowserWindow | null): TabMana
     setBounds,
     toggleDevTools,
     closeDevTools,
-    setDevToolsBounds,
     getActiveWebContents,
     attachToWindow,
     getSnapshot,
