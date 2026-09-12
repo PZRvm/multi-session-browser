@@ -155,7 +155,7 @@ components:
 ### 应用外观扩展契约
 
 - **Job / Mode：** 面向全天使用本工具的测试工程师，属于 Operate 模式；用户需要在环境光或系统设置变化时快速切换可读外观，主题不是装饰功能。
-- **入口：** 板头 `board-head-right` 内、批量按钮之前放置一枚 20×20 外观按钮；Dropdown 向左下展开，顺序固定为“跟随系统 / 白天 / 黑夜”，单选标记始终反映用户选择而非解析结果。按钮的 title 与 `aria-label` 写明当前选择。
+- **入口（响应式双形态）：** 板头 `board-head-right` 内、批量按钮之前；三态共用一套图标词汇——跟随系统=DesktopOutlined、白天=SunOutlined、黑夜=MoonOutlined。左栏 ≥360px 渲染为三段 Segmented（`size="small"`、仅图标，三态并置一步直达，各瓣经 `title` 悬停提示；视觉隐藏中文文本置于 icon 节点内部供读屏——label 槽位必须留空，否则 antd 会生成带 6px 边距的裸 span 兄弟包装把图标挤出瓣内中心）；更窄时维持 20×20 图标钮显示**当前态**图标 + Dropdown 向左下展开（顺序固定为“跟随系统 / 白天 / 黑夜”，单选标记始终反映用户选择而非解析结果），按钮的 title 与 `aria-label` 写明当前选择。阈值随 App 的 `panelWidth` 状态驱动（非媒体查询），拖拽跨越 360px 即时换形态，两形态共享同一 store 状态不丢失。Segmented 组件 token 全部走 CSS 变量融入信息板色阶：轨道=board-bg-raised、选中瓣=`--board-segment-selected-bg`（亮 #1a2026 翻牌砖面 / 暗 #2a313a 抬升一档）+ 琥珀字形（与翻牌计数同语言）、未选=次墨、hover=board-hover-veil、圆角 4px。
 - **状态：** 入口在零会话、普通会话和批量模式中始终可用；保存中防重复提交。切换不移动布局、不关闭弹层之外的业务状态、不触发导航或 WebContentsView 重建。
 - **主题语义：** light 是 CSS 默认值，dark 通过 `prefers-color-scheme` 覆盖；Electron 在首窗创建前设置 Chromium 色彩偏好。板面与 Chrome 侧分别使用自己的 surface/ink/veil/error 语义 token，禁止用 `white`、`black` 这类偶然颜色命名承载组件语义。
 - **边界：** 不新增设置页、每会话主题、站点强制暗色或全屏转场；最小 220px 左栏内菜单不得跨入右侧 WebContentsView 覆盖区。必要时只用 Dropdown 公共 `getPopupContainer`，不依赖 `.ant-*` 内部 DOM。
@@ -265,7 +265,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 板头（Board Head）
 
-产品名「多会话测试浏览器」（13/600，letter-spacing 0.02em）；右侧依次为 20×20 外观按钮、20×20 批量按钮、「会话」计数标签（11px 次墨）与翻牌计数。外观菜单为“跟随系统 / 白天 / 黑夜”单选，任何会话状态下可用；底部发丝线收边。
+产品名「多会话测试浏览器」（13/600，letter-spacing 0.02em）；右侧依次为外观入口（左栏 ≥360px 为三段图标 Segmented，更窄为 20×20 当前态图标钮，见「应用外观扩展契约」）、20×20 批量按钮、「会话」计数标签（11px 次墨）与翻牌计数。外观菜单为“跟随系统 / 白天 / 黑夜”单选，任何会话状态下可用；底部发丝线收边。
 
 ### 空态（Empty State）
 

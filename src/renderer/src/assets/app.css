@@ -15,6 +15,8 @@
   --board-tile-line: #2a313a;
   --board-ink: #1e2329;
   --board-ink-dim: #616974;
+  /* 板头外观分段控件选中瓣：亮色沿用翻牌砖面（暗瓣亮字） */
+  --board-segment-selected-bg: #1a2026;
   --board-hover-veil: rgba(30, 35, 41, 0.08);
   --board-scrollbar-hover: #bcb4a6;
   --panel-divider: #c7c1b5;
@@ -53,6 +55,8 @@
     --board-hairline: #232830;
     --board-ink: #f5f0e8;
     --board-ink-dim: #9aa3ad;
+    /* 暗色轨道已是砖面同值（raised），选中瓣需抬升一档才能从轨道中辨认 */
+    --board-segment-selected-bg: #2a313a;
     --board-hover-veil: rgba(255, 255, 255, 0.08);
     --board-scrollbar-hover: #3a434e;
     --panel-divider: #0b0e11;
@@ -545,6 +549,23 @@ body.col-resizing {
 .batch-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+/* 三段外观分段控件（左栏 ≥360px 时替换图标入口）：
+   图标 12px 对齐相邻板头入口字阶，配色经 ConfigProvider 组件 token 走信息板色阶 */
+.appearance-segmented {
+  flex: none;
+  font-size: 12px;
+}
+
+/* 纯图标控件的中文可访问名称（分段控件各瓣的实际朗读文本） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* 行首复选框：行整列即勾选热区，复选框自身点击/空格亦切 */

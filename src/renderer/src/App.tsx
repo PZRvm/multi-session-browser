@@ -60,7 +60,7 @@ function App(): React.JSX.Element {
       <AntdApp>
         <div className="app-shell">
           <div className="panel-left" style={{ width: panelWidth }}>
-            <SessionPanel />
+            <SessionPanel panelWidth={panelWidth} />
           </div>
           <div
             className="panel-divider"

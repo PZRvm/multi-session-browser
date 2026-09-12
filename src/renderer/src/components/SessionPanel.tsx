@@ -1,50 +1,18 @@
 import { useEffect, useState } from 'react'
 import { App, Button, Checkbox, ConfigProvider, Dropdown, Input, Modal, theme } from 'antd'
 import type { MenuProps } from 'antd'
-import {
-  BgColorsOutlined,
-  CheckSquareOutlined,
-  LaptopOutlined,
-  MoonOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  SunOutlined
-} from '@ant-design/icons'
+import { CheckSquareOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import AppearanceEntry from './AppearanceEntry'
 import FlapCounter from './FlapCounter'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
-import type { AppearanceMode } from '../../../shared/appearance'
 
 const statusText: Record<SessionItem['status'], string> = {
   idle: '空闲',
   loading: '加载中'
 }
-
-const appearanceText: Record<AppearanceMode, string> = {
-  system: '跟随系统',
-  light: '白天',
-  dark: '黑夜'
-}
-
-const appearanceMenuItems: MenuProps['items'] = [
-  {
-    key: 'system',
-    icon: <LaptopOutlined />,
-    label: appearanceText.system
-  },
-  {
-    key: 'light',
-    icon: <SunOutlined />,
-    label: appearanceText.light
-  },
-  {
-    key: 'dark',
-    icon: <MoonOutlined />,
-    label: appearanceText.dark
-  }
-]
 
 interface SessionRowProps {
   session: SessionItem
@@ -208,11 +176,12 @@ function SessionRow({
   )
 }
 
-function SessionPanel(): React.JSX.Element {
-  const appearanceMode = useAppearanceStore((s) => s.mode)
+interface SessionPanelProps {
+  panelWidth: number
+}
+
+function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
-  const settingAppearance = useAppearanceStore((s) => s.setting)
-  const setAppearanceMode = useAppearanceStore((s) => s.setMode)
   const sessions = useSessionsStore((s) => s.sessions)
   const addSession = useSessionsStore((s) => s.addSession)
   const cloneSession = useSessionsStore((s) => s.cloneSession)
@@ -237,12 +206,6 @@ function SessionPanel(): React.JSX.Element {
   const checkedIds = sessions.filter((s) => checked.has(s.id)).map((s) => s.id)
   const checkedCount = checkedIds.length
   const allChecked = sessions.length > 0 && checkedCount === sessions.length
-
-  const onAppearanceMenuClick: MenuProps['onClick'] = ({ key }) => {
-    if (key === 'system' || key === 'light' || key === 'dark') {
-      void setAppearanceMode(key)
-    }
-  }
 
   const toggleChecked = (id: string): void => {
     setChecked((prev) => {
@@ -358,30 +321,7 @@ function SessionPanel(): React.JSX.Element {
             <span className="board-title-text">多会话测试浏览器</span>
           </span>
           <span className="board-head-right">
-            <Dropdown
-              menu={{
-                items: appearanceMenuItems,
-                onClick: onAppearanceMenuClick,
-                selectable: true,
-                selectedKeys: [appearanceMode]
-              }}
-              trigger={['click']}
-              placement="bottomRight"
-              getPopupContainer={(triggerNode) =>
-                triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
-              }
-              styles={{ root: { minWidth: 132 } }}
-            >
-              <button
-                type="button"
-                className="appearance-toggle"
-                title={`外观模式：${appearanceText[appearanceMode]}`}
-                aria-label={`外观模式：${appearanceText[appearanceMode]}`}
-                disabled={settingAppearance}
-              >
-                <BgColorsOutlined />
-              </button>
-            </Dropdown>
+            <AppearanceEntry panelWidth={panelWidth} />
             <button
               type="button"
               className={`batch-toggle${batchMode ? ' active' : ''}`}

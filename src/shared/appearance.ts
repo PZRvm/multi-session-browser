@@ -17,6 +17,9 @@ export const APPEARANCE_CHANNELS = {
   changed: 'appearance:changed'
 } as const
 
+// 外观模式闭集单一事实源：守卫与 UI（菜单/分段控件）均由此派生，防增删模式时漏改
+export const APPEARANCE_MODES: AppearanceMode[] = ['system', 'light', 'dark']
+
 export function isAppearanceMode(value: unknown): value is AppearanceMode {
-  return value === 'system' || value === 'light' || value === 'dark'
+  return (APPEARANCE_MODES as string[]).includes(value as AppearanceMode)
 }
