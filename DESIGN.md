@@ -6,13 +6,17 @@ colors:
   board-bg: "#f6f4ee"
   board-bg-raised: "#ede9df"
   board-hairline: "#d8d2c5"
-  board-tile: "#1a2026"
-  board-tile-line: "#2a313a"
+  board-tile: "#ede9df"
+  board-tile-line: "#d8d2c5"
+  board-tile-ink: "#9a5f00"
   board-ink: "#1e2329"
   board-ink-dim: "#616974"
   board-bg-dark: "#101418"
   board-bg-raised-dark: "#1a2026"
   board-hairline-dark: "#232830"
+  board-tile-dark: "#1a2026"
+  board-tile-line-dark: "#2a313a"
+  board-tile-ink-dark: "#ffb000"
   board-ink-dark: "#f5f0e8"
   board-ink-dim-dark: "#9aa3ad"
   amber: "#ffb000"
@@ -107,7 +111,7 @@ components:
     textColor: "{colors.amber-ink}"
   flap-tile:
     backgroundColor: "{colors.board-tile}"
-    textColor: "{colors.amber}"
+    textColor: "{colors.board-tile-ink}"
     rounded: "{rounded.sm}"
     width: "22px"
     height: "30px"
@@ -147,7 +151,7 @@ components:
 
 - 两个世界：左侧信息板（自著语言）/ 右侧 Chrome（原生语法），翻牌砖是跨界信使
 - 行式栅格 + 1px 发丝线（#232830），无阴影、无卡片
-- 琥珀 = 航班信息：选中反白、加载脉冲、主按钮、翻牌数字、焦点环，屏幕占比极小
+- 琥珀 = 航班信息：选中反白、加载脉冲、主按钮、翻牌数字、焦点环，屏幕占比极小；翻牌数字与加载信号在白天降饱和为深琥珀，其余琥珀两态不变
 - 数字即翻牌：计数与序号一律 mono 翻牌砖（22×30，中缝，tabular-nums）
 - 桌面工具密度：13px 基准，双行会话行，状态静置可读，操作悬停显现
 - antd 6 承担交互件（随实际主题切换 default/dark algorithm + colorPrimary #FFB000），视觉骨架自著 CSS
@@ -155,7 +159,7 @@ components:
 ### 应用外观扩展契约
 
 - **Job / Mode：** 面向全天使用本工具的测试工程师，属于 Operate 模式；用户需要在环境光或系统设置变化时快速切换可读外观，主题不是装饰功能。
-- **入口（响应式双形态）：** 板头 `board-head-right` 内、批量按钮之前；三态共用一套图标词汇——跟随系统=DesktopOutlined、白天=SunOutlined、黑夜=MoonOutlined。左栏 ≥360px 渲染为三段 Segmented（`size="small"`、仅图标，三态并置一步直达，各瓣经 `title` 悬停提示；视觉隐藏中文文本置于 icon 节点内部供读屏——label 槽位必须留空，否则 antd 会生成带 6px 边距的裸 span 兄弟包装把图标挤出瓣内中心）；更窄时维持 20×20 图标钮显示**当前态**图标 + Dropdown 向左下展开（顺序固定为“跟随系统 / 白天 / 黑夜”，单选标记始终反映用户选择而非解析结果），按钮的 title 与 `aria-label` 写明当前选择。阈值随 App 的 `panelWidth` 状态驱动（非媒体查询），拖拽跨越 360px 即时换形态，两形态共享同一 store 状态不丢失。Segmented 组件 token 全部走 CSS 变量融入信息板色阶：轨道=board-bg-raised、选中瓣=`--board-segment-selected-bg`（亮 #1a2026 翻牌砖面 / 暗 #2a313a 抬升一档）+ 琥珀字形（与翻牌计数同语言）、未选=次墨、hover=board-hover-veil、圆角 4px。
+- **入口（响应式双形态）：** 板头 `board-head-right` 内、批量按钮之前；三态共用一套图标词汇——跟随系统=DesktopOutlined、白天=SunOutlined、黑夜=MoonOutlined。左栏 ≥360px 渲染为三段 Segmented（`size="small"`、仅图标，三态并置一步直达，各瓣经 `title` 悬停提示；视觉隐藏中文文本置于 icon 节点内部供读屏——label 槽位必须留空，否则 antd 会生成带 6px 边距的裸 span 兄弟包装把图标挤出瓣内中心）；更窄时维持 20×20 图标钮显示**当前态**图标 + Dropdown 向左下展开（顺序固定为“跟随系统 / 白天 / 黑夜”，单选标记始终反映用户选择而非解析结果），按钮的 title 与 `aria-label` 写明当前选择。阈值随 App 的 `panelWidth` 状态驱动（非媒体查询），拖拽跨越 360px 即时换形态，两形态共享同一 store 状态不丢失。Segmented 组件 token 全部走 CSS 变量融入信息板色阶：轨道=board-bg-raised、选中瓣=`--board-segment-selected-bg`（亮 #1a2026 夜砖面 / 暗 #2a313a 抬升一档）+ 琥珀字形（夜态与翻牌计数同语言）、未选=次墨、hover=board-hover-veil、圆角 4px。
 - **状态：** 入口在零会话、普通会话和批量模式中始终可用；保存中防重复提交。切换不移动布局、不关闭弹层之外的业务状态、不触发导航或 WebContentsView 重建。
 - **主题语义：** light 是 CSS 默认值，dark 通过 `prefers-color-scheme` 覆盖；Electron 在首窗创建前设置 Chromium 色彩偏好。板面与 Chrome 侧分别使用自己的 surface/ink/veil/error 语义 token，禁止用 `white`、`black` 这类偶然颜色命名承载组件语义。
 - **边界：** 不新增设置页、每会话主题、站点强制暗色或全屏转场；最小 220px 左栏内菜单不得跨入右侧 WebContentsView 覆盖区。必要时只用 Dropdown 公共 `getPopupContainer`，不依赖 `.ant-*` 内部 DOM。
@@ -181,8 +185,9 @@ components:
 
 - **亮色板底 / 抬升层 / 发丝线**（#f6f4ee / #ede9df / #d8d2c5）：暖灰信息板的底、行 hover 与唯一分隔手段；主墨 #1e2329，次墨 #616974。
 - **暗色板底 / 抬升层 / 发丝线**（#101418 / #1a2026 / #232830）：既有近黑蓝信息板；主墨 #f5f0e8，次墨 #9aa3ad。
-- **翻牌砖底（Board Tile）**（#1a2026 / `--board-tile`）：翻牌砖底色（与抬升层同值、不同语义 token）。
-- **砖线（Board Tile Line）**（#2a313a / `--board-tile-line`）：翻牌砖描边、滚动条 thumb。
+- **翻牌砖底（Board Tile）**（亮 #ede9df / 暗 #1a2026，`--board-tile`）：翻牌砖底色，两态都与各自抬升层同值、不同语义 token——白天是浅色砖面，黑夜回到近黑蓝砖。
+- **砖线（Board Tile Line）**（亮 #d8d2c5 / 暗 #2a313a，`--board-tile-line`）：翻牌砖描边；滚动条 thumb 已拆为独立 token `--board-scrollbar-thumb`（亮 #c9c1b2 / 暗 #2a313a）。
+- **砖上数字（Board Tile Ink）**（亮 #9a5f00 / 暗 #ffb000，`--board-tile-ink`）：白天用降饱和深琥珀（与白天态加载信号同一做法），黑夜用航显琥珀。
 
 Chrome 侧（右侧世界专用，禁入板面）：
 
@@ -190,7 +195,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 - **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368。
 - **语义状态：** hover/pressed 蒙版、地址错误红、分隔条与滚动条悬停都必须各有亮暗 token；组件只能引用语义 token，不直接假设底色为白或黑。
 
-半透明蒙版（veil）除翻牌砖中缝 `rgba(0, 0, 0, 0.45)` 外全部提升为按主题变化的语义 token；反白行内菜单仍使用琥珀上的墨色 veil。
+半透明蒙版（veil）全部按主题提升为语义 token——翻牌砖中缝亦同（`--board-tile-seam`：亮 rgba(34, 26, 0, 0.2) 暖色缝 / 暗 rgba(0, 0, 0, 0.45)）；反白行内菜单仍使用琥珀上的墨色 veil。
 
 ### Named Rules
 
@@ -257,7 +262,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 翻牌计数（FlapCounter）— 签名组件
 
-22×30 深色砖（board-tile 底 + tile-line 描边 + 4px 圆角），砖面 50% 处一条中缝，砖内 16px/600 琥珀 mono 数字（tabular-nums）。按位拆分（`FlapCounter value pad=2`，位置 key），数值变化时该位触发一次翻转：`rotateX(-84deg → 0)`，0.4s `cubic-bezier(0.16, 1, 0.3, 1)`——指数缓出，越翻越慢的物理感。砖本体 `aria-hidden`，语义在容器 `aria-label` 上。
+22×30 翻牌砖（board-tile 底 + tile-line 描边 + 4px 圆角），砖面 50% 处一条中缝，砖内 16px/600 mono 数字（tabular-nums）。昼夜两态如同一块航显屏的日夜间运行：白天浅色砖面（暖灰抬升层）+ 深琥珀数字，黑夜近黑蓝砖 + 航显琥珀数字。按位拆分（`FlapCounter value pad=2`，位置 key），数值变化时该位触发一次翻转：`rotateX(-84deg → 0)`，0.4s `cubic-bezier(0.16, 1, 0.3, 1)`——指数缓出，越翻越慢的物理感。砖本体 `aria-hidden`，语义在容器 `aria-label` 上。
 
 ### 新建会话按钮（Primary Button）
 

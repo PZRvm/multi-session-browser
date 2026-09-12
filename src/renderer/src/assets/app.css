@@ -6,16 +6,19 @@
 :root {
   color-scheme: light;
 
-  /* 信息板 · 亮色暖灰，翻牌砖继续作为小面积深色器件 */
+  /* 信息板 · 亮色暖灰，翻牌砖白天呈浅色砖面 + 深琥珀数字（夜间才回到暗砖亮字） */
   /* --board-bg 两值（亮/暗）与主进程窗口背景常量（src/main/appearance.ts）同源对账 */
   --board-bg: #f6f4ee;
   --board-bg-raised: #ede9df;
   --board-hairline: #d8d2c5;
-  --board-tile: #1a2026;
-  --board-tile-line: #2a313a;
+  --board-tile: #ede9df;
+  --board-tile-line: #d8d2c5;
+  --board-tile-ink: #9a5f00;
+  --board-tile-seam: rgba(34, 26, 0, 0.2);
+  --board-scrollbar-thumb: #c9c1b2;
   --board-ink: #1e2329;
   --board-ink-dim: #616974;
-  /* 板头外观分段控件选中瓣：亮色沿用翻牌砖面（暗瓣亮字） */
+  /* 板头外观分段控件选中瓣：亮色取黑夜砖面（暗瓣亮字，自成对照） */
   --board-segment-selected-bg: #1a2026;
   --board-hover-veil: rgba(30, 35, 41, 0.08);
   --board-scrollbar-hover: #bcb4a6;
@@ -55,6 +58,12 @@
     --board-hairline: #232830;
     --board-ink: #f5f0e8;
     --board-ink-dim: #9aa3ad;
+    /* 翻牌砖黑夜维持暗砖 + 琥珀数字（与亮色浅砖互为昼夜两态） */
+    --board-tile: #1a2026;
+    --board-tile-line: #2a313a;
+    --board-tile-ink: #ffb000;
+    --board-tile-seam: rgba(0, 0, 0, 0.45);
+    --board-scrollbar-thumb: #2a313a;
     /* 暗色轨道已是砖面同值（raised），选中瓣需抬升一档才能从轨道中辨认 */
     --board-segment-selected-bg: #2a313a;
     --board-hover-veil: rgba(255, 255, 255, 0.08);
@@ -192,7 +201,7 @@ body.col-resizing {
   right: 0;
   top: 50%;
   height: 1px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--board-tile-seam);
   z-index: 1;
 }
 
@@ -201,7 +210,7 @@ body.col-resizing {
   font-size: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--amber);
+  color: var(--board-tile-ink);
   line-height: 1;
 }
 
@@ -278,7 +287,7 @@ body.col-resizing {
 }
 
 .session-list::-webkit-scrollbar-thumb {
-  background: var(--board-tile-line);
+  background: var(--board-scrollbar-thumb);
   border-radius: 4px;
 }
 
