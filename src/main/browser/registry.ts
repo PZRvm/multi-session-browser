@@ -2,7 +2,7 @@
 // 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令一律
 // 路由到当前激活会话的 manager）+ 会话级生命周期（switchSession / destroySession / init）。
 // 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts / index.ts 装配，分层同 manager.ts）；
-// 落盘读写一律经 store.ts 的 loadSnapshot / mutateSnapshot，不自行组合读写。
+// 持久化上报与恢复集由 browser/persistence.ts 承担（L7 定案），落盘读写经 store.ts。
 
 import { app, session, webContents, WebContentsView } from 'electron'
 import type { BrowserWindow, Session, WebContents } from 'electron'
@@ -10,13 +10,11 @@ import { cp, rm, stat } from 'fs/promises'
 import { basename, join } from 'path'
 import type { BrowserSnapshot, SetBoundsPayload } from '../../shared/browser'
 import {
-  PAGE_TITLE_MAX,
   SESSION_ID_RE,
   type SessionStatus,
-  type SessionStatusesPayload,
-  type SessionsSnapshot
+  type SessionStatusesPayload
 } from '../../shared/sessions'
-import { loadSnapshot, mutateSnapshot } from '../store'
+import { loadSnapshot } from '../store'
 import {
   BLANK_URL,
   createTabManager,
@@ -24,7 +22,8 @@ import {
   type SnapshotListener,
   type TabManager
 } from './manager'
-import { isOpenableUrl, logLoadFailure } from './url'
+import { createSessionPersistence } from './persistence'
+import { logLoadFailure } from './url'
 
 /**
  * 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享）。
@@ -49,10 +48,6 @@ function partitionDir(partition: string): string {
   return join(app.getPath('userData'), 'Partitions', name)
 }
 
-/** pageTitle/lastUrl 上报去抖（trailing）：导航与标题事件密集，写盘前先静默一段时间 */
-const REPORT_DEBOUNCE_MS = 500
-/** lastUrl 落盘截断上限：合法 URL 可达数 KB，超长截断防写穿落盘（读取端另有白名单校验兜底） */
-const LAST_URL_MAX = 2000
 /** wc.close() 后等待自然销毁的宽限；超时（unload 卡住等极端场景）跳过 beforeunload 强制销毁 */
 const DESTROY_GRACE_MS = 3000
 /** 销毁重扫轮数上限：unload 期间页面仍可能经 window.open 在同分区补生 webContents */
@@ -108,27 +103,14 @@ export function createSessionBrowserRegistry(deps: {
   let activeSessionId: string | null = null
   /** 最近一次非零内容区矩形：新建 manager 的 initialBounds（无窗口先建 manager 时的挂入兜底） */
   let globalBounds: SetBoundsPayload | null = null
-  /** 各会话 lastUrl 缓存（init 读盘填充 + 上报写盘时同步），懒创建初始 Tab 的取用源；
-   *  未命中缓存的 id（启动预读窗口/运行期新增如克隆产物）由 ensureManager 现读落盘补载 */
-  const lastUrls = new Map<string, string>()
-  /** 共享的读盘 promise（init 启动预读复用同一 in-flight，防重复读盘） */
-  let lastUrlsPreload: Promise<SessionsSnapshot | null> | null = null
-
-  function preloadLastUrls(): Promise<SessionsSnapshot | null> {
-    if (!lastUrlsPreload) {
-      lastUrlsPreload = loadSnapshot()
-        .then((snapshot) => {
-          for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
-          return snapshot
-        })
-        .catch((error: unknown) => {
-          // loadSnapshot 坏数据自回退空快照、设计上不 reject；此处兜底 fs 层异常返回 null
-          console.warn('[registry] 预读会话 lastUrl 失败:', error)
-          return null
-        })
-    }
-    return lastUrlsPreload
-  }
+  /**
+   * 持久化上报与恢复集（阶段 6 自本文件抽出为 browser/persistence.ts，复审 L7 定案）：
+   * 写侧去抖落盘与读侧恢复集缓存的唯一事实源，本文件只做生命周期编排
+   */
+  const persistence = createSessionPersistence({
+    hasManager: (id) => managers.has(id),
+    getSnapshotById: (id) => managers.get(id)?.getSnapshot() ?? null
+  })
 
   /** init 已被显式切换（switchSession/destroySession）打断即不再补做启动恢复 */
   let initHandled = false
@@ -140,9 +122,6 @@ export function createSessionBrowserRegistry(deps: {
   const statuses = new Map<string, SessionStatus>()
   /** 状态 map 序列化指纹：仅在内容变化时回调监听者（全量 map，整体替换不合并） */
   let statusesKey = '{}'
-  /** 会话 → 最近一次写盘的 {url,title}，上报去抖的变化判据 */
-  const reported = new Map<string, { url: string; title: string }>()
-  const reportTimers = new Map<string, ReturnType<typeof setTimeout>>()
   /**
    * 克隆进行中的会话 id（closeSession 源 → cp 完成 的窗口期，秒级）：期间禁止对其
    * 切换激活/批量打开/销毁——源分区正处于"已收尾待复制/复制中"状态，任何中途重建
@@ -152,9 +131,7 @@ export function createSessionBrowserRegistry(deps: {
   const cloningIds = new Set<string>()
   /**
    * 待补载集合（R1 定案）：ensureManager 安排了"缓存未命中现读补载"的会话 id。
-   * openUrlInSessions 的空白 Tab 复用路径在发出 loadURL 前先撤销补载资格——否则
-   * 补载 .then 的 BLANK_URL 守卫看不到在途导航（快照 url 仍显示 about:blank），
-   * 后到的补载会把批量地址覆盖回 lastUrl
+   * 补载 .then 的守卫语义见 ensureManager 内注释（L4 修订后含批量打开叠加径）
    */
   const pendingBackfill = new Set<string>()
 
@@ -272,57 +249,6 @@ export function createSessionBrowserRegistry(deps: {
     }
   }
 
-  /** 取 fire 时刻的最新值写盘（去抖期内后续变化不必再各写一次） */
-  function flushReport(id: string): void {
-    const manager = managers.get(id)
-    if (!manager) return // 会话已销毁，静默跳过
-    const snapshot = manager.getSnapshot()
-    const tab = snapshot.tabs.find((item) => item.id === snapshot.activeTabId) ?? null
-    const url = tab?.url ?? ''
-    const title = tab ? tab.title : ''
-    // fn 返回截断后的 lastUrl（会话已从落盘移除时返回 undefined）；
-    // lastUrls/reported 两个缓存的更新放在 mutateSnapshot resolve 之后——mutateSnapshot
-    // 是"先 fn 后 save"，缓存若在 fn 内前移，写盘失败（saveSnapshot reject）时判据已
-    // 认为"已上报"而磁盘停留旧值（复审 F1）；后置到成功回调则失败路径不前移，下次
-    // 快照仍判"有变化"会重试，判据与磁盘不脱节
-    void mutateSnapshot((data) => {
-      const target = data.sessions.find((item) => item.id === id)
-      if (!target) return undefined // 会话已从落盘数据移除（删除竞态），静默跳过，缓存不前移
-      target.pageTitle = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
-      target.lastUrl = url.length > LAST_URL_MAX ? url.slice(0, LAST_URL_MAX) : url
-      return target.lastUrl
-    })
-      .then((saved) => {
-        if (saved === undefined) return
-        lastUrls.set(id, saved)
-        reported.set(id, { url, title })
-      })
-      .catch((error: unknown) => {
-        console.warn(`[registry] 写会话 ${id} 的 pageTitle/lastUrl 失败:`, error)
-      })
-  }
-
-  function scheduleReport(id: string): void {
-    const pending = reportTimers.get(id)
-    if (pending) clearTimeout(pending)
-    reportTimers.set(
-      id,
-      setTimeout(() => {
-        reportTimers.delete(id)
-        flushReport(id)
-      }, REPORT_DEBOUNCE_MS)
-    )
-  }
-
-  /** 退出前冲刷全部待写的上报去抖：清定时器并立即落一次盘（尽力而为，见接口注释） */
-  function flushPendingReports(): void {
-    for (const [id, timer] of reportTimers) {
-      clearTimeout(timer)
-      reportTimers.delete(id)
-      flushReport(id)
-    }
-  }
-
   /** 懒创建该会话的 manager（persist:sess-<id>）并接线：快照驱动转发/状态聚合/上报去抖 */
   function ensureManager(id: string): TabManager {
     const existing = managers.get(id)
@@ -336,17 +262,13 @@ export function createSessionBrowserRegistry(deps: {
 
     // 每 manager 创建时接线一次（存活期内常驻，销毁即随 webContents 一同失效）：
     // ① 快照仅当该会话处于激活态才转发外部监听者（后台会话的过期快照在此被丢弃，防串台）；
-    // ② 状态聚合与 ③ 上报去抖对全部 manager 生效（后台会话的真实加载态如实驱动，不造假）
+    // ② 状态聚合与 ③ 持久化上报对全部 manager 生效（后台会话的真实加载态如实驱动，不造假）
     manager.onSnapshotChanged((snapshot) => {
       if (snapshot.sessionId === activeSessionId) {
         for (const cb of snapshotListeners) cb(snapshot)
       }
       setStatus(id, snapshot.tabs.some((tab) => tab.loading) ? 'loading' : 'idle')
-      const tab = snapshot.tabs.find((item) => item.id === snapshot.activeTabId) ?? null
-      const url = tab?.url ?? ''
-      const title = tab ? tab.title : ''
-      const prev = reported.get(id)
-      if (!prev || prev.url !== url || prev.title !== title) scheduleReport(id)
+      persistence.recordSnapshot(id, snapshot)
     })
     manager.onFocusAddressRequest(() => {
       // focus-address 只可能来自挂入中的页面（后台 view 收不到键盘输入），过滤保语义正确
@@ -354,15 +276,14 @@ export function createSessionBrowserRegistry(deps: {
       for (const cb of focusListeners) cb()
     })
 
-    // 懒创建即建初始 Tab：有可打开的上次打开页则加载之，无则 about:blank（newTab 缺省）。
-    // lastUrl 来自落盘文件（跨信任边界），按 window.open 同一白名单校验，坏值回退空白页
-    const lastUrl = lastUrls.get(id)
-    manager.newTab(lastUrl && isOpenableUrl(lastUrl) ? lastUrl : undefined)
+    // 懒创建即按恢复集多开 Tab（阶段 6）：缓存有恢复集则逐条过白名单恢复（顺序 +
+    // 激活位），缺失/空则建一个空白 Tab；页面运行态不还原（URL 级恢复，PRD 3.6.4）
+    persistence.applyRestore(manager, id, false)
     // 缓存未命中即现读一次落盘补载：命中不了的两类场景——①启动预读未完成的毫秒窗口；
     // ②运行期新增的会话（克隆产物：其 id 只在落盘里，永不进内存缓存，启动预读的共享
-    // promise 快照也不含它，故必须现读）。读回后若激活 Tab 仍是空白页则补载该会话的
-    // 上次打开页（用户已自行导航则不打扰），保住 PRD 3.1.4 的恢复语义
-    if (!lastUrls.has(id)) {
+    // promise 快照也不含它，故必须现读）。读回后若该会话仍处于"零恢复"状态（唯一 Tab
+    // 还是空白页）才补做恢复（用户已自行导航/开 Tab 则不打扰），保住 PRD 3.1.4 的恢复语义
+    if (!persistence.hasRestore(id)) {
       pendingBackfill.add(id)
       void loadSnapshot()
         .then((snapshot) => {
@@ -370,16 +291,25 @@ export function createSessionBrowserRegistry(deps: {
           // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
           const armed = pendingBackfill.delete(id)
           if (!managers.has(id) || !armed) return
-          for (const item of snapshot.sessions) lastUrls.set(item.id, item.lastUrl)
-          const url = snapshot.sessions.find((item) => item.id === id)?.lastUrl
-          if (!url || !isOpenableUrl(url)) return
+          persistence.ingest(snapshot)
+          const item = snapshot.sessions.find((entry) => entry.id === id)
+          if (!item || item.tabs.length === 0) return
+          // L4 定案叠加径：批量打开已在补载待定期叠加了 Tab——初始空白 Tab 由系统创建、
+          // 非用户接管，关掉后全量恢复（恢复集不因批量打开而丢弃）
+          if (persistence.takeBatchOpened(id)) {
+            const snap = manager.getSnapshot()
+            const blank = snap.tabs.find((tab) => tab.url === BLANK_URL)
+            if (blank && snap.tabs.length > 1) manager.closeTab(blank.id)
+            persistence.applyRestore(manager, id, false)
+            return
+          }
+          // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
+          // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
           const current = manager.getSnapshot()
+          if (current.tabs.length !== 1) return
           const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
           if (!activeTab || activeTab.url !== BLANK_URL) return
-          const wc = manager.getActiveWebContents()
-          if (wc && !wc.isDestroyed()) {
-            void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
-          }
+          persistence.applyRestore(manager, id, true)
         })
         .catch(() => undefined) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
     }
@@ -428,14 +358,8 @@ export function createSessionBrowserRegistry(deps: {
     // 先摘注册表引用再清除：清除后不得再实例化该分区（fromPartition 会惰性重建空目录，
     // 阶段4步骤1 冒烟定案），从 Map 移除 manager 即天然保证——本函数此后也不再触碰该分区 session
     managers.delete(id)
-    lastUrls.delete(id)
-    reported.delete(id)
+    persistence.dropSession(id)
     deleteStatus(id)
-    const pending = reportTimers.get(id)
-    if (pending) {
-      clearTimeout(pending)
-      reportTimers.delete(id)
-    }
     // 正常编排里被删激活会话时 index.ts 已先切换走（onDeleted 级联）；此处兜底摘 view 与空态
     const wasActive = activeSessionId === id
     if (wasActive) activeSessionId = null
@@ -480,7 +404,7 @@ export function createSessionBrowserRegistry(deps: {
    * 分叉：跳过 clearStorageData 与删目录），供 clonePartition 在复制前收尾活库（活库的
    * LevelDB/Cookies journal 未落盘，直接 cp 会得到不一致副本）。关后 manager 从注册表
    * 摘除（reported/状态条目/去抖定时器一并清掉），下次激活该会话由 ensureManager 懒创建
-   * 并按 lastUrls 缓存重载上次打开页。被关的是激活会话时只摘 view、置空激活标记，
+   * 并按 restoreSets 缓存重载恢复集。被关的是激活会话时只摘 view、置空激活标记，
    * **不**切空态**不**广播空态快照——克隆完成后 renderer 的 setActive(新会话) 接管画面，
    * 全程只切一次，避免中间空态闪烁。manager 不存在（从未激活过或已关闭）时 no-op resolve
    */
@@ -490,18 +414,12 @@ export function createSessionBrowserRegistry(deps: {
     // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
     // manager，让随后的分区复制重新落入"活库"状态
     initHandled = true
-    // 摘引用前先冲刷该会话待写的上报去抖（flushReport 以注册表存在性为判据，须在摘除前
-    // 调用）：关后随即复制分区与元数据，pageTitle/lastUrl 取关前最新值落盘
-    const pending = reportTimers.get(id)
-    if (pending) {
-      clearTimeout(pending)
-      reportTimers.delete(id)
-      flushReport(id)
-    }
+    // 摘引用前先冲刷该会话待写的上报去抖（settleSession 以缓存存在性为守卫依据，须在
+    // 摘除前调用）：关后随即复制分区与元数据，pageTitle/lastUrl/tabs 取关前最新值落盘
+    persistence.settleSession(id)
     managers.delete(id)
-    // lastUrls 保留（与 destroySession 的分叉点之一）：该会话仍在落盘元数据里存活，
-    // 下次激活须按 lastUrl 重载（PRD 3.1.4 恢复语义，计划用例 A 的"源会话切回重载"）
-    reported.delete(id)
+    // 恢复集保留（settleSession 的分叉点）：该会话仍在落盘元数据里存活，
+    // 下次激活须按恢复集重载（PRD 3.1.4 恢复语义，计划用例 A 的"源会话切回重载"）
     deleteStatus(id)
     if (activeSessionId === id) activeSessionId = null
     // 先 dispose 封死 newTab（销毁等待期内垂死页面 window.open 的复生路径），再摘 view、
@@ -593,21 +511,26 @@ export function createSessionBrowserRegistry(deps: {
       const existed = managers.has(id)
       const manager = ensureManager(id)
       if (!existed) {
-        // 刚懒创建且初始 Tab 仍是空白页（无 lastUrl 可恢复的会话）：复用该 Tab 直接
-        // 加载目标地址，避免"新标签页 + 目标页"双 Tab；lastUrl 已在加载的会话不复用
-        // （初始 Tab 有内容，叠加新 Tab 才符合"打开测试地址"语义）
+        // 刚懒创建会话的三分支（L4 定案：批量打开绝不丢弃恢复集）：
+        // ① 缓存有恢复集（ensureManager 已多开恢复）→ 直接叠加批量 Tab；
+        // ② 缓存明确无恢复集（空数组，无补载待定）且初始 Tab 空白 → 复用该 Tab 直接
+        //    加载目标地址，避免"新标签页 + 目标页"双 Tab；
+        // ③ 缓存未命中（补载待定，落盘可能有恢复集）→ 不撤销补载、置叠加标记，批量 Tab
+        //    先叠加；补载读盘后关掉系统创建的初始空白 Tab 全量恢复（见 ensureManager）
         const snap = manager.getSnapshot()
         const activeTab = snap.tabs.find((tab) => tab.id === snap.activeTabId)
-        if (activeTab && activeTab.url === BLANK_URL) {
+        const restore = persistence.getRestore(id)
+        if (restore && restore.tabs.length > 0) {
+          // 分支 ①：落到末尾 newTab(url)
+        } else if (activeTab && activeTab.url === BLANK_URL && restore) {
           const wc = manager.getActiveWebContents()
           if (wc && !wc.isDestroyed()) {
-            // R1：复用在途导航先撤销该会话的补载资格——补载 .then 的 BLANK_URL 守卫
-            // 看不到在途 loadURL（快照 url 仍是 about:blank），不撤销会被覆盖回 lastUrl
-            pendingBackfill.delete(id)
             void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
             if (id !== activeSessionId) detachActiveView(manager)
             continue
           }
+        } else if (activeTab && activeTab.url === BLANK_URL) {
+          persistence.markBatchOpened(id)
         }
       }
       manager.newTab(url)
@@ -616,17 +539,17 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   function init(activeId: string | null): void {
-    // 读盘一次缓存各会话 lastUrl（与 ensureManager 的补载共享同一 in-flight promise）：
+    // 读盘一次缓存各会话恢复集（与 ensureManager 的补载共享同一 in-flight promise）：
     // switchSession 是同步签名，取值只能前置到缓存里
-    const storeReady = preloadLastUrls()
+    const storeReady = persistence.preload()
     if (activeId === null) return
-    // 启动恢复（PRD 3.1.4）：读盘完成后恢复上次激活会话，懒创建经 lastUrls 缓存重载上次打开页；
+    // 启动恢复（PRD 3.1.4）：读盘完成后恢复上次激活会话，懒创建经恢复集缓存多开 Tab；
     // 读盘期间已有显式切换/销毁（极端竞态）则跳过，以显式操作为准
     void storeReady
       .then(() => {
         if (initHandled) return
         initHandled = true
-        if (!lastUrls.has(activeId)) return // 悬空 activeId（loadSnapshot 已会重置，双保险）
+        if (!persistence.hasRestore(activeId)) return // 悬空 activeId（loadSnapshot 已会重置，双保险）
         switchSession(activeId)
       })
       .catch((error: unknown) => {
@@ -698,6 +621,11 @@ export function createSessionBrowserRegistry(deps: {
   function onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void {
     statusListeners.add(cb)
     return () => statusListeners.delete(cb)
+  }
+
+  /** 退出前冲刷全部待写的上报去抖（index.ts 的 before-quit 钩子调用；委托持久化模块） */
+  function flushPendingReports(): void {
+    persistence.flushAll()
   }
 
   function getStatuses(): SessionStatusesPayload {

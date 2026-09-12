@@ -8,10 +8,11 @@ import { app } from 'electron'
 import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { isRecord } from '../shared/guards'
-import type { SessionsSnapshot, StoredSession } from '../shared/sessions'
+import type { SessionsSnapshot, StoredSession, StoredTab } from '../shared/sessions'
+import { cloneTabs } from '../shared/sessions'
 
-/** 当前落盘 schema 版本（v2 增 lastUrl 字段）；读到不认识的版本一律按坏数据回退，v1 按 lastUrl='' 迁移 */
-const SNAPSHOT_VERSION = 2
+/** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex）；读到不认识的版本一律按坏数据回退，v1/v2 读取时迁移 */
+const SNAPSHOT_VERSION = 3
 
 /** 回退用的空快照（每次新建，避免共享可变数组） */
 function emptySnapshot(): SessionsSnapshot {
@@ -25,8 +26,9 @@ function getStorePath(): string {
 
 /**
  * 元素级校验：id/name/note/pageTitle 四字段齐全且类型正确（多余字段容忍，读取时剔除）。
- * lastUrl 不参与此校验：v1 落盘文件无此字段，缺失或类型错一律在重建处按 '' 迁移，
- * 不作坏数据回退（写入端恒出合法 string，类型错只可能来自外力篡改，宽容处理）
+ * lastUrl/tabs/activeTabIndex 不参与此校验：老版本落盘元素可能缺这些字段，缺失或类型错
+ * 一律在重建处按迁移/回退规则处理（lastUrl 补空串、tabs 由 lastUrl 派生、激活位钳制 0），
+ * 不作坏数据回退（写入端恒出合法值，类型错只可能来自外力篡改，宽容处理）
  */
 function isStoredSession(value: unknown): value is StoredSession {
   if (!isRecord(value)) return false
@@ -37,6 +39,69 @@ function isStoredSession(value: unknown): value is StoredSession {
     typeof value.note === 'string' &&
     typeof value.pageTitle === 'string'
   )
+}
+
+/** 单个落盘 tab 的元素级校验：普通对象且 url 为 string */
+function isStoredTab(value: unknown): value is { url: string } {
+  return isRecord(value) && typeof value.url === 'string'
+}
+
+/**
+ * 从元素重建 v3 的 tabs/activeTabIndex（迁移与容错的单一出口）。
+ * 形参类型是收窄后的 StoredSession，但 v1/v2 落盘元素运行时没有 tabs/activeTabIndex
+ * 字段——一切读取都先过 Array.isArray / typeof 守卫，不信任类型声明
+ * - v1/v2 元素（无 tabs 字段）：按 lastUrl 派生单元素列表、激活位 0（schema 迁移，不告警）
+ * - v3 元素 tabs 类型错（非数组/元素非对象/url 非 string）：回退 lastUrl 派生并告警
+ * - 激活位非整数/负数：钳制 0 并告警；越上界（含 tabs 回退后越界）：钳到有效末位并告警
+ */
+function restoreTabs(
+  item: StoredSession,
+  version: number
+): { tabs: StoredTab[]; activeTabIndex: number } {
+  const warn = (reason: string): void => {
+    console.warn(`[store] 会话 ${item.id} 的 ${reason}，已按容错规则重建`)
+  }
+  const derivedFromLastUrl = (): StoredTab[] => {
+    const lastUrl = item.lastUrl || ''
+    return lastUrl ? [{ url: lastUrl }] : []
+  }
+  let tabs: StoredTab[] | null = null
+  if (version >= 3 && Array.isArray(item.tabs)) {
+    if (item.tabs.every(isStoredTab)) {
+      tabs = cloneTabs(item.tabs)
+    } else {
+      warn('tabs 存在类型错元素（非对象或 url 非 string）')
+    }
+  } else if (version >= 3) {
+    warn('tabs 不是数组')
+  }
+  // L5：tabs 为合法空数组但 lastUrl 非空，是应用写侧不可能产出的不一致组合
+  // （激活会话恒 ≥1 Tab，lastUrl 与 tabs[activeTabIndex] 同源），只可能来自手工
+  // 编辑/损坏——按 v2 同口径回退 lastUrl 派生并告警，不让恢复集静默丢失
+  if (tabs !== null && tabs.length === 0 && item.lastUrl) {
+    warn('tabs 为空但 lastUrl 非空（不一致组合）')
+    tabs = null
+  }
+  if (tabs === null) tabs = derivedFromLastUrl()
+  let activeTabIndex = 0
+  if (typeof item.activeTabIndex === 'number' && Number.isInteger(item.activeTabIndex)) {
+    activeTabIndex = item.activeTabIndex
+  } else if (item.activeTabIndex !== undefined) {
+    warn('activeTabIndex 非整数')
+  }
+  if (activeTabIndex < 0) {
+    warn('activeTabIndex 为负数')
+    activeTabIndex = 0
+  }
+  if (activeTabIndex >= tabs.length) {
+    if (tabs.length > 0) {
+      warn(`activeTabIndex ${activeTabIndex} 越上界（tabs 共 ${tabs.length} 项）`)
+      activeTabIndex = tabs.length - 1
+    } else {
+      activeTabIndex = 0
+    }
+  }
+  return { tabs, activeTabIndex }
 }
 
 /** 坏数据内容摘要（截断，避免控制台刷屏）；sessions.ts 的 handler 失败日志也复用 */
@@ -113,13 +178,16 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
 }
 
 /**
- * 解析并校验快照。对抗性坏数据矩阵（步骤 7 已逐项核对，2026-09-10）：
+ * 解析并校验快照。对抗性坏数据矩阵（阶段 1 步骤 7 逐项核对 + 阶段 6 扩写，2026-09-12）：
  * - 非法 JSON（截断 / BOM / 二进制垃圾 / 空串）：JSON.parse 抛错 → 回退空快照并告警
  * - 根节点为数组 / 字符串 / null 等非普通对象：回退空快照（深嵌套数组即使解析成功也在此被拒）
- * - version 缺失或非 1/2（含 0、3、字符串 "1"）：回退空快照（v1 按 lastUrl='' 迁移，写盘恒出 v2）
- * - sessions 为对象 / 字符串等非数组，或元素为 null / 嵌套数组 / 缺字段 / 字段类型错：回退空快照
- *   （lastUrl 例外：v1 落盘无此字段，缺失或类型错按 '' 迁移，不回退）
- * - 元素含多余字段：容忍，但重建时只保留五个契约字段（注入的未知字段不会被回存落盘）
+ * - version 缺失或非 1/2/3（含 0、4、字符串 "1"）：回退空快照
+ *   （v1/v2 按 lastUrl 派生单元素 tabs 迁移，写盘恒出 v3）
+ * - sessions 为对象 / 字符串等非数组，或元素为 null / 嵌套数组 / 缺四硬字段 / 硬字段类型错：
+ *   回退空快照（lastUrl/tabs/activeTabIndex 例外：缺失或类型错按 restoreTabs 的迁移/回退规则处理，不回退）
+ * - 元素含多余字段：容忍，但重建时只保留契约字段（注入的未知字段不会被回存落盘）
+ * - v3 元素 tabs 非数组 / 元素非对象 / url 非 string：回退 lastUrl 派生列表并告警；
+ *   activeTabIndex 非整数 / 负数 / 越上界：钳制到有效范围（空列表恒 0）并告警
  * - sessions 内重复 id：保留首个、剔除后续重复项并告警
  * - activeId 为数字等非 string/null：回退空快照；为空串或悬空 id：按悬空处理，置 null 保留列表
  */
@@ -143,11 +211,12 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     fallback('根节点不是对象')
     return emptySnapshot()
   }
-  // v1（无 lastUrl，读取时迁移）与当前 v2 均接受，其余版本按坏数据回退
-  if (data.version !== 1 && data.version !== SNAPSHOT_VERSION) {
+  // v1（无 lastUrl）/v2（无 tabs）与当前 v3 均接受，其余版本按坏数据回退
+  if (data.version !== 1 && data.version !== 2 && data.version !== SNAPSHOT_VERSION) {
     fallback(`version 不认识: ${JSON.stringify(data.version)}`)
     return emptySnapshot()
   }
+  const version = data.version
   if (!Array.isArray(data.sessions)) {
     fallback('sessions 不是数组')
     return emptySnapshot()
@@ -162,13 +231,15 @@ function parseSnapshot(raw: string): SessionsSnapshot {
   }
 
   // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段。
-  // lastUrl 迁移（schema v1 → v2）：v1 落盘元素无此字段，缺失或类型错一律补空串
+  // lastUrl 迁移（v1 → v2+）：老落盘元素无此字段，缺失或类型错一律补空串；
+  // tabs/activeTabIndex 重建（v1/v2 迁移 + v3 容错）统一走 restoreTabs 单一出口
   const sessions: StoredSession[] = data.sessions.map((item) => ({
     id: item.id,
     name: item.name,
     note: item.note,
     pageTitle: item.pageTitle,
-    lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : ''
+    lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : '',
+    ...restoreTabs(item, version)
   }))
 
   // 重复 id 去重：保留首个、剔除后续重复项，防止重复条目进入列表与 id 索引

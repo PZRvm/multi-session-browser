@@ -1,14 +1,18 @@
 // 会话持久化共享契约（主进程 / preload / renderer 三方共用）。
 // 修改本文件的类型或通道名前，必须先修订
-// notes/plans/20260912013740-阶段5会话克隆与批量操作开发计划.md 第 3 节。
+// notes/plans/20260912201534-阶段6会话Tab列表落盘与恢复开发计划.md 第 2.4 节
+// （阶段 5 增量契约的历史修订记录见同目录阶段 5 计划第 3 节）。
 //
 // 契约要点：
-// - 落盘 schema version 2（v1 文件读取时按 lastUrl='' 迁移，写盘恒出 v2，见 src/main/store.ts）
+// - 落盘 schema version 3（v3 增 tabs/activeTabIndex；v1/v2 文件读取时按
+//   lastUrl 派生单元素 tabs 迁移，写盘恒出 v3，见 src/main/store.ts）
 // - status 是运行时状态不落盘，由"该会话任一 Tab loading"聚合而来，经
 //   statusChanged 全量 map 推送；renderer 先订阅后拉取（getStatuses）防启动竞态
 // - setActive 通道在主进程内附带副作用：触发浏览器切换到目标会话（编排见 registry）
 // - 阶段 5 增量：clone（分区数据+元数据复制）、deleteAll（批量关闭=删除全部）、
 //   batchOpenUrl（选中会话统一开测试地址）；通道整单校验拒绝制，无部分成功
+// - 阶段 6 增量：tabs（恢复用 URL 列表，顺序即创建序）+ activeTabIndex（激活位）；
+//   恢复是 URL 级——页面运行态与 DevTools 开关态不持久化（PRD 3.6.4）
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -38,10 +42,27 @@ export const SESSION_ID_RE = /^sess-[a-z0-9-]+$/
  */
 export const PAGE_TITLE_MAX = 200
 
+/** 落盘的单个恢复用 Tab（仅 URL；页面运行态不持久化） */
+export interface StoredTab {
+  url: string
+}
+
+/**
+ * StoredTab[] 浅克隆（新建元素对象，防与落盘/缓存对象共享可变引用）。
+ * 单一事实源：store 重建、registry 恢复集缓存、clone 元数据复制三处消费同一实现，
+ * tabs 结构演进（如阶段 7 增字段）时只改此处
+ */
+export function cloneTabs(tabs: readonly StoredTab[]): StoredTab[] {
+  return tabs.map((tab) => ({ url: tab.url }))
+}
+
 /**
  * 落盘的会话元数据（status 为运行时状态，不落盘）。
  * lastUrl：该会话上次打开页（激活 Tab 的 URL），空串 = 无记录；
  * 重启后首次激活该会话时自动重载（PRD 3.1.4"上次打开页面"）。
+ * tabs/activeTabIndex（阶段 6）：恢复用 Tab URL 列表与激活位，lastUrl 与
+ * tabs[activeTabIndex] 由写侧同源计算保持一致；tabs 空表示无恢复集
+ * （懒创建时回退单空白 Tab，v1/v2 老文件迁移为由 lastUrl 派生的单元素）
  */
 export interface StoredSession {
   id: string
@@ -49,6 +70,8 @@ export interface StoredSession {
   note: string
   pageTitle: string
   lastUrl: string
+  tabs: StoredTab[]
+  activeTabIndex: number
 }
 
 /** renderer 运行时会话 = 落盘数据 + 状态 */

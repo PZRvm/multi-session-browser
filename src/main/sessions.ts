@@ -13,6 +13,7 @@ import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
   SESSIONS_CHANNELS,
+  cloneTabs,
   type OkResult,
   type SessionStatusesPayload,
   type SessionsSnapshot,
@@ -112,7 +113,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             // 创建时标题为固定占位文案，仍过一道截断以维持入口上限不变式
             pageTitle: clampString('未打开页面', PAGE_TITLE_MAX),
             // 阶段 4 契约（步骤 2 冻结）：新建会话无上次打开页，恒空串
-            lastUrl: ''
+            lastUrl: '',
+            // 阶段 6 契约：新建会话无恢复集，懒创建时回退单空白 Tab
+            tabs: [],
+            activeTabIndex: 0
           }
           snapshot.sessions.push(session)
           return session
@@ -219,7 +223,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
               name: clampString(`${source.name} 副本`, NAME_MAX),
               note: source.note,
               pageTitle: source.pageTitle,
-              lastUrl: source.lastUrl
+              lastUrl: source.lastUrl,
+              // 阶段 6：恢复集随元数据复制（克隆产物同款页面集，URL 级）
+              tabs: cloneTabs(source.tabs),
+              activeTabIndex: source.activeTabIndex
             }
             data.sessions.push(cloned)
             return cloned
