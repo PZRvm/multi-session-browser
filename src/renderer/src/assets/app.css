@@ -1,33 +1,78 @@
 /* ============================================================
    多会话测试浏览器 — 到发信息板设计系统
-   左：站台信息板（深色行式栅格） · 右：列车本身（Chrome 语法）
+   左：站台信息板（亮暗行式栅格） · 右：列车本身（Chrome 亮暗语法）
    ============================================================ */
 
 :root {
-  /* 信息板 */
-  --board-bg: #101418;
-  --board-bg-raised: #1a2026;
-  --board-hairline: #232830;
+  color-scheme: light;
+
+  /* 信息板 · 亮色暖灰，翻牌砖继续作为小面积深色器件 */
+  /* --board-bg 两值（亮/暗）与主进程窗口背景常量（src/main/appearance.ts）同源对账 */
+  --board-bg: #f6f4ee;
+  --board-bg-raised: #ede9df;
+  --board-hairline: #d8d2c5;
   --board-tile: #1a2026;
   --board-tile-line: #2a313a;
-  --board-ink: #f5f0e8;
-  --board-ink-dim: #9aa3ad;
+  --board-ink: #1e2329;
+  --board-ink-dim: #616974;
+  --board-hover-veil: rgba(30, 35, 41, 0.08);
+  --board-scrollbar-hover: #bcb4a6;
+  --panel-divider: #c7c1b5;
   --amber: #ffb000;
   --amber-strong: #ffc133;
   --amber-press: #e6a000;
   --amber-ink: #221a00;
   --amber-ink-dim: #4a3a00;
+  --amber-veil: rgba(34, 26, 0, 0.12);
   --idle: #6b7280;
-  --loading: #ffb000;
+  --loading: #9a5f00;
 
-  /* Chrome 右侧 */
+  /* Chrome 右侧 · 亮色 */
   --chrome-tabbar: #dee1e6;
   --chrome-toolbar: #f1f3f4;
   --chrome-line: #c7cbd1;
   --chrome-ink: #3c4043;
   --chrome-ink-dim: #5f6368;
   --chrome-disabled: #b0b4b9;
-  --chrome-white: #ffffff;
+  --chrome-surface: #ffffff;
+  --chrome-tab-active: #ffffff;
+  --chrome-omnibox-bg: #ffffff;
+  --chrome-hover-veil: rgba(60, 64, 67, 0.08);
+  --chrome-active-veil: rgba(60, 64, 67, 0.1);
+  --chrome-pressed-veil: rgba(60, 64, 67, 0.12);
+  --chrome-error: #d93025;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* 信息板 · 既有近黑蓝 */
+    --board-bg: #101418;
+    --board-bg-raised: #1a2026;
+    --board-hairline: #232830;
+    --board-ink: #f5f0e8;
+    --board-ink-dim: #9aa3ad;
+    --board-hover-veil: rgba(255, 255, 255, 0.08);
+    --board-scrollbar-hover: #3a434e;
+    --panel-divider: #0b0e11;
+    --loading: #ffb000;
+
+    /* Chrome 右侧 · Chromium 深色灰阶 */
+    --chrome-tabbar: #202124;
+    --chrome-toolbar: #292a2d;
+    --chrome-line: #3c4043;
+    --chrome-ink: #e8eaed;
+    --chrome-ink-dim: #bdc1c6;
+    --chrome-disabled: #5f6368;
+    --chrome-surface: #202124;
+    --chrome-tab-active: #292a2d;
+    --chrome-omnibox-bg: #202124;
+    --chrome-hover-veil: rgba(232, 234, 237, 0.08);
+    --chrome-active-veil: rgba(232, 234, 237, 0.1);
+    --chrome-pressed-veil: rgba(232, 234, 237, 0.14);
+    --chrome-error: #f28b82;
+  }
 }
 
 *,
@@ -101,7 +146,7 @@ body {
   width: 1px;
   height: 100%;
   margin-left: 2px;
-  background: #0b0e11;
+  background: var(--panel-divider);
 }
 
 .panel-divider:hover::before,
@@ -172,6 +217,7 @@ body.col-resizing {
 /* ---------- 左侧：会话信息板 ---------- */
 
 .session-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -233,7 +279,7 @@ body.col-resizing {
 }
 
 .session-list::-webkit-scrollbar-thumb:hover {
-  background: #3a434e;
+  background: var(--board-scrollbar-hover);
 }
 
 .session-list::-webkit-scrollbar-track {
@@ -360,7 +406,7 @@ body.col-resizing {
 }
 
 .session-menu:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--board-hover-veil);
   color: var(--board-ink);
 }
 
@@ -395,7 +441,7 @@ body.col-resizing {
 }
 
 .session-row.selected .session-menu:hover {
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--amber-veil);
 }
 
 .session-row.selected .ant-input {
@@ -458,7 +504,7 @@ body.col-resizing {
 
 /* ---------- 批量模式 ---------- */
 
-/* 板头右端分组：批量入口钮与会话计数同组靠右 */
+/* 板头右端分组：外观 / 批量入口与会话计数同组靠右 */
 .board-head-right {
   display: inline-flex;
   align-items: center;
@@ -466,7 +512,8 @@ body.col-resizing {
   flex: none;
 }
 
-/* 批量模式入口：20×20 图标钮，激活态以琥珀底作点级信号 */
+/* 两枚板头入口共享 20×20 度量；批量激活态才使用琥珀点级信号 */
+.appearance-toggle,
 .batch-toggle {
   flex: none;
   display: inline-flex;
@@ -483,6 +530,7 @@ body.col-resizing {
   transition: background-color 0.12s ease;
 }
 
+.appearance-toggle:not(:disabled):hover,
 .batch-toggle:not(:disabled):hover {
   background: var(--board-bg-raised);
 }
@@ -492,7 +540,8 @@ body.col-resizing {
   color: var(--amber-ink);
 }
 
-/* 零会话时入口禁用（批量态中保持可点以便退出） */
+/* 外观保存中与零会话批量入口的禁用态 */
+.appearance-toggle:disabled,
 .batch-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.4;
@@ -574,7 +623,7 @@ body.col-resizing {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--chrome-white);
+  background: var(--chrome-surface);
 }
 
 .chrome-tabs {
@@ -600,13 +649,13 @@ body.col-resizing {
 }
 
 .chrome-tab.active {
-  background: var(--chrome-white);
+  background: var(--chrome-tab-active);
 }
 
 /* 非激活 tab 悬停 / 键盘聚焦：半透明蒙版加深，不引入新色 */
 .chrome-tab:not(.active):hover,
 .chrome-tab:not(.active):focus-visible {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--chrome-hover-veil);
 }
 
 /* 右侧控件不使用全局琥珀焦点环，聚焦反馈由蒙版 / 描边承担 */
@@ -678,7 +727,7 @@ img.chrome-tab-favicon {
 }
 
 .chrome-tab-close:not(:disabled):hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
@@ -707,13 +756,13 @@ img.chrome-tab-favicon {
 }
 
 .chrome-newtab:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
 .chrome-newtab:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--chrome-pressed-veil);
   color: var(--chrome-ink);
 }
 
@@ -762,7 +811,7 @@ img.chrome-tab-favicon {
 }
 
 .chrome-nav button:not(:disabled):hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
@@ -771,7 +820,7 @@ img.chrome-tab-favicon {
 }
 
 .chrome-nav button:not(:disabled):focus-visible {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--chrome-pressed-veil);
   color: var(--chrome-ink);
 }
 
@@ -784,7 +833,7 @@ img.chrome-tab-favicon {
   padding: 0 14px;
   border: 1px solid var(--chrome-line);
   border-radius: 14px;
-  background: var(--chrome-white);
+  background: var(--chrome-omnibox-bg);
   font-family: inherit;
   font-size: 12px;
   color: var(--chrome-ink);
@@ -807,9 +856,9 @@ img.chrome-tab-favicon {
   border-color: var(--chrome-ink-dim);
 }
 
-/* 输入无效行内提示：边框短暂转 Chrome 错误红（#d93025），2.5s 自动消退或下次输入即消 */
+/* 输入无效行内提示：边框短暂转当前 Chrome 主题错误色，2.5s 自动消退或下次输入即消 */
 .chrome-omnibox.chrome-omnibox-invalid {
-  border-color: #d93025;
+  border-color: var(--chrome-error);
 }
 
 /* 开发者工具开关按钮：沿用提示字样 11px 灰阶基调，开启态以浅灰蒙版持续示意 */
@@ -830,19 +879,19 @@ img.chrome-tab-favicon {
 }
 
 .chrome-devtools-toggle[aria-pressed='true'] {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--chrome-active-veil);
   color: var(--chrome-ink);
 }
 
 .chrome-devtools-toggle:not(:disabled):hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
 /* 右区控件不使用全局琥珀焦点环，聚焦反馈由蒙版承担 */
 .chrome-devtools-toggle:focus-visible {
   outline: none;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--chrome-pressed-veil);
   color: var(--chrome-ink);
 }
 
@@ -863,7 +912,7 @@ img.chrome-tab-favicon {
 .chrome-content {
   flex: 1;
   min-height: 0;
-  background: var(--chrome-white);
+  background: var(--chrome-surface);
 }
 
 /* 零会话空态：静态事实陈述（唯一新建入口在左栏板脚，右侧不重复），无图标无插画
@@ -876,7 +925,7 @@ img.chrome-tab-favicon {
   justify-content: center;
   gap: 8px;
   padding: 32px;
-  background: var(--chrome-white);
+  background: var(--chrome-surface);
 }
 
 .chrome-empty-title {

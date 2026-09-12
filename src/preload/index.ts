@@ -10,6 +10,8 @@ import type {
   SetBoundsPayload,
   SwitchTabPayload
 } from '../shared/browser'
+import { APPEARANCE_CHANNELS } from '../shared/appearance'
+import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
   BatchOpenUrlPayload,
@@ -26,6 +28,20 @@ import type {
 
 // Custom APIs for renderer
 const api = {
+  appearance: {
+    getState: (): Promise<AppearanceSnapshot> => ipcRenderer.invoke(APPEARANCE_CHANNELS.getState),
+    setMode: (payload: SetAppearanceModePayload): Promise<AppearanceSnapshot> =>
+      ipcRenderer.invoke(APPEARANCE_CHANNELS.setMode, payload),
+    onChanged: (callback: (snapshot: AppearanceSnapshot) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, snapshot: AppearanceSnapshot): void => {
+        callback(snapshot)
+      }
+      ipcRenderer.on(APPEARANCE_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(APPEARANCE_CHANNELS.changed, listener)
+      }
+    }
+  },
   sessions: {
     list: (): Promise<SessionsSnapshot> => ipcRenderer.invoke(SESSIONS_CHANNELS.list),
     create: (payload: CreateSessionPayload): Promise<StoredSession> =>

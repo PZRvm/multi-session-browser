@@ -1,29 +1,45 @@
 ---
 name: 多会话测试浏览器
-description: 会话到发信息板——左侧航显黑板配琥珀信号，右侧交给 Chrome 原生语法
+description: 会话到发信息板——左侧航显信息板配琥珀信号，右侧交给 Chrome 原生语法，双世界各有亮暗变体
 colors:
-  # 信息板（左侧世界）
-  board-bg: "#101418"
-  board-bg-raised: "#1a2026"
-  board-hairline: "#232830"
+  # 信息板（左侧世界，默认亮色）
+  board-bg: "#f6f4ee"
+  board-bg-raised: "#ede9df"
+  board-hairline: "#d8d2c5"
   board-tile: "#1a2026"
   board-tile-line: "#2a313a"
-  board-ink: "#f5f0e8"
-  board-ink-dim: "#9aa3ad"
+  board-ink: "#1e2329"
+  board-ink-dim: "#616974"
+  board-bg-dark: "#101418"
+  board-bg-raised-dark: "#1a2026"
+  board-hairline-dark: "#232830"
+  board-ink-dark: "#f5f0e8"
+  board-ink-dim-dark: "#9aa3ad"
   amber: "#ffb000"
   amber-strong: "#ffc133"
   amber-press: "#e6a000"
   amber-ink: "#221a00"
   idle: "#6b7280"
   loading: "#ffb000"
-  # Chrome 右侧（列车本身）
+  # Chrome 右侧（列车本身，默认亮色）
   chrome-tabbar: "#dee1e6"
   chrome-toolbar: "#f1f3f4"
   chrome-line: "#c7cbd1"
   chrome-ink: "#3c4043"
   chrome-ink-dim: "#5f6368"
   chrome-disabled: "#b0b4b9"
-  chrome-white: "#ffffff"
+  chrome-surface: "#ffffff"
+  chrome-tab-active: "#ffffff"
+  chrome-omnibox-bg: "#ffffff"
+  chrome-tabbar-dark: "#202124"
+  chrome-toolbar-dark: "#292a2d"
+  chrome-line-dark: "#3c4043"
+  chrome-ink-dark: "#e8eaed"
+  chrome-ink-dim-dark: "#bdc1c6"
+  chrome-disabled-dark: "#5f6368"
+  chrome-surface-dark: "#202124"
+  chrome-tab-active-dark: "#292a2d"
+  chrome-omnibox-bg-dark: "#202124"
 typography:
   title:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
@@ -101,13 +117,13 @@ components:
   status-dot-loading:
     backgroundColor: "{colors.loading}"
   chrome-omnibox:
-    backgroundColor: "{colors.chrome-white}"
+    backgroundColor: "{colors.chrome-omnibox-bg}"
     textColor: "{colors.chrome-ink-dim}"
     rounded: "{rounded.pill}"
     height: "28px"
     padding: "0 14px"
   chrome-tab-active:
-    backgroundColor: "{colors.chrome-white}"
+    backgroundColor: "{colors.chrome-tab-active}"
     textColor: "{colors.chrome-ink}"
     rounded: "{rounded.tab}"
     height: "30px"
@@ -121,7 +137,7 @@ components:
 
 **Creative North Star: "到发信息板（The Departure Board）"**
 
-这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：近黑蓝底（#101418）上的行式栅格，1px 发丝线分隔，航显琥珀（#FFB000）只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮。右侧是列车本身：完全交给 Chrome 的原生语法（灰阶 tab 栏、工具栏、药丸地址栏），板面语言不得越界。翻牌数字砖只生活在板面（左栏计数与序号）；阶段 2 起右侧成为真实的 Chromium 浏览区（WebContentsView 覆盖内容锚点），右侧世界完全交给 Chrome 原生语法，不再承载任何板面元素。
+这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：暖灰或近黑蓝底上的行式栅格，1px 发丝线分隔，航显琥珀（#FFB000）只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮。右侧是列车本身：完全交给 Chrome 的原生灰阶语法（tab 栏、工具栏、药丸地址栏），板面语言不得越界。两个世界各有完整 light/dark 变体，切换只改变表面与墨色，不改变布局、层级或会话状态。
 
 密度是桌面效率工具的密度：13px 基准字号、双行会话行、一切状态静置可读。深度不靠阴影——全应用 0 box-shadow——靠发丝线与色阶（board-bg / board-bg-raised / board-tile 三层）。动效只有一个签名时刻：翻牌砖的 rotateX 翻转（0.4s，指数缓出），其余状态过渡压在 120ms。
 
@@ -134,11 +150,19 @@ components:
 - 琥珀 = 航班信息：选中反白、加载脉冲、主按钮、翻牌数字、焦点环，屏幕占比极小
 - 数字即翻牌：计数与序号一律 mono 翻牌砖（22×30，中缝，tabular-nums）
 - 桌面工具密度：13px 基准，双行会话行，状态静置可读，操作悬停显现
-- antd 6 承担交互件（暗色算法 + colorPrimary #FFB000），视觉骨架自著 CSS
+- antd 6 承担交互件（随实际主题切换 default/dark algorithm + colorPrimary #FFB000），视觉骨架自著 CSS
+
+### 应用外观扩展契约
+
+- **Job / Mode：** 面向全天使用本工具的测试工程师，属于 Operate 模式；用户需要在环境光或系统设置变化时快速切换可读外观，主题不是装饰功能。
+- **入口：** 板头 `board-head-right` 内、批量按钮之前放置一枚 20×20 外观按钮；Dropdown 向左下展开，顺序固定为“跟随系统 / 白天 / 黑夜”，单选标记始终反映用户选择而非解析结果。按钮的 title 与 `aria-label` 写明当前选择。
+- **状态：** 入口在零会话、普通会话和批量模式中始终可用；保存中防重复提交。切换不移动布局、不关闭弹层之外的业务状态、不触发导航或 WebContentsView 重建。
+- **主题语义：** light 是 CSS 默认值，dark 通过 `prefers-color-scheme` 覆盖；Electron 在首窗创建前设置 Chromium 色彩偏好。板面与 Chrome 侧分别使用自己的 surface/ink/veil/error 语义 token，禁止用 `white`、`black` 这类偶然颜色命名承载组件语义。
+- **边界：** 不新增设置页、每会话主题、站点强制暗色或全屏转场；最小 220px 左栏内菜单不得跨入右侧 WebContentsView 覆盖区。必要时只用 Dropdown 公共 `getPopupContainer`，不依赖 `.ant-*` 内部 DOM。
 
 ## Colors
 
-一句话：一套近黑蓝黑板 + 单一琥珀信号色，对页是 Chrome 自己的灰阶——两个色域不互通。
+一句话：暖灰/近黑蓝两套信息板表面共享单一琥珀信号色，对页使用 Chrome 自己的亮暗灰阶——两个色域始终不互通。
 
 ### Primary
 
@@ -155,25 +179,18 @@ components:
 
 信息板侧（左侧世界的全部非信号色）：
 
-- **板底（Board Background）**（#101418 / `--board-bg`）：左侧面板与 body 底色。
-- **抬升层（Board Raised）**（#1a2026 / `--board-bg-raised`）：行 hover 底色。
-- **发丝线（Board Hairline）**（#232830 / `--board-hairline`）：行分隔线、板头/板脚边线——整个左栏唯一的分隔手段。
+- **亮色板底 / 抬升层 / 发丝线**（#f6f4ee / #ede9df / #d8d2c5）：暖灰信息板的底、行 hover 与唯一分隔手段；主墨 #1e2329，次墨 #616974。
+- **暗色板底 / 抬升层 / 发丝线**（#101418 / #1a2026 / #232830）：既有近黑蓝信息板；主墨 #f5f0e8，次墨 #9aa3ad。
 - **翻牌砖底（Board Tile）**（#1a2026 / `--board-tile`）：翻牌砖底色（与抬升层同值、不同语义 token）。
 - **砖线（Board Tile Line）**（#2a313a / `--board-tile-line`）：翻牌砖描边、滚动条 thumb。
-- **板面墨（Board Ink）**（#f5f0e8 / `--board-ink`）：板面主文字，暖白。
-- **板面次墨（Board Ink Dim）**（#9aa3ad / `--board-ink-dim`）：次级文字（备注、页面标题、状态字、计数标签）。
 
 Chrome 侧（右侧世界专用，禁入板面）：
 
-- **Tab 栏灰（Chrome Tabbar）**（#dee1e6 / `--chrome-tabbar`）：tab 条底色。
-- **工具栏灰（Chrome Toolbar）**（#f1f3f4 / `--chrome-toolbar`）：导航工具栏底色。
-- **Chrome 线（Chrome Line）**（#c7cbd1 / `--chrome-line`）：工具栏底线、地址栏描边。
-- **Chrome 墨（Chrome Ink）**（#3c4043 / `--chrome-ink`）：tab 标题、空态会话名。
-- **Chrome 次墨（Chrome Ink Dim）**（#5f6368 / `--chrome-ink-dim`）：地址栏文字、提示文字。
-- **Chrome 禁用（Chrome Disabled）**（#b0b4b9 / `--chrome-disabled`）：阶段 2 未接入的禁用控件（导航按钮、新建 tab）。
-- **Chrome 纯白（Chrome White）**（#ffffff / `--chrome-white`）：active tab、地址栏、内容区底色，白面上的文字一律走 chrome-ink 两级。
+- **亮色 Chrome：** tabbar #dee1e6、toolbar #f1f3f4、line #c7cbd1、surface/tab-active/omnibox #ffffff、ink #3c4043、dim #5f6368、disabled #b0b4b9。
+- **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368。
+- **语义状态：** hover/pressed 蒙版、地址错误红、分隔条与滚动条悬停都必须各有亮暗 token；组件只能引用语义 token，不直接假设底色为白或黑。
 
-半透明蒙版（veil，alpha 叠加、非新颜色，刻意不入 token 表）：翻牌砖中缝 `rgba(0, 0, 0, 0.45)`、板面行悬停菜单底 `rgba(255, 255, 255, 0.08)`、反白行内菜单悬停底 `rgba(0, 0, 0, 0.12)`。
+半透明蒙版（veil）除翻牌砖中缝 `rgba(0, 0, 0, 0.45)` 外全部提升为按主题变化的语义 token；反白行内菜单仍使用琥珀上的墨色 veil。
 
 ### Named Rules
 
@@ -248,11 +265,11 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 板头（Board Head）
 
-产品名「多会话测试浏览器」（13/600，letter-spacing 0.02em）；右侧「会话」计数标签（11px 次墨）+ 翻牌计数（会话数持久化于主进程，启动时恢复）。底部发丝线收边。
+产品名「多会话测试浏览器」（13/600，letter-spacing 0.02em）；右侧依次为 20×20 外观按钮、20×20 批量按钮、「会话」计数标签（11px 次墨）与翻牌计数。外观菜单为“跟随系统 / 白天 / 黑夜”单选，任何会话状态下可用；底部发丝线收边。
 
 ### 空态（Empty State）
 
-两侧各有其形：左栏空态居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」（板面墨/次墨两级）；右侧零会话空态（阶段 4 起）——Chrome 侧语法，chrome-white 底上居中两级文字：标题「尚无会话」（Title 字槽，15/600 chrome-ink）+ 提示「在左侧新建或选择会话，开始隔离浏览」（12px chrome-ink-dim），gap 8px、padding 32px，无图标、无按钮、无动效（左栏板脚已有唯一的新建入口，右侧不重复；空态是静态事实陈述）。零会话时 Tab 栏与工具栏常驻渲染但控件禁用（Chrome 框体不消失）。
+两侧各有其形：左栏空态居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」（板面墨/次墨两级）；右侧零会话空态（阶段 4 起）——Chrome 侧语法，chrome-surface 底上居中两级文字：标题「尚无会话」（Title 字槽，15/600 chrome-ink）+ 提示「在左侧新建或选择会话，开始隔离浏览」（12px chrome-ink-dim），gap 8px、padding 32px，无图标、无按钮、无动效（左栏板脚已有唯一的新建入口，右侧不重复；空态是静态事实陈述）。零会话时 Tab 栏与工具栏常驻渲染但控件禁用（Chrome 框体不消失）。
 
 ### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 
@@ -276,7 +293,7 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 ### antd 6 整合层
 
-根 `ConfigProvider`（zh_CN，colorPrimary #FFB000，系统栈字体）；`SessionPanel` 内再套一层 `ConfigProvider`（`theme.darkAlgorithm`，colorPrimary/colorInfo #FFB000，borderRadius 6）——antd 交互件只进板面世界并自动换暗色算法。滚动条、`::selection`（琥珀底 amber-ink 字）、`:focus-visible`（2px 琥珀外框，offset 2px）均已按世界主题化，antd 组件不例外。
+根 `ConfigProvider`（zh_CN，colorPrimary #FFB000，系统栈字体）按 resolvedTheme 动态选择 `theme.defaultAlgorithm` / `theme.darkAlgorithm`；`SessionPanel` 内嵌套层使用同一 algorithm，并保留 colorPrimary/colorInfo #FFB000、borderRadius 6。`App.useApp()` 承载 Modal 等 portal 组件，确保继承当前主题。滚动条、`::selection`、`:focus-visible` 与错误/禁用态均按主题语义化，禁止覆盖 `.ant-*` 内部选择器。
 
 ## Do's and Don'ts
 
@@ -286,7 +303,8 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 - **Do** 选中态整行琥珀反白（`--amber` 底 / `--amber-ink` 字），次级信息降不透明度 0.72，控件同步换墨色。
 - **Do** 计数与序号一律用 `FlapCounter` 翻牌砖，mono + tabular-nums。
 - **Do** 焦点统一 `:focus-visible` 2px `--amber` 外框、offset 2px；滚动条与 selection 沿用既有主题化。
-- **Do** antd 交互件放进板面时走 `darkAlgorithm` + colorPrimary #FFB000 + borderRadius 6 的嵌套 ConfigProvider。
+- **Do** antd 交互件随 resolvedTheme 选择 default/dark algorithm，并保留 colorPrimary #FFB000 + borderRadius 6 的嵌套 ConfigProvider。
+- **Do** light/dark 只替换语义 token 与 antd algorithm；保持布局尺寸、DOM 层级和 120ms 颜色反馈不变。
 - **Do** 状态反馈用 0.12s 背景色过渡；loading 用既有 `dot-pulse`（1.2s 透明度脉冲），不新造动画。
 - **Do** 右侧新增 Chrome 语系元素时对齐既有度量（tab 栏 36px / 工具栏 40px / 药丸地址栏 28px、max-width 560px）。
 

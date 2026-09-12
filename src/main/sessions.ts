@@ -8,6 +8,7 @@
 // （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。
 
 import { ipcMain } from 'electron'
+import { isRecord } from '../shared/guards'
 import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
@@ -48,10 +49,6 @@ const NOTE_MAX = 200
 /** 守卫失败统一抛出的业务错误 */
 function invalidParams(): Error {
   return new Error('无效的会话参数')
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */

@@ -7,6 +7,7 @@
 import { app } from 'electron'
 import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
+import { isRecord } from '../shared/guards'
 import type { SessionsSnapshot, StoredSession } from '../shared/sessions'
 
 /** 当前落盘 schema 版本（v2 增 lastUrl 字段）；读到不认识的版本一律按坏数据回退，v1 按 lastUrl='' 迁移 */
@@ -20,10 +21,6 @@ function emptySnapshot(): SessionsSnapshot {
 /** 落盘文件路径：userData/sessions.json */
 function getStorePath(): string {
   return join(app.getPath('userData'), 'sessions.json')
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

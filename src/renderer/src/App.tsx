@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { App as AntdApp, ConfigProvider } from 'antd'
+import { App as AntdApp, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import SessionPanel from './components/SessionPanel'
 import BrowserFrame from './components/BrowserFrame'
+import { useAppearanceStore } from './stores/appearance'
 
 const PANEL_MIN = 220
 const PANEL_MAX = 420
@@ -10,6 +11,7 @@ const PANEL_DEFAULT = 280
 
 function App(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const resolvedTheme = useAppearanceStore((state) => state.resolvedTheme)
   const dragging = useRef(false)
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
@@ -47,6 +49,7 @@ function App(): React.JSX.Element {
     <ConfigProvider
       locale={zhCN}
       theme={{
+        algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorPrimary: '#FFB000',
           fontFamily:

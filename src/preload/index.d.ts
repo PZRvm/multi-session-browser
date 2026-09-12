@@ -7,6 +7,7 @@ import type {
   SwitchTabPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
+import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import type {
   BatchOpenUrlPayload,
   CloneSessionPayload,
@@ -22,6 +23,11 @@ import type {
 declare global {
   interface Window {
     api: {
+      appearance: {
+        getState(): Promise<AppearanceSnapshot>
+        setMode(payload: SetAppearanceModePayload): Promise<AppearanceSnapshot>
+        onChanged(callback: (snapshot: AppearanceSnapshot) => void): () => void
+      }
       sessions: {
         list(): Promise<SessionsSnapshot>
         create(payload: CreateSessionPayload): Promise<StoredSession>

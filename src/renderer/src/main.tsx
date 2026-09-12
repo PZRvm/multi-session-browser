@@ -3,8 +3,12 @@ import './assets/app.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore } from './stores/browser'
 import { useSessionsStore } from './stores/sessions'
+
+// 外观镜像独立初始化：失败时保留首帧的系统 media query 结果，不阻塞会话与浏览器恢复。
+void useAppearanceStore.getState().init()
 
 // 首帧前从主进程加载状态；init 内部有防重入守卫，StrictMode 下安全。
 // 顺序约束（阶段 4）：sessions.init 必须先行完成再 init browser——browser store 的快照

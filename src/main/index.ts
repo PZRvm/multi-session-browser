@@ -7,6 +7,11 @@ import { registerSessionIpc } from './sessions'
 import { registerBrowserIpc } from './browser/ipc'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
 import { loadSnapshot } from './store'
+import {
+  createAppearanceController,
+  getAppearanceBackgroundColor,
+  registerAppearanceIpc
+} from './appearance'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
@@ -33,6 +38,7 @@ if (process.env['MSB_USER_DATA']) {
 // 模块级持有：createWindow 在窗口（重）建时需调用 attachToWindow 重挂当前激活会话的 view，
 // 启动恢复亦经此引用（registry 在 app ready 内创建，此前为 null）
 let registry: SessionBrowserRegistry | null = null
+const appearanceController = createAppearanceController()
 
 /**
  * 安装中文应用菜单（替代 Electron 默认英文菜单）。默认菜单的问题有二：
@@ -96,6 +102,7 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: getAppearanceBackgroundColor(appearanceController.getSnapshot().resolvedTheme),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -159,9 +166,13 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  // 外观偏好必须在首个窗口创建前完成加载并应用。appearance.init 内部会将任何
+  // 读取、校验或应用异常回退为“跟随系统”，不会阻断既有会话恢复与窗口创建。
+  await appearanceController.init()
 
   // 中文应用菜单：先于窗口创建安装，mac 菜单栏首帧即为中文且无冲突加速键
   installChineseMenu()
@@ -179,6 +190,7 @@ app.whenReady().then(() => {
   // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
   // 批量关闭（一次切空态 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
   registerBrowserIpc(created, getMainWindow)
+  registerAppearanceIpc(appearanceController)
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)
