@@ -845,11 +845,11 @@ img.chrome-tab-favicon {
   color: var(--chrome-ink);
 }
 
-/* 真实地址栏输入框：完整 URL 展示（不做 scheme 折叠），聚焦后描边加深示意焦点 */
+/* 真实地址栏输入框：flex:1 填满导航组与开发者工具开关之间的剩余宽度（Chrome 同款），
+   完整 URL 展示（不做 scheme 折叠），聚焦后描边加深示意焦点 */
 .chrome-omnibox {
   flex: 1;
-  max-width: 560px;
-  margin: 0 auto;
+  min-width: 0;
   height: 28px;
   padding: 0 14px;
   border: 1px solid var(--chrome-line);
