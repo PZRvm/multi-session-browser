@@ -8,3 +8,8 @@ out
 # 本地工具产物
 .impeccable/
 .zcode/
+.agents/
+
+# 本地文档与笔记
+docs/
+notes/
