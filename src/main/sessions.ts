@@ -26,6 +26,7 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  * 编排依赖（冻结签名，见开发计划第 3 节契约点 3/4），由 index.ts 注入：
  * - onActiveChanged：setActive 落盘成功后通知编排层切换浏览器
  * - onDeleted：delete 落盘成功后通知编排层销毁该会话并跟随级联后的 activeId
+ * - onRenamed：rename 落盘成功后通知编排层同步该会话全部独立窗口标题（阶段 7—8）
  * - getStatuses：get-statuses 拉取通道的数据源（registry 状态聚合）
  * - clonePartition：clone 的分区数据复制（close-then-copy），失败上抛即不落元数据
  * - onAllDeleted：deleteAll 落盘成功后通知编排层一次切空态 + 逐会话销毁清分区
@@ -34,6 +35,8 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
 interface SessionIpcDeps {
   onActiveChanged(id: string | null): void
   onDeleted(id: string, nextActiveId: string | null): void
+  /** rename 落盘成功后回调（clamp 后的实际落盘名）：独立窗口标题与会话名严格同源的同步入口 */
+  onRenamed(id: string, name: string): void
   getStatuses(): SessionStatusesPayload
   clonePartition(srcId: string, dstId: string): Promise<void>
   onAllDeleted(ids: string[]): void
@@ -137,12 +140,16 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         const id = payload.id
         const name = payload.name.trim()
         if (!name) throw new Error('会话名称不能为空')
-        return mutateSnapshot((snapshot) => {
+        const renamed = await mutateSnapshot((snapshot) => {
           const target = snapshot.sessions.find((s) => s.id === id)
           if (!target) throw new Error('会话不存在')
           target.name = clampString(name, NAME_MAX)
           return target
         })
+        // 落盘成功后联动（守卫失败或写盘失败即抛错，不联动）：同步该会话全部独立窗口
+        // 标题；取 clamp 后的实际落盘名——标题与会话名严格同源，不做乐观标题
+        deps.onRenamed(id, renamed.name)
+        return renamed
       })
   )
 

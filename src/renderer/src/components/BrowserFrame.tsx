@@ -1,20 +1,9 @@
-import { useRef } from 'react'
 import TabStrip from './browser/TabStrip'
 import Toolbar from './browser/Toolbar'
-import { useBrowserBounds } from './browser/useBrowserBounds'
+import BrowserContentAnchor from './browser/BrowserContentAnchor'
 import { useBrowserShortcuts } from './browser/useBrowserShortcuts'
 import { useBrowserStore } from '../stores/browser'
 import { useUiStore } from '../stores/ui'
-
-// 内容区宿主：锚点存在期间持续上报矩形；切到零会话空态时本组件整体卸载，
-// useBrowserBounds 随之走既有卸载清理上报零矩形，主进程收起原生视图。
-// 挂在 BrowserFrame 内联而不进 browser/ 子目录：仅空态分支的挂载形态差异，
-// 无独立复用价值。
-function BrowserContent({ suspended }: { suspended: boolean }): React.JSX.Element {
-  const contentRef = useRef<HTMLDivElement>(null)
-  useBrowserBounds(contentRef, !suspended)
-  return <div ref={contentRef} className="chrome-content" />
-}
 
 // 右侧浏览器框架：Tab 栏 + 工具栏 + 内容区三段组装；内容区由主进程 WebContentsView
 // 按锚点矩形覆盖，shell 内不放页面可见内容；原生 DevTools 在该 WebContentsView
@@ -38,7 +27,7 @@ function BrowserFrame(): React.JSX.Element {
             <p className="chrome-empty-hint">在左侧新建或选择会话，开始隔离浏览</p>
           </div>
         ) : (
-          <BrowserContent suspended={suspended} />
+          <BrowserContentAnchor suspended={suspended} />
         )}
       </div>
     </section>

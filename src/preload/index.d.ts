@@ -4,7 +4,8 @@ import type {
   NewTabPayload,
   OkResult,
   SetBoundsPayload,
-  SwitchTabPayload
+  SwitchTabPayload,
+  TearOffTabPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
@@ -53,6 +54,7 @@ declare global {
         setBounds(payload: SetBoundsPayload): Promise<OkResult>
         toggleDevTools(): Promise<BrowserSnapshot>
         closeDevTools(): Promise<BrowserSnapshot>
+        tearOffTab(payload: TearOffTabPayload): Promise<BrowserSnapshot>
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
       }

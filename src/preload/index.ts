@@ -8,7 +8,8 @@ import type {
   NewTabPayload,
   OkResult as BrowserOkResult,
   SetBoundsPayload,
-  SwitchTabPayload
+  SwitchTabPayload,
+  TearOffTabPayload
 } from '../shared/browser'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
@@ -90,6 +91,9 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.toggleDevTools),
     closeDevTools: (): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.closeDevTools),
+    // 移出 Tab 为独立窗口（作用域 = 本窗口；阶段 9 拖拽手势替换临时右键入口，通道保留）
+    tearOffTab: (payload: TearOffTabPayload): Promise<BrowserSnapshot> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.tearOffTab, payload),
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {

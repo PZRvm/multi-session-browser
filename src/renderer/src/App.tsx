@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { App as AntdApp, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import SessionPanel from './components/SessionPanel'
 import BrowserFrame from './components/BrowserFrame'
+import IndependentWindowFrame from './components/IndependentWindowFrame'
+import SessionPanel from './components/SessionPanel'
 import { useAppearanceStore } from './stores/appearance'
+import { windowIdentity } from './stores/browser'
 
 const PANEL_MIN = 220
 const PANEL_MAX = 420
 const PANEL_DEFAULT = 280
 
-function App(): React.JSX.Element {
+// 主窗口 shell：左会话面板 + 分隔条 + 右浏览器区；面板拖拽逻辑内聚于此——
+// 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接
+function MainShell(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
-  const resolvedTheme = useAppearanceStore((state) => state.resolvedTheme)
   const dragging = useRef(false)
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
@@ -46,6 +49,31 @@ function App(): React.JSX.Element {
   }
 
   return (
+    <div className="app-shell">
+      <div className="panel-left" style={{ width: panelWidth }}>
+        <SessionPanel panelWidth={panelWidth} />
+      </div>
+      <div
+        className="panel-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整面板宽度"
+        onPointerDown={startDrag}
+      />
+      <div className="panel-right">
+        <BrowserFrame />
+      </div>
+    </div>
+  )
+}
+
+// 根组件按窗口身份分流（query 解析见 stores/browser.ts）：独立窗口渲染
+// IndependentWindowFrame（无左栏/分隔条），主窗口渲染既有 shell；两形态共用同一
+// ConfigProvider/AntdApp 上下文——主题与 antd 弹层行为跨窗口一致
+function App(): React.JSX.Element {
+  const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
+
+  return (
     <ConfigProvider
       locale={zhCN}
       theme={{
@@ -58,21 +86,7 @@ function App(): React.JSX.Element {
       }}
     >
       <AntdApp>
-        <div className="app-shell">
-          <div className="panel-left" style={{ width: panelWidth }}>
-            <SessionPanel panelWidth={panelWidth} />
-          </div>
-          <div
-            className="panel-divider"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="调整面板宽度"
-            onPointerDown={startDrag}
-          />
-          <div className="panel-right">
-            <BrowserFrame />
-          </div>
-        </div>
+        {windowIdentity.mode === 'independent' ? <IndependentWindowFrame /> : <MainShell />}
       </AntdApp>
     </ConfigProvider>
   )

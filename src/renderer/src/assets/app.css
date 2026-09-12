@@ -641,6 +641,8 @@ body.col-resizing {
 /* ---------- 右侧：Chrome 浏览器框架 ---------- */
 
 .browser-frame {
+  /* 弹层定位锚：Tab 右键菜单经 getPopupContainer 锁挂在本框架内（惯例同 .session-panel） */
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;

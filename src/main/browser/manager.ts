@@ -1,11 +1,19 @@
 // 浏览器 Tab 管理器：主进程持有全部 WebContentsView；分区与会话 id 由创建方传入
 // （registry 按一会话一分区注入 persist:sess-<id>，本模块不拼分区字符串）。
 // 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts 装配，见步骤 3）；
-// 窗口引用一律经 getWindow() 现取、禁止缓存（macOS 关窗重建场景）。
+// 窗口引用一律经 getWindow(windowId) 现取、禁止缓存（macOS 关窗重建场景）。
+// 阶段7—8 起模型按宿主窗口索引：Tab 归属宿主窗口（TabEntry.windowId），激活位与
+// 布局缓存按窗口分槽；步骤 3 起独立窗口作用域可达（tear-off 迁移 + windows.ts 登记表，
+// 本模块仍不感知窗口创建/销毁——级联经 registry 回调触达 destroyTabsInWindow）。
 
 import { BrowserWindow, WebContentsView } from 'electron'
 import type { Input, WebContents } from 'electron'
-import type { BrowserSnapshot, BrowserTabState, SetBoundsPayload } from '../../shared/browser'
+import {
+  WINDOW_ID_MAIN,
+  type BrowserSnapshot,
+  type BrowserTabState,
+  type SetBoundsPayload
+} from '../../shared/browser'
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { isOpenableUrl, logLoadFailure } from './url'
@@ -31,74 +39,134 @@ function matchShortcut(input: Input): BrowserShortcutId | null {
 interface TabEntry {
   id: string
   view: WebContentsView
+  /** 该 Tab 的 view 当前挂入的宿主窗口（WINDOW_ID_MAIN；独立窗口 id 步骤 3 tear-off 起可达） */
+  windowId: string
   url: string
   title: string
   faviconUrl: string | null
   loading: boolean
-  /** 该 Tab 的 DevTools 开关态；快照 devtoolsOpen 取激活 Tab 的此字段 */
+  /** 该 Tab 的 DevTools 开关态；快照 devtoolsOpen 取该窗口激活 Tab 的此字段 */
   devtoolsOpen: boolean
 }
 
 export type SnapshotListener = (snapshot: BrowserSnapshot) => void
 
-export type FocusAddressListener = () => void
+/** windowId = 请求来源页面所在宿主窗口：独立窗口的地址栏聚焦须发往该窗口而非主窗口 */
+export type FocusAddressListener = (windowId: string) => void
 
+// windowId 参数缺省 'main'：ipc 层经 sender 作用域解析后显式传入（主窗口来源 →
+// 'main'，独立窗口来源 → 其窗口 id）；缺省值仅兼容 registry 内部 main 作用域调用点
+// 与 persistence 恢复路径
 export interface TabManager {
-  /** 新建 Tab 并立即激活（挂入 contentView、应用当前 bounds）；空 url 加载 about:blank */
-  newTab: (url?: string) => BrowserSnapshot
-  /** 关闭 Tab；仅剩 1 个时 no-op；id 不存在时 no-op；均返回当前快照 */
-  closeTab: (id: string) => BrowserSnapshot
-  /** 切换激活 Tab；旧 view 脱离 contentView 但不销毁（页面状态保留） */
-  switchTab: (id: string) => BrowserSnapshot
-  /** 设置内容区矩形（窗口内容坐标系 DIP），仅作用于激活 view */
-  setBounds: (rect: SetBoundsPayload) => void
-  /** 切换激活 Tab 的原生受管 DevTools；无激活 Tab 时 no-op；返回当前快照 */
-  toggleDevTools: () => BrowserSnapshot
-  /** 关闭激活 Tab 的 DevTools；未开或无激活 Tab 时 no-op；返回当前快照 */
-  closeDevTools: () => BrowserSnapshot
-  /** 激活 Tab 的 webContents；无激活 Tab 或已销毁时返回 null（导航类命令的唯一取用口） */
-  getActiveWebContents: () => WebContents | null
-  /** 窗口（重）建后重挂激活 Tab 的页面 view；macOS 关窗重开由 index.ts 调用 */
-  attachToWindow: () => void
+  /** 新建 Tab 归属指定窗口并立即激活（挂入该窗 contentView、应用该窗当前 bounds）；空 url 加载 about:blank */
+  newTab: (url?: string, windowId?: string) => BrowserSnapshot
+  /**
+   * 关闭 Tab；"最后留一"仅主窗口作用域（Chrome 式保底 Tab，现行为不变）；独立窗口
+   * 作用域最后一个 Tab 允许关闭——关毕该作用域空快照经 emitChange 分发，关窗由
+   * registry 快照监听收口（manager 不直接关窗）；id 不存在或异窗托管时 no-op；
+   * 均返回该窗口作用域快照
+   */
+  closeTab: (id: string, windowId?: string) => BrowserSnapshot
+  /** 切换指定窗口的激活 Tab；旧 view 脱离 contentView 但不销毁（页面状态保留） */
+  switchTab: (id: string, windowId?: string) => BrowserSnapshot
+  /** 设置该窗口内容区矩形（窗口内容坐标系 DIP），仅作用于该窗口的激活 view */
+  setBounds: (rect: SetBoundsPayload, windowId?: string) => void
+  /** 切换该窗口激活 Tab 的原生受管 DevTools；无激活 Tab 时 no-op；返回该窗口作用域快照 */
+  toggleDevTools: (windowId?: string) => BrowserSnapshot
+  /** 关闭该窗口激活 Tab 的 DevTools；未开或无激活 Tab 时 no-op；返回该窗口作用域快照 */
+  closeDevTools: (windowId?: string) => BrowserSnapshot
+  /** 该窗口激活 Tab 的 webContents；无激活 Tab 或已销毁时返回 null（导航类命令的唯一取用口） */
+  getActiveWebContents: (windowId?: string) => WebContents | null
+  /** 窗口（重）建后重挂该窗口激活 Tab 的页面 view；macOS 关窗重开由 index.ts 调用 */
+  attachToWindow: (windowId?: string) => void
+  /**
+   * 窗口销毁级联（windows.ts 的 closed 回调经 registry 触达）：销毁该窗口作用域全部
+   * Tab 的 webContents 并清该窗口激活/布局/悬挂槽位；仅对已销毁窗口调用，不做 view
+   * 摘除（contentView 随窗口回收，销毁后的窗口不可再触碰）
+   */
+  destroyTabsInWindow: (windowId: string) => void
   /**
    * 注销本 manager：此后 newTab 一律 no-op。注册表销毁会话时于关闭 webContents 前
    * 调用——销毁等待期内垂死页面仍可能经 window.open 触发 newTab，若放行会在同分区
    * 复生 webContents（清除后数据覆写回盘 + 泄漏），dispose 后一切创建路径封死
    */
   dispose: () => void
-  getSnapshot: () => BrowserSnapshot
-  /** 订阅快照变化，返回退订函数 */
+  /** 该窗口作用域的全量快照 */
+  getSnapshot: (windowId?: string) => BrowserSnapshot
+  /** 订阅快照变化（每持有 Tab 的窗口各一份，见 emitChange），返回退订函数 */
   onSnapshotChanged: (cb: SnapshotListener) => () => void
-  /** 订阅 focus-address 请求（页面侧 Cmd/Ctrl+L、页面侧快捷键新建空 Tab），返回退订函数 */
+  /** 订阅 focus-address 请求（页面侧 Cmd/Ctrl+L、页面侧快捷键新建空 Tab；回调带来源窗口 id），返回退订函数 */
   onFocusAddressRequest: (cb: FocusAddressListener) => () => void
 }
 
+/**
+ * tear-off 迁移原语（registry 建窗后调用）。独立成扩展面而不并入 TabManager 基面：
+ * 基面是 registry 对 ipc 暴露的命令兼容面，registry 的 tear-off 命令是「读会话名 +
+ * 建窗 + 迁移」的异步编排（签名/返回类型均不同），同名混入基面会让两种语义纠缠
+ */
+export type TearOffTabManager = TabManager & {
+  /**
+   * 把 sourceWindowId 作用域的 Tab 迁往 targetWindowId 窗口：摘 view 保活（webContents
+   * 不销毁、页面状态原样）并改写归属；源窗口激活位按 closeTab 邻位规则补位（可至
+   * 0 Tab，合法空态），目标窗口激活位置为该 Tab；view 不在此挂入目标窗口——建窗
+   * ready-to-show 后由 attachToWindow 重挂（windows.ts 回调链，防白屏）；双侧作用域
+   * 快照各分发一次；id 不存在或不属 source 作用域时 no-op 返回源作用域快照
+   *（跨作用域越权已由 ipc 层守卫拦截，此处防御性兜底）
+   */
+  tearOffTab: (id: string, sourceWindowId: string, targetWindowId: string) => BrowserSnapshot
+}
+
 export function createTabManager(
-  getWindow: () => BrowserWindow | null,
+  getWindow: (windowId: string) => BrowserWindow | null,
   opts: { sessionId: string; partition: string; initialBounds?: SetBoundsPayload }
-): TabManager {
-  // Map 迭代序即创建序，快照 tabs 顺序直接按此输出
+): TearOffTabManager {
+  // Map 迭代序即创建序，快照 tabs 顺序直接按此输出（作用域过滤不改变窗口内创建序）
   const tabs = new Map<string, TabEntry>()
   let seq = 0
-  let activeId: string | null = null
-  // 布局缓存初值取创建方传入（registry 的全局 bounds 缓存），切换重挂即有矩形可用
-  let bounds: SetBoundsPayload | null = opts.initialBounds ?? null
-  // 悬挂态：renderer 上报零矩形（确认框等弹层收起原生层）期间置位，
-  // 此后挂入的 view 一律按 HIDDEN_RECT 收起；布局缓存保留最后有效值，悬挂解除自动恢复
-  let suspended = false
+  // 每窗口激活表：windowId → 该窗口激活 Tab id（null = 该窗口无激活位）。同一 manager
+  // 的 Tab 可分布于多个宿主窗口（步骤 3 tear-off 起），各窗口激活位互不挤占
+  const activeByWindow = new Map<string, string | null>()
+  // 每窗口布局缓存（各自最近一次有效矩形）。初值取创建方传入的 initialBounds——
+  // registry 的全局 bounds 缓存语义即主窗口内容区矩形，故只垫 'main' 槽位（步骤 3
+  // 独立窗口的首个矩形由建窗后 setBounds 下发，不依赖此初值）
+  const boundsByWindow = new Map<string, SetBoundsPayload>()
+  if (opts.initialBounds) boundsByWindow.set(WINDOW_ID_MAIN, opts.initialBounds)
+  // 悬挂态按窗口分槽（取舍：单份标志在多窗口下会"A 窗收起连坐 B 窗"——收起信号源自
+  // 该窗口 renderer 的零矩形上报，作用域本就按窗口，分槽才是语义自洽；每 manager 窗口
+  // 数个位数，无成本代价）：悬挂期间挂入该窗口的 view 一律按 HIDDEN_RECT 收起，布局
+  // 缓存保留最后有效值，该窗口的非零矩形上报即解除悬挂并恢复
+  const suspendedByWindow = new Set<string>()
   // 注销标志（注册表销毁会话前置位）：封死 newTab 创建路径，防垂死页面复生 webContents
   let disposed = false
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
 
-  /** focus-address 请求点：manager 不碰 IPC，推送由 ipc.ts 订阅本点后转发主窗口 */
-  function requestFocusAddress(): void {
-    for (const cb of focusListeners) cb()
+  /** focus-address 请求点：manager 不碰 IPC，ipc.ts 订阅后按来源窗口定向转发 */
+  function requestFocusAddress(windowId: string): void {
+    for (const cb of focusListeners) cb(windowId)
   }
 
-  function buildSnapshot(): BrowserSnapshot {
+  /** 该窗口托管的 Tab id 列表（创建序）："最后留一"作用域判定与邻位补位共用 */
+  function scopedTabIds(windowId: string): string[] {
+    const ids: string[] = []
+    for (const tab of tabs.values()) {
+      if (tab.windowId === windowId) ids.push(tab.id)
+    }
+    return ids
+  }
+
+  /** 持有 Tab 的宿主窗口集合（按 Tab 归属聚合）：作用域快照分发的目标全集 */
+  function hostedWindowIds(): Set<string> {
+    const ids = new Set<string>()
+    for (const tab of tabs.values()) ids.add(tab.windowId)
+    return ids
+  }
+
+  function buildSnapshot(windowId: string): BrowserSnapshot {
     const list: BrowserTabState[] = []
     for (const tab of tabs.values()) {
+      // 作用域过滤：只输出该窗口托管的 tabs（全会话 tabs 盲发各窗口即串台，计划 2.3 数据原则）
+      if (tab.windowId !== windowId) continue
       if (tab.view.webContents.isDestroyed()) continue
       const blank = tab.url === BLANK_URL
       list.push({
@@ -112,10 +180,12 @@ export function createTabManager(
         canGoForward: tab.view.webContents.navigationHistory.canGoForward()
       })
     }
-    // devtoolsOpen 取激活 Tab 的真实开关态；无激活 Tab 时恒 false
+    // devtoolsOpen 取该窗口激活 Tab 的真实开关态；无激活 Tab 时恒 false
+    const activeId = activeByWindow.get(windowId) ?? null
     const active = activeId !== null ? tabs.get(activeId) : undefined
     // sessionId 由创建方（registry）注入：快照归属会话，registry/renderer 据此丢弃过期快照
     return {
+      windowId,
       sessionId: opts.sessionId,
       tabs: list,
       activeTabId: activeId,
@@ -124,43 +194,54 @@ export function createTabManager(
   }
 
   function emitChange(): void {
-    const snapshot = buildSnapshot()
-    for (const cb of listeners) cb(snapshot)
+    // 快照按窗口作用域分发：持有 Tab 的窗口 + 曾持有而今已空的窗口（激活槽仍在——
+    // tear-off 移出/独立窗口关最后 Tab 后 0-Tab 是合法可达态，源窗口 renderer 需收到
+    // 清空事实、registry 据空快照收口关窗；槽位在窗口销毁级联 destroyTabsInWindow 清除）
+    const windowIds = new Set<string>([...hostedWindowIds(), ...activeByWindow.keys()])
+    for (const windowId of windowIds) {
+      const snapshot = buildSnapshot(windowId)
+      for (const cb of listeners) cb(snapshot)
+    }
   }
 
-  /** 挂入 view 时应应用的矩形：悬挂收起优先，其次最后缓存的有效布局，均无则零矩形 */
-  function currentRect(): SetBoundsPayload {
-    return suspended ? HIDDEN_RECT : (bounds ?? HIDDEN_RECT)
+  /** 挂入 view 时应应用的矩形（按窗口）：悬挂收起优先，其次该窗口最后缓存的有效布局，均无则零矩形 */
+  function currentRect(windowId: string): SetBoundsPayload {
+    return suspendedByWindow.has(windowId)
+      ? HIDDEN_RECT
+      : (boundsByWindow.get(windowId) ?? HIDDEN_RECT)
   }
 
+  /** 挂摘一律解析 Tab 归属窗口：挂入窗口与 tab.windowId 恒同窗（步骤 3 tear-off 改写归属后重挂） */
   function attachView(tab: TabEntry): void {
-    const win = getWindow()
+    const win = getWindow(tab.windowId)
     if (!win) return
     win.contentView.addChildView(tab.view)
-    tab.view.setBounds(currentRect())
+    tab.view.setBounds(currentRect(tab.windowId))
   }
 
   function detachView(tab: TabEntry): void {
-    const win = getWindow()
+    const win = getWindow(tab.windowId)
     if (!win) return
     win.contentView.removeChildView(tab.view)
   }
 
   /**
-   * 激活指定 Tab：旧 Tab 的页面 view 脱离但保持存活，新 Tab 的页面 view 挂入。
-   * 原生 DevTools 由对应页面 webContents 自己持有，随页面 view 一起切换，不另建宿主。
+   * 激活指定窗口的 Tab：旧 Tab 的页面 view 脱离但保持存活，新 Tab 的页面 view 挂入
+   * （挂入窗口 = 该 Tab 归属窗口，调用方保证二者一致）。原生 DevTools 由对应页面
+   * webContents 自己持有，随页面 view 一起切换，不另建宿主。
    */
-  function activate(id: string): void {
-    const prev = activeId !== null ? tabs.get(activeId) : undefined
+  function activate(id: string, windowId: string): void {
+    const prevId = activeByWindow.get(windowId) ?? null
+    const prev = prevId !== null ? tabs.get(prevId) : undefined
     if (prev && prev.id !== id) detachView(prev)
-    activeId = id
+    activeByWindow.set(windowId, id)
     const next = tabs.get(id)
     if (next) attachView(next)
   }
 
-  function newTab(url?: string): BrowserSnapshot {
+  function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     // 已注销（注册表销毁会话）：拒绝一切创建，防垂死页面 window.open 复生 webContents
-    if (disposed) return buildSnapshot()
+    if (disposed) return buildSnapshot(windowId)
     seq += 1
     const id = `tab-${seq}`
     const view = new WebContentsView({
@@ -173,6 +254,7 @@ export function createTabManager(
     const tab: TabEntry = {
       id,
       view,
+      windowId,
       url: target,
       title: '',
       faviconUrl: null,
@@ -236,92 +318,156 @@ export function createTabManager(
       // 未开 DevTools 时 ESC 原样放行（不吞键，页面自留行为不受影响）
       if (action === 'close-devtools' && !tab.devtoolsOpen) return
       event.preventDefault()
+      // 页面侧命令的作用域 = 触发页面所在 Tab 的宿主窗口（事件时现读 tab.windowId）
       switch (action) {
         case 'reload':
           wc.reload()
           break
         case 'new-tab':
           // 与 IPC 新建空 Tab 行为对齐：新建后随即请求聚焦地址栏（Chrome Cmd+T 惯例）
-          newTab()
-          requestFocusAddress()
+          newTab(undefined, tab.windowId)
+          requestFocusAddress(tab.windowId)
           break
         case 'close-tab':
           // 最后留一由 closeTab 内部 no-op 承担
-          closeTab(tab.id)
+          closeTab(tab.id, tab.windowId)
           break
         case 'focus-address':
-          requestFocusAddress()
+          requestFocusAddress(tab.windowId)
           break
         case 'toggle-devtools':
-          // 页面聚焦态下该 Tab 即激活 Tab，manager 侧开关作用于激活 Tab
-          toggleDevTools()
+          // 页面聚焦态下该 Tab 即其宿主窗口的激活 Tab，开关作用于该窗口激活位
+          toggleDevTools(tab.windowId)
           break
         case 'close-devtools':
           // 上方守卫已确保该 Tab 的 DevTools 处于开启态
-          closeDevTools()
+          closeDevTools(tab.windowId)
           break
       }
     })
 
-    // target=_blank / window.open 一律拒绝弹窗，转为本浏览器新 Tab；
+    // target=_blank / window.open 一律拒绝弹窗，转为本浏览器新 Tab（落在触发页面的宿主窗口）；
     // URL 是页面可控输入，仅放行与地址栏一致的 scheme 白名单，其余（mailto: 等）拒绝且不建 Tab
     wc.setWindowOpenHandler(({ url: openUrl }) => {
-      if (openUrl && isOpenableUrl(openUrl)) newTab(openUrl)
+      if (openUrl && isOpenableUrl(openUrl)) newTab(openUrl, tab.windowId)
       return { action: 'deny' }
     })
 
     // 先激活（挂入 contentView、应用当前 bounds），再发起加载——保证首条快照已带 activeTabId
-    activate(id)
+    activate(id, windowId)
 
     // 导航失败（坏域名等）由 Chromium 内建错误页呈现；reject 走统一日志（ERR_ABORTED 静默）
     void wc.loadURL(target).catch((error: unknown) => logLoadFailure(target, error))
 
     emitChange()
-    return buildSnapshot()
+    return buildSnapshot(windowId)
   }
 
-  function closeTab(id: string): BrowserSnapshot {
-    // 最后留一：仅剩 1 个 Tab 时不关闭
-    if (tabs.size <= 1) return buildSnapshot()
+  function closeTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const target = tabs.get(id)
-    if (!target) return buildSnapshot()
-    // 关闭前取创建序邻位（Map 迭代序 = 创建序）
-    const order = [...tabs.keys()]
+    // id 不存在或不属该窗口托管时 no-op
+    if (!target || target.windowId !== windowId) {
+      return buildSnapshot(windowId)
+    }
+    // 作用域内 id 序列（创建序）：最后留一判定与邻位补位均以该窗口托管为准。
+    // 最后留一仅主窗口作用域（Chrome 式保底 Tab，现行为不变）；独立窗口最后一个
+    // Tab 允许关闭——关毕该作用域空快照经 emitChange 分发，registry 快照监听收口
+    // 关窗（manager 不直接关窗）
+    const order = scopedTabIds(windowId)
+    if (windowId === WINDOW_ID_MAIN && order.length <= 1) {
+      return buildSnapshot(windowId)
+    }
+    // 关闭前取创建序邻位（作用域内创建序）
     const index = order.indexOf(id)
     tabs.delete(id)
     detachView(target)
     // 原生受管 DevTools 与页面 webContents 同生命周期，关闭后再销毁页面。
     closeTabDevTools(target)
+    const activeId = activeByWindow.get(windowId) ?? null
     if (activeId === id) {
-      // 关闭激活 Tab：优先激活原位置右侧第一个，无右侧则左侧最后一个
+      // 关闭激活 Tab：优先激活原位置右侧第一个，无右侧则左侧最后一个；
+      // 独立窗口关最后 Tab 时 nextId 为 null → 该窗口清空（槽位保留至销毁级联）
       const nextId = order[index + 1] ?? (index > 0 ? order[index - 1] : null)
-      activeId = null
-      if (nextId !== null) activate(nextId)
+      activeByWindow.set(windowId, null)
+      if (nextId !== null) activate(nextId, windowId)
     }
     // 销毁 = removeChildView + webContents.close()
     target.view.webContents.close()
     emitChange()
-    return buildSnapshot()
+    return buildSnapshot(windowId)
   }
 
-  function switchTab(id: string): BrowserSnapshot {
-    // id 不存在或已激活均 no-op
-    if (!tabs.has(id) || id === activeId) return buildSnapshot()
-    activate(id)
-    emitChange()
-    return buildSnapshot()
-  }
-
-  function setBounds(rect: SetBoundsPayload): void {
-    // 零矩形是"收起信号"（确认框等弹层悬挂）而非布局：置悬挂态并作用于激活 view，
-    // 不污染布局缓存；非零矩形解除悬挂并记忆布局
-    if (rect.width <= 0 || rect.height <= 0) {
-      suspended = true
-    } else {
-      suspended = false
-      bounds = rect
+  function tearOffTab(id: string, sourceWindowId: string, targetWindowId: string): BrowserSnapshot {
+    const target = tabs.get(id)
+    // 校验 Tab 属发起作用域（跨作用域越权命令防御性 no-op——存在性守卫在 ipc 层）
+    if (!target || target.windowId !== sourceWindowId) {
+      return buildSnapshot(sourceWindowId)
     }
-    // 仅作用于激活 view；未激活 view 保持脱离状态，切回时由 activate 应用
+    // 迁移前源作用域序列（含本 Tab）：邻位补位与 closeTab 同规则取序
+    const order = scopedTabIds(sourceWindowId)
+    const index = order.indexOf(id)
+    // 摘 view 保活（webContents 不销毁，页面滚动/输入/登录态/DevTools 原样）；重挂由
+    // 建窗 ready-to-show 后的 attachToWindow 完成（windows.ts 回调链，防白屏）
+    detachView(target)
+    target.windowId = targetWindowId
+    // 源窗口激活位补位：被移出的是激活 Tab 时按 closeTab 邻位规则（右邻优先，退左邻）；
+    // 源窗口可至 0 Tab（主窗口空态/独立窗口将被收口关窗均属合法）
+    const activeId = activeByWindow.get(sourceWindowId) ?? null
+    if (activeId === id) {
+      const nextId = order[index + 1] ?? (index > 0 ? order[index - 1] : null)
+      activeByWindow.set(sourceWindowId, null)
+      if (nextId !== null) activate(nextId, sourceWindowId)
+    }
+    // 目标窗口激活位置为该 Tab（只置位不挂 view，理由见上方 detachView 注释）
+    activeByWindow.set(targetWindowId, id)
+    emitChange()
+    return buildSnapshot(sourceWindowId)
+  }
+
+  function destroyTabsInWindow(windowId: string): void {
+    const doomed: TabEntry[] = []
+    for (const tab of tabs.values()) {
+      if (tab.windowId === windowId) doomed.push(tab)
+    }
+    // 槽位清理无条件执行（0 Tab 窗口也有激活/布局/悬挂残留）
+    activeByWindow.delete(windowId)
+    boundsByWindow.delete(windowId)
+    suspendedByWindow.delete(windowId)
+    if (doomed.length === 0) return
+    for (const tab of doomed) {
+      tabs.delete(tab.id)
+      // 不做 view 摘除（窗口已销毁，contentView 随之回收，销毁后的窗口不可触碰）；
+      // 原生受管 DevTools 随宿主 webContents 同生命周期，先关再补刀 webContents
+      closeTabDevTools(tab)
+      const wc = tab.view.webContents
+      if (!wc.isDestroyed()) wc.close()
+    }
+    emitChange()
+  }
+
+  function switchTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const target = tabs.get(id)
+    const activeId = activeByWindow.get(windowId) ?? null
+    // id 不存在、异窗托管或已激活均 no-op
+    if (!target || target.windowId !== windowId || id === activeId) {
+      return buildSnapshot(windowId)
+    }
+    activate(id, windowId)
+    emitChange()
+    return buildSnapshot(windowId)
+  }
+
+  function setBounds(rect: SetBoundsPayload, windowId: string = WINDOW_ID_MAIN): void {
+    // 零矩形是"收起信号"（确认框等弹层悬挂）而非布局：置该窗口悬挂态并作用于其激活
+    // view，不污染布局缓存；非零矩形解除该窗口悬挂并记忆布局（均只写该窗口槽位）
+    if (rect.width <= 0 || rect.height <= 0) {
+      suspendedByWindow.add(windowId)
+    } else {
+      suspendedByWindow.delete(windowId)
+      boundsByWindow.set(windowId, rect)
+    }
+    // 仅作用于该窗口激活 view；未激活 view 保持脱离状态，切回时由 activate 应用
+    const activeId = activeByWindow.get(windowId) ?? null
     if (activeId === null) return
     const tab = tabs.get(activeId)
     if (!tab || tab.view.webContents.isDestroyed()) return
@@ -345,46 +491,50 @@ export function createTabManager(
     if (!wc.isDestroyed()) wc.closeDevTools()
   }
 
-  /** 切换激活 Tab 的 DevTools：已开则关、未开则开；无激活 Tab 时 no-op 返回当前快照 */
-  function toggleDevTools(): BrowserSnapshot {
+  /** 切换该窗口激活 Tab 的 DevTools：已开则关、未开则开；无激活 Tab 时 no-op 返回该窗口快照 */
+  function toggleDevTools(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const activeId = activeByWindow.get(windowId) ?? null
     const tab = activeId !== null ? tabs.get(activeId) : undefined
-    if (!tab) return buildSnapshot()
+    if (!tab) return buildSnapshot(windowId)
     if (tab.devtoolsOpen) closeTabDevTools(tab)
     else openTabDevTools(tab)
     emitChange()
-    return buildSnapshot()
+    return buildSnapshot(windowId)
   }
 
-  /** 关闭激活 Tab 的 DevTools；未开或无激活 Tab 时 no-op 返回当前快照 */
-  function closeDevTools(): BrowserSnapshot {
+  /** 关闭该窗口激活 Tab 的 DevTools；未开或无激活 Tab 时 no-op 返回该窗口快照 */
+  function closeDevTools(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const activeId = activeByWindow.get(windowId) ?? null
     const tab = activeId !== null ? tabs.get(activeId) : undefined
-    if (!tab || !tab.devtoolsOpen) return buildSnapshot()
+    if (!tab || !tab.devtoolsOpen) return buildSnapshot(windowId)
     closeTabDevTools(tab)
     emitChange()
-    return buildSnapshot()
+    return buildSnapshot(windowId)
   }
 
-  function getSnapshot(): BrowserSnapshot {
-    return buildSnapshot()
+  function getSnapshot(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    return buildSnapshot(windowId)
   }
 
-  function getActiveWebContents(): WebContents | null {
+  function getActiveWebContents(windowId: string = WINDOW_ID_MAIN): WebContents | null {
+    const activeId = activeByWindow.get(windowId) ?? null
     if (activeId === null) return null
     const tab = tabs.get(activeId)
     if (!tab || tab.view.webContents.isDestroyed()) return null
     return tab.view.webContents
   }
 
-  function attachToWindow(): void {
+  function attachToWindow(windowId: string = WINDOW_ID_MAIN): void {
+    const activeId = activeByWindow.get(windowId) ?? null
     if (activeId === null) return
     const tab = tabs.get(activeId)
-    const win = getWindow()
+    const win = getWindow(windowId)
     if (!tab || !win || tab.view.webContents.isDestroyed()) return
     // 已挂入时只同步 bounds（含悬挂收起）；未挂入则复用 attachView 路径（activate 与重挂两路共用）
     if (!win.contentView.children.includes(tab.view)) {
       attachView(tab)
     } else {
-      tab.view.setBounds(currentRect())
+      tab.view.setBounds(currentRect(windowId))
     }
   }
 
@@ -405,6 +555,8 @@ export function createTabManager(
   return {
     newTab,
     closeTab,
+    tearOffTab,
+    destroyTabsInWindow,
     switchTab,
     setBounds,
     toggleDevTools,

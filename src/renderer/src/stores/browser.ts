@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { BrowserSnapshot, BrowserTabState } from '../../../shared/browser'
+import { WINDOW_ID_MAIN } from '../../../shared/browser'
 import { useSessionsStore } from './sessions'
 
 // 浏览器状态是主进程快照的纯镜像：sessionId/tabs/activeTabId/devtoolsOpen 原样存储
@@ -17,6 +18,8 @@ interface BrowserState {
   newTab: (url?: string) => Promise<void>
   closeTab: (id: string) => Promise<void>
   switchTab: (id: string) => Promise<void>
+  /** 移出 Tab 为独立窗口（阶段 7—8 临时入口为 Tab 条右键菜单；阶段 9 拖拽手势替换入口，通道语义保留）；失败返回 false */
+  tearOffTab: (id: string) => Promise<boolean>
   navigate: (url: string) => Promise<boolean>
   goBack: () => Promise<void>
   goForward: () => Promise<void>
@@ -28,15 +31,48 @@ interface BrowserState {
 
 let initialized = false
 
+/**
+ * 窗口身份（模块加载时解析一次 URL query，契约：计划第 3 节点 1）：
+ * - 主窗口：URL 无 query，windowId 固定 WINDOW_ID_MAIN；
+ * - 独立窗口：URL 由主进程建窗时拼好（?role=tab-window&session=<id>&windowId=<id>），
+ *   两值取自 query；缺参回退空串——守卫将丢弃全部快照，宁可显性空白也不吃错窗数据。
+ * store 守卫、main.tsx 的 init 分流、App/TabStrip 的形态分流共用这一份解析结果。
+ */
+export type WindowIdentity =
+  | { mode: 'main'; windowId: typeof WINDOW_ID_MAIN; sessionId: null }
+  | { mode: 'independent'; windowId: string; sessionId: string }
+
+const parseWindowIdentity = (): WindowIdentity => {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('role') !== 'tab-window') {
+    return { mode: 'main', windowId: WINDOW_ID_MAIN, sessionId: null }
+  }
+  return {
+    mode: 'independent',
+    windowId: params.get('windowId') ?? '',
+    sessionId: params.get('session') ?? ''
+  }
+}
+
+export const windowIdentity = parseWindowIdentity()
+
 // 推送与命令返回值同构，以主进程数据为唯一事实源；双到达重复 set 幂等无害。
-// 会话守卫：以会话 store 的 activeId 为准（selectSession 乐观先改 activeId），快照
-// sessionId 与之不符（会话切换期间旧会话推送晚到、命令返回晚归）时整体丢弃；
-// null 与 null 视为相符（零会话空态）。
+// 守卫按窗口模式分流（契约：计划第 3 节点 2）：
+// - 主窗口：windowId 须为 main，且会话与 sessions store 的 activeId 相符
+//   （selectSession 乐观先改 activeId，会话切换期间旧会话推送晚到、命令返回晚归时
+//   整体丢弃；null 与 null 视为相符——零会话空态）；异 windowId 快照按串台丢弃。
+// - 独立窗口：只比对 windowId 与自身相符——本实例的 sessions store 永不初始化
+//   （main.tsx 分流跳过 sessions.init），不得依赖 activeId；作用域会话由建窗绑定。
 const applySnapshot = (
   set: (partial: Partial<BrowserState>) => void,
   snapshot: BrowserSnapshot
 ): void => {
-  if (snapshot.sessionId !== useSessionsStore.getState().activeId) return
+  if (windowIdentity.mode === 'main') {
+    if (snapshot.windowId !== WINDOW_ID_MAIN) return
+    if (snapshot.sessionId !== useSessionsStore.getState().activeId) return
+  } else if (snapshot.windowId !== windowIdentity.windowId) {
+    return
+  }
   const { sessionId, tabs, activeTabId, devtoolsOpen } = snapshot
   set({ sessionId, tabs, activeTabId, devtoolsOpen })
 }
@@ -104,6 +140,19 @@ export const useBrowserStore = create<BrowserState>((set) => ({
       applySnapshot(set, await window.api.browser.switchTab({ id }))
     } catch (error) {
       console.error('切换标签页失败', error)
+    }
+  },
+
+  // 移出为独立窗口（临时入口见 TabStrip 右键菜单）：不乐观更新，成功以发起窗口作用域
+  // 快照更新（目标窗口的快照由主进程定向推给它）；与 navigate 同规返回 boolean，
+  // 失败返回 false 供右键入口给出可见反馈（L3 定案）
+  tearOffTab: async (id) => {
+    try {
+      applySnapshot(set, await window.api.browser.tearOffTab({ id }))
+      return true
+    } catch (error) {
+      console.error('移出标签页失败', error)
+      return false
     }
   },
 

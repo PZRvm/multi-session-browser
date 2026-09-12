@@ -27,7 +27,11 @@ export interface RestoreSet {
 }
 
 export interface SessionPersistence {
-  /** 快照变化入口（ensureManager 的 onSnapshotChanged 接线转发）：去抖判据 + 安排落盘 */
+  /**
+   * 快照变化入口（ensureManager 的 onSnapshotChanged 接线转发）：去抖判据 + 安排落盘。
+   * 阶段 7—8 起接线只传入该会话 'main' 作用域快照——独立窗口 Tab 不参与落盘（过渡期
+   * 事实，归并收口在阶段 10，计划 2.3 数据原则）
+   */
   recordSnapshot(id: string, snapshot: BrowserSnapshot): void
   /** 立即冲刷该会话待写的上报（closeSession 收尾活库用） */
   flushNow(id: string): void

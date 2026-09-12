@@ -1,14 +1,17 @@
 // 会话浏览器注册表：每会话一个独立分区的 TabManager（分区字符串 persist:sess-<id>
-// 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令一律
-// 路由到当前激活会话的 manager）+ 会话级生命周期（switchSession / destroySession / init）。
-// 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts / index.ts 装配，分层同 manager.ts）；
-// 持久化上报与恢复集由 browser/persistence.ts 承担（L7 定案），落盘读写经 store.ts。
+// 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令按来源
+// 窗口作用域路由：主窗口 → 激活会话的 'main' 作用域，独立窗口 → 其绑定会话的该窗口
+// 作用域，见 resolveSenderScope）+ tear-off 建窗编排 + 会话级生命周期（switchSession /
+// destroySession / init）。本模块不含任何 IPC（命令通道与状态推送由 ipc.ts / index.ts
+// 装配，分层同 manager.ts）；持久化上报与恢复集由 browser/persistence.ts 承担（L7
+// 定案），落盘读写经 store.ts；独立窗口登记表经 deps 注入（windows.ts 的回调反向触达
+// 也经 index.ts 晚绑定注入，模块间无 import 环）。
 
-import { app, session, webContents, WebContentsView } from 'electron'
-import type { BrowserWindow, Session, WebContents } from 'electron'
+import { app, BrowserWindow, session, webContents, WebContentsView } from 'electron'
+import type { Session, WebContents } from 'electron'
 import { cp, rm, stat } from 'fs/promises'
 import { basename, join } from 'path'
-import type { BrowserSnapshot, SetBoundsPayload } from '../../shared/browser'
+import { WINDOW_ID_MAIN, type BrowserSnapshot, type SetBoundsPayload } from '../../shared/browser'
 import {
   SESSION_ID_RE,
   type SessionStatus,
@@ -20,10 +23,12 @@ import {
   createTabManager,
   type FocusAddressListener,
   type SnapshotListener,
-  type TabManager
+  type TabManager,
+  type TearOffTabManager
 } from './manager'
 import { createSessionPersistence } from './persistence'
 import { logLoadFailure } from './url'
+import type { IndependentWindows } from './windows'
 
 /**
  * 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享）。
@@ -70,7 +75,30 @@ function isENOENT(error: unknown): boolean {
   return error instanceof Error && (error as { code?: string }).code === 'ENOENT'
 }
 
+/** sender 作用域（ipc 装配的命令入口守卫用）：windowId + 该作用域当前会话 */
+export interface SenderWindowScope {
+  windowId: string
+  /** 主窗口来源无激活会话时为 null（由 ipc 层按「未选择会话」拒绝命令） */
+  sessionId: string | null
+}
+
 export interface SessionBrowserRegistry extends TabManager {
+  /**
+   * tear-off：把 windowId 作用域的 Tab 移出为新建独立窗口（读会话名 → windows.ts 建窗
+   * → manager 迁移 + 双侧快照），返回发起窗口作用域快照。异步（读盘取会话名）——
+   * browser 域唯一异步命令
+   */
+  tearOffTab(id: string, windowId?: string): Promise<BrowserSnapshot>
+  /**
+   * sender 作用域解析（13 条命令通道的统一入口守卫，ipc 装配用）：主窗口来源 →
+   * 激活会话的 'main' 作用域；独立窗口来源 → windows.ts 登记的绑定会话的该窗口作用域；
+   * 未知窗口/已销毁/绑定会话已不在注册表一律抛中文错误（契约点 3）
+   */
+  resolveSenderScope(sender: WebContents): SenderWindowScope
+  /** 独立窗口就绪（ready-to-show 防白屏时点）：挂入该窗口作用域激活 Tab 的 view */
+  onIndependentWindowReady(sessionId: string, windowId: string): void
+  /** 独立窗口已销毁：销毁该窗口作用域全部 Tab（含 webContents）并清槽位 */
+  onIndependentWindowClosed(sessionId: string, windowId: string): void
   /** 切换激活会话：旧 manager 激活 view 摘除但 webContents 全部保活，新 manager 即时挂入；null = 摘除全部 */
   switchSession(id: string | null): void
   /** 销毁该会话全部 webContents 并彻底清分区数据（销毁 → clearStorageData → 删分区目录，顺序不可颠倒） */
@@ -95,11 +123,18 @@ export interface SessionBrowserRegistry extends TabManager {
 }
 
 export function createSessionBrowserRegistry(deps: {
-  getWindow: () => BrowserWindow | null
+  /**
+   * 按宿主窗口 id 解析 BrowserWindow：'main' → 主窗口显式引用（index.ts 模块级引用，
+   * macOS 关窗期间为 null），独立窗口 id → windows.ts 登记表现取。窗口引用一律现取
+   * 不缓存（macOS 关窗重建场景）
+   */
+  getWindow: (windowId: string) => BrowserWindow | null
+  /** 独立窗口登记表（index.ts 注入）：tear-off 建窗、空窗收口与作用域解析经此触达 */
+  windows: IndependentWindows
 }): SessionBrowserRegistry {
-  const { getWindow } = deps
+  const { getWindow, windows } = deps
 
-  const managers = new Map<string, TabManager>()
+  const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
   /** 最近一次非零内容区矩形：新建 manager 的 initialBounds（无窗口先建 manager 时的挂入兜底） */
   let globalBounds: SetBoundsPayload | null = null
@@ -135,12 +170,31 @@ export function createSessionBrowserRegistry(deps: {
    */
   const pendingBackfill = new Set<string>()
 
-  function activeManager(): TabManager | null {
+  function activeManager(): TearOffTabManager | null {
     return activeSessionId !== null ? (managers.get(activeSessionId) ?? null) : null
   }
 
+  /**
+   * 作用域 → manager：主窗口作用域路由激活 manager（现行为）；独立窗口作用域经登记表
+   * 路由其绑定会话的 manager（ipc 命令面的统一出口；未登记/会话无 manager 返回 null，
+   * 后者已在 resolveSenderScope 拒绝，此处兜底）
+   */
+  function scopedManager(windowId: string): TearOffTabManager | null {
+    if (windowId === WINDOW_ID_MAIN) return activeManager()
+    const sessionId = windows.getSessionId(windowId)
+    return sessionId !== null ? (managers.get(sessionId) ?? null) : null
+  }
+
   function emptySnapshot(): BrowserSnapshot {
-    return { sessionId: null, tabs: [], activeTabId: null, devtoolsOpen: false }
+    // 零会话空态恒属主窗口：无激活会话时不存在任何窗口托管该会话的 Tab（步骤 3 定向
+    // 推送同此口径——空态快照只发主窗口）
+    return {
+      windowId: WINDOW_ID_MAIN,
+      sessionId: null,
+      tabs: [],
+      activeTabId: null,
+      devtoolsOpen: false
+    }
   }
 
   function notifySnapshot(): void {
@@ -149,14 +203,16 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   /**
-   * 摘除某 manager 激活 Tab 的页面 view：脱离 contentView 但 webContents 保活
-   * （挂摘保活，阶段4步骤1 冒烟已证），重挂由 manager.attachToWindow 按其缓存矩形完成。
-   * view 未挂入（后台 manager）时自然 no-op。manager 未暴露 view 引用，经窗口子视图
-   * 按 webContents 身份反查（同一时刻每个 manager 至多一个激活 view 挂在窗口上）。
+   * 摘除某 manager 指定窗口作用域激活 Tab 的页面 view：脱离 contentView 但 webContents
+   * 保活（挂摘保活，阶段4步骤1 冒烟已证），重挂由 manager.attachToWindow 按其缓存矩形
+   * 完成。view 未挂入（后台 manager）时自然 no-op。manager 未暴露 view 引用，经窗口
+   * 子视图按 webContents 身份反查（同一时刻每个窗口每个 manager 至多一个激活 view 挂着）。
+   * 现调用方均为主窗口作用域——会话切换/销毁收尾只发生在主窗口（独立窗口的摘挂由
+   * manager 挂归窗口自决 + windows.ts closed 级联，不经此函数）
    */
-  function detachActiveView(manager: TabManager): void {
-    const win = getWindow()
-    const wc = manager.getActiveWebContents()
+  function detachActiveView(manager: TabManager, windowId: string = WINDOW_ID_MAIN): void {
+    const win = getWindow(windowId)
+    const wc = manager.getActiveWebContents(windowId)
     if (!win || !wc) return
     const view = win.contentView.children.find(
       (child): child is WebContentsView =>
@@ -261,19 +317,32 @@ export function createSessionBrowserRegistry(deps: {
     managers.set(id, manager)
 
     // 每 manager 创建时接线一次（存活期内常驻，销毁即随 webContents 一同失效）：
-    // ① 快照仅当该会话处于激活态才转发外部监听者（后台会话的过期快照在此被丢弃，防串台）；
-    // ② 状态聚合与 ③ 持久化上报对全部 manager 生效（后台会话的真实加载态如实驱动，不造假）
+    // ① 快照定向转发（主窗口只收激活会话的 'main' 作用域快照——后台会话快照在此
+    // 丢弃防串台，既有行为；独立窗口作用域快照一律放行，ipc 按 windowId 定向——其
+    // 绑定会话相对主窗口可能"后台"，但对那个窗口而言永远是前台）；
+    // ② 状态聚合对全部作用域生效（后台会话的真实加载态如实驱动，不造假）；
+    // ③ 持久化上报只绑 'main' 作用域快照（计划 2.3 数据原则：独立窗口 Tab 不参与
+    // 落盘，过渡期事实，阶段 10 归并收口）；④ 独立窗口作用域清空 → 收口关窗
     manager.onSnapshotChanged((snapshot) => {
-      if (snapshot.sessionId === activeSessionId) {
+      if (snapshot.windowId !== WINDOW_ID_MAIN || snapshot.sessionId === activeSessionId) {
         for (const cb of snapshotListeners) cb(snapshot)
       }
       setStatus(id, snapshot.tabs.some((tab) => tab.loading) ? 'loading' : 'idle')
-      persistence.recordSnapshot(id, snapshot)
+      if (snapshot.windowId === WINDOW_ID_MAIN) {
+        persistence.recordSnapshot(id, snapshot)
+      }
+      // 「窗口应销毁」信号取快照监听形态（设计取舍：closeTab 与 tear-off 两条清空
+      // 路径一处收口，免为两处返回值扩签名；'main' 作用域空态合法，永不触发关窗）
+      if (snapshot.windowId !== WINDOW_ID_MAIN && snapshot.tabs.length === 0) {
+        windows.closeWindow(snapshot.windowId)
+      }
     })
-    manager.onFocusAddressRequest(() => {
-      // focus-address 只可能来自挂入中的页面（后台 view 收不到键盘输入），过滤保语义正确
-      if (id !== activeSessionId) return
-      for (const cb of focusListeners) cb()
+    manager.onFocusAddressRequest((windowId) => {
+      // focus-address 只可能来自挂入中的页面（后台 view 收不到键盘输入）：主窗口来源
+      // 要求会话激活；独立窗口来源要求窗口绑定会话相符（其会话相对主窗口可后台）
+      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      if (bound !== id) return
+      for (const cb of focusListeners) cb(windowId)
     })
 
     // 懒创建即按恢复集多开 Tab（阶段 6）：缓存有恢复集则逐条过白名单恢复（顺序 +
@@ -354,6 +423,11 @@ export function createSessionBrowserRegistry(deps: {
       console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
       return
     }
+    // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
+    // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
+    // 由下方 killPartitionWebContents 按 session 分区扫杀兜底覆盖，两路都杀不冲突
+    //（已销毁者被 isDestroyed 过滤）。壳先关让窗口即时从用户视野消失，随后照走既有销毁链
+    windows.closeAllForSession(id)
     const manager = managers.get(id)
     // 先摘注册表引用再清除：清除后不得再实例化该分区（fromPartition 会惰性重建空目录，
     // 阶段4步骤1 冒烟定案），从 Map 移除 manager 即天然保证——本函数此后也不再触碰该分区 session
@@ -409,6 +483,10 @@ export function createSessionBrowserRegistry(deps: {
    * 全程只切一次，避免中间空态闪烁。manager 不存在（从未激活过或已关闭）时 no-op resolve
    */
   async function closeSession(id: string): Promise<void> {
+    // 入口先关该会话全部独立窗壳（步骤 5 会话级联，时序口径同 destroySession 内注释）；
+    // clonePartition 经此入口调用天然覆盖——克隆前源会话独立窗口全关，窗内页面不再写入
+    // 分区，复制不落入活库。manager 不存在（无窗可关）时此调用本身即 no-op
+    windows.closeAllForSession(id)
     const manager = managers.get(id)
     if (!manager) return
     // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
@@ -558,54 +636,123 @@ export function createSessionBrowserRegistry(deps: {
       })
   }
 
-  // —— TabManager 兼容命令面：全部委托激活 manager ——
-  // 无激活会话时命令类 no-op 返回空态快照（getActiveWebContents 返回 null）；
-  // 真正的拒绝语义（「未选择会话」）由 ipc 层在通道入口守卫承担（阶段4 步骤 6）。
+  // —— TabManager 兼容命令面：按 windowId 作用域路由（ipc 层经 sender 解析显式传入；
+  // 缺省 'main' 兼容 registry 内部调用点与 persistence 恢复路径）——
+  // 主窗口作用域无激活会话时命令类 no-op 返回空态快照（getActiveWebContents 返回
+  // null）；真正的拒绝语义（「未选择会话」）由 ipc 层在通道入口守卫承担（阶段4 步骤 6）；
+  // 独立窗口作用域的会话存活性已在 resolveSenderScope 校验（ipc 层拒绝）。
 
-  function newTab(url?: string): BrowserSnapshot {
-    const manager = activeManager()
-    return manager ? manager.newTab(url) : emptySnapshot()
+  function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.newTab(url, windowId) : emptySnapshot()
   }
 
-  function closeTab(id: string): BrowserSnapshot {
-    const manager = activeManager()
-    return manager ? manager.closeTab(id) : emptySnapshot()
+  function closeTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.closeTab(id, windowId) : emptySnapshot()
   }
 
-  function switchTab(id: string): BrowserSnapshot {
-    const manager = activeManager()
-    return manager ? manager.switchTab(id) : emptySnapshot()
+  function switchTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.switchTab(id, windowId) : emptySnapshot()
   }
 
-  function toggleDevTools(): BrowserSnapshot {
-    const manager = activeManager()
-    return manager ? manager.toggleDevTools() : emptySnapshot()
+  function toggleDevTools(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.toggleDevTools(windowId) : emptySnapshot()
   }
 
-  function closeDevTools(): BrowserSnapshot {
-    const manager = activeManager()
-    return manager ? manager.closeDevTools() : emptySnapshot()
+  function closeDevTools(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.closeDevTools(windowId) : emptySnapshot()
   }
 
-  function getActiveWebContents(): WebContents | null {
-    return activeManager()?.getActiveWebContents() ?? null
+  function getActiveWebContents(windowId: string = WINDOW_ID_MAIN): WebContents | null {
+    return scopedManager(windowId)?.getActiveWebContents(windowId) ?? null
   }
 
-  function setBounds(rect: SetBoundsPayload): void {
-    // 全局缓存最近一次非零矩形：新建 manager 以其为 initialBounds（切换瞬间新 manager
-    // 无自身缓存时的挂入矩形兜底）；零矩形是收起信号（弹层悬挂），不进缓存
-    if (rect.width > 0 && rect.height > 0) globalBounds = rect
-    // 广播全部现存 manager：各自缓存布局、各自仅对激活 view 生效，悬挂态语义随 manager 既有实现
-    for (const manager of managers.values()) manager.setBounds(rect)
+  function setBounds(rect: SetBoundsPayload, windowId: string = WINDOW_ID_MAIN): void {
+    if (windowId === WINDOW_ID_MAIN) {
+      // 全局缓存最近一次非零主窗口矩形：新建 manager 的 initialBounds（切换瞬间新
+      // manager 无自身缓存时的挂入矩形兜底）；零矩形是收起信号（弹层悬挂），不进缓存。
+      // 广播全部 manager：各自缓存 'main' 槽位布局、各自仅对激活 view 生效，悬挂态
+      // 语义随 manager 既有实现
+      if (rect.width > 0 && rect.height > 0) globalBounds = rect
+      for (const manager of managers.values()) manager.setBounds(rect, WINDOW_ID_MAIN)
+      return
+    }
+    // 独立窗口矩形只写该窗口绑定会话的 manager 槽位（其他会话无该窗口作用域，广播无意义）
+    scopedManager(windowId)?.setBounds(rect, windowId)
   }
 
-  function attachToWindow(): void {
-    // 路由到激活 manager（macOS 关窗重开由 index.ts 调用）；无激活会话时无 view 需要重挂
-    activeManager()?.attachToWindow()
+  function attachToWindow(windowId: string = WINDOW_ID_MAIN): void {
+    // 路由到作用域 manager（主窗口重开由 index.ts 调用、独立窗口就绪由 windows.ts 回调
+    // 经 onIndependentWindowReady 调用）；无该作用域 manager 时无 view 需要重挂
+    scopedManager(windowId)?.attachToWindow(windowId)
   }
 
-  function getSnapshot(): BrowserSnapshot {
-    return activeManager()?.getSnapshot() ?? emptySnapshot()
+  function destroyTabsInWindow(windowId: string): void {
+    scopedManager(windowId)?.destroyTabsInWindow(windowId)
+  }
+
+  function getSnapshot(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    return scopedManager(windowId)?.getSnapshot(windowId) ?? emptySnapshot()
+  }
+
+  async function tearOffTab(
+    id: string,
+    windowId: string = WINDOW_ID_MAIN
+  ): Promise<BrowserSnapshot> {
+    const sessionId = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+    if (sessionId === null) throw new Error('未选择会话')
+    // 建窗标题=会话名（与会话名严格同源，不做乐观标题）：会话元数据只在落盘（store.ts），
+    // 读盘异步——先读再建窗，期间被移出的 Tab 仍挂源窗口、用户无感；读不到回退占位
+    // 标题，不阻断 tear-off 主流程（标题随后续重命名经 setTitleForSession 同步）
+    let title = '会话窗口'
+    try {
+      const stored = await loadSnapshot()
+      const found = stored.sessions.find((item) => item.id === sessionId)
+      if (found) title = found.name
+    } catch {
+      // loadSnapshot 坏数据自回退不 reject，此处仅兜底 fs 层异常
+    }
+    // await 间隙事件循环让位、状态可能已变（会话被销毁/关闭、Tab 已被关闭）：建窗前
+    // 重验，失效即抛中文错误（窗尚未建，无需回滚）
+    const manager = managers.get(sessionId)
+    if (!manager) throw new Error('会话已不可用')
+    if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
+      throw new Error('标签页不存在')
+    }
+    const created = windows.createWindow(sessionId, title)
+    return manager.tearOffTab(id, windowId, created.windowId)
+  }
+
+  function resolveSenderScope(sender: WebContents): SenderWindowScope {
+    const win = BrowserWindow.fromWebContents(sender)
+    if (!win || win.isDestroyed()) throw new Error('无法识别命令来源窗口')
+    if (win === getWindow(WINDOW_ID_MAIN)) {
+      return { windowId: WINDOW_ID_MAIN, sessionId: activeSessionId }
+    }
+    const windowId = String(win.id)
+    const sessionId = windows.getSessionId(windowId)
+    if (sessionId === null) throw new Error('无法识别命令来源窗口')
+    // 独立窗口守卫：绑定会话的 manager 须仍在注册表（会话销毁/关闭后的残余窗口命令
+    // 一律拒绝——步骤 5 起会话级联会先关掉这些窗口，此处是过渡期兜底）
+    if (!managers.has(sessionId)) throw new Error('会话已不可用')
+    return { windowId, sessionId }
+  }
+
+  function onIndependentWindowReady(sessionId: string, windowId: string): void {
+    // 按会话直查 manager（sessionId 由 windows.ts 显式携带，不依赖登记表反查——
+    // 回调时序上窗口必在表，但显式传参免一次查表且语义更直）；manager 不存在说明
+    // 会话已销毁/关闭（过渡期窗口未随之关闭的场景），无 view 可挂
+    managers.get(sessionId)?.attachToWindow(windowId)
+  }
+
+  function onIndependentWindowClosed(sessionId: string, windowId: string): void {
+    // 只做 manager 内存态清理（webContents 兜底补刀）；manager 可能已随会话销毁/关闭
+    // 摘除——摘除时 killPartitionWebContents 已按分区扫杀其 webContents，无 Tab 可清
+    managers.get(sessionId)?.destroyTabsInWindow(windowId)
   }
 
   function onSnapshotChanged(cb: SnapshotListener): () => void {
@@ -640,12 +787,17 @@ export function createSessionBrowserRegistry(deps: {
   return {
     newTab,
     closeTab,
+    tearOffTab,
+    resolveSenderScope,
+    onIndependentWindowReady,
+    onIndependentWindowClosed,
     switchTab,
     setBounds,
     toggleDevTools,
     closeDevTools,
     getActiveWebContents,
     attachToWindow,
+    destroyTabsInWindow,
     dispose,
     getSnapshot,
     onSnapshotChanged,

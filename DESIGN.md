@@ -283,6 +283,12 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 右侧浏览器不再是未绑定会话的单例：主进程注册表为每个会话维护一个独立分区（`persist:sess-<id>`，一会话一分区禁止共享）的 TabManager，点击左侧会话行 = 视图级瞬时交换（旧会话全部 webContents 保活——Tab、滚动、输入、登录态、DevTools 实例原样保留，切回即恢复）。命令通道一律作用于当前激活会话；快照带 sessionId，renderer 丢弃与当前选中不符的过期快照。会话状态灯（idle 灰 / loading 琥珀脉冲）由该会话「任一 Tab 加载中」真实驱动（含后台会话），经全量状态 map 推送；会话行的 pageTitle 由激活 Tab 标题实时驱动并去抖落盘，`lastUrl`（上次打开页）持久化，重启后首次激活自动重载（PRD 3.1.4）。删除会话即销毁其全部 webContents 并彻底清除分区数据（clearStorageData + 删分区目录）。零会话时右侧呈现空态、控件禁用、命令拒绝（「未选择会话」）。
 
+阶段 7—8 起浏览器层按**宿主窗口作用域**组织（windowId）：主窗口浏览区固定 `'main'`（跨 macOS 关窗重建稳定），每个独立窗口一个 id；`BrowserSnapshot` 带 windowId，只含该窗口托管的 tabs 与激活位；命令经 `event.sender` 按来源窗口路由（主窗口 → 激活会话 'main' 作用域，独立窗口 → 绑定会话的该窗口作用域），stateChanged/focusAddress 按 windowId 定向推送不盲发。持久化上报仍只绑 'main' 作用域快照（独立窗口 Tab 不参与落盘，阶段 10 退出归并收口）。
+
+### 独立窗口（Independent Window）— 阶段 7—8 新增
+
+Tab tear-off 的产物：完整浏览器窗口（Tab 栏 + 导航工具栏，同 `.browser-frame` 三段结构与既有 chrome-* 语系，无左栏无分隔条），同一 renderer 入口经 query `?role=tab-window&session=<id>&windowId=<id>` 进入独立窗口模式（`IndependentWindowFrame`；sessions store 不初始化，快照守卫只比对 windowId；外观 store 各窗自订阅，主题实时一致）。窗口标题 = 会话名（`page-title-updated` 拦截页面标题覆盖，重命名经 onRenamed → setTitleForSession 严格同源同步），Tab 标题维持页面原标题。tear-off 是 webContents 原样迁移（滚动/输入/登录态/分区/DevTools 全保留，页面不重载），入口暂为 Tab 条右键菜单「移出到独立窗口」（阶段 9 拖拽手势替换，通道语义保留）。生命周期：一窗可多 Tab；最后一个 Tab 允许关闭且关掉即销毁窗口（"最后留一"仅限主窗口作用域）；直接关窗销毁其中全部 Tab；会话删除/批量关闭/克隆前置级联关窗；应用退出全关；macOS 关主窗独立窗口存活。默认 1024×720、最小 480×320，ready-to-show 后挂 view 防白屏。主窗口 0-Tab（sessionId 非 null 且 tabs 空，移出唯一 Tab 后可达）如实呈现：Tab 条空 + 新建钮可用，浏览器区壳不消失。
+
 ### 分隔条（Panel Divider）
 
 5px 命中区、1px 视觉发丝线（#0b0e11），hover 或拖拽中变 2px 琥珀；拖拽时全局 `col-resize` 光标。`role="separator"` + aria-label。
@@ -317,11 +323,12 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 6 前有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 7—8 后有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **会话克隆与批量操作已交付（阶段 5）**：行菜单「克隆会话」（close-then-copy 分区复制 + 元数据随行 +「副本」命名 + 完成即激活）与批量模式（详见「批量模式」条目）。克隆语义边界：复制的是持久化环境数据（登录态/Cookie/LocalStorage 等），源会话活页面状态不进入克隆、克隆期间源 webContents 关闭（切回按 lastUrl 重载）；批量关闭 = 删除全部会话及数据。仍属留白的：会话拖出独立窗口（阶段 6 起分五步，见 notes/steps/step-06~10）、克隆源活页面保真、批量重命名/批量删除选中项、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）；Tab 列表全量持久化已于阶段 6 交付（见下条）。
+- **独立窗口已交付创建与形态（阶段 7—8 合并，原两阶段合一执行）**：主进程浏览器层按宿主窗口作用域重构（TabEntry 归属窗口 + 每窗口激活表/矩形表 + 快照与命令 sender 作用域化，见「会话绑定浏览器」阶段 7—8 段）+ windows.ts 登记表 + tear-off 命令链 + renderer 独立窗口模式（见「独立窗口」条目）。仍属留白的：拖出/拖入/跨窗口转移手势与拖拽状态反馈（阶段 9，替换临时右键入口）、跨已存在窗口转移与退出落盘归并（阶段 10——过渡期独立窗口中的 Tab 退出不落盘、重启不恢复，为如实行为非缺陷）；此外 tear-off 失败的行内反馈、Tab 条右键菜单的键盘可达性随阶段 9 新手势一并处理（审查清单 20260912234627 低危项）。
+- **会话克隆与批量操作已交付（阶段 5）**：行菜单「克隆会话」（close-then-copy 分区复制 + 元数据随行 +「副本」命名 + 完成即激活）与批量模式（详见「批量模式」条目）。克隆语义边界：复制的是持久化环境数据（登录态/Cookie/LocalStorage 等），源会话活页面状态不进入克隆、克隆期间源 webContents 关闭（切回按 lastUrl 重载）；批量关闭 = 删除全部会话及数据。仍属留白的：克隆源活页面保真、批量重命名/批量删除选中项、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）；Tab 列表全量持久化已于阶段 6 交付（见下条）。
 - **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
 - **会话元数据已持久化（schema v3，阶段 6）**：主进程 `userData/sessions.json`（version 3：id/name/note/pageTitle/lastUrl/tabs/activeTabIndex；v1/v2 读取时按容错规则迁移（v2 的 lastUrl 派生单元素 tabs），原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。Tab 列表按 URL 级持久化（顺序与激活位，PRD 3.6.4）：重启激活会话时多开恢复，页面运行态与 DevTools 开关态仍不持久化（URL 级恢复，与 lastUrl 恢复同口径）；恢复 URL 逐条过白名单，坏值跳过并告警。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。

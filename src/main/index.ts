@@ -6,6 +6,8 @@ import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerBrowserIpc } from './browser/ipc'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
+import { createIndependentWindows } from './browser/windows'
+import { installShellInputGuard } from './inputGuard'
 import { loadSnapshot } from './store'
 import {
   createAppearanceController,
@@ -13,6 +15,7 @@ import {
   registerAppearanceIpc
 } from './appearance'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
+import { WINDOW_ID_MAIN } from '../shared/browser'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
 // userData（sessions.json、Partitions 分区数据）整体指向该目录，开发期验证/冒烟
@@ -38,6 +41,10 @@ if (process.env['MSB_USER_DATA']) {
 // 模块级持有：createWindow 在窗口（重）建时需调用 attachToWindow 重挂当前激活会话的 view，
 // 启动恢复亦经此引用（registry 在 app ready 内创建，此前为 null）
 let registry: SessionBrowserRegistry | null = null
+// 主窗口显式引用（阶段 7—8）：多窗口后 getAllWindows()[0] 语义漂移——可能取到先建的
+// 独立窗口；registry 的 getWindow('main')、ipc 定向推送、会话状态推送均经此引用。
+// macOS 关窗期间自然为 null（closed 置空），重开由 activate → createWindow 回填
+let mainWindow: BrowserWindow | null = null
 const appearanceController = createAppearanceController()
 
 /**
@@ -95,7 +102,7 @@ function installChineseMenu(): void {
 
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 1080,
@@ -109,54 +116,36 @@ function createWindow(): void {
       sandbox: false
     }
   })
+  // 回填主窗口显式引用（多窗口后此引用是 'main' 作用域的唯一身份判据）
+  mainWindow = win
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  win.on('ready-to-show', () => {
+    win.show()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  // 防误刷新守卫（AGENTS.md 坑点闭环）：脚手架 optimizer 的窗口快捷键接管接线已移除——
-  // 它会在 dev 态抢走 F12（打开 shell 自身的 Electron DevTools），与产品语义冲突。
-  // 其余职责由此自接管（对照 @electron-toolkit/utils watchWindowShortcuts 默认行为逐一交接）：
-  // 仅 prod 拦 shell 重载与 shell DevTools 热键（Cmd/Ctrl+R、F5、Cmd+Opt+I / Ctrl+Shift+I），
-  // dev 放行保 HMR 便利（renderer 误触刷新可自愈：bounds 会重报）；缩放键（Cmd/Ctrl+- 与
-  // Cmd/Ctrl+Shift+=）两种模式都拦（shell UI 不缩放，optimizer 原本恒拦）。
-  // dev 态 shell 自身的 DevTools 经 Alt 唤出菜单栏 View 可达，F12 已归产品语义（唤起会话 DevTools）；
-  // 本层不做任何 F12/ESC 处理（页面侧在 manager 的 before-input-event，shell 侧在 renderer keydown）。
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown') return
-    const withCmdCtrl = input.control || input.meta
-    // 缩放键阻断（dev/prod 一致）：Minus = 缩小，Shift+Equal = 放大
-    if (
-      withCmdCtrl &&
-      !input.alt &&
-      (input.code === 'Minus' || (input.shift && input.code === 'Equal'))
-    ) {
-      event.preventDefault()
-      return
-    }
-    if (is.dev) return
-    const isCmdCtrlR = withCmdCtrl && !input.shift && !input.alt && input.key.toLowerCase() === 'r'
-    const isF5 = !withCmdCtrl && !input.shift && !input.alt && input.key === 'F5'
-    // shell 自身 DevTools 热键（optimizer 原 prod 拦截项）
-    const isShellDevToolsHotkey =
-      input.code === 'KeyI' && ((input.alt && input.meta) || (input.control && input.shift))
-    if (isCmdCtrlR || isF5 || isShellDevToolsHotkey) {
-      event.preventDefault()
-    }
-  })
+  // 防误刷新守卫（AGENTS.md 坑点闭环，实现与完整说明在 inputGuard.ts——独立窗口同规则
+  // 共用，L1 定案抽取）：F12 已归产品语义（唤起会话 DevTools），本层不做 F12/ESC 处理
+  //（页面侧在 manager 的 before-input-event，shell 侧在 renderer keydown）
+  installShellInputGuard(win.webContents)
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // 主窗口销毁（macOS 关窗）即置空显式引用：getWindow('main')/定向推送此后自然跳过；
+  // 重开由 activate → createWindow 重建并回填
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
 
   // macOS 关窗重开场景：重挂当前激活会话的 view 到新窗口（注册表路由到激活 manager；
   // 首次创建窗口时尚无激活会话，注册表内自然 no-op）
@@ -177,11 +166,29 @@ app.whenReady().then(async () => {
   // 中文应用菜单：先于窗口创建安装，mac 菜单栏首帧即为中文且无冲突加速键
   installChineseMenu()
 
-  // 会话浏览器注册表：每会话一个独立分区（persist:sess-<id>）的 TabManager，命令一律
-  // 路由到当前激活会话的 manager（ipc.ts 守卫后委托），会话运行状态（idle/loading）在
-  // 注册表内聚合；窗口引用一律现取不缓存（macOS 关窗重建场景）
-  const getMainWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
-  const created = createSessionBrowserRegistry({ getWindow: getMainWindow })
+  // 独立窗口登记表先建（其回调经模块级 registry 晚绑定触达——创建期 registry 尚为
+  // null，回调只会在用户交互（tear-off 建窗）后触发）：ready-to-show 挂 view（防
+  // 白屏）、closed 级联销毁该窗口作用域 Tab
+  const independentWindows = createIndependentWindows({
+    getBackgroundColor: () =>
+      getAppearanceBackgroundColor(appearanceController.getSnapshot().resolvedTheme),
+    onWindowReady: (sessionId: string, windowId: string): void => {
+      registry?.onIndependentWindowReady(sessionId, windowId)
+    },
+    onWindowClosed: (sessionId: string, windowId: string): void => {
+      registry?.onIndependentWindowClosed(sessionId, windowId)
+    }
+  })
+
+  // 会话浏览器注册表：每会话一个独立分区（persist:sess-<id>）的 TabManager，命令按
+  // 来源窗口作用域路由（ipc.ts 经 resolveSenderScope 解析后委托），会话运行状态
+  //（idle/loading）在注册表内聚合；宿主窗口解析：'main' → 主窗口显式引用，独立窗口
+  // → 登记表现取（一律不缓存，macOS 关窗重建场景）
+  const created = createSessionBrowserRegistry({
+    getWindow: (windowId: string): BrowserWindow | null =>
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
+    windows: independentWindows
+  })
   registry = created
 
   // IPC handlers 须在窗口创建前就绪（renderer 首帧即可调用）：浏览器命令经 ipc.ts 路由
@@ -189,7 +196,7 @@ app.whenReady().then(async () => {
   // 切换会话即切换浏览器（视图交换保活），删除先级联切换再异步销毁清分区，
   // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
   // 批量关闭（一次切空态 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
-  registerBrowserIpc(created, getMainWindow)
+  registerBrowserIpc(created, { getMainWindow: () => mainWindow, windows: independentWindows })
   registerAppearanceIpc(appearanceController)
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
@@ -208,6 +215,11 @@ app.whenReady().then(async () => {
       void created.destroySession(id).catch((error: unknown) => {
         console.warn(`[main] 销毁会话 ${id} 失败:`, error)
       })
+    },
+    // rename 落盘成功后同步该会话全部独立窗口标题（窗口标题与会话名严格同源；
+    // clamp 后的实际落盘名由 sessions.ts 传入，无 renderer 侧乐观标题）
+    onRenamed: (id: string, name: string): void => {
+      independentWindows.setTitleForSession(id, name)
     },
     getStatuses: (): SessionStatusesPayload => created.getStatuses(),
     // 克隆：分区数据复制全在 registry 内完成（关闭源 webContents 收尾活库 → 排除缓存
@@ -229,10 +241,10 @@ app.whenReady().then(async () => {
   })
 
   // 会话状态推送：注册表聚合的全量状态 map 直连主窗口（status-changed 通道不经
-  // sessions.ts，对齐 browser 侧 stateChanged 由 ipc.ts 接线的分工）；窗口引用现取
-  // 不缓存，无窗口（macOS 关窗期间）时静默跳过
+  // sessions.ts，对齐 browser 侧 stateChanged 由 ipc.ts 接线的分工；会话面板只在主
+  // 窗口）；窗口引用现取不缓存，无窗口（macOS 关窗期间）时静默跳过
   created.onSessionStatus((payload) => {
-    getMainWindow()?.webContents.send(SESSIONS_CHANNELS.statusChanged, payload)
+    mainWindow?.webContents.send(SESSIONS_CHANNELS.statusChanged, payload)
   })
 
   createWindow()
@@ -248,15 +260,22 @@ app.whenReady().then(async () => {
     .catch(() => undefined)
 
   // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl）：导航后 500ms 内 Cmd+Q 会丢最后一次
-  // 上报，重启恢复到上上次页面。写盘异步，属尽力而为（小 JSON 通常毫秒级完成于进程退出前）
+  // 上报，重启恢复到上上次页面。写盘异步，属尽力而为（小 JSON 通常毫秒级完成于进程退出前）。
+  // 顺序口径（步骤 5 收口核对）：先关全部独立窗口再冲刷。二者无数据依赖——上报只绑
+  // 'main' 作用域快照（独立窗 Tab 不上报，registry 接线定案），关窗级联发出的非 main
+  // 快照不触发上报；级联若在冲刷之后才发出 main 快照，其内容也与冲刷值相同
+  //（destroyTabsInWindow 不触碰 main 作用域的 Tab），迟到重写无数据损失。先关窗只为
+  // 尽早开始页面卸载，让退出更快
   app.on('before-quit', () => {
+    independentWindows.closeAll()
     registry?.flushPendingReports()
   })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    // 判据用主窗口显式引用而非 getAllWindows()：独立窗口存活时后者非空，会漏重建主窗口
+    if (!mainWindow) createWindow()
   })
 })
 

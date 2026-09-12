@@ -56,11 +56,28 @@ export function summarize(data: unknown): string {
   return text.length > MAX ? `${text.slice(0, MAX)}...(截断，总长 ${text.length})` : text
 }
 
-/** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + 入参摘要）后原样 rethrow。
- * 适用于同步 handler（browser 域全部如此）；sessions 等异步域迁移时需自行包 catch。 */
+/** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + 入参摘要）后原样 rethrow */
 export function logFailure<T>(channel: string, payload: unknown, run: () => T, tag = 'browser'): T {
   try {
     return run()
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn(`[${tag}] ${channel} 失败: ${message} payload=${summarize(payload)}`)
+    throw err
+  }
+}
+
+/** 异步 handler 版（L5 定案并入）：Promise reject 同样走 warn 日志后原样 rethrow——
+ * 同步版 try/catch 捕不到返回 Promise 的 run 的异步失败，异步命令（如 tear-off 读盘
+ * 取会话名）必须走本包裹 */
+export async function logFailureAsync<T>(
+  channel: string,
+  payload: unknown,
+  run: () => Promise<T>,
+  tag = 'browser'
+): Promise<T> {
+  try {
+    return await run()
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     console.warn(`[${tag}] ${channel} 失败: ${message} payload=${summarize(payload)}`)
