@@ -164,6 +164,17 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
+  // macOS dock 图标：dev 模式跑的是裸 Electron 二进制（bundle 内为默认图标，打包产物
+  // 的 icns 不参与），运行时显式设置让 dev 与打包态一致；非 darwin 无此 API（窗口
+  // 图标由上方 linux 的 icon 选项 / Windows 的 exe 资源承担）
+  if (process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(icon)
+    } catch (error) {
+      console.warn('[main] 设置 dock 图标失败（不影响功能）:', error)
+    }
+  }
+
   // 外观偏好必须在首个窗口创建前完成加载并应用。appearance.init 内部会将任何
   // 读取、校验或应用异常回退为“跟随系统”，不会阻断既有会话恢复与窗口创建。
   await appearanceController.init()

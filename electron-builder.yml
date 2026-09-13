@@ -5,10 +5,12 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!electron.vite.config.{js,ts,mjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # logo 设计源稿（icon.png 已由其生成）：仅入库存档，不随包分发（asarUnpack resources/** 的排除项）
+  - '!resources/logo-*.png'
 asarUnpack:
   - resources/**
 win:
