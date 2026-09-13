@@ -49,6 +49,10 @@
   /* 拖拽落点高亮（阶段 9，Tab 栏层）：tabbar 叠 16% ink 蒙版的合成色（比按压态
      再深一档，落点信号须强于普通悬停），灰阶语义，琥珀不进右侧 */
   --chrome-tabbar-drag-target: #c4c7cc;
+  /* 拖拽插入指示线（阶段 10，Tab 栏层）：墨级灰阶线，与 --chrome-ink 同值源但语义
+     分开命名（先例：--loading 与 --amber 同值异名）——须从常态 tabbar 与 drag-target
+     高亮底上双双立得住 */
+  --chrome-tab-insert: #3c4043;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,6 +94,8 @@
     --chrome-error: #f28b82;
     /* 拖拽落点高亮 · 暗：tabbar 叠 18% 亮墨蒙版的合成色（与亮色档位对齐的一档抬升） */
     --chrome-tabbar-drag-target: #444548;
+    /* 拖拽插入指示线 · 暗：同值源亮墨（drag-target 底 #444548 上清晰可读） */
+    --chrome-tab-insert: #e8eaed;
   }
 }
 
@@ -670,6 +676,8 @@ body.col-resizing {
   height: 36px;
   padding: 6px 10px 0;
   background: var(--chrome-tabbar);
+  /* 插入指示竖线（阶段 10）的绝对定位锚；不影响弹层锚——那由 .browser-frame 承担 */
+  position: relative;
   /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
   transition: background-color 0.12s ease;
 }
@@ -822,6 +830,22 @@ img.chrome-tab-favicon {
    此处」；灰阶语义 token（--chrome-tabbar-drag-target），琥珀不进右侧 */
 .chrome-tabs.drag-target {
   background: var(--chrome-tabbar-drag-target);
+}
+
+/* 拖拽插入指示竖线（阶段 10）：标示被拖 Tab 将落入的位次。单元素绝对定位位移——
+   不进列表流、不推挤 Tab、不参与手势命中（pointer-events 关闭），与既有三态
+   （drag-target 高亮 / dragging 半透明 / drag-rejected 回弹）零叠加冲突；2px 墨级
+   灰阶线、无阴影；上缘齐 Tab 顶（6px = Tab 栏 padding-top）、下缘齐 Tab 栏底，
+   全高恰为 Tab 的 30px；left 由 TabStrip 按中点判定写入（邻接 Tab 边界中点），
+   margin 负半宽让线心对齐边界；显隐瞬切不设过渡——插入位本就随光标离散跳变 */
+.chrome-tab-insert {
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--chrome-tab-insert);
+  pointer-events: none;
 }
 
 /* 拖拽中的源 Tab：半透明示意「已随光标离手」，瞬态随手势起止置撤；不引入新色，

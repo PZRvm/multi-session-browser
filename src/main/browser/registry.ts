@@ -26,7 +26,7 @@ import {
   type TabManager,
   type TearOffTabManager
 } from './manager'
-import { createSessionPersistence } from './persistence'
+import { createSessionPersistence, type RestoreSet } from './persistence'
 import { logLoadFailure } from './url'
 import type { IndependentWindows } from './windows'
 
@@ -100,14 +100,25 @@ export interface SessionBrowserRegistry extends TabManager {
    * 移入 target 窗口（activate 收尾防双 view 叠加，见 manager.moveTabToWindow）。
    * 强校验不留宽容路径：Tab 须属 source 作用域、target 须与 source 同会话——
    * target 为 'main' 时要求当前激活会话相符，独立窗口要求其绑定会话相符，异会话抛
-   * 中文错误（拒绝判定在拖拽控制器按命中集预判，本接口兜底防竞态）。双侧作用域快照
-   * 经 emitChange 自动分发，无返回值
+   * 中文错误（拒绝判定在拖拽控制器按命中集预判，本接口兜底防竞态）。insertIndex 按
+   * 目标窗作用域 Tab 序列计（阶段 10 按位插入），透传 manager（缺省 = 末位）。
+   * 双侧作用域快照经 emitChange 自动分发，无返回值
    */
-  moveTabToWindow(id: string, sourceWindowId: string, targetWindowId: string): void
+  moveTabToWindow(
+    id: string,
+    sourceWindowId: string,
+    targetWindowId: string,
+    insertIndex?: number
+  ): void
   /** 当前激活会话 id（拖拽命中主窗口的判据：主窗激活会话 = 拖拽会话，PRD 3.6.2） */
   getActiveSessionId(): string | null
   /**
-   * sender 作用域解析（14 条命令通道的统一入口守卫，ipc 装配用）：主窗口来源 →
+   * 该会话恢复集缓存（persistence 直通只读，阶段 10 克隆接线）：closeSession 冲刷前置
+   * 后该缓存即「关闭发起时刻的完整归并集」，克隆元数据复制取此值不重读盘
+   */
+  getRestoreSet(id: string): RestoreSet | undefined
+  /**
+   * sender 作用域解析（15 条命令通道的统一入口守卫，ipc 装配用）：主窗口来源 →
    * 激活会话的 'main' 作用域；独立窗口来源 → windows.ts 登记的绑定会话的该窗口作用域；
    * 未知窗口/已销毁/绑定会话已不在注册表一律抛中文错误（契约点 3）
    */
@@ -135,8 +146,8 @@ export interface SessionBrowserRegistry extends TabManager {
   onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void
   /** 当前全量状态 map 的同步快照（sessions:get-statuses 拉取通道的数据源，兜底启动期推送竞态） */
   getStatuses(): SessionStatusesPayload
-  /** 退出前冲刷全部待写的上报去抖（index.ts 的 before-quit 钩子调用；写盘异步，尽力而为） */
-  flushPendingReports(): void
+  /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
+  flushPendingReports(): Promise<void>
 }
 
 export function createSessionBrowserRegistry(deps: {
@@ -157,11 +168,20 @@ export function createSessionBrowserRegistry(deps: {
   let globalBounds: SetBoundsPayload | null = null
   /**
    * 持久化上报与恢复集（阶段 6 自本文件抽出为 browser/persistence.ts，复审 L7 定案）：
-   * 写侧去抖落盘与读侧恢复集缓存的唯一事实源，本文件只做生命周期编排
+   * 写侧去抖落盘与读侧恢复集缓存的唯一事实源，本文件只做生命周期编排。阶段 10 起落盘
+   * 为归并口径，经 listSessionSnapshots 枚举该会话全部作用域快照（主窗在先 + 独立窗
+   * 创建序）交 persistence 组合
    */
   const persistence = createSessionPersistence({
     hasManager: (id) => managers.has(id),
-    getSnapshotById: (id) => managers.get(id)?.getSnapshot() ?? null
+    listSessionSnapshots: (id): BrowserSnapshot[] | null => {
+      const manager = managers.get(id)
+      if (!manager) return null
+      return [
+        manager.getSnapshot(WINDOW_ID_MAIN),
+        ...windows.listForSession(id).map((entry) => manager.getSnapshot(entry.windowId))
+      ]
+    }
   })
 
   /** init 已被显式切换（switchSession/destroySession）打断即不再补做启动恢复 */
@@ -338,16 +358,15 @@ export function createSessionBrowserRegistry(deps: {
     // 丢弃防串台，既有行为；独立窗口作用域快照一律放行，ipc 按 windowId 定向——其
     // 绑定会话相对主窗口可能"后台"，但对那个窗口而言永远是前台）；
     // ② 状态聚合对全部作用域生效（后台会话的真实加载态如实驱动，不造假）；
-    // ③ 持久化上报只绑 'main' 作用域快照（计划 2.3 数据原则：独立窗口 Tab 不参与
-    // 落盘，过渡期事实，阶段 10 归并收口）；④ 独立窗口作用域清空 → 收口关窗
+    // ③ 持久化上报由该会话任一作用域快照触发（阶段 10 归并口径放开：recordSnapshot
+    // 内部经 listSessionSnapshots 重算「主窗在先 + 独立窗创建序」归并视图——独立窗
+    // 的 Tab 增删/导航/关窗级联收缩均如实驱动落盘）；④ 独立窗口作用域清空 → 收口关窗
     manager.onSnapshotChanged((snapshot) => {
       if (snapshot.windowId !== WINDOW_ID_MAIN || snapshot.sessionId === activeSessionId) {
         for (const cb of snapshotListeners) cb(snapshot)
       }
       setStatus(id, snapshot.tabs.some((tab) => tab.loading) ? 'loading' : 'idle')
-      if (snapshot.windowId === WINDOW_ID_MAIN) {
-        persistence.recordSnapshot(id, snapshot)
-      }
+      persistence.recordSnapshot(id)
       // 「窗口应销毁」信号取快照监听形态（设计取舍：closeTab 与 tear-off 两条清空
       // 路径一处收口，免为两处返回值扩签名；'main' 作用域空态合法，永不触发关窗）
       if (snapshot.windowId !== WINDOW_ID_MAIN && snapshot.tabs.length === 0) {
@@ -497,21 +516,28 @@ export function createSessionBrowserRegistry(deps: {
    * 摘除（reported/状态条目/去抖定时器一并清掉），下次激活该会话由 ensureManager 懒创建
    * 并按 restoreSets 缓存重载恢复集。被关的是激活会话时只摘 view、置空激活标记，
    * **不**切空态**不**广播空态快照——克隆完成后 renderer 的 setActive(新会话) 接管画面，
-   * 全程只切一次，避免中间空态闪烁。manager 不存在（从未激活过或已关闭）时 no-op resolve
+   * 全程只切一次，避免中间空态闪烁。manager 不存在（从未激活过或已关闭）时 no-op
+   * resolve（窗口级联照走——克隆前源会话独立窗口全关的收口不依赖 manager 存在）
    */
   async function closeSession(id: string): Promise<void> {
-    // 入口先关该会话全部独立窗壳（步骤 5 会话级联，时序口径同 destroySession 内注释）；
+    const manager = managers.get(id)
+    if (manager) {
+      // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
+      // manager，让随后的分区复制重新落入"活库"状态
+      initHandled = true
+      // 冲刷前置（阶段 10 时序翻转，契约点 4）：settleSession 在关窗级联之前——此刻
+      // 独立窗全部存活，flushReport 捕获完整归并集（克隆恢复集语义 = 关闭发起时刻的
+      // 归并快照）。关窗级联发生在下方 managers.delete 之后，flushReport 的
+      // listSessionSnapshots 判据已摘空（manager 不在注册表返回 null），级联收缩不会
+      // 再抢写缩水列表
+      // await：克隆随后读 restoreSets 缓存，冲刷写盘与缓存前移须先落定（审查 B）
+      await persistence.settleSession(id)
+    }
+    // 入口关该会话全部独立窗壳（步骤 5 会话级联，时序口径同 destroySession 内注释）；
     // clonePartition 经此入口调用天然覆盖——克隆前源会话独立窗口全关，窗内页面不再写入
     // 分区，复制不落入活库。manager 不存在（无窗可关）时此调用本身即 no-op
     windows.closeAllForSession(id)
-    const manager = managers.get(id)
     if (!manager) return
-    // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
-    // manager，让随后的分区复制重新落入"活库"状态
-    initHandled = true
-    // 摘引用前先冲刷该会话待写的上报去抖（settleSession 以缓存存在性为守卫依据，须在
-    // 摘除前调用）：关后随即复制分区与元数据，pageTitle/lastUrl/tabs 取关前最新值落盘
-    persistence.settleSession(id)
     managers.delete(id)
     // 恢复集保留（settleSession 的分叉点）：该会话仍在落盘元数据里存活，
     // 下次激活须按恢复集重载（PRD 3.1.4 恢复语义，计划用例 A 的"源会话切回重载"）
@@ -716,13 +742,33 @@ export function createSessionBrowserRegistry(deps: {
     return scopedManager(windowId)?.getSnapshot(windowId) ?? emptySnapshot()
   }
 
+  /**
+   * tearOffTab / moveTabToWindow 共享的作用域解析前导（L2 收敛，阶段 10 顺手抽取）：
+   * sessionId 解析（'main' → 激活会话；独立窗 → 登记表绑定会话）+ manager 存在性 +
+   * Tab 存在性三段，任一失败抛中文错误；返回 sessionId 供建窗/同会话校验续用
+   */
+  function requireScopeForTab(
+    id: string,
+    windowId: string
+  ): { sessionId: string; manager: TearOffTabManager } {
+    const sessionId = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+    if (sessionId === null) throw new Error('未选择会话')
+    const manager = managers.get(sessionId)
+    if (!manager) throw new Error('会话已不可用')
+    if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
+      throw new Error('标签页不存在')
+    }
+    return { sessionId, manager }
+  }
+
   async function tearOffTab(
     id: string,
     windowId: string = WINDOW_ID_MAIN,
     at?: { x?: number; y?: number }
   ): Promise<BrowserSnapshot> {
-    const sessionId = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
-    if (sessionId === null) throw new Error('未选择会话')
+    // 前导先行一次（L2 共享段）：会话解析供标题读取用；Tab 存在性提前到此与旧时点
+    //（读盘 await 之后）等价——拖拽路径的 dragStart 侧已守卫过存在性，此处防内部误用
+    const { sessionId } = requireScopeForTab(id, windowId)
     // 建窗标题=会话名（与会话名严格同源，不做乐观标题）：会话元数据只在落盘（store.ts），
     // 读盘异步——先读再建窗，期间被移出的 Tab 仍挂源窗口、用户无感；读不到回退占位
     // 标题，不阻断 tear-off 主流程（标题随后续重命名经 setTitleForSession 同步）
@@ -734,38 +780,36 @@ export function createSessionBrowserRegistry(deps: {
     } catch {
       // loadSnapshot 坏数据自回退不 reject，此处仅兜底 fs 层异常
     }
-    // await 间隙事件循环让位、状态可能已变（会话被销毁/关闭、Tab 已被关闭）：建窗前
-    // 重验，失效即抛中文错误（窗尚未建，无需回滚）
-    const manager = managers.get(sessionId)
-    if (!manager) throw new Error('会话已不可用')
-    if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
-      throw new Error('标签页不存在')
-    }
-    const created = windows.createWindow(sessionId, title, at)
-    return manager.tearOffTab(id, windowId, created.windowId)
+    // await 间隙事件循环让位、状态可能已变（会话被销毁/关闭、Tab 已被关闭）：建窗前重走
+    // 共享前导重验三段，失效即抛中文错误（窗尚未建，无需回滚）；建窗绑定以后一次解析
+    // 结果为准（与前导校验通过的作用域恒一致）
+    const resolved = requireScopeForTab(id, windowId)
+    const created = windows.createWindow(resolved.sessionId, title, at)
+    return resolved.manager.tearOffTab(id, windowId, created.windowId)
   }
 
-  function moveTabToWindow(id: string, sourceWindowId: string, targetWindowId: string): void {
-    // 作用域 → 会话：与 tearOffTab 同一解析口径（'main' → 激活会话；独立窗 → 绑定会话）
-    const sessionId =
-      sourceWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(sourceWindowId)
-    if (sessionId === null) throw new Error('未选择会话')
-    const manager = managers.get(sessionId)
-    if (!manager) throw new Error('会话已不可用')
-    if (!manager.getSnapshot(sourceWindowId).tabs.some((tab) => tab.id === id)) {
-      throw new Error('标签页不存在')
-    }
+  function moveTabToWindow(
+    id: string,
+    sourceWindowId: string,
+    targetWindowId: string,
+    insertIndex?: number
+  ): void {
+    const { sessionId, manager } = requireScopeForTab(id, sourceWindowId)
     // 目标窗同会话强校验（拒绝判定已在拖拽控制器按命中集预判，此处兜底拦截竞态与
     // 内部误用——异会话一律拒绝，无任何宽容路径，计划 2.2 定案）
     if (targetWindowId === sourceWindowId) throw new Error('目标窗口与源窗口相同')
     const targetSessionId =
       targetWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(targetWindowId)
     if (targetSessionId !== sessionId) throw new Error('目标窗口不属于该会话，拒绝转移')
-    manager.moveTabToWindow(id, sourceWindowId, targetWindowId)
+    manager.moveTabToWindow(id, sourceWindowId, targetWindowId, insertIndex)
   }
 
   function getActiveSessionId(): string | null {
     return activeSessionId
+  }
+
+  function getRestoreSet(id: string): RestoreSet | undefined {
+    return persistence.getRestore(id)
   }
 
   function resolveSenderScope(sender: WebContents): SenderWindowScope {
@@ -811,9 +855,9 @@ export function createSessionBrowserRegistry(deps: {
     return () => statusListeners.delete(cb)
   }
 
-  /** 退出前冲刷全部待写的上报去抖（index.ts 的 before-quit 钩子调用；委托持久化模块） */
-  function flushPendingReports(): void {
-    persistence.flushAll()
+  /** 退出前冲刷全部待写的上报去抖并封笔（index.ts 的 before-quit 钩子调用；委托持久化模块，返回在途写盘汇合） */
+  function flushPendingReports(): Promise<void> {
+    return persistence.flushAll()
   }
 
   function getStatuses(): SessionStatusesPayload {
@@ -831,6 +875,7 @@ export function createSessionBrowserRegistry(deps: {
     tearOffTab,
     moveTabToWindow,
     getActiveSessionId,
+    getRestoreSet,
     resolveSenderScope,
     onIndependentWindowReady,
     onIndependentWindowClosed,

@@ -79,7 +79,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
   }, [])
 
   /** 拖拽收尾（pointerup / 取消 / Esc 放回共用）：摘 Esc 监听 → 复位手势态 → 上报落点取裁决 */
-  const finishDrag = (screenX: number, screenY: number): void => {
+  const finishDrag = (screenX: number, screenY: number, canceled = false): void => {
     const g = gestureRef.current
     if (g.mode !== 'dragging') return
     g.mode = 'idle'
@@ -90,7 +90,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
     }
     // 落点为屏幕坐标（DIP，与主进程窗口 bounds 同系）；本地拖拽态清理由
     // store.dragEnd 的 finally 兜底（含 IPC 失败路径）
-    void dragEnd(tab.id, screenX, screenY).then((outcome) => {
+    void dragEnd(tab.id, screenX, screenY, canceled).then((outcome) => {
       if (outcome === 'rejected') {
         // 异会话释放被拒：源 Tab 原位回弹（右侧唯一允许的位移动效）；
         // animationend 移除动画类，计时器兜底动画事件缺席的场景（如合成测试）
@@ -128,7 +128,8 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
       if (ev.key !== 'Escape') return
       ev.preventDefault()
       ev.stopPropagation()
-      finishDrag(window.screenX + 100, window.screenY + 100)
+      // canceled 显式携带（阶段 10 修订）：坐标假想点在源窗与他窗重叠时会误命中他窗
+      finishDrag(window.screenX + 100, window.screenY + 100, true)
     }
     escCancelRef.current = onEsc
     document.addEventListener('keydown', onEsc, true)
@@ -265,6 +266,78 @@ function TabStrip(): React.JSX.Element {
   // 命中即整条 Tab 栏高亮——可落的是整窗，Tab 栏是 app 在窗顶的自有可视面
   const dragTarget = useBrowserStore((s) => s.hoverWindowId === windowIdentity.windowId)
 
+  // 拖拽插入指示器（阶段 10）：悬停落点本窗时按光标对各 Tab 中点判定插入位
+  // （0..tabs.length）。指示器是单元素绝对定位位移——不进列表流、不推挤 Tab、
+  // pointer-events 关闭不参与手势命中；位置更新经 store 直订阅驱动，16ms 悬停
+  // 推送不进 React 渲染通道；插入位变化才上报 dragInsert hint（尽力而为，失败
+  // 静默丢弃，主进程末位回退兜底）
+  const tabsElRef = useRef<HTMLDivElement | null>(null)
+  const insertElRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const container = tabsElRef.current
+    const indicator = insertElRef.current
+    if (!container || !indicator) return
+    // 上次已上报的插入位：仅变化时发 IPC；隐藏即复位——再悬停即使同位也须重报
+    //（主进程在悬停窗切换时已清 hint）
+    let reportedIndex: number | null = null
+    const hide = (): void => {
+      indicator.hidden = true
+      reportedIndex = null
+    }
+    const unsubscribe = useBrowserStore.subscribe((state, prev) => {
+      // 悬停瞬态字段全未变（快照等其他 set）时跳过测量
+      if (
+        state.hoverWindowId === prev.hoverWindowId &&
+        state.dragCursorX === prev.dragCursorX &&
+        state.dragHoverTabId === prev.dragHoverTabId
+      ) {
+        return
+      }
+      const cursorX = state.dragCursorX
+      const dragTabId = state.dragHoverTabId
+      const hovering = state.hoverWindowId === windowIdentity.windowId
+      if (!hovering || cursorX === null || dragTabId === null) {
+        if (reportedIndex !== null) hide()
+        return
+      }
+      const tabEls = container.querySelectorAll<HTMLElement>(':scope > .chrome-tab')
+      // 0-Tab 目标窗无锚可依：不指示不上报（末位 = 0 位，主进程回退同结果）
+      if (tabEls.length === 0) {
+        if (reportedIndex !== null) hide()
+        return
+      }
+      // 中点判定：光标落在首个中点之前的 Tab 前；越过全部中点即末位
+      const rects = Array.from(tabEls, (el) => el.getBoundingClientRect())
+      let index = rects.length
+      for (let i = 0; i < rects.length; i++) {
+        if (cursorX < rects[i].left + rects[i].width / 2) {
+          index = i
+          break
+        }
+      }
+      if (index === reportedIndex) return
+      reportedIndex = index
+      // 竖线落邻接 Tab 边界中点（两端外移半间隙）；光标坐标为窗口内容坐标（DIP），
+      // 与 getBoundingClientRect 同基线；容器无 border，border box 原点即定位原点
+      const halfGap = 2
+      const barX = container.getBoundingClientRect().left
+      const boundary =
+        index === 0
+          ? rects[0].left - halfGap
+          : index === rects.length
+            ? rects[rects.length - 1].right + halfGap
+            : (rects[index - 1].right + rects[index].left) / 2
+      indicator.hidden = false
+      indicator.style.left = `${boundary - barX}px`
+      window.api.browser.dragInsert({ tabId: dragTabId, index }).catch(() => {})
+    })
+    return () => {
+      unsubscribe()
+      // 卸载清指示器（DOM 随组件销毁，此处复位隐藏态兜底）
+      indicator.hidden = true
+    }
+  }, [])
+
   // 「最后留一」仅是主窗口作用域规则（主进程同 no-op，此处只管视觉与可点性）；
   // 独立窗口允许关闭最后一个 Tab——关掉即销毁窗口（契约：阶段 7—8 计划第 3 节点 5），
   // tear-off 不受最后留一限制（主窗口可至 0 Tab，阶段 9 拖拽手势可达）
@@ -272,6 +345,7 @@ function TabStrip(): React.JSX.Element {
 
   return (
     <div
+      ref={tabsElRef}
       className={`chrome-tabs${dragTarget ? ' drag-target' : ''}`}
       role="tablist"
       aria-label="浏览器标签页"
@@ -279,6 +353,8 @@ function TabStrip(): React.JSX.Element {
       {tabs.map((tab) => (
         <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} lastOne={lastOne} />
       ))}
+      {/* 插入指示竖线：纯视觉元素（不进可达树），显隐与位置由上方 effect 写入 */}
+      <div className="chrome-tab-insert" ref={insertElRef} hidden aria-hidden="true" />
       <button
         type="button"
         className="chrome-newtab"

@@ -157,6 +157,9 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
+/** 毫秒等待（退出防丢的写盘等待上限用；模块级纯计时器） */
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
@@ -204,8 +207,13 @@ app.whenReady().then(async () => {
     getActiveSessionId: (): string | null => created.getActiveSessionId(),
     isTabInScope: (tabId: string, windowId: string): boolean =>
       created.getSnapshot(windowId).tabs.some((tab) => tab.id === tabId),
-    moveTabToWindow: (tabId: string, sourceWindowId: string, targetWindowId: string): void => {
-      created.moveTabToWindow(tabId, sourceWindowId, targetWindowId)
+    moveTabToWindow: (
+      tabId: string,
+      sourceWindowId: string,
+      targetWindowId: string,
+      insertIndex?: number
+    ): void => {
+      created.moveTabToWindow(tabId, sourceWindowId, targetWindowId, insertIndex)
     },
     tearOffAt: (tabId: string, sourceWindowId: string, at: { x: number; y: number }) =>
       created.tearOffTab(tabId, sourceWindowId, at).then(() => undefined),
@@ -251,6 +259,10 @@ app.whenReady().then(async () => {
     // 目录递归复制 → 失败清目标残留上抛）；失败上抛即不落元数据，renderer 乐观态回滚
     clonePartition: (srcId: string, dstId: string): Promise<void> =>
       created.clonePartition(srcId, dstId),
+    // 克隆恢复集取 settle 时点缓存（阶段 10）：closeSession 冲刷前置后 persistence 缓存
+    // 即「关闭发起时刻的完整归并集」，clone 元数据复制不重读盘（关窗级联窗口期的落盘
+    // 重写不再影响克隆产物）
+    getRestoreSet: (srcId: string) => created.getRestoreSet(srcId),
     // 批量关闭全部：一次切空态（同步摘 view、广播空态快照）再逐会话异步销毁清分区
     // （N 次逐条切换不可取——主进程一次切空 + 并行销毁，计划契约点 3 定案）
     onAllDeleted: (ids: string[]): void => {
@@ -284,16 +296,39 @@ app.whenReady().then(async () => {
     })
     .catch(() => undefined)
 
-  // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl）：导航后 500ms 内 Cmd+Q 会丢最后一次
-  // 上报，重启恢复到上上次页面。写盘异步，属尽力而为（小 JSON 通常毫秒级完成于进程退出前）。
-  // 顺序口径（步骤 5 收口核对）：先关全部独立窗口再冲刷。二者无数据依赖——上报只绑
-  // 'main' 作用域快照（独立窗 Tab 不上报，registry 接线定案），关窗级联发出的非 main
-  // 快照不触发上报；级联若在冲刷之后才发出 main 快照，其内容也与冲刷值相同
-  //（destroyTabsInWindow 不触碰 main 作用域的 Tab），迟到重写无数据损失。先关窗只为
-  // 尽早开始页面卸载，让退出更快
-  app.on('before-quit', () => {
-    independentWindows.closeAll()
-    registry?.flushPendingReports()
+  // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl/tabs）并关全部独立窗口。
+  // 时序（阶段 10 翻转）：先冲刷（含封笔）后关窗——旧序「先关窗后冲刷」的前提
+  // 「上报只绑 'main' 作用域快照，关窗级联不触发上报」已随归并收口失效：归并后独立窗
+  // Tab 参与落盘，先关窗会让级联清空触发归并收缩、在去抖窗口内抢写缩水列表（独立窗
+  // Tab 退出丢失）；先冲刷此刻独立窗全部存活、捕获完整归并集，冲刷后封笔（sealed），
+  // 级联的收缩重算不再安排任何写盘。
+  // 退出防丢（阶段 10 修复轮 2）：冲刷的写盘是异步链，直接放行会在写落定前退进程——
+  // 撕出/导航后 500ms 去抖窗口内退出丢最后一次改动（实例实证）。preventDefault 拦下
+  // 首次退出，等全部在途写盘落定（1s 上限防 fs 挂死阻塞退出）再关窗真正退出；信号退出
+  // （SIGTERM——终止 dev 实例的常规形态）不触发 before-quit，统一转 app.quit() 走本链
+  let quitFlushStarted = false
+  let quitFlushSettled = false
+  const quitThroughFlush = (): void => {
+    // 在途去重：冲刷未落定期间的重复退出请求一律吞掉——放行判据是「已落定」而非
+    // 「已启动」（审查 A：连按 Cmd+Q/连发 SIGTERM 的第二次若按启动标志放行，会截断
+    // 在途写盘），落定后的统一 quit 才是唯一放行出口
+    if (quitFlushStarted) return
+    quitFlushStarted = true
+    void Promise.race([registry?.flushPendingReports() ?? Promise.resolve(), sleep(1000)])
+      .catch(() => undefined)
+      .then(() => {
+        quitFlushSettled = true
+        independentWindows.closeAll()
+        app.quit()
+      })
+  }
+  app.on('before-quit', (event) => {
+    if (quitFlushSettled) return // 冲刷落定后的真正退出，放行
+    event.preventDefault()
+    quitThroughFlush()
+  })
+  process.on('SIGTERM', () => {
+    app.quit()
   })
 
   app.on('activate', function () {

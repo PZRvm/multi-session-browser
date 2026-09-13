@@ -17,7 +17,8 @@ import {
   type OkResult,
   type SessionStatusesPayload,
   type SessionsSnapshot,
-  type StoredSession
+  type StoredSession,
+  type StoredTab
 } from '../shared/sessions'
 import { normalizeInput } from './browser/url'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
@@ -29,6 +30,9 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  * - onRenamed：rename 落盘成功后通知编排层同步该会话全部独立窗口标题（阶段 7—8）
  * - getStatuses：get-statuses 拉取通道的数据源（registry 状态聚合）
  * - clonePartition：clone 的分区数据复制（close-then-copy），失败上抛即不落元数据
+ * - getRestoreSet：源会话恢复集缓存（阶段 10）——clone 的 tabs/activeTabIndex 取
+ *   closeSession 冲刷（settle 时点）后的归并集缓存值，不重读盘；缓存未命中（源从未
+ *   激活过）返回 undefined，调用方回退落盘值
  * - onAllDeleted：deleteAll 落盘成功后通知编排层一次切空态 + 逐会话销毁清分区
  * - onBatchOpenUrl：batchOpenUrl 整单校验通过后通知编排层逐会话新建 Tab 加载
  */
@@ -39,6 +43,7 @@ interface SessionIpcDeps {
   onRenamed(id: string, name: string): void
   getStatuses(): SessionStatusesPayload
   clonePartition(srcId: string, dstId: string): Promise<void>
+  getRestoreSet(srcId: string): { tabs: StoredTab[]; activeTabIndex: number } | undefined
   onAllDeleted(ids: string[]): void
   onBatchOpenUrl(ids: string[], url: string): void
 }
@@ -223,8 +228,12 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         try {
           return await mutateSnapshot((data) => {
             // 取最新落盘的源条目复制元数据（closeSession 冲刷的上报可能刚更新 pageTitle/
-            // lastUrl）；源在复制期间被并发删除时退回校验时点的快照值（分区已复制完成）
+            // lastUrl）；源在复制期间被并发删除时退回校验时点的快照值（分区已复制完成）。
+            // 恢复集（tabs/activeTabIndex，阶段 10）取 settle 时点缓存值（getRestoreSet
+            // 注入——closeSession 冲刷前置后缓存即完整归并集时点值），不重读盘，关窗级联
+            // 窗口期的任何落盘重写都不影响克隆产物；缓存未命中（源从未激活过）回退落盘值
             const source = data.sessions.find((item) => item.id === srcId) ?? src
+            const restore = deps.getRestoreSet(srcId)
             const cloned: StoredSession = {
               id: newId,
               name: clampString(`${source.name} 副本`, NAME_MAX),
@@ -232,8 +241,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
               pageTitle: source.pageTitle,
               lastUrl: source.lastUrl,
               // 阶段 6：恢复集随元数据复制（克隆产物同款页面集，URL 级）
-              tabs: cloneTabs(source.tabs),
-              activeTabIndex: source.activeTabIndex
+              tabs: cloneTabs(restore ? restore.tabs : source.tabs),
+              activeTabIndex: restore ? restore.activeTabIndex : source.activeTabIndex
             }
             data.sessions.push(cloned)
             return cloned

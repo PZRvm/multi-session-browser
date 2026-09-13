@@ -1,6 +1,6 @@
 // 浏览器内嵌共享契约（主进程 / preload / renderer 三方共用）。
 // 修改本文件的类型或通道名前，必须先修订
-// notes/plans/20260913023538-阶段9拖出拖入手势开发计划.md 第 3 节。
+// notes/plans/20260913200109-阶段10跨窗口转移与生命周期收尾开发计划.md 第 3 节。
 //
 // 事实源约定：tab 列表与全部状态由主进程持有并推送，renderer 只是镜像；
 // tab id 由主进程生成（tab-<自增 seq>），renderer 不得自造。
@@ -13,7 +13,11 @@
 // 阶段 9 起：tear-off 的 renderer 入口随临时右键菜单退役（tear-off 的 IPC 通道已删，
 // 建窗/迁移编排下沉为主进程内部接口，由拖拽控制器复用）；新增拖拽手势通道
 // （tab-drag-start/end 命令 + tab-drag-hover 推送）——拖拽会话语义（单活动会话、
-// 坐标裁决不依赖 dropEffect、60 秒过期）冻结于上述计划第 3 节。
+// 坐标裁决不依赖 dropEffect、60 秒过期）冻结于阶段 9 计划第 3 节。
+// 阶段 10 起：拖入升级插入位精确定位（tab-drag-hover 推送可选携带悬停窗内容坐标、
+// tab-drag-insert 命令上报目标窗计算的插入位 hint，尽力而为语义——无 hint/陈旧一律
+// 回退末位追加）；落盘恢复集升级为全会话归并口径（主窗 Tab 在先 + 独立窗按创建序
+// 并入，退出/关窗时序语义见 browser/persistence.ts）。两口径冻结于上述计划第 3 节。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -33,6 +37,7 @@ export const BROWSER_CHANNELS = {
   closeDevTools: 'browser:close-devtools',
   dragStart: 'browser:tab-drag-start',
   dragEnd: 'browser:tab-drag-end',
+  dragInsert: 'browser:tab-drag-insert',
   stateChanged: 'browser:state-changed',
   focusAddress: 'browser:focus-address',
   dragHover: 'browser:tab-drag-hover'
@@ -112,23 +117,48 @@ export interface TabDragEndPayload {
   id: string
   screenX: number
   screenY: number
+  /**
+   * 显式取消（阶段 10 修订：Esc 放回）：源窗键盘 Esc 收尾携带 true，主进程一律
+   * stayed 清场——坐标假想点（源窗内偏移）在源窗与独立窗重叠时会同时命中他窗，
+   * 坐标裁决无法区分取消与释放（执行期实例实证）。与阶段 9「不读 dropEffect」
+   * 定案不冲突：那是推断不可靠，这是显式信号
+   */
+  canceled?: true
 }
 
 /**
  * 拖拽悬停推送（主进程 → 被拖 Tab 同会话的全部窗口广播）：各窗口与自身 windowId
  * 比对画高亮；hoverWindowId 为 null 表示无悬停或拖拽结束清态。异会话窗口不在
  * 广播集合内（发送侧已过滤）。
+ * 阶段 10 增可选 cursorX/cursorY：光标在悬停窗内容坐标系的位置（主进程以
+ * getContentBounds 原点起算的 DIP，与 renderer CSS px 同值）——仅 hoverWindowId
+ * 非 null 时携带，悬停落点本窗据此计算 Tab 条插入位；坐标取值失败（无边窗等）
+ * 省略字段，消费方按无坐标处理（只高亮不指示）。
  */
 export interface TabDragHoverPayload {
   sessionId: string
   tabId: string
   hoverWindowId: string | null
+  cursorX?: number
+  cursorY?: number
+}
+
+/**
+ * 拖入插入位上报（阶段 10，目标窗 → 主进程的尽力而为 hint 通道）：目标窗 renderer
+ * 在自身为悬停落点时按 TabStrip 布局计算插入位（0 = 最左，tabs.length = 末位之后），
+ * 仅 index 变化时上报。主进程缓存为 dragEnd 裁决 'moved-window' 的插入位；无上报 /
+ * 陈旧（悬停窗已切换）/ 会话不符一律回退末位追加——hint 不是命令语义，主进程守卫
+ * 不匹配时静默忽略返回 ok，不抛错。
+ */
+export interface TabDragInsertPayload {
+  tabId: string
+  index: number
 }
 
 /**
  * 拖拽释放裁决结果（dragEnd 命令返回值）：
  * - 'moved-new-window'：空白处释放，已建新独立窗口（落点附近定位）；
- * - 'moved-window'：并入同会话既有窗口（追加末位并激活）；
+ * - 'moved-window'：并入同会话既有窗口（按指示位插入并激活，无指示位时末位追加）；
  * - 'stayed'：原位不动（源窗上释放含 Escape、会话/Tab 已失效等零副作用场景）；
  * - 'rejected'：拒绝（异会话窗口或主窗激活会话不符），源 Tab 原位不丢，源窗回弹。
  */

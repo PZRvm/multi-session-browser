@@ -2,6 +2,9 @@
 // 轮询（约 16ms）驱动同会话窗口命中与悬停高亮推送（仅变化时经回调广播），dragEnd
 // 按上报屏幕坐标四态裁决——语义冻结于 notes/plans/20260913023538-阶段9拖出拖入手势
 // 开发计划.md 第 3 节契约点 3。
+// 阶段 10：悬停推送携带悬停窗内容坐标（cursorX/cursorY）；目标窗经 dragInsert 命令
+// 上报插入位 hint（setInsertHint 只存不验，匹配守卫在 ipc 层），moved-window 裁决按
+// hint 插入、无 hint / hint 异窗回退末位（契约点 1/3，阶段 10 计划第 3 节）。
 // 分层约束：不拼分区串（persist:sess-<id> 单源在 registry）、不碰持久化、不直接持有
 // WebContentsView——迁移一律经注入的 registry 原语（moveTabToWindow / tearOffAt）；
 // 悬停推送不在此发 IPC，经 onHoverChanged 回调交 ipc.ts 定向发送（同会话窗口全集，
@@ -22,6 +25,12 @@ import type { IndependentWindows } from './windows'
 
 /** 光标轮询间隔（约一帧）：拖拽期间唯一的高频工作，窗口期外不存在 */
 const POLL_INTERVAL_MS = 16
+/**
+ * 悬停窗内光标位移重发阈值：悬停窗不变但光标仍在窗内移动时（插入指示器须随光标
+ * 实时更新），位移超过此值即重发悬停推送（携带新 cursorX/cursorY）；静止时零流量。
+ * 值取 2px——低于人手抖动噪声、高于亚像素舍入误差
+ */
+const HOVER_CURSOR_EMIT_DELTA_PX = 2
 /** 拖拽会话过期时限：dragend 丢失（平台极端场景）时的轮询泄漏兜底，超时清态并告警 */
 const SESSION_EXPIRE_MS = 60_000
 /**
@@ -44,8 +53,17 @@ interface DragSession {
   sourceWindowId: string
   /** 最后一次轮询光标点（dragEnd 复检与陈旧上报的兜底坐标源；null = 尚无样本） */
   lastPolledPoint: { x: number; y: number } | null
-  /** 当前悬停窗（无悬停为 null）；仅变化时经回调广播 */
+  /** 当前悬停窗（无悬停为 null）；窗口变化时广播，窗内光标位移超阈值亦重发（见 pollOnce） */
   hoverWindowId: string | null
+  /** 最近一次悬停推送发出时的光标点（窗内位移重发的判据；null = 未发过） */
+  lastHoverCursor: { x: number; y: number } | null
+  /**
+   * 目标窗上报的插入位 hint（阶段 10，尽力而为瞬态）：只存不验（匹配守卫在 ipc 层
+   * ——sender 窗 = 当前悬停窗且 tabId 匹配）；悬停窗变化即清（新悬停窗的指示器上报前
+   * 回退末位）。收尾不清本字段——endSession 只摘 session 引用，dragEnd 的裁决在收场
+   * 之后仍需从该对象读取 hint，hint 随会话对象丢弃而一并消亡
+   */
+  insertHint: { windowId: string; index: number } | null
 }
 
 export interface TabDragController {
@@ -58,10 +76,20 @@ export interface TabDragController {
   dragEnd(p: {
     tabId: string
     sourceWindowId: string
+    /** 释放时来源窗口的会话绑定（ipc 层现解析）：与拖拽会话不符即 stayed——切会话/删会话 mid-drag 后 isTabInScope 会按当前激活 manager 查 id，跨会话 tab id 撞号会别名命中（阶段 10 实证） */
+    scopeSessionId: string | null
     screenX: number
     screenY: number
+    canceled?: boolean
   }): Promise<TabDragOutcome>
   onHoverChanged(cb: (p: TabDragHoverPayload) => void): () => void
+  /**
+   * 当前活动拖拽会话的悬停态（dragInsert 的 hint 匹配守卫用，ipc 层拉取）：无活动会话
+   * 返回 null；hoverWindowId 为 null = 无悬停（任何 hint 上报都不应匹配）
+   */
+  getDragHoverState(): { tabId: string; hoverWindowId: string | null } | null
+  /** 存储目标窗上报的插入位 hint（只存不验——守卫在 ipc 层；无活动会话时 no-op） */
+  setInsertHint(hint: { windowId: string; index: number } | null): void
 }
 
 export function createTabDragController(deps: {
@@ -73,7 +101,12 @@ export function createTabDragController(deps: {
    * 含该 Tab——本谓词天然覆盖契约点 f 的「会话 manager 仍在注册表」判据）
    */
   isTabInScope: (tabId: string, windowId: string) => boolean
-  moveTabToWindow: (tabId: string, sourceWindowId: string, targetWindowId: string) => void
+  moveTabToWindow: (
+    tabId: string,
+    sourceWindowId: string,
+    targetWindowId: string,
+    insertIndex?: number
+  ) => void
   tearOffAt: (tabId: string, sourceWindowId: string, at: { x: number; y: number }) => Promise<void>
   /** 跟随虚影窗（可选携带时 dragStart 建窗，轮询驱动跟随，收口统一销毁） */
   preview: DragPreview
@@ -95,11 +128,31 @@ export function createTabDragController(deps: {
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let expireTimer: ReturnType<typeof setTimeout> | null = null
 
+  /**
+   * 悬停推送：hoverWindowId 非 null 时对当前悬停窗计算光标内容坐标（getContentBounds
+   * 原点起算的 DIP，与 renderer CSS px 同值）——坐标随悬停窗计算一次（不是各广播目标
+   * 各算），广播桥接原样转发；取值失败（窗口已销毁/无边窗/getContentBounds 异常）静默
+   * 省略字段，消费方按无坐标处理（只高亮不指示）
+   */
   function emitHover(target: DragSession, hoverWindowId: string | null): void {
     const payload: TabDragHoverPayload = {
       sessionId: target.sessionId,
       tabId: target.tabId,
       hoverWindowId
+    }
+    const point = target.lastPolledPoint
+    if (hoverWindowId !== null && point) {
+      const win =
+        hoverWindowId === WINDOW_ID_MAIN ? getMainWindow() : windows.getWindowById(hoverWindowId)
+      try {
+        if (win && !win.isDestroyed()) {
+          const bounds = win.getContentBounds()
+          payload.cursorX = point.x - bounds.x
+          payload.cursorY = point.y - bounds.y
+        }
+      } catch {
+        // 极端窗口态下 getContentBounds 抛错：省略坐标，悬停高亮不受影响
+      }
     }
     for (const cb of hoverListeners) cb(payload)
   }
@@ -223,7 +276,8 @@ export function createTabDragController(deps: {
 
   /**
    * 命中窗口的裁决：源窗 → stayed（零副作用）；同会话窗（非源，含激活会话相符时的
-   * 主窗）→ moveTabToWindow 并入末位；异会话窗（含主窗激活会话不符）→ rejected
+   * 主窗）→ moveTabToWindow 按 hint 插入（hint 的 windowId 匹配命中窗才透传——悬停已
+   * 切走 / 无上报时 undefined = 末位）；异会话窗（含主窗激活会话不符）→ rejected
    * （零副作用，源 Tab 原位不丢）。迁移原语失败（与预判间的极端竞态）按 stayed 收场
    * 并如实告警——dragEnd 是收尾语义，不抛错
    */
@@ -231,7 +285,11 @@ export function createTabDragController(deps: {
     if (hit.windowId === active.sourceWindowId) return 'stayed'
     if (hit.sessionId !== active.sessionId) return 'rejected'
     try {
-      moveTabToWindow(active.tabId, active.sourceWindowId, hit.windowId)
+      const insertIndex =
+        active.insertHint !== null && active.insertHint.windowId === hit.windowId
+          ? active.insertHint.index
+          : undefined
+      moveTabToWindow(active.tabId, active.sourceWindowId, hit.windowId, insertIndex)
       return 'moved-window'
     } catch (error) {
       console.warn(`[dragging] 并入窗口 ${hit.windowId} 失败，Tab 保持原位:`, error)
@@ -272,7 +330,9 @@ export function createTabDragController(deps: {
       tabId: p.tabId,
       sourceWindowId: p.sourceWindowId,
       lastPolledPoint: null,
-      hoverWindowId: null
+      hoverWindowId: null,
+      lastHoverCursor: null,
+      insertHint: null
     }
     session = created
     // 轮询与过期定时器随会话成对建立（生命周期保证见文件头注释）
@@ -290,6 +350,9 @@ export function createTabDragController(deps: {
     const cursor = screen.getCursorScreenPoint()
     created.lastPolledPoint = { x: cursor.x, y: cursor.y }
     created.hoverWindowId = hoverWindowAt(created, created.lastPolledPoint)
+    // 初始广播即垫底 lastHoverCursor：初始悬停非 null 时，后续窗内位移的重发判据从
+    // 此基线起算（否则 pollOnce 的 null 早退会让指示器冻结在入窗位置）
+    created.lastHoverCursor = { x: cursor.x, y: cursor.y }
     emitHover(created, created.hoverWindowId)
     // 跟随虚影（可选）：锚定抓取点建窗，此后由轮询逐帧 moveTo（endSession 统一销毁）。
     // 建窗属纯视觉增强，极端资源态失败不阻断拖拽会话与命令成功——告警降级为无虚影
@@ -311,17 +374,32 @@ export function createTabDragController(deps: {
     active.lastPolledPoint = { x: cursor.x, y: cursor.y }
     preview.moveTo(active.lastPolledPoint)
     const hover = hoverWindowAt(active, active.lastPolledPoint)
-    // 仅悬停变化时广播（轮询 16ms 一帧，无变化广播会刷爆 IPC）
-    if (hover === active.hoverWindowId) return
+    // 悬停窗不变时：窗内光标位移超阈值才重发（插入指示器随光标更新，静止零流量）；
+    // 同窗重发不清插入位 hint——旧 hint 是该窗的最后已知位，优于无 hint 的末位回退
+    //（新 index 上报到达前的毫秒级窗口内，last-known 比回退更接近真实意图）
+    if (hover === active.hoverWindowId) {
+      if (hover === null || active.lastHoverCursor === null) return
+      const dx = cursor.x - active.lastHoverCursor.x
+      const dy = cursor.y - active.lastHoverCursor.y
+      if (dx * dx + dy * dy <= HOVER_CURSOR_EMIT_DELTA_PX * HOVER_CURSOR_EMIT_DELTA_PX) return
+      active.lastHoverCursor = { x: cursor.x, y: cursor.y }
+      emitHover(active, hover)
+      return
+    }
+    // 悬停切换：清插入位 hint——旧窗 hint 对新窗无意义，新悬停窗的指示器上报前回退末位
     active.hoverWindowId = hover
+    active.insertHint = null
+    active.lastHoverCursor = { x: cursor.x, y: cursor.y }
     emitHover(active, hover)
   }
 
   async function dragEnd(p: {
     tabId: string
     sourceWindowId: string
+    scopeSessionId: string | null
     screenX: number
     screenY: number
+    canceled?: boolean
   }): Promise<TabDragOutcome> {
     const active = session
     // 无匹配活动会话（tabId/来源对不上，或已过期——过期钩子清态时已广播终态）：
@@ -331,11 +409,19 @@ export function createTabDragController(deps: {
       return 'stayed'
     }
     // 先收场（停轮询、摘会话、广播 hover 终态 null）：裁决含 await（空白径读盘建窗），
-    // 收场前置让紧随的新 dragStart 无缝接管、已死会话不再轮询
+    // 收场前置让紧随的新 dragStart 无缝接管、已死会话不再轮询；一切 stayed 早退都在
+    // 收场之后，杜轮询/虚影/高亮残留
     endSession(active)
+    // 会话绑定漂移守卫（阶段 10）：拖拽期间来源窗口的会话绑定已变（删会话级联切换/
+    // 显式切会话）——本拖拽的上下文已失效；且 isTabInScope 按当前激活 manager 查 id，
+    // 跨会话 tab id 撞号会别名命中他窗会话的 Tab，必须前置拦截
+    if (active.sessionId !== p.scopeSessionId) return 'stayed'
     // 全量重验（契约点 f）：Tab 仍在源窗作用域——失效（Tab 被关/会话被删/主窗来源的
     // 激活会话已切走）即 stayed，零副作用不抛错
     if (!isTabInScope(p.tabId, p.sourceWindowId)) return 'stayed'
+    // 显式取消（Esc，阶段 10 修订）：一律 stayed——坐标假想点在窗口重叠下会误命中
+    // 他窗（执行期实证），取消语义不参与坐标裁决
+    if (p.canceled === true) return 'stayed'
 
     const reported = { x: p.screenX, y: p.screenY }
     const polled = active.lastPolledPoint
@@ -357,5 +443,15 @@ export function createTabDragController(deps: {
     return () => hoverListeners.delete(cb)
   }
 
-  return { dragStart, dragEnd, onHoverChanged }
+  function getDragHoverState(): { tabId: string; hoverWindowId: string | null } | null {
+    if (!session) return null
+    return { tabId: session.tabId, hoverWindowId: session.hoverWindowId }
+  }
+
+  function setInsertHint(hint: { windowId: string; index: number } | null): void {
+    if (!session) return
+    session.insertHint = hint
+  }
+
+  return { dragStart, dragEnd, onHoverChanged, getDragHoverState, setInsertHint }
 }

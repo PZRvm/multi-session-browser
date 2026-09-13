@@ -33,6 +33,16 @@ function Toolbar(): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   // null 表示非编辑态：显示主进程 URL；聚焦编辑期间改用本地草稿，失焦/回车成功后回归
   const [draft, setDraft] = useState<string | null>(null)
+  // 提交锁定（用户反馈修复）：回车成功那一刻导航刚开始、主进程 URL 还是旧值（新标签页
+  // 为 about:blank → 显示空串），直接回归快照会让加载期间文本框被清空/显示旧 URL。
+  // 提交时记「提交 Tab + 提交文本 + 当时快照 URL 基线」，渲染期比对判断是否仍在加载中
+  // ——快照 URL 离开基线（导航提交/重定向落地）或换 Tab（tabId 比对，防同 URL 双 Tab
+  // 串显——审查 C）后即过期，无需 effect 清理
+  const [pending, setPending] = useState<{ tabId: string | null; baselineUrl: string; locked: string } | null>(null)
+  const pendingShown =
+    pending !== null && pending.tabId === activeTabId && pending.baselineUrl === mainUrl
+      ? pending.locked
+      : null
   const [invalid, setInvalid] = useState(false)
   const invalidTimer = useRef<number | null>(null)
 
@@ -71,7 +81,8 @@ function Toolbar(): React.JSX.Element {
     }, INVALID_HINT_MS)
   }
 
-  // 回车提交：导航成功后回归主进程 URL 显示；失败保留编辑态供修改并给出行内提示
+  // 回车提交：导航成功后锁定显示提交文本（等快照 URL 落地解除）；失败保留编辑态供
+  // 修改并给出行内提示
   const submitDraft = async (): Promise<void> => {
     const raw = (draft ?? '').trim()
     if (!raw) {
@@ -80,6 +91,7 @@ function Toolbar(): React.JSX.Element {
     }
     if (await navigate(raw)) {
       setDraft(null)
+      setPending({ tabId: activeTabId, baselineUrl: mainUrl, locked: raw })
     } else {
       showInvalid()
     }
@@ -152,14 +164,14 @@ function Toolbar(): React.JSX.Element {
         autoCorrect="off"
         autoCapitalize="off"
         disabled={sessionId === null || !activeTab}
-        value={draft ?? mainUrl}
+        value={draft ?? pendingShown ?? mainUrl}
         aria-invalid={invalid}
         title={invalid ? '无效的网址' : undefined}
         onChange={(e) => {
           setDraft(e.target.value)
           clearInvalid()
         }}
-        onFocus={() => setDraft(mainUrl)}
+        onFocus={() => setDraft(pendingShown ?? mainUrl)}
         onBlur={() => setDraft(null)}
         onKeyDown={onKeyDown}
       />

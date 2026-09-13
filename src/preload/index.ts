@@ -11,6 +11,7 @@ import type {
   SwitchTabPayload,
   TabDragEndPayload,
   TabDragHoverPayload,
+  TabDragInsertPayload,
   TabDragOutcome,
   TabDragStartPayload
 } from '../shared/browser'
@@ -100,6 +101,9 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.dragStart, payload),
     dragEnd: (payload: TabDragEndPayload): Promise<TabDragOutcome> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.dragEnd, payload),
+    // 拖入插入位上报（阶段 10）：尽力而为 hint——主进程无 hint/陈旧时回退末位追加
+    dragInsert: (payload: TabDragInsertPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.dragInsert, payload),
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {

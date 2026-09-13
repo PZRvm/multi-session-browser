@@ -7,6 +7,7 @@ import type {
   SwitchTabPayload,
   TabDragEndPayload,
   TabDragHoverPayload,
+  TabDragInsertPayload,
   TabDragOutcome,
   TabDragStartPayload
 } from '../shared/browser'
@@ -59,6 +60,7 @@ declare global {
         closeDevTools(): Promise<BrowserSnapshot>
         dragStart(payload: TabDragStartPayload): Promise<OkResult>
         dragEnd(payload: TabDragEndPayload): Promise<TabDragOutcome>
+        dragInsert(payload: TabDragInsertPayload): Promise<OkResult>
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
         onDragHover(callback: (payload: TabDragHoverPayload) => void): () => void

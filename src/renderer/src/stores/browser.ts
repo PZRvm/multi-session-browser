@@ -24,6 +24,11 @@ interface BrowserState {
   draggingTabId: string | null
   /** 本窗口是否为拖拽悬停落点：仅当主进程悬停推送指向本窗口时为本窗口 id，否则 null */
   hoverWindowId: string | null
+  /** 悬停落点为本窗时的光标位置（悬停窗内容坐标，DIP 与 CSS px 同值；推送未携带则 null，只高亮不指示）——与 hoverWindowId 同生命周期的镜像 */
+  dragCursorX: number | null
+  dragCursorY: number | null
+  /** 悬停推送的被拖 Tab id 镜像（阶段 10）：目标窗不是源窗，须镜像 payload.tabId 才能上报插入位 hint */
+  dragHoverTabId: string | null
   init: () => Promise<void>
   /** 重拉当前快照对齐主进程（删除会话等场景：级联推送先于命令回复到达而被守卫丢弃） */
   resync: () => Promise<void>
@@ -43,7 +48,12 @@ interface BrowserState {
    * 拖拽结束上报落点坐标，返回主进程裁决结果（TabDragOutcome）；
    * IPC 失败返回 null——结果未知时不伪造拒绝，组件据返回值仅对 'rejected' 触发回弹
    */
-  dragEnd: (id: string, screenX: number, screenY: number) => Promise<TabDragOutcome | null>
+  dragEnd: (
+    id: string,
+    screenX: number,
+    screenY: number,
+    canceled?: boolean
+  ) => Promise<TabDragOutcome | null>
 }
 
 let initialized = false
@@ -114,7 +124,9 @@ const applySnapshot = (
 // 组件层无需再比对 payload。异会话窗口本就不在发送侧广播集合内，守卫属双保险；
 // 会话不符时不丢弃而清高亮——收到不属本窗会话的悬停推送即意味着本窗高亮已过期
 //（拖拽中激活会话被切走/删除，或发送与接收时点的主/镜像 activeId 漂移），清比丢严格
-// 更安全，杜绝终态 null 被守卫拦截后高亮滞留到下一次推送
+// 更安全，杜绝终态 null 被守卫拦截后高亮滞留到下一次推送。
+// 阶段 10 增光标与被拖 Tab 镜像（dragCursorX/Y、dragHoverTabId），仅在悬停落点为
+// 本窗时置位，与 hoverWindowId 同生共灭（非落点/终态 null/会话不符一并清空）
 const applyDragHover = (
   set: (partial: Partial<BrowserState>) => void,
   payload: TabDragHoverPayload
@@ -124,12 +136,20 @@ const applyDragHover = (
       ? payload.sessionId === useSessionsStore.getState().activeId
       : payload.sessionId === windowIdentity.sessionId
   if (!mine) {
-    set({ hoverWindowId: null })
+    set({ hoverWindowId: null, dragCursorX: null, dragCursorY: null, dragHoverTabId: null })
     return
   }
-  set({
-    hoverWindowId: payload.hoverWindowId === windowIdentity.windowId ? payload.hoverWindowId : null
-  })
+  if (payload.hoverWindowId === windowIdentity.windowId) {
+    // 落点本窗：坐标字段缺省（无边窗等取值失败）如实存 null，消费方按只高亮不指示处理
+    set({
+      hoverWindowId: payload.hoverWindowId,
+      dragCursorX: payload.cursorX ?? null,
+      dragCursorY: payload.cursorY ?? null,
+      dragHoverTabId: payload.tabId
+    })
+    return
+  }
+  set({ hoverWindowId: null, dragCursorX: null, dragCursorY: null, dragHoverTabId: null })
 }
 
 export const useBrowserStore = create<BrowserState>((set) => ({
@@ -140,6 +160,9 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   focusTick: 0,
   draggingTabId: null,
   hoverWindowId: null,
+  dragCursorX: null,
+  dragCursorY: null,
+  dragHoverTabId: null,
 
   // 先订阅推送、再拉取初始快照：订阅先就位后拉取期间到达的推送不会丢失，避免推送与拉取竞态
   init: async () => {
@@ -286,17 +309,28 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 亚秒级的一次性视觉，进 store 需要额外的「已消费」清理动作，且任何新订阅方
   // 都可能读到陈旧值重播回弹；返回值把生命周期锁死在 dragend handler 内，零残留。
   // IPC 失败返回 null：结果未知不伪造 'rejected'（主进程 60s 过期兜底自会清态）。
-  dragEnd: async (id, screenX, screenY) => {
+  dragEnd: async (id, screenX, screenY, canceled) => {
     try {
-      return await window.api.browser.dragEnd({ id, screenX, screenY })
+      return await window.api.browser.dragEnd(
+        canceled ? { id, screenX, screenY, canceled: true } : { id, screenX, screenY }
+      )
     } catch (error) {
       console.error('上报拖拽结束失败', error)
       return null
     } finally {
       // 本地拖拽态必清（含 IPC 失败路径）：清自己的源 Tab 态；单活动拖拽会话约束下，
-      // 此刻全局只可能有本拖拽的悬停态，一并清不误伤（悬停候选本就不含源窗口）
+      // 此刻全局只可能有本拖拽的悬停态，一并清不误伤（悬停候选本就不含源窗口）；
+      // 光标/被拖 Tab 镜像与 hoverWindowId 同组瞬态，同步清空不悬挂
       set((state) =>
-        state.draggingTabId === id ? { draggingTabId: null, hoverWindowId: null } : {}
+        state.draggingTabId === id
+          ? {
+              draggingTabId: null,
+              hoverWindowId: null,
+              dragCursorX: null,
+              dragCursorY: null,
+              dragHoverTabId: null
+            }
+          : {}
       )
     }
   }

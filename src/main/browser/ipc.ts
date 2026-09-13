@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：十七条通道（14 条命令 + 3 条推送）的装配层。
+// 浏览器 IPC handlers：十八条通道（15 条命令 + 3 条推送）的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
 // → windows.ts 登记的绑定会话的该窗口作用域；未知窗口/已销毁/绑定会话失效一律抛
@@ -7,7 +7,8 @@
 // 定向发对应窗口，不盲发主窗口；主窗口空态快照（emptySnapshot）恒属 'main'，自然只
 // 发主窗口。阶段 9：tear-off 的 IPC 通道随临时右键菜单入口退役（建窗/迁移编排下沉
 // registry 内部接口，由拖拽控制器复用）；拖拽通道（tab-drag-start/end 命令 +
-// tab-drag-hover 推送）在此接线。
+// tab-drag-hover 推送）在此接线。阶段 10：dragInsert 插入位上报命令在此接线（hint
+// 尽力而为语义——结构守卫后的匹配校验不符静默返回 ok，不抛错）。
 // 通道名一律取自 shared/browser 的 BROWSER_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
@@ -289,11 +290,37 @@ export function registerBrowserIpc(
       return dragController.dragEnd({
         tabId: payload.id,
         sourceWindowId: scope.windowId,
+        scopeSessionId: scope.sessionId,
         screenX,
-        screenY
+        screenY,
+        canceled: payload.canceled === true ? true : undefined
       })
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（17 条通道）')
+  // dragInsert：目标窗插入位上报（阶段 10）。结构垃圾按命令口径拒绝（tabId string +
+  // index 有限非负整数）；通过结构守卫后按「hint 口径」处理——sender 解析出的 windowId
+  // 须等于当前活动拖拽会话的悬停窗且 tabId 匹配才存储，不符静默返回 ok（hint 是尽力
+  // 而为通道，陈旧属设计内常态：悬停已切走 / 会话已收尾 / 异窗上报都不是错误）
+  ipcMain.handle(BROWSER_CHANNELS.dragInsert, (event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.dragInsert, payload, () => {
+      const scope = resolveScope(event)
+      if (
+        !isRecord(payload) ||
+        typeof payload.tabId !== 'string' ||
+        typeof payload.index !== 'number' ||
+        !Number.isInteger(payload.index) ||
+        payload.index < 0
+      ) {
+        throw invalidParams()
+      }
+      const hover = dragController.getDragHoverState()
+      if (hover && hover.hoverWindowId === scope.windowId && hover.tabId === payload.tabId) {
+        dragController.setInsertHint({ windowId: scope.windowId, index: payload.index })
+      }
+      return { ok: true }
+    })
+  )
+
+  console.log('[browser] IPC handlers 已注册（18 条通道）')
 }

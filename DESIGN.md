@@ -36,6 +36,7 @@ colors:
   chrome-tab-active: "#ffffff"
   chrome-omnibox-bg: "#ffffff"
   chrome-tabbar-drag-target: "#c4c7cc"
+  chrome-tab-insert: "#3c4043"
   chrome-tabbar-dark: "#202124"
   chrome-toolbar-dark: "#292a2d"
   chrome-line-dark: "#3c4043"
@@ -46,6 +47,7 @@ colors:
   chrome-tab-active-dark: "#292a2d"
   chrome-omnibox-bg-dark: "#202124"
   chrome-tabbar-drag-target-dark: "#444548"
+  chrome-tab-insert-dark: "#e8eaed"
 typography:
   title:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
@@ -290,7 +292,7 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 右侧浏览器不再是未绑定会话的单例：主进程注册表为每个会话维护一个独立分区（`persist:sess-<id>`，一会话一分区禁止共享）的 TabManager，点击左侧会话行 = 视图级瞬时交换（旧会话全部 webContents 保活——Tab、滚动、输入、登录态、DevTools 实例原样保留，切回即恢复）。命令通道一律作用于当前激活会话；快照带 sessionId，renderer 丢弃与当前选中不符的过期快照。会话状态灯（idle 灰 / loading 琥珀脉冲）由该会话「任一 Tab 加载中」真实驱动（含后台会话），经全量状态 map 推送；会话行的 pageTitle 由激活 Tab 标题实时驱动并去抖落盘，`lastUrl`（上次打开页）持久化，重启后首次激活自动重载（PRD 3.1.4）。删除会话即销毁其全部 webContents 并彻底清除分区数据（clearStorageData + 删分区目录）。零会话时右侧呈现空态、控件禁用、命令拒绝（「未选择会话」）。
 
-阶段 7—8 起浏览器层按**宿主窗口作用域**组织（windowId）：主窗口浏览区固定 `'main'`（跨 macOS 关窗重建稳定），每个独立窗口一个 id；`BrowserSnapshot` 带 windowId，只含该窗口托管的 tabs 与激活位；命令经 `event.sender` 按来源窗口路由（主窗口 → 激活会话 'main' 作用域，独立窗口 → 绑定会话的该窗口作用域），stateChanged/focusAddress 按 windowId 定向推送不盲发。持久化上报仍只绑 'main' 作用域快照（独立窗口 Tab 不参与落盘，阶段 10 退出归并收口）。
+阶段 7—8 起浏览器层按**宿主窗口作用域**组织（windowId）：主窗口浏览区固定 `'main'`（跨 macOS 关窗重建稳定），每个独立窗口一个 id；`BrowserSnapshot` 带 windowId，只含该窗口托管的 tabs 与激活位；命令经 `event.sender` 按来源窗口路由（主窗口 → 激活会话 'main' 作用域，独立窗口 → 绑定会话的该窗口作用域），stateChanged/focusAddress 按 windowId 定向推送不盲发。持久化为全会话归并口径（阶段 10 收口）：落盘 Tab 列表 = 主窗作用域在先 + 独立窗按创建序并入，任一作用域快照变化即去抖落盘（崩溃安全）；退出链先冲刷（捕获完整归并集）后封笔再关窗，关窗级联不再触发收缩重写；重启后独立窗不恢复、全部 Tab 按 URL 与顺序回主窗对应会话（PRD 3.6.4/验收 17）。
 
 ### 独立窗口（Independent Window）— 阶段 7—8 新增
 
@@ -298,7 +300,7 @@ Tab tear-off 的产物：完整浏览器窗口（Tab 栏 + 导航工具栏，同
 
 ### 拖拽手势（Tab Drag）— 阶段 9 新增
 
-Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自绘手势**（pointerdown 捕获 → 位移过 5px 阈值成拖拽 → pointerup 直接上报落点裁决；favicon 与关闭钮显式 `draggable={false}` 防原生拖拽劫持，chip 上 `user-select: none` + `touch-action: none`）。手势引擎弃用 HTML5 DnD（阶段 9 验收后修订，用户实测反馈）：原生拖放在窗外释放时，松手位置下方的窗口未「接受投放」，系统先播放拖影飞回原位动画、随后异步搬移才生效，叠加成「先回原位再跳走」的两段视觉；指针捕获自绘后没有 OS 拖影，松手即结果，跨窗事件送达由指针捕获保证（光标出窗仍收 move/up）。主进程拖拽控制器（dragging.ts）以 16ms 光标轮询驱动同会话窗口命中与悬停高亮推送（仅变化时广播，只达同会话窗口），释放按上报屏幕坐标（DIP）做四态裁决——空白处释放建新窗（落点水平居中、垂直 40% 处，工作区 clamp）/ 并入同会话既有窗口（追加末位并激活，含激活会话相符时的主窗与独立窗互转）/ 源窗上释放 stayed / 异会话窗口 rejected（源 Tab 原位回弹）。取消判定不读 dropEffect（合成路径 setter 无效、真实路径多形态同值无法区分，冒烟定案）——一律坐标裁决；多窗 bounds 重叠按「聚焦优先 → 最近聚焦序 → 主窗兜底最后」确定性 tiebreak；拖拽会话丢失有 60s 过期清态兜底。**Esc = 放回源窗**（capture 阶段吞键，拖拽中不让位 close-devtools 快捷键，落点取源窗内坐标保证 stayed）；拖拽结束的随尾 click 一律吞掉（pointerup 后浏览器仍派发 click，HTML5 原生拖拽会压制而自绘手势不会——不吞会把点击语义混入拖拽：Tab 拖走后对已移出作用域的 Tab 误报「标签页不存在」，源窗内小拖释放误激活被拖 Tab）。**跟随虚影**（用户实测反馈补齐，Chrome 同款手感）：主进程透明置顶小窗（`dragPreview.ts`，floating 层、不接鼠标、不抢焦点、不进任务栏）渲染与源 Tab 同尺寸的圆角卡片（chrome-tab-active 亮暗配色 + favicon + 标题，data URL 内联自包含样式），锚定按下点在卡内的偏移由 16ms 光标轮询逐帧 `setBounds` 跟随（与悬停高亮同源，零新增定时器），生命周期严格锁在拖拽窗口期（dragStart 建、释放/过期/接管即销毁）。视觉三态全灰阶：源 Tab `opacity: 0.45`（拖拽半透明 + grabbing 光标，不引入新色）、悬停落点整条 Tab 栏切 `--chrome-tabbar-drag-target`（亮 #c4c7cc / 暗 #444548，比按压态再深一档的落点信号，0.12s 背景过渡）、拒绝回弹 `chrome-tab-reject-return` 0.32s 两级水平回落（右侧唯一允许的位移动效，短于翻牌 0.4s 上限、同款指数缓出无过冲）。已知边界：他应用窗口遮挡时命中裁决不知晓遮挡（Electron 无 z 序 API）；Windows 的指针坐标形态待实测（(0,0) 陈旧上报已有轮询点兜底）。
+Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自绘手势**（pointerdown 捕获 → 位移过 5px 阈值成拖拽 → pointerup 直接上报落点裁决；favicon 与关闭钮显式 `draggable={false}` 防原生拖拽劫持，chip 上 `user-select: none` + `touch-action: none`）。手势引擎弃用 HTML5 DnD（阶段 9 验收后修订，用户实测反馈）：原生拖放在窗外释放时，松手位置下方的窗口未「接受投放」，系统先播放拖影飞回原位动画、随后异步搬移才生效，叠加成「先回原位再跳走」的两段视觉；指针捕获自绘后没有 OS 拖影，松手即结果，跨窗事件送达由指针捕获保证（光标出窗仍收 move/up）。主进程拖拽控制器（dragging.ts）以 16ms 光标轮询驱动同会话窗口命中与悬停高亮推送（仅变化时广播，只达同会话窗口），释放按上报屏幕坐标（DIP）做四态裁决——空白处释放建新窗（落点水平居中、垂直 40% 处，工作区 clamp）/ 并入同会话既有窗口（按指示位插入并激活、无指示位时末位，含激活会话相符时的主窗与独立窗互转）/ 源窗上释放 stayed / 异会话窗口 rejected（源 Tab 原位回弹）。取消判定不读 dropEffect（合成路径 setter 无效、真实路径多形态同值无法区分，冒烟定案）——一律坐标裁决；多窗 bounds 重叠按「聚焦优先 → 最近聚焦序 → 主窗兜底最后」确定性 tiebreak；拖拽会话丢失有 60s 过期清态兜底。**Esc = 放回源窗**（capture 阶段吞键，拖拽中不让位 close-devtools 快捷键，落点取源窗内坐标保证 stayed）；拖拽结束的随尾 click 一律吞掉（pointerup 后浏览器仍派发 click，HTML5 原生拖拽会压制而自绘手势不会——不吞会把点击语义混入拖拽：Tab 拖走后对已移出作用域的 Tab 误报「标签页不存在」，源窗内小拖释放误激活被拖 Tab）。**跟随虚影**（用户实测反馈补齐，Chrome 同款手感）：主进程透明置顶小窗（`dragPreview.ts`，floating 层、不接鼠标、不抢焦点、不进任务栏）渲染与源 Tab 同尺寸的圆角卡片（chrome-tab-active 亮暗配色 + favicon + 标题，data URL 内联自包含样式），锚定按下点在卡内的偏移由 16ms 光标轮询逐帧 `setBounds` 跟随（与悬停高亮同源，零新增定时器），生命周期严格锁在拖拽窗口期（dragStart 建、释放/过期/接管即销毁）。视觉三态全灰阶：源 Tab `opacity: 0.45`（拖拽半透明 + grabbing 光标，不引入新色）、悬停落点整条 Tab 栏切 `--chrome-tabbar-drag-target`（亮 #c4c7cc / 暗 #444548，比按压态再深一档的落点信号，0.12s 背景过渡）、拒绝回弹 `chrome-tab-reject-return` 0.32s 两级水平回落（右侧唯一允许的位移动效，短于翻牌 0.4s 上限、同款指数缓出无过冲）。**插入位精确定位（阶段 10）**：悬停推送携带光标在悬停窗内容坐标系的位置（getContentBounds 起算 DIP，与 CSS px 同值；窗口切换广播 + 窗内位移超 2px 重发——指示器随光标实时更新而静止零流量）；目标窗 TabStrip 按各 Tab 中点判定算插入位，渲染插入指示竖线（`chrome-tab-insert` 亮 #3c4043 / 暗 #e8eaed 墨级灰阶，2px 全高 30px、绝对定位单元素位移不推挤 Tab、pointer-events 关闭、显隐瞬切无过渡——插入位本就离散跳变），插入位变化时经 `tab-drag-insert` 命令上报主进程缓存为 hint（尽力而为：结构守卫后 sender 窗 = 当前悬停窗且 tabId 匹配才存，不符静默 ok；悬停窗切换即清 hint，无 hint/陈旧一律回退末位，同窗重发保留 last-known hint 优于末位回退）。**Esc = 显式取消**（阶段 10 修订）：坐标假想点（源窗内偏移）在源窗与独立窗重叠时会同时命中他窗、坐标裁决无法区分取消与释放，dragEnd 增可选 `canceled` 显式携带、主进程一律 stayed 清场（与「不读 dropEffect」定案不冲突——那是推断不可靠，这是显式键盘信号）。**会话绑定漂移守卫**（阶段 10）：拖拽期间来源窗口的会话绑定已变（删会话级联切换/显式切会话）即 stayed——跨会话 tab id 按 manager 各自自增、切开后 isTabInScope 会按当前激活 manager 撞号别名命中。已知边界：他应用窗口遮挡时命中裁决不知晓遮挡（Electron 无 z 序 API）；Windows 的指针坐标形态待实测（(0,0) 陈旧上报已有轮询点兜底）。
 
 ### 分隔条（Panel Divider）
 
@@ -334,11 +336,11 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
 - **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
 
-## Not Yet In The World（尚未进入世界的边界，阶段 9 后有效）
+## Not Yet In The World（尚未进入世界的边界，阶段 10 后有效）
 
 写给未来的扩展者：以下是**已知的留白**，不是待修的缺陷；扩展时按此对齐，不要把占位当成设计决策来继承。
 
-- **拖拽手势已交付（阶段 9）**：Tab 拖出/拖入/跨已存在窗口转移与三态拖拽视觉（源半透明/落点高亮/拒绝回弹，全灰阶）已交付（见「拖拽手势」条目），tear-off 临时右键入口随之下线。仍属留白的：独立窗口 Tab 的退出落盘归并（阶段 10——过渡期独立窗口中的 Tab 退出不落盘、重启不恢复，为如实行为非缺陷）；Windows 平台的 dragend 坐标形态实测（(0,0) 陈旧上报的轮询点兜底已就位，见「拖拽手势」已知边界）。
+- **独立窗口特性收官（阶段 10）**：Tab 拖出/拖入/跨窗转移（含插入位精确定位与插入指示器）、退出落盘归并（全部 Tab 按 URL 与顺序回主窗、独立窗不恢复）、会话克隆恢复集归并口径均已交付（见「拖拽手势」「会话绑定浏览器」条目）。仍属留白的：Windows 平台的指针坐标形态与插入指示实测（本环境无 Windows 机器，坐标/光标轮询兜底已就位，见「拖拽手势」已知边界）；插入位 hint 的极端陈旧窗口（毫秒级 last-known 与末位回退之间的取舍已定案为 last-known）。
 - **会话克隆与批量操作已交付（阶段 5）**：行菜单「克隆会话」（close-then-copy 分区复制 + 元数据随行 +「副本」命名 + 完成即激活）与批量模式（详见「批量模式」条目）。克隆语义边界：复制的是持久化环境数据（登录态/Cookie/LocalStorage 等），源会话活页面状态不进入克隆、克隆期间源 webContents 关闭（切回按 lastUrl 重载）；批量关闭 = 删除全部会话及数据。仍属留白的：克隆源活页面保真、批量重命名/批量删除选中项、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）；Tab 列表全量持久化已于阶段 6 交付（见下条）。
 - **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
 - **会话元数据已持久化（schema v3，阶段 6）**：主进程 `userData/sessions.json`（version 3：id/name/note/pageTitle/lastUrl/tabs/activeTabIndex；v1/v2 读取时按容错规则迁移（v2 的 lastUrl 派生单元素 tabs），原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。Tab 列表按 URL 级持久化（顺序与激活位，PRD 3.6.4）：重启激活会话时多开恢复，页面运行态与 DevTools 开关态仍不持久化（URL 级恢复，与 lastUrl 恢复同口径）；恢复 URL 逐条过白名单，坏值跳过并告警。

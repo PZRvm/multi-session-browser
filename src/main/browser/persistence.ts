@@ -2,8 +2,12 @@
 // 去抖落盘 pageTitle/lastUrl/tabs/activeTabIndex）与读侧（落盘恢复集 → manager 多开
 // Tab）的唯一事实源，registry 只做生命周期编排。本模块不含 IPC；落盘读写一律经
 // store.ts 的 loadSnapshot / mutateSnapshot，不自行组合。
+// 阶段 10 起落盘为归并口径：恢复集 = 该会话全部作用域的归并视图（主窗 Tab 在先 +
+// 独立窗按创建序并入，composePersistView 单一出口——recordSnapshot 去抖判据与
+// flushReport 写盘同口径）；退出链先冲刷后封笔（sealed），关窗级联的收缩重算不再
+// 抢写（时序语义见 registry.closeSession 与 index.ts 的 before-quit）。
 
-import type { BrowserSnapshot } from '../../shared/browser'
+import type { BrowserSnapshot, BrowserTabState } from '../../shared/browser'
 import {
   PAGE_TITLE_MAX,
   cloneTabs,
@@ -28,15 +32,15 @@ export interface RestoreSet {
 
 export interface SessionPersistence {
   /**
-   * 快照变化入口（ensureManager 的 onSnapshotChanged 接线转发）：去抖判据 + 安排落盘。
-   * 阶段 7—8 起接线只传入该会话 'main' 作用域快照——独立窗口 Tab 不参与落盘（过渡期
-   * 事实，归并收口在阶段 10，计划 2.3 数据原则）
+   * 快照变化入口（ensureManager 的 onSnapshotChanged 接线转发，该会话任一作用域快照
+   * 触发）：内部经 listSessionSnapshots 重算归并视图（主窗在先 + 独立窗创建序）作
+   * 去抖判据并安排落盘。flushAll 封笔后 no-op
    */
-  recordSnapshot(id: string, snapshot: BrowserSnapshot): void
-  /** 立即冲刷该会话待写的上报（closeSession 收尾活库用） */
+  recordSnapshot(id: string): void
+  /** 立即冲刷该会话待写的上报（closeSession 收尾活库用，关窗级联之前调用以捕获完整归并集） */
   flushNow(id: string): void
-  /** 退出前冲刷全部待写的上报去抖（index.ts 的 before-quit 钩子；写盘异步，尽力而为） */
-  flushAll(): void
+  /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot no-op；index.ts 的 before-quit 钩子）；返回全部在途写盘的汇合 promise——before-quit 优雅退出等它落定再放行（阶段 10 修复：撕出/导航后 500ms 内退出曾因异步写未落定即退进程而丢改动），无待写时立即 resolve */
+  flushAll(): Promise<void>
   /** 启动预读：读盘一次填充全部恢复集缓存（共享 in-flight promise，防重复读盘） */
   preload(): Promise<SessionsSnapshot | null>
   /** 把落盘快照中的恢复集并入缓存（补载径现读后调用） */
@@ -63,13 +67,18 @@ export interface SessionPersistence {
   takeBatchOpened(id: string): boolean
   /** destroySession：清全部条目（恢复集/上报判据/去抖定时器/叠加标记） */
   dropSession(id: string): void
-  /** closeSession：冲刷待写 + 清上报判据/定时器/叠加标记；恢复集保留（落盘元数据仍存活） */
-  settleSession(id: string): void
+  /** closeSession：冲刷待写（关窗级联之前——捕获完整归并集）+ 清上报判据/定时器/叠加标记；恢复集保留（落盘元数据仍存活）。返回写盘 promise——closeSession await 之，保证克隆读 restoreSets 缓存时写盘与缓存前移均已落定（审查 B：原 fire-and-forget 仅靠 kill 慢于写盘的时序事实） */
+  settleSession(id: string): Promise<void>
 }
 
 export function createSessionPersistence(deps: {
   hasManager: (id: string) => boolean
-  getSnapshotById: (id: string) => BrowserSnapshot | null
+  /**
+   * 该会话全部作用域快照（registry 注入，主窗在先 + 独立窗登记表创建序）：归并视图的
+   * 枚举 dep；manager 不存在返回 null——视图无从枚举，recordSnapshot/flushReport
+   * 据此静默跳过（会话已销毁/关闭）
+   */
+  listSessionSnapshots: (id: string) => BrowserSnapshot[] | null
 }): SessionPersistence {
   /** 各会话恢复集缓存（preload/ingest 读盘填充 + 上报写盘时同步） */
   const restoreSets = new Map<string, RestoreSet>()
@@ -80,6 +89,12 @@ export function createSessionPersistence(deps: {
   const batchOpenedWhileBackfill = new Set<string>()
   /** 共享的读盘 promise（preload 复用同一 in-flight，防重复读盘） */
   let preloadPromise: Promise<SessionsSnapshot | null> | null = null
+  /**
+   * 封笔标志（阶段 10）：flushAll 冲刷全部待写后置位——退出链先冲刷（此刻独立窗全部
+   * 存活，归并集完整）再关窗，关窗级联的收缩重算若再安排写盘会在去抖内抢写缩水列表；
+   * 封笔后 recordSnapshot no-op。settleSession/dropSession 的显式生命周期路径不受影响
+   */
+  let sealed = false
 
   /** 恢复集指纹（L6 定案 JSON 序列化）：列表内容 + 顺序 + 激活位任一变化即不同，无分隔符歧义 */
   function tabsKeyOf(tabs: StoredTab[], activeTabIndex: number): string {
@@ -87,9 +102,9 @@ export function createSessionPersistence(deps: {
   }
 
   /**
-   * 从快照计算落盘恢复集（URL 逐条截断 + 激活位 + 指纹）：flushReport 写盘与
-   * recordSnapshot 去抖判据的单一出口，两处口径恒一致；激活位 findIndex -1 钳 0
-   * （无激活 Tab 的空态，阶段 7 前不会出现）
+   * 从快照计算落盘恢复集（URL 逐条截断 + 激活位 + 指纹）：输入恒为 composePersistView
+   * 的归并合成视图（截断/指纹口径的单源，flushReport 写盘与 recordSnapshot 去抖判据
+   * 两处共用）；激活位 findIndex -1 钳 0（归并视图空集的空态）
    */
   function restoreSetOf(snapshot: BrowserSnapshot): {
     tabs: StoredTab[]
@@ -106,25 +121,53 @@ export function createSessionPersistence(deps: {
     return { tabs, activeTabIndex, tabsKey: tabsKeyOf(tabs, activeTabIndex) }
   }
 
+  /**
+   * 归并组合视图（阶段 10 落盘取值口径的单一出口）：tabs = 注入序拼接（registry 保证
+   * 主窗在先、独立窗创建序在后）；激活位与 pageTitle/lastUrl 锚点取主窗（首项）作用域
+   * 激活 Tab（与会话列表现势同源），主窗 0 Tab（Tab 全部拖出的合法态）回退归并首项
+   * ——保住 lastUrl === tabs[activeTabIndex].url 不变式（L5）。返回合成快照复用
+   * restoreSetOf 的 URL 截断与指纹口径；manager 不存在（会话已销毁/关闭）返回 null
+   */
+  function composePersistView(id: string): BrowserSnapshot | null {
+    const snapshots = deps.listSessionSnapshots(id)
+    if (!snapshots || snapshots.length === 0) return null
+    const merged: BrowserTabState[] = []
+    for (const snapshot of snapshots) merged.push(...snapshot.tabs)
+    const main = snapshots[0]
+    const anchor = main.tabs.find((tab) => tab.id === main.activeTabId) ?? merged[0] ?? null
+    return {
+      windowId: main.windowId,
+      sessionId: main.sessionId,
+      tabs: merged,
+      activeTabId: anchor !== null ? anchor.id : null,
+      devtoolsOpen: false
+    }
+  }
+
+  /** 归并视图的 pageTitle/lastUrl 锚点（激活 Tab 的 url/title；空集返回空串）——判据与写盘同源取值 */
+  function anchorOf(view: BrowserSnapshot): { url: string; title: string } {
+    const tab = view.tabs.find((item) => item.id === view.activeTabId) ?? null
+    return { url: tab?.url ?? '', title: tab ? tab.title : '' }
+  }
+
   /** 落盘条目 → 缓存条目（cloneTabs 新建元素，防缓存与落盘对象共享可变引用） */
   function toRestoreSet(item: StoredSession): RestoreSet {
     return { tabs: cloneTabs(item.tabs), activeTabIndex: item.activeTabIndex }
   }
 
-  /** 取 fire 时刻的最新值写盘（去抖期内后续变化不必再各写一次） */
-  function flushReport(id: string): void {
-    const snapshot = deps.getSnapshotById(id)
-    if (!snapshot) return // 会话已销毁，静默跳过
-    const tab = snapshot.tabs.find((item) => item.id === snapshot.activeTabId) ?? null
-    const url = tab?.url ?? ''
-    const title = tab ? tab.title : ''
+  /** 取 fire 时刻的最新归并视图写盘（去抖期内后续变化不必再各写一次）；返回写盘
+   * promise（resolve 于磁盘落定或静默跳过）——before-quit 优雅退出须等它完成再放行 */
+  function flushReport(id: string): Promise<void> {
+    const view = composePersistView(id)
+    if (!view) return Promise.resolve() // 会话已销毁/关闭（manager 不在注册表），静默跳过
+    const { url, title } = anchorOf(view)
     // 恢复集（URL 列表 + 激活位）随上报同盘——与 lastUrl 同源同截断（restoreSetOf
     // 单一出口），保证落盘后 lastUrl === tabs[activeTabIndex].url 恒成立
-    const { tabs, activeTabIndex, tabsKey } = restoreSetOf(snapshot)
+    const { tabs, activeTabIndex, tabsKey } = restoreSetOf(view)
     // 缓存的更新放在 mutateSnapshot resolve 之后——mutateSnapshot 是"先 fn 后 save"，
     // 缓存若在 fn 内前移，写盘失败（saveSnapshot reject）时判据已认为"已上报"而磁盘
     // 停留旧值（复审 F1）；后置到成功回调则失败路径不前移，下次快照仍判"有变化"会重试
-    void mutateSnapshot((data) => {
+    return mutateSnapshot((data) => {
       const target = data.sessions.find((item) => item.id === id)
       if (!target) return undefined // 会话已从落盘数据移除（删除竞态），静默跳过，缓存不前移
       target.pageTitle = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
@@ -168,12 +211,14 @@ export function createSessionPersistence(deps: {
   }
 
   return {
-    recordSnapshot(id, snapshot) {
-      const tab = snapshot.tabs.find((item) => item.id === snapshot.activeTabId) ?? null
-      const url = tab?.url ?? ''
-      const title = tab ? tab.title : ''
+    recordSnapshot(id) {
+      // 封笔后 no-op：flushAll 已冲刷全部待写，退出关窗级联的收缩重算不再安排任何写盘
+      if (sealed) return
+      const view = composePersistView(id)
+      if (!view) return
+      const { url, title } = anchorOf(view)
       // 判据含恢复集指纹（restoreSetOf 同口径截断）：增删 Tab/调序/切激活位均触发落盘
-      const { tabsKey } = restoreSetOf(snapshot)
+      const { tabsKey } = restoreSetOf(view)
       const prev = reported.get(id)
       if (!prev || prev.url !== url || prev.title !== title || prev.tabsKey !== tabsKey) {
         scheduleReport(id)
@@ -182,14 +227,18 @@ export function createSessionPersistence(deps: {
 
     flushNow(id) {
       clearTimer(id)
-      flushReport(id)
+      void flushReport(id)
     },
 
-    flushAll() {
+    async flushAll() {
+      const writes: Promise<void>[] = []
       for (const [id] of reportTimers) {
         clearTimer(id)
-        flushReport(id)
+        writes.push(flushReport(id))
       }
+      // 冲刷后封笔（语义见 sealed 声明处注释）：此后 recordSnapshot 不再安排任何写盘
+      sealed = true
+      await Promise.all(writes)
     },
 
     preload() {
@@ -273,13 +322,15 @@ export function createSessionPersistence(deps: {
       clearTimer(id)
     },
 
-    settleSession(id) {
+    async settleSession(id): Promise<void> {
       // 与 destroySession 的分叉点：restoreSets 保留——该会话仍在落盘元数据里存活，
-      // 下次激活须按恢复集重载（PRD 3.1.4 恢复语义）
+      // 下次激活须按恢复集重载（PRD 3.1.4 恢复语义）。closeSession（阶段 10）在关窗
+      // 级联之前调用：此刻独立窗全部存活，flushReport 捕获完整归并集（克隆恢复集语义
+      // = 关闭发起时刻的归并快照；随后的级联收缩因 manager 摘除而无法再写盘）
       reported.delete(id)
       batchOpenedWhileBackfill.delete(id)
       clearTimer(id)
-      flushReport(id)
+      await flushReport(id)
     }
   }
 }

@@ -116,13 +116,20 @@ export type TearOffTabManager = TabManager & {
   tearOffTab: (id: string, sourceWindowId: string, targetWindowId: string) => BrowserSnapshot
   /**
    * 把 Tab 从 sourceWindowId 作用域并入既有 targetWindowId 窗口（阶段 9 拖拽
-   * 'moved-window' 裁决的迁移原语）。与 tearOffTab 同构（摘 view 保活 + 归属改写 +
-   * 源窗邻位补位），收尾差异：目标窗已就绪，走 activate 收尾——摘目标窗旧激活 view
-   * 并即时挂入新 view。不复用 tearOffTab：它对目标窗只置激活位不挂 view（新建窗的
-   * 防白屏时序），对已就绪窗口会造成新旧激活 view 双挂叠加。id 不存在或不属 source
-   * 作用域时 no-op 返回源作用域快照（作用域/会话强校验在 registry）
+   * 'moved-window' 裁决的迁移原语；阶段 10 增按位插入）。与 tearOffTab 同构（摘 view
+   * 保活 + 归属改写 + 源窗邻位补位），收尾差异：目标窗已就绪，走 activate 收尾——摘目标
+   * 窗旧激活 view 并即时挂入新 view。不复用 tearOffTab：它对目标窗只置激活位不挂 view
+   * （新建窗的防白屏时序），对已就绪窗口会造成新旧激活 view 双挂叠加。insertIndex 按
+   * 目标窗作用域 Tab 序列计（0 = 最左，tabs.length = 末位之后），缺省 = 末位（无 hint
+   * 兜底）；越界钳制（负 → 0、超上界 → 末位）。id 不存在或不属 source 作用域时 no-op
+   * 返回源作用域快照（作用域/会话强校验在 registry）
    */
-  moveTabToWindow: (id: string, sourceWindowId: string, targetWindowId: string) => BrowserSnapshot
+  moveTabToWindow: (
+    id: string,
+    sourceWindowId: string,
+    targetWindowId: string,
+    insertIndex?: number
+  ) => BrowserSnapshot
 }
 
 export function createTabManager(
@@ -436,7 +443,8 @@ export function createTabManager(
   function moveTabToWindow(
     id: string,
     sourceWindowId: string,
-    targetWindowId: string
+    targetWindowId: string,
+    insertIndex?: number
   ): BrowserSnapshot {
     const target = tabs.get(id)
     // 校验 Tab 属发起作用域（跨作用域/会话越权的强校验在 registry，此处防御性 no-op）
@@ -455,6 +463,22 @@ export function createTabManager(
       const nextId = order[index + 1] ?? (index > 0 ? order[index - 1] : null)
       activeByWindow.set(sourceWindowId, null)
       if (nextId !== null) activate(nextId, sourceWindowId)
+    }
+    // 按位插入（阶段 10）：目标作用域期望序 = 现序摘出本 Tab 后在第 insertIndex 位放入
+    //（缺省 = 末位；负 → 0、超上界 → 末位钳制）。tabs Map 迭代序即创建序（快照顺序的
+    // 唯一次序源），对既有键直接 set 不移动位序——必须 delete 后重新 set 才落到 Map
+    // 末尾；故把「本 Tab + 期望序中排其后的目标作用域 Tab」逐个 delete + 重新 set 恢复
+    // 目标作用域相对序（重排键全部属目标窗，其他窗口作用域的相对序不受扰动）
+    const rest = scopedTabIds(targetWindowId).filter((tabId) => tabId !== id)
+    const insertAt =
+      insertIndex === undefined ? rest.length : Math.min(Math.max(insertIndex, 0), rest.length)
+    tabs.delete(id)
+    tabs.set(id, target)
+    for (const tabId of rest.slice(insertAt)) {
+      const tab = tabs.get(tabId)
+      if (!tab) continue
+      tabs.delete(tabId)
+      tabs.set(tabId, tab)
     }
     // 目标窗已就绪，activate 收尾：摘目标窗旧激活 view + 即时挂入新 view——只置激活位
     // 会与目标窗旧激活 view 双挂叠加（tearOffTab 的只置位是新建窗的防白屏时序，不适用）
