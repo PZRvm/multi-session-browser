@@ -114,6 +114,15 @@ export type TearOffTabManager = TabManager & {
    *（跨作用域越权已由 ipc 层守卫拦截，此处防御性兜底）
    */
   tearOffTab: (id: string, sourceWindowId: string, targetWindowId: string) => BrowserSnapshot
+  /**
+   * 把 Tab 从 sourceWindowId 作用域并入既有 targetWindowId 窗口（阶段 9 拖拽
+   * 'moved-window' 裁决的迁移原语）。与 tearOffTab 同构（摘 view 保活 + 归属改写 +
+   * 源窗邻位补位），收尾差异：目标窗已就绪，走 activate 收尾——摘目标窗旧激活 view
+   * 并即时挂入新 view。不复用 tearOffTab：它对目标窗只置激活位不挂 view（新建窗的
+   * 防白屏时序），对已就绪窗口会造成新旧激活 view 双挂叠加。id 不存在或不属 source
+   * 作用域时 no-op 返回源作用域快照（作用域/会话强校验在 registry）
+   */
+  moveTabToWindow: (id: string, sourceWindowId: string, targetWindowId: string) => BrowserSnapshot
 }
 
 export function createTabManager(
@@ -424,6 +433,36 @@ export function createTabManager(
     return buildSnapshot(sourceWindowId)
   }
 
+  function moveTabToWindow(
+    id: string,
+    sourceWindowId: string,
+    targetWindowId: string
+  ): BrowserSnapshot {
+    const target = tabs.get(id)
+    // 校验 Tab 属发起作用域（跨作用域/会话越权的强校验在 registry，此处防御性 no-op）
+    if (!target || target.windowId !== sourceWindowId) {
+      return buildSnapshot(sourceWindowId)
+    }
+    // 迁移前源作用域序列（含本 Tab）：邻位补位与 closeTab 同规则取序
+    const order = scopedTabIds(sourceWindowId)
+    const index = order.indexOf(id)
+    // 摘 view 保活（webContents 不销毁，页面滚动/输入/登录态/DevTools 原样）
+    detachView(target)
+    target.windowId = targetWindowId
+    // 源窗口激活位补位：被移出的是激活 Tab 时按 closeTab 邻位规则（右邻优先，退左邻）
+    const activeId = activeByWindow.get(sourceWindowId) ?? null
+    if (activeId === id) {
+      const nextId = order[index + 1] ?? (index > 0 ? order[index - 1] : null)
+      activeByWindow.set(sourceWindowId, null)
+      if (nextId !== null) activate(nextId, sourceWindowId)
+    }
+    // 目标窗已就绪，activate 收尾：摘目标窗旧激活 view + 即时挂入新 view——只置激活位
+    // 会与目标窗旧激活 view 双挂叠加（tearOffTab 的只置位是新建窗的防白屏时序，不适用）
+    activate(id, targetWindowId)
+    emitChange()
+    return buildSnapshot(sourceWindowId)
+  }
+
   function destroyTabsInWindow(windowId: string): void {
     const doomed: TabEntry[] = []
     for (const tab of tabs.values()) {
@@ -556,6 +595,7 @@ export function createTabManager(
     newTab,
     closeTab,
     tearOffTab,
+    moveTabToWindow,
     destroyTabsInWindow,
     switchTab,
     setBounds,

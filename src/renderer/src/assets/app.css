@@ -46,6 +46,9 @@
   --chrome-active-veil: rgba(60, 64, 67, 0.1);
   --chrome-pressed-veil: rgba(60, 64, 67, 0.12);
   --chrome-error: #d93025;
+  /* 拖拽落点高亮（阶段 9，Tab 栏层）：tabbar 叠 16% ink 蒙版的合成色（比按压态
+     再深一档，落点信号须强于普通悬停），灰阶语义，琥珀不进右侧 */
+  --chrome-tabbar-drag-target: #c4c7cc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -85,6 +88,8 @@
     --chrome-active-veil: rgba(232, 234, 237, 0.1);
     --chrome-pressed-veil: rgba(232, 234, 237, 0.14);
     --chrome-error: #f28b82;
+    /* 拖拽落点高亮 · 暗：tabbar 叠 18% 亮墨蒙版的合成色（与亮色档位对齐的一档抬升） */
+    --chrome-tabbar-drag-target: #444548;
   }
 }
 
@@ -665,6 +670,8 @@ body.col-resizing {
   height: 36px;
   padding: 6px 10px 0;
   background: var(--chrome-tabbar);
+  /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
+  transition: background-color 0.12s ease;
 }
 
 .chrome-tab {
@@ -677,7 +684,12 @@ body.col-resizing {
   background: transparent;
   min-width: 0;
   cursor: pointer;
-  transition: background-color 0.12s ease;
+  /* 指针拖拽手势（无 HTML5 DnD）：禁文本选择与触控滚动默认行为，拖动不产生选区 */
+  user-select: none;
+  touch-action: none;
+  transition:
+    background-color 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .chrome-tab.active {
@@ -802,6 +814,41 @@ img.chrome-tab-favicon {
 .chrome-newtab:disabled {
   color: var(--chrome-disabled);
   cursor: not-allowed;
+}
+
+/* ---------- 拖拽手势视觉（阶段 9）---------- */
+
+/* 悬停落点高亮：同会话拖拽悬停到本窗时整条 Tab 栏抬升一档色阶，示意「松手并入
+   此处」；灰阶语义 token（--chrome-tabbar-drag-target），琥珀不进右侧 */
+.chrome-tabs.drag-target {
+  background: var(--chrome-tabbar-drag-target);
+}
+
+/* 拖拽中的源 Tab：半透明示意「已随光标离手」，瞬态随手势起止置撤；不引入新色，
+   透明度即反馈；光标切 grabbing（指针捕获期间由本元素决定光标语境） */
+.chrome-tab.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+/* 拒绝回弹：异会话释放被拒，源 Tab 原位水平小幅回弹——右侧唯一允许的位移动效，
+   0.32s 两级回落（短于翻牌 0.4s 动效上限），缓动与翻牌同款指数缓出（无弹性
+   过冲曲线）；类由 animationend/超时移除，可重触发 */
+.chrome-tab.drag-rejected {
+  animation: chrome-tab-reject-return 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes chrome-tab-reject-return {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-6px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
 }
 
 .chrome-toolbar {

@@ -5,6 +5,8 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerBrowserIpc } from './browser/ipc'
+import { createTabDragController } from './browser/dragging'
+import { createDragPreview } from './browser/dragPreview'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
 import { createIndependentWindows } from './browser/windows'
 import { installShellInputGuard } from './inputGuard'
@@ -191,12 +193,35 @@ app.whenReady().then(async () => {
   })
   registry = created
 
+  // 拖拽会话控制器（阶段 9）：光标轮询/同会话窗口命中/悬停推送/四态裁决/60s 过期
+  // 兜底。迁移原语经 registry 薄接口包装注入（控制器不拼分区串、不碰持久化、不直接
+  // 持有 WebContentsView）；isTabInScope 谓词取自作用域快照——manager 摘除后快照为
+  // 空态，天然覆盖「会话 manager 仍在注册表」的 dragEnd 重验判据。虚影窗（阶段 9
+  // 修订追加：透明置顶预览窗随光标跟随）随拖拽会话生命周期由控制器统一驱动
+  const tabDragController = createTabDragController({
+    getMainWindow: (): BrowserWindow | null => mainWindow,
+    windows: independentWindows,
+    getActiveSessionId: (): string | null => created.getActiveSessionId(),
+    isTabInScope: (tabId: string, windowId: string): boolean =>
+      created.getSnapshot(windowId).tabs.some((tab) => tab.id === tabId),
+    moveTabToWindow: (tabId: string, sourceWindowId: string, targetWindowId: string): void => {
+      created.moveTabToWindow(tabId, sourceWindowId, targetWindowId)
+    },
+    tearOffAt: (tabId: string, sourceWindowId: string, at: { x: number; y: number }) =>
+      created.tearOffTab(tabId, sourceWindowId, at).then(() => undefined),
+    preview: createDragPreview()
+  })
+
   // IPC handlers 须在窗口创建前就绪（renderer 首帧即可调用）：浏览器命令经 ipc.ts 路由
   // 注册表；会话侧编排回调在此注入（签名按计划第 3 节契约点 3/4 冻结，内联声明）——
   // 切换会话即切换浏览器（视图交换保活），删除先级联切换再异步销毁清分区，
   // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
   // 批量关闭（一次切空态 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
-  registerBrowserIpc(created, { getMainWindow: () => mainWindow, windows: independentWindows })
+  registerBrowserIpc(created, {
+    getMainWindow: () => mainWindow,
+    windows: independentWindows,
+    dragController: tabDragController
+  })
   registerAppearanceIpc(appearanceController)
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {

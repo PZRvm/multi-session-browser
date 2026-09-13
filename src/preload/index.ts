@@ -9,7 +9,10 @@ import type {
   OkResult as BrowserOkResult,
   SetBoundsPayload,
   SwitchTabPayload,
-  TearOffTabPayload
+  TabDragEndPayload,
+  TabDragHoverPayload,
+  TabDragOutcome,
+  TabDragStartPayload
 } from '../shared/browser'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
@@ -91,9 +94,12 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.toggleDevTools),
     closeDevTools: (): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.closeDevTools),
-    // 移出 Tab 为独立窗口（作用域 = 本窗口；阶段 9 拖拽手势替换临时右键入口，通道保留）
-    tearOffTab: (payload: TearOffTabPayload): Promise<BrowserSnapshot> =>
-      ipcRenderer.invoke(BROWSER_CHANNELS.tearOffTab, payload),
+    // 拖拽手势（阶段 9）：dragStart 开启主进程拖拽会话（同会话窗口悬停轮询），
+    // dragEnd 上报落点屏幕坐标并取回裁决结果（TabDragOutcome）
+    dragStart: (payload: TabDragStartPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.dragStart, payload),
+    dragEnd: (payload: TabDragEndPayload): Promise<TabDragOutcome> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.dragEnd, payload),
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {
@@ -111,6 +117,16 @@ const api = {
       ipcRenderer.on(BROWSER_CHANNELS.focusAddress, listener)
       return () => {
         ipcRenderer.removeListener(BROWSER_CHANNELS.focusAddress, listener)
+      }
+    },
+    // 拖拽悬停推送（主进程 → 同会话窗口广播）：同 onStateChanged 的订阅/退订惯例
+    onDragHover: (callback: (payload: TabDragHoverPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: TabDragHoverPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(BROWSER_CHANNELS.dragHover, listener)
+      return () => {
+        ipcRenderer.removeListener(BROWSER_CHANNELS.dragHover, listener)
       }
     }
   }

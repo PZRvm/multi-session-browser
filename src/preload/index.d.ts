@@ -5,7 +5,10 @@ import type {
   OkResult,
   SetBoundsPayload,
   SwitchTabPayload,
-  TearOffTabPayload
+  TabDragEndPayload,
+  TabDragHoverPayload,
+  TabDragOutcome,
+  TabDragStartPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
@@ -54,9 +57,11 @@ declare global {
         setBounds(payload: SetBoundsPayload): Promise<OkResult>
         toggleDevTools(): Promise<BrowserSnapshot>
         closeDevTools(): Promise<BrowserSnapshot>
-        tearOffTab(payload: TearOffTabPayload): Promise<BrowserSnapshot>
+        dragStart(payload: TabDragStartPayload): Promise<OkResult>
+        dragEnd(payload: TabDragEndPayload): Promise<TabDragOutcome>
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
+        onDragHover(callback: (payload: TabDragHoverPayload) => void): () => void
       }
     }
   }

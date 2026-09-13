@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { CloseOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons'
-import { App, Dropdown } from 'antd'
-import type { MenuProps } from 'antd'
 import type { BrowserTabState } from '../../../../shared/browser'
+import { useAppearanceStore } from '../../stores/appearance'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
-import { useUiStore } from '../../stores/ui'
 
 interface TabItemProps {
   tab: BrowserTabState
@@ -13,107 +11,227 @@ interface TabItemProps {
   lastOne: boolean
 }
 
-// 单个 tab（独立组件）：临时右键入口「移出到独立窗口」（阶段 9 拖拽手势替换本入口，
-// 通道语义保留）。菜单是 portal 弹层且下探到内容区（原生 WebContentsView 区域），按
-// stores/ui.ts 的登记义务经 overlayDepth 挂接——开菜单收起原生视图并冻结浏览器快捷键；
-// open 受控 + ref 配对，Tab 被主进程推送移除（页面自关等）导致菜单连根卸载时由
-// 卸载清理回滚登记，防 overlayDepth 残留把浏览器视图永久收起。
+/** 指针拖拽进入阈值（px）：按下后位移超过此半径才认定为拖拽，防点击误判 */
+const DRAG_ENGAGE_RADIUS_PX = 5
+
+// 单个 tab（独立组件）。阶段 9 修订：拖拽手势由 HTML5 DnD（draggable +
+// dragstart/dragend）改为指针捕获自绘——原生拖放在窗外释放时，松手位置下方的
+// 窗口未「接受投放」，macOS 会先播放系统级拖影飞回原位的动画，随后我们的异步
+// 裁决才把 Tab 搬走，叠加成「先回原位再跳走」的两段视觉（用户实测反馈）。指针
+// 捕获自绘后没有 OS 拖影，松手即裁决；跨窗命中本就由主进程光标轮询承担，不依赖
+// HTML5 拖放事件（dropEffect 裁决不采用的冒烟定案继续有效）。拖拽三态视觉
+// （源半透明 / 悬停高亮 / 拒绝回弹）挂 chrome-tab 类系，样式见 app.css。
+// 指针手势三态：idle → armed（已按下未过阈值，仍是点击候选）→ dragging（位移
+// 过阈值，已上报主进程开轮询）。
 function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
   const switchTab = useBrowserStore((s) => s.switchTab)
   const closeTab = useBrowserStore((s) => s.closeTab)
-  const tearOffTab = useBrowserStore((s) => s.tearOffTab)
-  const openOverlay = useUiStore((s) => s.openOverlay)
-  const closeOverlay = useUiStore((s) => s.closeOverlay)
-  // 失败反馈（L3 定案）：瞬时竞态失败（「会话已不可用」等）不再只落控制台——经
-  // App.useApp 的 message（ConfigProvider 主题内）给一行可见提示，与 SessionPanel
-  // 的 modal 同一上下文惯例
-  const { message } = App.useApp()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuOpenRef = useRef(false)
+  const dragStart = useBrowserStore((s) => s.dragStart)
+  const dragEnd = useBrowserStore((s) => s.dragEnd)
+  const dragging = useBrowserStore((s) => s.draggingTabId === tab.id)
+  const [rejected, setRejected] = useState(false)
+  // 指针手势状态机与 Esc 放回监听、回弹兜底计时器均经 ref 持有：释放可能在组件
+  // 卸载后不可达（Tab 已被主进程移除，React 合成事件不派发到脱离文档的节点），
+  // 卸载清理（下方 useEffect return）须能独立于事件流安全收尾；拖拽中卸载的
+  // 清态由 store.applySnapshot 自愈与主进程 60s 过期兜底
+  const gestureRef = useRef<{
+    mode: 'idle' | 'armed' | 'dragging'
+    pointerId: number
+    originX: number
+    originY: number
+    lastX: number
+    lastY: number
+  }>({ mode: 'idle', pointerId: -1, originX: 0, originY: 0, lastX: 0, lastY: 0 })
+  const escCancelRef = useRef<((e: KeyboardEvent) => void) | null>(null)
+  const rejectTimerRef = useRef<number | null>(null)
+  // 吞掉拖拽结束的随尾 click：pointerup 后浏览器仍会派发 click（HTML5 原生拖拽
+  // 会压制它，自绘手势不会）——若不吞，Tab 拖走后紧随的 click 会对已移出作用域
+  // 的 Tab 报「标签页不存在」，源窗内小拖释放（stayed）也会误激活被拖 Tab，
+  // 点击语义混入拖拽语义。消费一次即复位；新一轮 pointerdown 先清残留
+  //（click 未随拖拽派发的罕见路径，如 pointercancel 后无 click）
+  const suppressClickRef = useRef(false)
 
-  const changeMenuOpen = (next: boolean): void => {
-    if (menuOpenRef.current === next) return
-    menuOpenRef.current = next
-    if (next) openOverlay()
-    else closeOverlay()
-    setMenuOpen(next)
+  useEffect(() => {
+    const gesture = gestureRef.current
+    return () => {
+      if (escCancelRef.current !== null) {
+        document.removeEventListener('keydown', escCancelRef.current, true)
+        escCancelRef.current = null
+      }
+      if (rejectTimerRef.current !== null) {
+        window.clearTimeout(rejectTimerRef.current)
+        rejectTimerRef.current = null
+      }
+      gesture.mode = 'idle'
+    }
+  }, [])
+
+  /** 拖拽收尾（pointerup / 取消 / Esc 放回共用）：摘 Esc 监听 → 复位手势态 → 上报落点取裁决 */
+  const finishDrag = (screenX: number, screenY: number): void => {
+    const g = gestureRef.current
+    if (g.mode !== 'dragging') return
+    g.mode = 'idle'
+    suppressClickRef.current = true
+    if (escCancelRef.current !== null) {
+      document.removeEventListener('keydown', escCancelRef.current, true)
+      escCancelRef.current = null
+    }
+    // 落点为屏幕坐标（DIP，与主进程窗口 bounds 同系）；本地拖拽态清理由
+    // store.dragEnd 的 finally 兜底（含 IPC 失败路径）
+    void dragEnd(tab.id, screenX, screenY).then((outcome) => {
+      if (outcome === 'rejected') {
+        // 异会话释放被拒：源 Tab 原位回弹（右侧唯一允许的位移动效）；
+        // animationend 移除动画类，计时器兜底动画事件缺席的场景（如合成测试）
+        setRejected(true)
+        if (rejectTimerRef.current !== null) window.clearTimeout(rejectTimerRef.current)
+        rejectTimerRef.current = window.setTimeout(() => setRejected(false), 400)
+      }
+    })
   }
-
-  useEffect(
-    () => () => {
-      if (menuOpenRef.current) closeOverlay()
-    },
-    // closeOverlay 是 zustand 模块级 action，引用恒定，此 effect 仅挂/卸各执行一次
-    [closeOverlay]
-  )
 
   const title = tab.title || '新标签页'
 
-  const onMenuClick: MenuProps['onClick'] = ({ key, domEvent }) => {
-    domEvent.stopPropagation()
-    if (key === 'tear-off') {
-      void tearOffTab(tab.id).then((ok) => {
-        if (!ok) void message.warning('移出到独立窗口失败，请重试')
-      })
+  /** 位移过阈值，正式进入拖拽：上报主进程开轮询（携带虚影描述）+ 挂 Esc 放回 */
+  const engageDrag = (e: React.PointerEvent<HTMLDivElement>): void => {
+    gestureRef.current.mode = 'dragging'
+    // 虚影描述：卡片度量与按下点在卡内偏移（主进程预览窗按「光标 - 偏移」锚定跟随，
+    // 与真实抓取手感一致）、标题/favicon、当前解析主题（亮暗与壳一致）
+    const rect = e.currentTarget.getBoundingClientRect()
+    dragStart(tab.id, {
+      width: rect.width,
+      height: rect.height,
+      grabX: e.clientX - rect.x,
+      grabY: e.clientY - rect.y,
+      title,
+      faviconUrl: tab.loading ? null : (tab.faviconUrl ?? null),
+      theme: useAppearanceStore.getState().resolvedTheme
+    })
+    // Esc 放回（Chrome 对齐）：拖拽中 Esc 语义 = 取消并放回源窗。capture 阶段挂
+    // document 抢在 window 级 close-devtools 快捷键之前吞键（拖拽中不该关
+    // DevTools）；落点取源窗口内部坐标，保证主进程裁决为 stayed 零副作用
+    const onEsc = (ev: KeyboardEvent): void => {
+      if (ev.key !== 'Escape') return
+      ev.preventDefault()
+      ev.stopPropagation()
+      finishDrag(window.screenX + 100, window.screenY + 100)
     }
+    escCancelRef.current = onEsc
+    document.addEventListener('keydown', onEsc, true)
   }
 
   return (
-    <Dropdown
-      open={menuOpen}
-      onOpenChange={changeMenuOpen}
-      menu={{
-        items: [{ key: 'tear-off', label: '移出到独立窗口' }],
-        onClick: onMenuClick,
-        'aria-label': '标签页操作'
+    <div
+      role="tab"
+      tabIndex={0}
+      aria-selected={active}
+      title={title}
+      className={`chrome-tab${active ? ' active' : ''}${dragging ? ' dragging' : ''}${
+        rejected ? ' drag-rejected' : ''
+      }`}
+      onClick={() => {
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false
+          return
+        }
+        switchTab(tab.id)
       }}
-      trigger={['contextMenu']}
-      placement="bottomLeft"
-      // 弹层锁定挂在浏览器框架内（主窗口与独立窗口同为 .browser-frame 容器），
-      // 防挂 body 定位错位——惯例同 AppearanceEntry 的容器锁定
-      getPopupContainer={(triggerNode) =>
-        triggerNode.closest<HTMLElement>('.browser-frame') ?? triggerNode.parentElement!
-      }
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          switchTab(tab.id)
+        }
+      }}
+      onPointerDown={(e) => {
+        // 仅主键、且落点不在关闭钮上（关闭钮自有点击语义）；已有手势进行中忽略；
+        // 新手势开启即清上一轮吞 click 残留（click 未随拖拽派发的罕见路径）
+        if (e.button !== 0) return
+        if ((e.target as HTMLElement).closest('.chrome-tab-close')) return
+        suppressClickRef.current = false
+        const g = gestureRef.current
+        if (g.mode !== 'idle') return
+        g.mode = 'armed'
+        g.pointerId = e.pointerId
+        g.originX = e.screenX
+        g.originY = e.screenY
+        g.lastX = e.screenX
+        g.lastY = e.screenY
+        // 指针捕获：按住期间 pointermove/up 持续送达本元素（含光标移出窗口），
+        // 这是替代 HTML5 DnD 跨窗送达的关键；极端平台态捕获失败则降级窗内手势
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* 窗内拖拽仍由元素自身 move/up 事件覆盖 */
+        }
+      }}
+      onPointerMove={(e) => {
+        const g = gestureRef.current
+        if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
+        g.lastX = e.screenX
+        g.lastY = e.screenY
+        if (g.mode !== 'armed') return
+        const dx = e.screenX - g.originX
+        const dy = e.screenY - g.originY
+        if (dx * dx + dy * dy < DRAG_ENGAGE_RADIUS_PX * DRAG_ENGAGE_RADIUS_PX) return
+        engageDrag(e)
+      }}
+      onPointerUp={(e) => {
+        const g = gestureRef.current
+        if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
+        if (g.mode === 'dragging') finishDrag(e.screenX, e.screenY)
+        else g.mode = 'idle'
+      }}
+      onPointerCancel={(e) => {
+        // 系统接管（如应用切换/触控抬笔）：按最后已知坐标收尾，等同释放裁决
+        const g = gestureRef.current
+        if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
+        if (g.mode === 'dragging') finishDrag(g.lastX, g.lastY)
+        else g.mode = 'idle'
+      }}
+      onLostPointerCapture={(e) => {
+        // 兜底：up/cancel 之外的异常失捕（如元素中途移出 DOM）按最后坐标收尾，
+        // 不悬挂半透明态；正常路径 up/cancel 已把 mode 复位为 idle，此处自然跳过
+        const g = gestureRef.current
+        if (e.pointerId !== g.pointerId) return
+        if (g.mode === 'dragging') finishDrag(g.lastX, g.lastY)
+        else if (g.mode === 'armed') g.mode = 'idle'
+      }}
+      onAnimationEnd={(e) => {
+        // animationend 会冒泡（favicon 旋转等子动画）：只认本元素回弹动画的结束
+        if (e.target !== e.currentTarget) return
+        if (rejectTimerRef.current !== null) {
+          window.clearTimeout(rejectTimerRef.current)
+          rejectTimerRef.current = null
+        }
+        setRejected(false)
+      }}
     >
-      <div
-        role="tab"
-        tabIndex={0}
-        aria-selected={active}
-        title={title}
-        className={`chrome-tab${active ? ' active' : ''}`}
-        onClick={() => switchTab(tab.id)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            switchTab(tab.id)
-          }
+      {tab.loading ? (
+        <LoadingOutlined spin className="chrome-tab-favicon" />
+      ) : tab.faviconUrl ? (
+        // favicon 禁止自身成为拖拽源（img 原生可拖会劫持手势），保证整 Tab 拖拽一致
+        <img className="chrome-tab-favicon" src={tab.faviconUrl} alt="" draggable={false} />
+      ) : (
+        <span className="chrome-tab-favicon chrome-tab-favicon-dot" />
+      )}
+      <span className="chrome-tab-title">{title}</span>
+      <button
+        type="button"
+        className="chrome-tab-close"
+        aria-label={`关闭标签页：${title}`}
+        disabled={lastOne}
+        // 关闭钮显式不可拖（阻断继承自 Tab 的拖拽源），点击与键盘激活不受手势扰动
+        draggable={false}
+        onClick={(e) => {
+          e.stopPropagation()
+          closeTab(tab.id)
         }}
+        // 键盘激活（Enter/Space）不冒泡到父级 tab：父级 onKeyDown 会
+        // preventDefault 吞掉按钮原生激活，导致键盘永远关不掉标签页
+        onKeyDown={(e) => e.stopPropagation()}
       >
-        {tab.loading ? (
-          <LoadingOutlined spin className="chrome-tab-favicon" />
-        ) : tab.faviconUrl ? (
-          <img className="chrome-tab-favicon" src={tab.faviconUrl} alt="" />
-        ) : (
-          <span className="chrome-tab-favicon chrome-tab-favicon-dot" />
-        )}
-        <span className="chrome-tab-title">{title}</span>
-        <button
-          type="button"
-          className="chrome-tab-close"
-          aria-label={`关闭标签页：${title}`}
-          disabled={lastOne}
-          onClick={(e) => {
-            e.stopPropagation()
-            closeTab(tab.id)
-          }}
-          // 键盘激活（Enter/Space）不冒泡到父级 tab：父级 onKeyDown 会
-          // preventDefault 吞掉按钮原生激活，导致键盘永远关不掉标签页
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <CloseOutlined />
-        </button>
-      </div>
-    </Dropdown>
+        <CloseOutlined />
+      </button>
+    </div>
   )
 }
 
@@ -126,14 +244,21 @@ function TabStrip(): React.JSX.Element {
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const newTab = useBrowserStore((s) => s.newTab)
+  // 同会话拖拽悬停落点（阶段 9）：store 已把悬停推送归一化为「本窗口 id 或 null」，
+  // 命中即整条 Tab 栏高亮——可落的是整窗，Tab 栏是 app 在窗顶的自有可视面
+  const dragTarget = useBrowserStore((s) => s.hoverWindowId === windowIdentity.windowId)
 
   // 「最后留一」仅是主窗口作用域规则（主进程同 no-op，此处只管视觉与可点性）；
-  // 独立窗口允许关闭最后一个 Tab——关掉即销毁窗口（契约：计划第 3 节点 5），
-  // tear-off 不受最后留一限制（主窗口可至 0 Tab，走右键菜单而非关闭钮）
+  // 独立窗口允许关闭最后一个 Tab——关掉即销毁窗口（契约：阶段 7—8 计划第 3 节点 5），
+  // tear-off 不受最后留一限制（主窗口可至 0 Tab，阶段 9 拖拽手势可达）
   const lastOne = windowIdentity.mode === 'main' && tabs.length <= 1
 
   return (
-    <div className="chrome-tabs" role="tablist" aria-label="浏览器标签页">
+    <div
+      className={`chrome-tabs${dragTarget ? ' drag-target' : ''}`}
+      role="tablist"
+      aria-label="浏览器标签页"
+    >
       {tabs.map((tab) => (
         <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} lastOne={lastOne} />
       ))}

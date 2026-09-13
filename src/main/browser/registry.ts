@@ -86,11 +86,28 @@ export interface SessionBrowserRegistry extends TabManager {
   /**
    * tear-off：把 windowId 作用域的 Tab 移出为新建独立窗口（读会话名 → windows.ts 建窗
    * → manager 迁移 + 双侧快照），返回发起窗口作用域快照。异步（读盘取会话名）——
-   * browser 域唯一异步命令
+   * browser 域唯一异步编排。at 为可选建窗落点（拖出释放位置，屏幕坐标 DIP），透传
+   * windows.createWindow 定位（工作区 clamp，失败回退默认位置）。阶段 9 起为主进程
+   * 内部接口（拖拽控制器空白裁决复用），IPC 面已随临时右键菜单退役
    */
-  tearOffTab(id: string, windowId?: string): Promise<BrowserSnapshot>
+  tearOffTab(
+    id: string,
+    windowId?: string,
+    at?: { x?: number; y?: number }
+  ): Promise<BrowserSnapshot>
   /**
-   * sender 作用域解析（13 条命令通道的统一入口守卫，ipc 装配用）：主窗口来源 →
+   * 并入既有窗口（阶段 9 拖拽 'moved-window' 裁决的迁移编排）：Tab 从 source 作用域
+   * 移入 target 窗口（activate 收尾防双 view 叠加，见 manager.moveTabToWindow）。
+   * 强校验不留宽容路径：Tab 须属 source 作用域、target 须与 source 同会话——
+   * target 为 'main' 时要求当前激活会话相符，独立窗口要求其绑定会话相符，异会话抛
+   * 中文错误（拒绝判定在拖拽控制器按命中集预判，本接口兜底防竞态）。双侧作用域快照
+   * 经 emitChange 自动分发，无返回值
+   */
+  moveTabToWindow(id: string, sourceWindowId: string, targetWindowId: string): void
+  /** 当前激活会话 id（拖拽命中主窗口的判据：主窗激活会话 = 拖拽会话，PRD 3.6.2） */
+  getActiveSessionId(): string | null
+  /**
+   * sender 作用域解析（14 条命令通道的统一入口守卫，ipc 装配用）：主窗口来源 →
    * 激活会话的 'main' 作用域；独立窗口来源 → windows.ts 登记的绑定会话的该窗口作用域；
    * 未知窗口/已销毁/绑定会话已不在注册表一律抛中文错误（契约点 3）
    */
@@ -701,7 +718,8 @@ export function createSessionBrowserRegistry(deps: {
 
   async function tearOffTab(
     id: string,
-    windowId: string = WINDOW_ID_MAIN
+    windowId: string = WINDOW_ID_MAIN,
+    at?: { x?: number; y?: number }
   ): Promise<BrowserSnapshot> {
     const sessionId = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
     if (sessionId === null) throw new Error('未选择会话')
@@ -723,8 +741,31 @@ export function createSessionBrowserRegistry(deps: {
     if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
       throw new Error('标签页不存在')
     }
-    const created = windows.createWindow(sessionId, title)
+    const created = windows.createWindow(sessionId, title, at)
     return manager.tearOffTab(id, windowId, created.windowId)
+  }
+
+  function moveTabToWindow(id: string, sourceWindowId: string, targetWindowId: string): void {
+    // 作用域 → 会话：与 tearOffTab 同一解析口径（'main' → 激活会话；独立窗 → 绑定会话）
+    const sessionId =
+      sourceWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(sourceWindowId)
+    if (sessionId === null) throw new Error('未选择会话')
+    const manager = managers.get(sessionId)
+    if (!manager) throw new Error('会话已不可用')
+    if (!manager.getSnapshot(sourceWindowId).tabs.some((tab) => tab.id === id)) {
+      throw new Error('标签页不存在')
+    }
+    // 目标窗同会话强校验（拒绝判定已在拖拽控制器按命中集预判，此处兜底拦截竞态与
+    // 内部误用——异会话一律拒绝，无任何宽容路径，计划 2.2 定案）
+    if (targetWindowId === sourceWindowId) throw new Error('目标窗口与源窗口相同')
+    const targetSessionId =
+      targetWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(targetWindowId)
+    if (targetSessionId !== sessionId) throw new Error('目标窗口不属于该会话，拒绝转移')
+    manager.moveTabToWindow(id, sourceWindowId, targetWindowId)
+  }
+
+  function getActiveSessionId(): string | null {
+    return activeSessionId
   }
 
   function resolveSenderScope(sender: WebContents): SenderWindowScope {
@@ -788,6 +829,8 @@ export function createSessionBrowserRegistry(deps: {
     newTab,
     closeTab,
     tearOffTab,
+    moveTabToWindow,
+    getActiveSessionId,
     resolveSenderScope,
     onIndependentWindowReady,
     onIndependentWindowClosed,

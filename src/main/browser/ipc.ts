@@ -1,10 +1,13 @@
-// 浏览器 IPC handlers：十五条通道（13 条命令 + 2 条推送）的装配层。
+// 浏览器 IPC handlers：十七条通道（14 条命令 + 3 条推送）的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
 // → windows.ts 登记的绑定会话的该窗口作用域；未知窗口/已销毁/绑定会话失效一律抛
 // 中文错误拒绝（契约点 3，通道名与 payload 零变更）。
-// 推送（stateChanged/focusAddress）按快照/请求的 windowId 定向发对应窗口，不盲发
-// 主窗口；主窗口空态快照（emptySnapshot）恒属 'main'，自然只发主窗口。
+// 推送（stateChanged/focusAddress/dragHover）按快照/请求/悬停的 windowId 会话归属
+// 定向发对应窗口，不盲发主窗口；主窗口空态快照（emptySnapshot）恒属 'main'，自然只
+// 发主窗口。阶段 9：tear-off 的 IPC 通道随临时右键菜单入口退役（建窗/迁移编排下沉
+// registry 内部接口，由拖拽控制器复用）；拖拽通道（tab-drag-start/end 命令 +
+// tab-drag-hover 推送）在此接线。
 // 通道名一律取自 shared/browser 的 BROWSER_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
@@ -15,20 +18,60 @@ import {
   WINDOW_ID_MAIN,
   type BrowserSnapshot,
   type OkResult,
-  type SetBoundsPayload
+  type SetBoundsPayload,
+  type TabDragOutcome,
+  type TabDragPreviewPayload
 } from '../../shared/browser'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
+import type { TabDragController } from './dragging'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
 import type { IndependentWindows } from './windows'
 import { logLoadFailure, normalizeInput } from './url'
 
-const { invalidParams, isRecord, optionalString, parseRect } = createIpcGuards('无效的浏览器参数')
+const { invalidParams, isRecord, optionalString, parseRect, requiredNumber } =
+  createIpcGuards('无效的浏览器参数')
+
+/**
+ * 拖拽虚影载荷（dragStart 可选携带）运行时守卫：结构垃圾按命令口径拒绝（dragStart
+ * 是命令语义，与 dragEnd 收尾不抛错的口径不同）；faviconUrl 仅收字符串（协议白名单
+ * 在 dragPreview 内再校验），theme 限亮暗二值
+ */
+function parseDragPreview(value: unknown): TabDragPreviewPayload {
+  if (
+    !isRecord(value) ||
+    typeof value.title !== 'string' ||
+    typeof value.width !== 'number' ||
+    !Number.isFinite(value.width) ||
+    typeof value.height !== 'number' ||
+    !Number.isFinite(value.height) ||
+    typeof value.grabX !== 'number' ||
+    !Number.isFinite(value.grabX) ||
+    typeof value.grabY !== 'number' ||
+    !Number.isFinite(value.grabY) ||
+    (value.theme !== 'light' && value.theme !== 'dark')
+  ) {
+    throw invalidParams()
+  }
+  return {
+    width: value.width,
+    height: value.height,
+    grabX: value.grabX,
+    grabY: value.grabY,
+    title: value.title,
+    faviconUrl: typeof value.faviconUrl === 'string' ? value.faviconUrl : null,
+    theme: value.theme
+  }
+}
 
 export function registerBrowserIpc(
   manager: SessionBrowserRegistry,
-  deps: { getMainWindow: () => BrowserWindow | null; windows: IndependentWindows }
+  deps: {
+    getMainWindow: () => BrowserWindow | null
+    windows: IndependentWindows
+    dragController: TabDragController
+  }
 ): void {
-  const { getMainWindow, windows } = deps
+  const { getMainWindow, windows, dragController } = deps
 
   /** 推送目标窗口：'main' → 主窗口显式引用；独立窗口 → 登记表现取（销毁即跳过；主窗口 macOS 关窗期间为 null，均静默跳过） */
   function windowForId(windowId: string): BrowserWindow | null {
@@ -48,16 +91,31 @@ export function registerBrowserIpc(
     windowForId(windowId)?.webContents.send(BROWSER_CHANNELS.focusAddress)
   })
 
+  // 拖拽悬停桥接：控制器只在悬停变化时回调（含 dragStart 初始态与收尾/过期的 null
+  // 终态）。广播目标 = 被拖 Tab 同会话的窗口全集——主窗口（仅当其激活会话 = 拖拽会话，
+  // 各窗口与自身 windowId 比对画高亮）+ 该会话全部独立窗口（含源窗口：源窗需据
+  // payload.tabId 渲染半透明并在 null 终态时清场）；异会话窗口零触达（计划 2.3）
+  dragController.onHoverChanged((payload) => {
+    if (manager.getActiveSessionId() === payload.sessionId) {
+      windowForId(WINDOW_ID_MAIN)?.webContents.send(BROWSER_CHANNELS.dragHover, payload)
+    }
+    for (const entry of windows.listForSession(payload.sessionId)) {
+      windowForId(entry.windowId)?.webContents.send(BROWSER_CHANNELS.dragHover, payload)
+    }
+  })
+
   /** 来源窗口作用域解析（未知来源抛中文错误）；空会话不在此拦——getState/setBounds 对空态合法 */
   function resolveScope(event: IpcMainInvokeEvent): SenderWindowScope {
     return manager.resolveSenderScope(event.sender)
   }
 
-  /** 命令作用域守卫：解析来源 + 主窗口零会话拒绝（「未选择会话」仅对主窗口来源；独立窗口来源的会话存活性已在解析内校验） */
-  function requireScope(event: IpcMainInvokeEvent): SenderWindowScope {
-    const scope = manager.resolveSenderScope(event.sender)
-    if (scope.sessionId === null) throw new Error('未选择会话')
-    return scope
+  /** 命令作用域守卫：解析来源 + 主窗口零会话拒绝（「未选择会话」仅对主窗口来源；独立
+   * 窗口来源的会话存活性已在解析内校验）。返回类型收窄 sessionId 为非空——函数对
+   * null 已抛错，守卫后的调用方（如 dragStart 的会话参数）无需再判空 */
+  function requireScope(event: IpcMainInvokeEvent): SenderWindowScope & { sessionId: string } {
+    const { windowId, sessionId } = manager.resolveSenderScope(event.sender)
+    if (sessionId === null) throw new Error('未选择会话')
+    return { windowId, sessionId }
   }
 
   /** id 存在性校验（按来源窗口作用域）：不存在抛错（manager 对不存在 id 是静默 no-op，必须在 handler 层拦截） */
@@ -193,17 +251,49 @@ export function registerBrowserIpc(
     })
   )
 
-  // tearOffTab：把发起窗口作用域的 Tab 移出为独立窗口（registry 内：读会话名 →
-  // windows.ts 建窗 → manager 迁移 + 双侧快照）；webContents 保活原样迁移（重开同 URL
-  // 的伪迁移禁止）；browser 域唯一异步命令（读盘取会话名），失败日志走 logFailureAsync
-  ipcMain.handle(BROWSER_CHANNELS.tearOffTab, (event, payload: unknown): Promise<BrowserSnapshot> =>
-    logFailureAsync(BROWSER_CHANNELS.tearOffTab, payload, async () => {
+  // dragStart：拖拽开始。命令语义守卫（来源作用域 + Tab 存在性 + payload 结构），
+  // 通过后交控制器开启拖拽会话与光标轮询；返回 OkResult——裁决结果在 dragEnd 取回
+  ipcMain.handle(BROWSER_CHANNELS.dragStart, (event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.dragStart, payload, () => {
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
       requireTabId(scope.windowId, payload.id)
-      return manager.tearOffTab(payload.id, scope.windowId)
+      // 虚影描述可选携带（缺省 = 无虚影拖拽，功能不受影响）
+      const preview = payload.preview === undefined ? undefined : parseDragPreview(payload.preview)
+      dragController.dragStart({
+        sessionId: scope.sessionId,
+        tabId: payload.id,
+        sourceWindowId: scope.windowId,
+        preview
+      })
+      return { ok: true }
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（15 条通道）')
+  // dragEnd：拖拽收尾上报落点坐标，取回四态裁决（TabDragOutcome）。与命令通道的关键
+  // 差异——收尾语义不是命令语义：陈旧/失效拖拽一律返回 'stayed' 不抛错（dragStart
+  // 守卫后的状态漂移在控制器全量重验消化），仅 payload 结构垃圾仍按命令口径拒绝。
+  // 异步（空白裁决建窗读盘），失败日志走 logFailureAsync
+  ipcMain.handle(BROWSER_CHANNELS.dragEnd, (event, payload: unknown): Promise<TabDragOutcome> =>
+    logFailureAsync(BROWSER_CHANNELS.dragEnd, payload, async () => {
+      if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+      const screenX = requiredNumber(payload.screenX)
+      const screenY = requiredNumber(payload.screenY)
+      // 来源解析失败（拖拽窗口期窗口销毁等极端时序）按 stayed 收场——收尾不抛错
+      let scope: SenderWindowScope
+      try {
+        scope = resolveScope(event)
+      } catch {
+        return 'stayed'
+      }
+      return dragController.dragEnd({
+        tabId: payload.id,
+        sourceWindowId: scope.windowId,
+        screenX,
+        screenY
+      })
+    })
+  )
+
+  console.log('[browser] IPC handlers 已注册（17 条通道）')
 }

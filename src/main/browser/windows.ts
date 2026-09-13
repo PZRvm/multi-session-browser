@@ -6,7 +6,7 @@
 // 侧乐观标题）；不持有任何 WebContentsView（挂摘一律经 manager，本模块只在
 // ready-to-show / closed 两个时点回调 registry 编排）。
 
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
@@ -30,12 +30,31 @@ export interface IndependentWindows {
   /**
    * 创建并登记独立窗口：隐藏创建（show: false），renderer 首帧就绪（ready-to-show）
    * 才显示并回调 onWindowReady 挂 view——建窗到首 Tab 挂入之间的空窗瞬态对用户不可见
-   * （防白屏）；title=会话名由调用方传入（本模块不读会话元数据）
+   * （防白屏）；title=会话名由调用方传入（本模块不读会话元数据）。at 为可选建窗落点
+   * （拖出释放位置，屏幕坐标 DIP）：定位失败（坐标非有限数或 screen API 异常）回退
+   * 系统默认位置，不阻断建窗
    */
-  createWindow(sessionId: string, title: string): { windowId: string; win: BrowserWindow }
+  createWindow(
+    sessionId: string,
+    title: string,
+    at?: { x?: number; y?: number }
+  ): { windowId: string; win: BrowserWindow }
   getWindowById(windowId: string): BrowserWindow | null
   /** windowId → 绑定会话 id（未登记返回 null）：ipc 作用域解析与 tear-off 路由此查 */
   getSessionId(windowId: string): string | null
+  /**
+   * 该会话全部存活独立窗口（已销毁过滤；最小化不在本层排除——拖拽命中集按需裁决）：
+   * 拖拽悬停广播与同会话命中集的窗口全集
+   */
+  listForSession(sessionId: string): IndependentWindowEntry[]
+  /** 全部存活独立窗口（任意会话，已销毁过滤）：拖拽裁决的“全应用窗口”命中用 */
+  listAll(): IndependentWindowEntry[]
+  /**
+   * 窗口最近聚焦序号（未登记/从未聚焦恒 0 = 最旧）：拖拽命中多窗 bounds 重叠时的
+   * tiebreak 依据（Electron 无 z 序 API）。主窗口不在本登记表，序恒 0——拖拽
+   * tiebreak 的「主窗口兜底最后」由缺省值天然成立
+   */
+  getFocusSeq(windowId: string): number
   /** 同步该会话全部独立窗口标题（会话重命名经 index.ts 注入；标题与会话名严格同源） */
   setTitleForSession(sessionId: string, name: string): void
   /** 关闭单个独立窗口（registry 空作用域收口用；closed 级联清 manager 作用域状态） */
@@ -55,16 +74,62 @@ export function createIndependentWindows(deps: {
   onWindowClosed: (sessionId: string, windowId: string) => void
 }): IndependentWindows {
   const windowsById = new Map<string, IndependentWindowEntry>()
+  // 最近聚焦序表：windowId → 最近一次获焦的全局序号（单调递增）。只由 focus 事件
+  // 更新——blur 必然发生在当前序表最末的窗口上（失焦者即最近获焦者），提供不了新
+  // 排序信息，且获焦侧与失焦侧事件的相对次序跨平台不保证，双写反而引入竞态。
+  // 序表随 unregister 一并清条目（windowId 不复用，残留只会白占内存）
+  let focusSeq = 0
+  const focusSeqByWindowId = new Map<string, number>()
 
   function unregister(windowId: string): void {
     windowsById.delete(windowId)
+    focusSeqByWindowId.delete(windowId)
+  }
+
+  /**
+   * 建窗落点定位（拖出释放的 tear-off 落点）：以落点为窗口水平中心、垂直偏上
+   * （拖出释放的自然形态——落点位于新窗上部，窗口整体可见且与落点重叠即可），
+   * clamp 到 getDisplayMatching 所取显示器的工作区（落点在屏外时贴最近显示器
+   * 工作区边缘）。坐标非有限数或 screen API 异常返回 null → 回退默认位置建窗
+   */
+  function positionAt(at: { x?: number; y?: number }): { x: number; y: number } | null {
+    const { x, y } = at
+    if (
+      typeof x !== 'number' ||
+      typeof y !== 'number' ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return null
+    }
+    try {
+      const rect = {
+        x: Math.round(x - DEFAULT_WIDTH / 2),
+        y: Math.round(y - DEFAULT_HEIGHT * 0.4),
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT
+      }
+      const area = screen.getDisplayMatching(rect).workArea
+      // clamp 到工作区（上界不小于下界——极端小工作区时贴左/上对齐，不越界）
+      const clamp = (v: number, lo: number, hi: number): number =>
+        Math.min(Math.max(v, lo), Math.max(lo, hi))
+      return {
+        x: clamp(rect.x, area.x, area.x + area.width - DEFAULT_WIDTH),
+        y: clamp(rect.y, area.y, area.y + area.height - DEFAULT_HEIGHT)
+      }
+    } catch {
+      return null
+    }
   }
 
   function createWindow(
     sessionId: string,
-    title: string
+    title: string,
+    at?: { x?: number; y?: number }
   ): { windowId: string; win: BrowserWindow } {
+    const position = at ? positionAt(at) : null
     const win = new BrowserWindow({
+      ...(position ? { x: position.x, y: position.y } : {}),
       width: DEFAULT_WIDTH,
       height: DEFAULT_HEIGHT,
       minWidth: MIN_WIDTH,
@@ -82,6 +147,12 @@ export function createIndependentWindows(deps: {
     const windowId = String(win.id)
     windowsById.set(windowId, { windowId, win, sessionId })
     installShellInputGuard(win.webContents)
+
+    // 拖拽 tiebreak 的最近聚焦序（语义见 focusSeqByWindowId 声明处注释）
+    win.on('focus', () => {
+      focusSeq += 1
+      focusSeqByWindowId.set(windowId, focusSeq)
+    })
 
     // 窗口标题专属会话名（PRD 验收 13）：拦截页面 document.title 对窗口标题的覆盖——
     // renderer 加载 index.html 时会把标题刷成产品名，重命名同步（setTitleForSession）
@@ -135,6 +206,21 @@ export function createIndependentWindows(deps: {
     return windowsById.get(windowId)?.sessionId ?? null
   }
 
+  // 拷贝快照迭代：closed 异步摘表，不与调用方的同步迭代并发改写
+  function listForSession(sessionId: string): IndependentWindowEntry[] {
+    return [...windowsById.values()].filter(
+      (entry) => entry.sessionId === sessionId && !entry.win.isDestroyed()
+    )
+  }
+
+  function listAll(): IndependentWindowEntry[] {
+    return [...windowsById.values()].filter((entry) => !entry.win.isDestroyed())
+  }
+
+  function getFocusSeq(windowId: string): number {
+    return focusSeqByWindowId.get(windowId) ?? 0
+  }
+
   function setTitleForSession(sessionId: string, name: string): void {
     for (const entry of windowsById.values()) {
       if (entry.sessionId === sessionId && !entry.win.isDestroyed()) entry.win.setTitle(name)
@@ -169,6 +255,9 @@ export function createIndependentWindows(deps: {
     createWindow,
     getWindowById,
     getSessionId,
+    listForSession,
+    listAll,
+    getFocusSeq,
     setTitleForSession,
     closeWindow,
     closeAllForSession,
