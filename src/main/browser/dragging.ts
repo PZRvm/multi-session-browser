@@ -291,8 +291,13 @@ export function createTabDragController(deps: {
     created.lastPolledPoint = { x: cursor.x, y: cursor.y }
     created.hoverWindowId = hoverWindowAt(created, created.lastPolledPoint)
     emitHover(created, created.hoverWindowId)
-    // 跟随虚影（可选）：锚定抓取点建窗，此后由轮询逐帧 moveTo（endSession 统一销毁）
-    if (p.preview) preview.show(p.preview, created.lastPolledPoint)
+    // 跟随虚影（可选）：锚定抓取点建窗，此后由轮询逐帧 moveTo（endSession 统一销毁）。
+    // 建窗属纯视觉增强，极端资源态失败不阻断拖拽会话与命令成功——告警降级为无虚影
+    try {
+      if (p.preview) preview.show(p.preview, created.lastPolledPoint)
+    } catch (error) {
+      console.warn('[dragging] 拖拽虚影建窗失败，本次拖拽以无虚影继续:', error)
+    }
   }
 
   function pollOnce(): void {

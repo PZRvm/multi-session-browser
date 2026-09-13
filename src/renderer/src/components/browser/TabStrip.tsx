@@ -39,9 +39,21 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
     pointerId: number
     originX: number
     originY: number
+    /** 按下点 client 坐标：虚影抓取偏移的精确锚定源（engageDrag 时的指针已离开按下点 5px+） */
+    downClientX: number
+    downClientY: number
     lastX: number
     lastY: number
-  }>({ mode: 'idle', pointerId: -1, originX: 0, originY: 0, lastX: 0, lastY: 0 })
+  }>({
+    mode: 'idle',
+    pointerId: -1,
+    originX: 0,
+    originY: 0,
+    downClientX: 0,
+    downClientY: 0,
+    lastX: 0,
+    lastY: 0
+  })
   const escCancelRef = useRef<((e: KeyboardEvent) => void) | null>(null)
   const rejectTimerRef = useRef<number | null>(null)
   // 吞掉拖拽结束的随尾 click：pointerup 后浏览器仍会派发 click（HTML5 原生拖拽
@@ -97,11 +109,14 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
     // 虚影描述：卡片度量与按下点在卡内偏移（主进程预览窗按「光标 - 偏移」锚定跟随，
     // 与真实抓取手感一致）、标题/favicon、当前解析主题（亮暗与壳一致）
     const rect = e.currentTarget.getBoundingClientRect()
+    const g = gestureRef.current
     dragStart(tab.id, {
       width: rect.width,
       height: rect.height,
-      grabX: e.clientX - rect.x,
-      grabY: e.clientY - rect.y,
+      // 抓取偏移取按下点而非本次 move 事件（此刻指针已偏离按下点 5px+，用 move 会
+      // 让虚影锚点整体偏移同样距离）
+      grabX: g.downClientX - rect.x,
+      grabY: g.downClientY - rect.y,
       title,
       faviconUrl: tab.loading ? null : (tab.faviconUrl ?? null),
       theme: useAppearanceStore.getState().resolvedTheme
@@ -153,6 +168,8 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
         g.pointerId = e.pointerId
         g.originX = e.screenX
         g.originY = e.screenY
+        g.downClientX = e.clientX
+        g.downClientY = e.clientY
         g.lastX = e.screenX
         g.lastY = e.screenY
         // 指针捕获：按住期间 pointermove/up 持续送达本元素（含光标移出窗口），

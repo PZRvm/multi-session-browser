@@ -29,6 +29,13 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;')
 }
 
+/** 虚影标题截断：页面标题理论无长度上限，超长标题经 encodeURIComponent 拼进
+ *  data URL 会拖慢/阻塞建窗加载——卡片本身单行省略显示，截 200 字符足够 */
+const PREVIEW_TITLE_MAX = 200
+function truncateTitle(text: string): string {
+  return text.length > PREVIEW_TITLE_MAX ? text.slice(0, PREVIEW_TITLE_MAX) + '…' : text
+}
+
 /** favicon 只接受 http(s) 绝对地址（页面可控输入，防 javascript:/data: 注入） */
 function safeFavicon(url: string | null): string | null {
   return url && /^https:\/\//.test(url) ? url : null
@@ -56,7 +63,7 @@ export function createDragPreview(): DragPreview {
       ? `<img src="${escapeHtml(favicon)}" alt="" style="width:16px;height:16px;flex:none" draggable="false">`
       : `<span style="width:6px;height:6px;border-radius:50%;background:${dot};flex:none"></span>`
     return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent">
-<div style="display:flex;align-items:center;gap:8px;height:100vh;padding:0 14px;box-sizing:border-box;background:${bg};border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;font-size:12px;color:${ink};white-space:nowrap;overflow:hidden">${icon}<span style="overflow:hidden;text-overflow:ellipsis;flex:1">${escapeHtml(payload.title)}</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:100vh;padding:0 14px;box-sizing:border-box;background:${bg};border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;font-size:12px;color:${ink};white-space:nowrap;overflow:hidden">${icon}<span style="overflow:hidden;text-overflow:ellipsis;flex:1">${escapeHtml(truncateTitle(payload.title))}</span></div>
 </body></html>`
   }
 
