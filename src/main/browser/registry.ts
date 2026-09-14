@@ -516,7 +516,7 @@ export function createSessionBrowserRegistry(deps: {
     // 阶段4步骤1 冒烟定案），从 Map 移除 manager 即天然保证——本函数此后也不再触碰该分区 session
     managers.delete(id)
     persistence.dropSession(id)
-    // 历史随会话销毁彻底清除（PRD 3.1.2「永久删除」；deleteAll 级联逐会话走本链天然覆盖）
+    // 历史随会话销毁彻底清除（PRD 3.1.2「永久删除」；deleteBatch 级联逐会话走本链天然覆盖）
     await history.dropHistory(id)
     deleteStatus(id)
     // 正常编排里被删激活会话时 index.ts 已先切换走（onDeleted 级联）；此处兜底摘 view 与空态

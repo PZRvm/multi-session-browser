@@ -1,4 +1,4 @@
-// 会话 IPC handlers：九条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-all /
+// 会话 IPC handlers：九条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
 // batch-open-url 三条）的业务实现，读写一律经 store.ts 的快照接口；status-changed 推送
 // 不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。
@@ -33,7 +33,7 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  * - getRestoreSet：源会话恢复集缓存（阶段 10）——clone 的 tabs/activeTabIndex 取
  *   closeSession 冲刷（settle 时点）后的归并集缓存值，不重读盘；缓存未命中（源从未
  *   激活过）返回 undefined，调用方回退落盘值
- * - onAllDeleted：deleteAll 落盘成功后通知编排层一次切空态 + 逐会话销毁清分区
+ * - onBatchDeleted：deleteBatch 落盘成功后通知编排层一次切换到级联 activeId + 逐会话销毁清分区
  * - onBatchOpenUrl：batchOpenUrl 整单校验通过后通知编排层逐会话新建 Tab 加载
  */
 interface SessionIpcDeps {
@@ -44,7 +44,7 @@ interface SessionIpcDeps {
   getStatuses(): SessionStatusesPayload
   clonePartition(srcId: string, dstId: string): Promise<void>
   getRestoreSet(srcId: string): { tabs: StoredTab[]; activeTabIndex: number } | undefined
-  onAllDeleted(ids: string[]): void
+  onBatchDeleted(ids: string[], nextActiveId: string | null): void
   onBatchOpenUrl(ids: string[], url: string): void
 }
 
@@ -58,6 +58,22 @@ const NOTE_MAX = 200
 /** 守卫失败统一抛出的业务错误 */
 function invalidParams(): Error {
   return new Error('无效的会话参数')
+}
+
+/**
+ * 从 IPC payload 中解析 ids：必须为非空数组且逐项 string，否则判为非法入参。
+ * batch-delete 与 batch-open-url 两条批量通道共用同一校验（规则演进只改此处）
+ */
+function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
+  const raw = payload.ids
+  if (
+    !Array.isArray(raw) ||
+    raw.length === 0 ||
+    !raw.every((item): item is string => typeof item === 'string')
+  ) {
+    throw invalidParams()
+  }
+  return raw
 }
 
 /** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */
@@ -260,22 +276,37 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // delete-all：批量关闭全部会话（= 彻底删除全部，与单条删除同一标准：销毁 webContents +
-  // 清分区数据 + 删分区目录）；原子清空快照（sessions=[]、activeId=null）后经 onAllDeleted
-  // 一次切空态 + 逐会话异步销毁；空列表 no-op 直接成功，不触发编排
-  ipcMain.handle(SESSIONS_CHANNELS.deleteAll, async (): Promise<OkResult> =>
-    logFailure(SESSIONS_CHANNELS.deleteAll, undefined, async () => {
-      const ids = (await loadSnapshot()).sessions.map((s) => s.id)
-      if (ids.length === 0) return { ok: true }
-      await mutateSnapshot((snapshot) => {
-        snapshot.sessions = []
-        snapshot.activeId = null
+  // delete-batch：批量关闭选中会话（= 彻底删除选中项，与单条删除同一标准：销毁
+  // webContents + 清分区数据 + 删分区目录）；整单校验拒绝制——ids 不合法或任一不存在
+  // 整单拒绝，无部分成功。同一快照互斥期内完成存在性校验与原子移除（无校验/执行竞态
+  // 窗口），级联规则与单条删除一致：选中集含激活会话时指向剩余首项（无剩余则 null）；
+  // 落盘成功后经 onBatchDeleted 一次切换到级联 activeId + 逐会话异步销毁
+  ipcMain.handle(
+    SESSIONS_CHANNELS.deleteBatch,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.deleteBatch, payload, async () => {
+        // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
+        if (!isRecord(payload)) throw invalidParams()
+        // 去重：重复 id 只删一次，防编排层重复销毁
+        const ids = [...new Set(parseNonEmptyStringIds(payload))]
+        // id 格式预校验（同 batch-open-url R4 定案）：被篡改的落盘 id 须在存在性检查前拒绝
+        if (!ids.every((id) => SESSION_ID_RE.test(id))) {
+          throw new Error('会话 id 非法（疑似数据被篡改）')
+        }
+        const nextActiveId = await mutateSnapshot((snapshot) => {
+          const idSet = new Set(ids)
+          const known = new Set(snapshot.sessions.map((s) => s.id))
+          if (!ids.every((id) => known.has(id))) throw new Error('会话不存在')
+          snapshot.sessions = snapshot.sessions.filter((s) => !idSet.has(s.id))
+          if (snapshot.activeId !== null && idSet.has(snapshot.activeId)) {
+            snapshot.activeId = snapshot.sessions[0]?.id ?? null
+          }
+          return snapshot.activeId
+        })
+        // 落盘成功后联动（校验守卫或写盘失败时抛错，不联动）
+        deps.onBatchDeleted(ids, nextActiveId)
         return { ok: true }
       })
-      // 落盘成功后联动（写盘失败时抛错，不联动）
-      deps.onAllDeleted(ids)
-      return { ok: true }
-    })
   )
 
   // batch-open-url：对全部选中会话各新建一个 Tab 加载指定测试地址；整单校验拒绝制——
@@ -284,17 +315,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     SESSIONS_CHANNELS.batchOpenUrl,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.batchOpenUrl, payload, async () => {
-        // ids 必须为非空数组且逐项 string；url 必须为 string
+        // payload 必须为 record；ids 经共用校验，url 必须为 string
         if (!isRecord(payload)) throw invalidParams()
-        if (
-          !Array.isArray(payload.ids) ||
-          payload.ids.length === 0 ||
-          !payload.ids.every((item): item is string => typeof item === 'string') ||
-          typeof payload.url !== 'string'
-        ) {
-          throw invalidParams()
-        }
-        const ids = payload.ids
+        const ids = parseNonEmptyStringIds(payload)
+        if (typeof payload.url !== 'string') throw invalidParams()
         // id 格式预校验（R4 定案）：被篡改的落盘 id 能通过存在性检查（isStoredSession
         // 只查非空 string），若放行到 registry 的逐会话开 Tab，会在中途抛错前已对
         // 前序合法会话产生副作用——违背整单拒绝契约。格式校验前置，非法即整单拒绝

@@ -235,7 +235,7 @@ app.whenReady().then(async () => {
   // 注册表；会话侧编排回调在此注入（签名按计划第 3 节契约点 3/4 冻结，内联声明）——
   // 切换会话即切换浏览器（视图交换保活），删除先级联切换再异步销毁清分区，
   // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
-  // 批量关闭（一次切空态 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
+  // 批量关闭选中（一次切到级联激活 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
   registerBrowserIpc(created, {
     getMainWindow: () => mainWindow,
     windows: independentWindows,
@@ -274,10 +274,15 @@ app.whenReady().then(async () => {
     // 即「关闭发起时刻的完整归并集」，clone 元数据复制不重读盘（关窗级联窗口期的落盘
     // 重写不再影响克隆产物）
     getRestoreSet: (srcId: string) => created.getRestoreSet(srcId),
-    // 批量关闭全部：一次切空态（同步摘 view、广播空态快照）再逐会话异步销毁清分区
-    // （N 次逐条切换不可取——主进程一次切空 + 并行销毁，计划契约点 3 定案）
-    onAllDeleted: (ids: string[]): void => {
-      created.switchSession(null)
+    // 批量关闭选中：一次切到级联 activeId（同步摘 view、广播快照）再逐会话异步销毁
+    // 清分区（N 次逐条切换不可取——一次切换 + 并行销毁，计划契约点 3 定案）；选中集
+    // 不含激活会话时级联 id 即原激活值，switchSession 同 id no-op 无副作用
+    onBatchDeleted: (ids: string[], nextActiveId: string | null): void => {
+      try {
+        created.switchSession(nextActiveId)
+      } catch (error) {
+        console.warn(`[main] 批量删除后级联切换到 ${nextActiveId} 失败:`, error)
+      }
       for (const id of ids) {
         void created.destroySession(id).catch((error: unknown) => {
           console.warn(`[main] 销毁会话 ${id} 失败:`, error)

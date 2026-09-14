@@ -15,7 +15,8 @@ interface SessionsState {
   addSession: () => Promise<void>
   cloneSession: (id: string) => Promise<void>
   removeSession: (id: string) => Promise<void>
-  deleteAllSessions: () => Promise<void>
+  // 返回整单是否成功：整单拒绝制下失败即无任何删除，供调用方呈现失败反馈
+  deleteSessions: (ids: string[]) => Promise<boolean>
   renameSession: (id: string, name: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
   batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
@@ -126,16 +127,27 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  // 批量关闭全部：主进程清空后本地同样原子清空。级联空态快照推送在 deleteAll
-  // 回复之前到达（推送时本地 activeId 仍旧值，被守卫丢弃），故本地清空后必须
-  // 重拉浏览器快照对齐空态（模式照 removeSession）
-  deleteAllSessions: async () => {
+  // 批量关闭选中：主进程整单校验，成功即本地按同一集合原子移除。级联切换的快照推送
+  // 在 deleteBatch 回复之前到达（推送时本地 activeId 仍旧值，被守卫丢弃），故本地更新
+  // 后必须重拉浏览器快照对齐（模式照 removeSession）；activeId 级联规则与主进程一致——
+  // 选中集含激活会话时指向剩余首项（无剩余则 null）
+  deleteSessions: async (ids) => {
     try {
-      await window.api.sessions.deleteAll()
-      set({ sessions: [], activeId: null })
+      await window.api.sessions.deleteBatch({ ids })
+      set((state) => {
+        const idSet = new Set(ids)
+        const sessions = state.sessions.filter((s) => !idSet.has(s.id))
+        const activeId =
+          state.activeId !== null && idSet.has(state.activeId)
+            ? (sessions[0]?.id ?? null)
+            : state.activeId
+        return { sessions, activeId }
+      })
       void useBrowserStore.getState().resync()
+      return true
     } catch (error) {
-      console.error('关闭全部会话失败', error)
+      console.error('关闭选中会话失败', error)
+      return false
     }
   },
 

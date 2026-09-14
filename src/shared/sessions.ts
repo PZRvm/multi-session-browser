@@ -9,8 +9,9 @@
 // - status 是运行时状态不落盘，由"该会话任一 Tab loading"聚合而来，经
 //   statusChanged 全量 map 推送；renderer 先订阅后拉取（getStatuses）防启动竞态
 // - setActive 通道在主进程内附带副作用：触发浏览器切换到目标会话（编排见 registry）
-// - 阶段 5 增量：clone（分区数据+元数据复制）、deleteAll（批量关闭=删除全部）、
-//   batchOpenUrl（选中会话统一开测试地址）；通道整单校验拒绝制，无部分成功
+// - 阶段 5 增量：clone（分区数据+元数据复制）、deleteBatch（批量关闭=彻底删除
+//   选中会话，替代早期 delete-all）、batchOpenUrl（选中会话统一开测试地址）；
+//   通道整单校验拒绝制，无部分成功
 // - 阶段 6 增量：tabs（恢复用 URL 列表，顺序即创建序）+ activeTabIndex（激活位）；
 //   恢复是 URL 级——页面运行态与 DevTools 开关态不持久化（PRD 3.6.4）
 
@@ -23,7 +24,7 @@ export const SESSIONS_CHANNELS = {
   getStatuses: 'sessions:get-statuses',
   statusChanged: 'sessions:status-changed',
   clone: 'sessions:clone',
-  deleteAll: 'sessions:delete-all',
+  deleteBatch: 'sessions:delete-batch',
   batchOpenUrl: 'sessions:batch-open-url'
 } as const
 
@@ -118,6 +119,15 @@ export interface CloneSessionPayload {
 export interface BatchOpenUrlPayload {
   ids: string[]
   url: string
+}
+
+/**
+ * 批量关闭选中会话：彻底删除勾选会话（与单条删除同一标准：销毁 webContents +
+ * 清分区数据 + 删分区目录）。
+ * 整单校验拒绝制——ids 任一不存在时整单拒绝，无部分成功
+ */
+export interface BatchDeleteSessionsPayload {
+  ids: string[]
 }
 
 export interface OkResult {

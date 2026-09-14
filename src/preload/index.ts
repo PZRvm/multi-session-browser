@@ -21,6 +21,7 @@ import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
+  BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
   CloneSessionPayload,
   CreateSessionPayload,
@@ -63,7 +64,8 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.getStatuses),
     clone: (payload: CloneSessionPayload): Promise<StoredSession> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.clone, payload),
-    deleteAll: (): Promise<OkResult> => ipcRenderer.invoke(SESSIONS_CHANNELS.deleteAll),
+    deleteBatch: (payload: BatchDeleteSessionsPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.deleteBatch, payload),
     batchOpenUrl: (payload: BatchOpenUrlPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.batchOpenUrl, payload),
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener

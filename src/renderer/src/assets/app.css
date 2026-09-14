@@ -649,7 +649,7 @@ body.col-resizing {
 }
 
 /* danger 文字钮配色由 antd 暗色层供色，仅作右缘对齐微调 */
-.batch-close-all {
+.batch-close-selected {
   margin-right: -7px;
 }
 

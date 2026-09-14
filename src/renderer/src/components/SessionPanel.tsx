@@ -185,11 +185,11 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const addSession = useSessionsStore((s) => s.addSession)
   const cloneSession = useSessionsStore((s) => s.cloneSession)
-  const deleteAllSessions = useSessionsStore((s) => s.deleteAllSessions)
+  const deleteSessions = useSessionsStore((s) => s.deleteSessions)
   const batchOpenUrl = useSessionsStore((s) => s.batchOpenUrl)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
-  const { modal } = App.useApp()
+  const { modal, message } = App.useApp()
 
   // 批量模式与克隆反馈均为面板本地 UI 态（不进 store、不进主进程）：
   // 模式开关、勾选集、URL 弹层 open 与草稿、确认框开关标记、克隆中的行 id
@@ -262,17 +262,25 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     setUrlDraft('')
   }
 
-  const confirmCloseAll = (): void => {
+  const confirmCloseSelected = (): void => {
     openOverlay()
     setConfirmOpen(true)
     try {
       modal.confirm({
-        title: '关闭全部会话',
-        content: `将永久删除全部 ${sessions.length} 个会话及其全部本地数据，且不可恢复。`,
-        okText: '全部删除',
+        title: '关闭选中会话',
+        content: `将永久删除选中的 ${checkedCount} 个会话及其全部本地数据，且不可恢复。`,
+        okText: '删除',
         okButtonProps: { danger: true },
         cancelText: '取消',
-        onOk: () => deleteAllSessions(),
+        // 整单拒绝（选中集在窗口期内变化等）：message 提示原因 + onOk reject 保持
+        // 确认框开启（对齐打开测试地址弹层「整单拒绝不静默、保持开启」惯例）
+        onOk: async () => {
+          const ok = await deleteSessions(checkedIds)
+          if (!ok) {
+            message.error('关闭选中会话失败：选中会话已发生变化，请重试')
+            throw new Error('关闭选中会话被整单拒绝')
+          }
+        },
         afterClose: () => {
           setConfirmOpen(false)
           closeOverlay()
@@ -282,7 +290,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
       // confirm 同步异常时回滚弹层标记与登记，防页面视图永久隐藏
       setConfirmOpen(false)
       closeOverlay()
-      console.error('打开关闭全部确认框失败', error)
+      console.error('打开关闭选中确认框失败', error)
     }
   }
 
@@ -372,11 +380,11 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                   type="text"
                   danger
                   size="small"
-                  className="batch-close-all"
-                  disabled={sessions.length === 0}
-                  onClick={confirmCloseAll}
+                  className="batch-close-selected"
+                  disabled={checkedCount === 0}
+                  onClick={confirmCloseSelected}
                 >
-                  关闭全部会话
+                  关闭选中会话
                 </Button>
               </div>
               <button

@@ -48,7 +48,7 @@ export interface BrowserHistory {
   getEntries(sessionId: string): Promise<HistoryEntry[]>
   /** 克隆会话携带历史：先冲刷源会话待写，再复制落盘文件与内存条目到目标 */
   cloneHistory(srcId: string, dstId: string): Promise<void>
-  /** 删除会话清史：删落盘文件 + 清内存/去抖定时器（deleteAll 级联经 destroySession 覆盖） */
+  /** 删除会话清史：删落盘文件 + 清内存/去抖定时器（deleteBatch 级联经 destroySession 覆盖） */
   dropHistory(sessionId: string): Promise<void>
   /** 退出前冲刷全部待写并封笔（此后 recordVisit no-op）；返回在途写盘的汇合 promise */
   flushAll(): Promise<void>

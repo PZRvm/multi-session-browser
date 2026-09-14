@@ -15,6 +15,7 @@ import type { BrowserSnapshot } from '../shared/browser'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import type {
+  BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
   CloneSessionPayload,
   CreateSessionPayload,
@@ -43,7 +44,7 @@ declare global {
         getStatuses(): Promise<SessionStatusesPayload>
         onStatusChanged(callback: (payload: SessionStatusesPayload) => void): () => void
         clone(payload: CloneSessionPayload): Promise<StoredSession>
-        deleteAll(): Promise<OkResult>
+        deleteBatch(payload: BatchDeleteSessionsPayload): Promise<OkResult>
         batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
       }
       browser: {
