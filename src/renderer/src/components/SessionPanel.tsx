@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { App, Button, Checkbox, ConfigProvider, Dropdown, Input, Modal, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import { CheckSquareOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
 import FlapCounter from './FlapCounter'
+import { useSessionDragReorder } from './useSessionDragReorder'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
@@ -216,96 +217,11 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
 
-  // 拖拽排序瞬态（面板本地，不进 store、不进 IPC、不落盘）：源行 id 与当前插入位。
-  // dragOriginRef 记录 pointerdown 手势原点——dragstart 的 e.target 恒为 li 本身，
-  // 交互后代（重命名 Input、菜单钮、勾选框）为起点的拖拽只能靠原点追踪事后取消
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [dropHint, setDropHint] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
-  const dragOriginRef = useRef<EventTarget | null>(null)
-
-  // 拖拽排序手势（HTML5 DnD，引擎选型与 Tab Drag 的适用边界差异见 DESIGN.md）：
-  // dragstart 记源行 + 只写自定义 MIME；dragover 按目标行垂直中点算 before/after；
-  // drop 生成一次完整全序提交 store；dragend 无条件清态（列表外/右区/窗外/Esc 全覆盖）
-  const handleListPointerDown = (e: React.PointerEvent<HTMLUListElement>): void => {
-    dragOriginRef.current = e.target
-  }
-
-  const handleListDragStart = (e: React.DragEvent<HTMLUListElement>): void => {
-    const row = (e.target as HTMLElement).closest('li.session-row') as HTMLLIElement | null
-    if (!row) return
-    // 交互控件起点的拖拽直接取消（dragstart 的 target 恒为 li，以 pointerdown 原点判定）
-    const origin = dragOriginRef.current
-    if (
-      origin instanceof HTMLElement &&
-      origin.closest('input, button, .ant-checkbox, .session-check')
-    ) {
-      e.preventDefault()
-      return
-    }
-    const id = row.dataset.sessionId
-    if (!id) {
-      e.preventDefault()
-      return
-    }
-    setDragId(id)
-    e.dataTransfer.effectAllowed = 'move'
-    // 清空默认数据后只写应用自定义 MIME——不携带 URL/纯文本，拖影越界到右侧网页
-    // 时不构成导航或文本投放
-    e.dataTransfer.clearData()
-    e.dataTransfer.setData('application/x-msb-session', id)
-  }
-
-  /** 目标行与插入位（按垂直中点）；非行内命中返回 null */
-  const hitRow = (
-    e: React.DragEvent<HTMLUListElement>
-  ): { id: string; pos: 'before' | 'after' } | null => {
-    const row = (e.target as HTMLElement).closest('li.session-row') as HTMLLIElement | null
-    const id = row?.dataset.sessionId
-    if (!row || !id) return null
-    const rect = row.getBoundingClientRect()
-    return {
-      id,
-      pos: e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-    }
-  }
-
-  const handleListDragOver = (e: React.DragEvent<HTMLUListElement>): void => {
-    if (!dragId) return
-    const hit = hitRow(e)
-    if (!hit) return
-    // 仅列表内有效源存在时 preventDefault（此时才允许 drop）；列表外/右区不
-    // preventDefault，系统自动呈现"不可投放"光标
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDropHint((prev) => (prev?.id === hit.id && prev.pos === hit.pos ? prev : hit))
-  }
-
-  const handleListDrop = (e: React.DragEvent<HTMLUListElement>): void => {
-    if (!dragId) return
-    e.preventDefault()
-    const hit = hitRow(e)
-    if (!hit) return
-    const ids = sessions.map((s) => s.id)
-    const without = ids.filter((id) => id !== dragId)
-    const targetIndex = without.indexOf(hit.id)
-    if (targetIndex === -1) return
-    // 生成一次完整新序（源行移出后按插入位插回）；无位移时与原序相同，
-    // store 侧短路不发 IPC
-    without.splice(hit.pos === 'before' ? targetIndex : targetIndex + 1, 0, dragId)
-    const nextIds = without
-    void (async () => {
-      const ok = await reorderSessions(nextIds)
-      if (!ok) message.error('会话排序失败，列表顺序已恢复')
-    })()
-  }
-
-  // dragend 在源元素上无条件触发（列表内、右区、窗外、Esc 取消全覆盖）——
-  // 全部瞬态在此收敛，不存在冻结或残留指示的路径
-  const handleListDragEnd = (): void => {
-    setDragId(null)
-    setDropHint(null)
-    dragOriginRef.current = null
-  }
+  // 拖拽排序手势整体在 useSessionDragReorder（瞬态本地持有，不进 store/IPC/落盘）；
+  // 失败反馈走整单拒绝不静默惯例
+  const { listHandlers, rowProps } = useSessionDragReorder(sessions, reorderSessions, () =>
+    message.error('会话排序失败，列表顺序已恢复')
+  )
 
   // 勾选集以现存会话为准（已删除会话的残留 id 不计数、不参与批量指令）
   const checkedIds = sessions.filter((s) => checked.has(s.id)).map((s) => s.id)
@@ -457,14 +373,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             <p className="session-empty-desc">新建第一个隔离环境，并行测试多账号</p>
           </div>
         ) : (
-          <ul
-            className="session-list"
-            onPointerDown={handleListPointerDown}
-            onDragStart={handleListDragStart}
-            onDragOver={handleListDragOver}
-            onDrop={handleListDrop}
-            onDragEnd={handleListDragEnd}
-          >
+          <ul className="session-list" {...listHandlers}>
             {sessions.map((session) => (
               <SessionRow
                 key={session.id}
@@ -473,8 +382,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                 checked={checked.has(session.id)}
                 cloning={cloningIds.has(session.id)}
                 dragEnabled={!batchMode}
-                isDragSource={dragId === session.id}
-                dropPos={dropHint?.id === session.id ? dropHint.pos : null}
+                {...rowProps(session)}
                 onToggleCheck={toggleChecked}
                 onClone={handleClone}
               />

@@ -77,6 +77,18 @@ function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
   return raw
 }
 
+/**
+ * id 格式预校验（整单拒绝）：任一 id 不满足 SESSION_ID_RE 即抛错——被篡改的
+ * 落盘 id 须在存在性/集合校验前拒绝（阶段 5 R4 定案）。delete-batch、
+ * batch-open-url 与 reorder 三条通道共用（与 parseNonEmptyStringIds 同为共用
+ * 守卫，文案与规则演进只改此处）
+ */
+function assertSessionIdFormat(ids: string[]): void {
+  if (!ids.every((id) => SESSION_ID_RE.test(id))) {
+    throw new Error('会话 id 非法（疑似数据被篡改）')
+  }
+}
+
 /** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */
 function optionalString(value: unknown): string | undefined {
   if (value === undefined) return undefined
@@ -290,10 +302,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         if (!isRecord(payload)) throw invalidParams()
         // 去重：重复 id 只删一次，防编排层重复销毁
         const ids = [...new Set(parseNonEmptyStringIds(payload))]
-        // id 格式预校验（同 batch-open-url R4 定案）：被篡改的落盘 id 须在存在性检查前拒绝
-        if (!ids.every((id) => SESSION_ID_RE.test(id))) {
-          throw new Error('会话 id 非法（疑似数据被篡改）')
-        }
+        assertSessionIdFormat(ids)
         const nextActiveId = await mutateSnapshot((snapshot) => {
           const idSet = new Set(ids)
           const known = new Set(snapshot.sessions.map((s) => s.id))
@@ -320,12 +329,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         if (!isRecord(payload)) throw invalidParams()
         const ids = parseNonEmptyStringIds(payload)
         if (typeof payload.url !== 'string') throw invalidParams()
-        // id 格式预校验（R4 定案）：被篡改的落盘 id 能通过存在性检查（isStoredSession
+        // id 格式预校验（共用守卫）：被篡改的落盘 id 能通过存在性检查（isStoredSession
         // 只查非空 string），若放行到 registry 的逐会话开 Tab，会在中途抛错前已对
         // 前序合法会话产生副作用——违背整单拒绝契约。格式校验前置，非法即整单拒绝
-        if (!ids.every((id) => SESSION_ID_RE.test(id))) {
-          throw new Error('会话 id 非法（疑似数据被篡改）')
-        }
+        assertSessionIdFormat(ids)
         // 逐 id 存在性校验（读盘）；校验通过后立即触发编排——校验与执行间的毫秒级
         // 竞态窗口（窗口内被并发删除的会话）按已通过处理，不在此二次设防
         const snapshot = await loadSnapshot()
@@ -350,10 +357,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
       if (!isRecord(payload)) throw invalidParams()
       const ids = parseNonEmptyStringIds(payload)
-      // id 格式预校验（同 delete-batch）：被篡改的落盘 id 须在集合校验前拒绝
-      if (!ids.every((id) => SESSION_ID_RE.test(id))) {
-        throw new Error('会话 id 非法（疑似数据被篡改）')
-      }
+      // id 格式预校验（共用守卫）：被篡改的落盘 id 须在集合校验前拒绝
+      assertSessionIdFormat(ids)
       // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
       if (new Set(ids).size !== ids.length) {
         throw new Error('会话顺序包含重复 id')

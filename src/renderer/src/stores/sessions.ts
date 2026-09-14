@@ -226,12 +226,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         set({ sessions, activeId })
       } catch (listError) {
         console.error('重拉会话列表失败', listError)
-        const stillOptimistic =
-          get()
-            .sessions.map((s) => s.id)
-            .join('\n') === ids.join('\n')
+        const current = get().sessions
+        const stillOptimistic = current.map((s) => s.id).join('\n') === ids.join('\n')
         if (stillOptimistic) {
-          set({ sessions: prev, activeId: get().activeId })
+          // 回滚按 prev 的 id 序合成、status 取当前实时值——直接整体恢复 prev 旧对象
+          // 会把乐观期间的状态推送翻转（如 loading→idle）拉回旧值，且推送是变化驱
+          // 动的，翻转后无新推送纠正，状态字滞留到下次真实加载
+          const statusById = new Map(current.map((s) => [s.id, s.status]))
+          set({
+            sessions: prev.map((s) => ({ ...s, status: statusById.get(s.id) ?? s.status })),
+            activeId: get().activeId
+          })
         }
       }
       return false
