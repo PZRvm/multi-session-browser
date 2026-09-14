@@ -1,5 +1,6 @@
 import TabStrip from './browser/TabStrip'
 import Toolbar from './browser/Toolbar'
+import FindBar from './browser/FindBar'
 import BrowserContentAnchor from './browser/BrowserContentAnchor'
 import { useBrowserShortcuts } from './browser/useBrowserShortcuts'
 import { useUiStore } from '../stores/ui'
@@ -19,6 +20,8 @@ function IndependentWindowFrame(): React.JSX.Element {
       <TabStrip />
       <Toolbar />
       <div className="chrome-body">
+        {/* 查找栏停靠在锚点上方：挂载即压缩锚点，bounds 重报让位原生层（零新增布局机制） */}
+        <FindBar />
         <BrowserContentAnchor suspended={suspended} />
       </div>
     </section>

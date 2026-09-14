@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   BrowserSnapshot,
   BrowserTabState,
+  FoundInPageResult,
   TabDragHoverPayload,
   TabDragOutcome,
   TabDragPreviewPayload
@@ -35,6 +36,16 @@ interface BrowserState {
    * 整体清空重拉（不跨会话串数据）；建议检索在组件层本地同步过滤（编辑期零 IPC）
    */
   history: HistoryEntry[]
+  // 页内查找瞬态（本窗口 shell 查找栏，Cmd/Ctrl+F）：纯本地 UI 态，不进快照契约、
+  // 不落盘、主进程零感知（比照上方拖拽瞬态口径）；findQuery 关栏保留（Chrome 重开
+  // 重搜语义），计数以 found-in-page 推送为唯一事实源，本地不推算
+  findOpen: boolean
+  findQuery: string
+  /** 当前匹配序号（引擎 1 起计；0 = 尚无结果） */
+  findOrdinal: number
+  findMatches: number
+  /** find-request 推送/shell 开栏的计数信号：FindBar 据此聚焦并全选输入框 */
+  findRequestTick: number
   init: () => Promise<void>
   /** 重拉当前快照对齐主进程（删除会话等场景：级联推送先于命令回复到达而被守卫丢弃） */
   resync: () => Promise<void>
@@ -60,6 +71,14 @@ interface BrowserState {
     screenY: number,
     canceled?: boolean
   ) => Promise<TabDragOutcome | null>
+  /** 打开查找栏：query 非空即重发初搜（Chrome 重开重搜语义）；重复调用幂等（仅刷新聚焦信号） */
+  openFind: () => void
+  /** 关闭查找栏并清高亮复位计数（findStop fire-and-forget）；findQuery 保留供下次开栏 */
+  closeFind: () => void
+  /** 输入变化：非空发初搜（findNext=true 自顶部起），清空则停引擎清高亮（栏保持开） */
+  searchFind: (query: string) => void
+  /** Enter/Shift+Enter 步进（findNext=false 沿 forward 换向）；栏未开或 query 为空 no-op */
+  findNextStep: (forward: boolean) => void
 }
 
 let initialized = false
@@ -92,6 +111,12 @@ export const windowIdentity = parseWindowIdentity()
 // 历史镜像重拉的过期判据（单调递增 token）：快速连续切换会话时，只有最新一次
 // 重拉的回填生效，晚到的旧回复整体丢弃（独立窗绑定恒定，token 同样防重入叠加）
 let historyPullToken = 0
+
+// 页内查找 0 命中的自动重搜判据（实验定案：Chromium find 对刚加载完成的页面存在
+// 非确定性瞬时假阴性——同一加载完成的页面首搜 0 命中、稍后同参重搜全量命中，引擎
+// 内部行为应用无法预判）。finalUpdate 且 0 命中且同 query 未重试过 → 延迟重发一次
+// 初搜；重搜仍 0 即为真实无匹配，如实显 0/0。query 变化即重置预算
+let findRetryQuery: string | null = null
 
 /**
  * 会话级历史重拉（init 首帧漂移与切会话共用）：先清空再拉取；回填前比对 token
@@ -166,20 +191,47 @@ const applySnapshot = (
   // 随后经 refreshHistory 重拉（快速连续切换时晚到的回复按过期 token 丢弃）
   const sessionDrifted = get().sessionId !== snapshot.sessionId
   const { sessionId, tabs, activeTabId, devtoolsOpen } = snapshot
-  set((state) => ({
-    sessionId,
-    tabs,
-    activeTabId,
-    devtoolsOpen,
-    history: sessionDrifted ? [] : state.history,
-    // 拖拽瞬态自愈（阶段 9）：快照已不含被拖 Tab（主进程在裁决/级联中先行移除、
-    // 或会话切换重排）时清掉本地拖拽源态——dragend 可能因此在已卸载组件上不可达
-    // （React 合成事件不派发到脱离文档的节点），卸载路径由此兜底，不悬挂半透明态
-    draggingTabId:
-      state.draggingTabId !== null && !tabs.some((t) => t.id === state.draggingTabId)
-        ? null
-        : state.draggingTabId
-  }))
+  set((state) => {
+    // 页内查找失效守卫（findOpen 时才有意义）：切会话/切激活 Tab 关栏并复位计数
+    //（findQuery 保留，重开重搜）；同 Tab 导航（激活 Tab url 变化）栏保持开、仅复位
+    // 计数——高亮清理由主进程摘 view 源头保证与 Chromium 导航语义承担，此处不发 IPC
+    const prevActive =
+      state.activeTabId !== null
+        ? state.tabs.find((tab) => tab.id === state.activeTabId)
+        : undefined
+    const nextActive = activeTabId !== null ? tabs.find((tab) => tab.id === activeTabId) : undefined
+    const findInvalidated = state.findOpen && (sessionDrifted || state.activeTabId !== activeTabId)
+    const findNavigated =
+      state.findOpen &&
+      !findInvalidated &&
+      prevActive !== undefined &&
+      nextActive !== undefined &&
+      prevActive.url !== nextActive.url
+    const findPatch: Partial<BrowserState> = {}
+    if (findInvalidated) {
+      findPatch.findOpen = false
+      findPatch.findOrdinal = 0
+      findPatch.findMatches = 0
+    } else if (findNavigated) {
+      findPatch.findOrdinal = 0
+      findPatch.findMatches = 0
+    }
+    return {
+      sessionId,
+      tabs,
+      activeTabId,
+      devtoolsOpen,
+      history: sessionDrifted ? [] : state.history,
+      // 拖拽瞬态自愈（阶段 9）：快照已不含被拖 Tab（主进程在裁决/级联中先行移除、
+      // 或会话切换重排）时清掉本地拖拽源态——dragend 可能因此在已卸载组件上不可达
+      // （React 合成事件不派发到脱离文档的节点），卸载路径由此兜底，不悬挂半透明态
+      draggingTabId:
+        state.draggingTabId !== null && !tabs.some((t) => t.id === state.draggingTabId)
+          ? null
+          : state.draggingTabId,
+      ...findPatch
+    }
+  })
   if (sessionDrifted && snapshot.sessionId !== null) void refreshHistory(set, get)
 }
 
@@ -231,6 +283,11 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
   dragCursorY: null,
   dragHoverTabId: null,
   history: [],
+  findOpen: false,
+  findQuery: '',
+  findOrdinal: 0,
+  findMatches: 0,
+  findRequestTick: 0,
 
   // 先订阅推送、再拉取初始快照：订阅先就位后拉取期间到达的推送不会丢失，避免推送与拉取竞态
   init: async () => {
@@ -240,6 +297,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     let offFocusAddress: (() => void) | null = null
     let offDragHover: (() => void) | null = null
     let offHistoryChanged: (() => void) | null = null
+    let offFindRequest: (() => void) | null = null
+    let offFindResult: (() => void) | null = null
     try {
       // 历史增量推送（地址栏补全）：订阅先于拉取就位，推送与重拉双到达幂等无害
       offHistoryChanged = window.api.browser.onHistoryChanged((payload) => {
@@ -257,6 +316,34 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       offDragHover = window.api.browser.onDragHover((payload) => {
         applyDragHover(set, payload)
       })
+      // 页面聚焦态 Cmd/Ctrl+F 唤起查找栏（find-request 定向推送）：与 shell 侧快捷键
+      // 汇合同一 openFind（tick 信号驱动 FindBar 聚焦/全选）；计数控 find-result 推送
+      offFindRequest = window.api.browser.onFindRequest(() => {
+        get().openFind()
+      })
+      offFindResult = window.api.browser.onFindResult((result: FoundInPageResult) => {
+        // 栏开才采用：关栏后的迟到回执不复活旧态
+        if (!get().findOpen) return
+        set({ findOrdinal: result.activeMatchOrdinal, findMatches: result.matches })
+        // 瞬时假阴性兜底（见 findRetryQuery 注释）：0 命中收尾且本 query 未重试过 →
+        // 150ms 后自动重发一次初搜；fire-and-forget，失败静默（与命令同口径）
+        if (
+          result.finalUpdate &&
+          result.matches === 0 &&
+          get().findQuery &&
+          findRetryQuery !== get().findQuery
+        ) {
+          findRetryQuery = get().findQuery
+          window.setTimeout(() => {
+            const query = get().findQuery
+            if (get().findOpen && query && findRetryQuery === query) {
+              window.api.browser
+                .findStart({ text: query, forward: true, findNext: true })
+                .catch(() => {})
+            }
+          }, 150)
+        }
+      })
       const snapshot = await window.api.browser.getState()
       applySnapshot(set, get, snapshot)
     } catch (error) {
@@ -265,6 +352,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       offFocusAddress?.()
       offDragHover?.()
       offHistoryChanged?.()
+      offFindRequest?.()
+      offFindResult?.()
       initialized = false
       console.error('初始化浏览器状态失败', error)
     }
@@ -407,5 +496,46 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
           : {}
       )
     }
+  },
+
+  // 页内查找四动作：renderer 瞬态 + fire-and-forget 命令（失败静默——查找属尽力而为
+  // 交互，计数以 find-result 推送为准，命令未达即无计数，不误导航不伪造状态）。
+  // find-request 推送与 shell 快捷键汇合同一 openFind，tick 驱动 FindBar 聚焦/全选
+  openFind: () => {
+    set((state) => ({ findOpen: true, findRequestTick: state.findRequestTick + 1 }))
+    findRetryQuery = null
+    const { findQuery } = get()
+    // query 非空的重开即重搜（Chrome 重开重搜语义；初搜恒 findNext=true 自顶部起）
+    if (findQuery) {
+      window.api.browser
+        .findStart({ text: findQuery, forward: true, findNext: true })
+        .catch(() => {})
+    }
+  },
+
+  closeFind: () => {
+    if (!get().findOpen) return
+    set({ findOpen: false, findOrdinal: 0, findMatches: 0 })
+    // 主进程 findStop：清高亮 + 焦点归还页面（Chrome 对齐）；快照守卫触发的关栏
+    // 不经此路（applySnapshot 内不发 IPC，高亮已由主进程摘 view 源头清理）
+    window.api.browser.findStop().catch(() => {})
+  },
+
+  searchFind: (query) => {
+    // query 变化重置重搜预算（重搜回执的 set 不经此处，不会误重置）
+    if (query !== get().findQuery) findRetryQuery = null
+    set({ findQuery: query, findOrdinal: 0, findMatches: 0 })
+    if (query) {
+      window.api.browser.findStart({ text: query, forward: true, findNext: true }).catch(() => {})
+    } else {
+      // 关键词清空：停引擎清高亮，栏保持开（下一步输入即新会话初搜）
+      window.api.browser.findStop().catch(() => {})
+    }
+  },
+
+  findNextStep: (forward) => {
+    const { findOpen, findQuery } = get()
+    if (!findOpen || !findQuery) return
+    window.api.browser.findStart({ text: findQuery, forward, findNext: false }).catch(() => {})
   }
 }))

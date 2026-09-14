@@ -1122,6 +1122,103 @@ img.chrome-tab-favicon {
   cursor: not-allowed;
 }
 
+/* 页内查找栏（会话网页内查找开发计划步骤 4，impeccable 定稿）：chrome-body 顶部停靠条
+   ——toolbar 底 + 底缘发丝线（无阴影规则）、高 36px 与 Tab 栏同节奏、内容右对齐
+   （Chrome find bar 位感）；查找框 28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，
+   Chrome find 框观感），聚焦边框灰阶加深（右侧控件 focus 灰阶化惯例，琥珀不进右侧）；
+   计数 12px tabular-nums 对位不跳，无匹配转错误红；关闭钮 20×20 灰阶蒙版阶梯。
+   显隐瞬切无动效——停靠让位是结构性布局变化（离散跳变先例） */
+.chrome-findbar {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+
+.chrome-findbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  background: var(--chrome-surface);
+  border: 1px solid var(--chrome-line);
+  border-radius: 4px;
+  transition: border-color 0.12s;
+}
+
+.chrome-findbox:focus-within {
+  border-color: var(--chrome-ink-dim);
+}
+
+.chrome-find-input {
+  width: 180px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--chrome-ink);
+  user-select: text;
+}
+
+.chrome-find-input::placeholder {
+  color: var(--chrome-disabled);
+}
+
+.chrome-find-input:focus-visible {
+  outline: none;
+}
+
+.chrome-find-count {
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--chrome-ink-dim);
+  font-variant-numeric: tabular-nums;
+  padding-right: 2px;
+}
+
+.chrome-find-count.is-missing {
+  color: var(--chrome-error);
+}
+
+.chrome-find-close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.chrome-find-close:hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-find-close:active {
+  background: var(--chrome-pressed-veil);
+}
+
+/* 右侧控件 focus-visible 灰阶化（琥珀不进右侧）：选中蒙版加深代替琥珀外框 */
+.chrome-find-close:focus-visible {
+  outline: none;
+  background: var(--chrome-select-veil);
+}
+
 /* 内容容器：页面锚点始终占满；原生 DevTools 在 WebContentsView 内部自行停靠 */
 .chrome-body {
   flex: 1;

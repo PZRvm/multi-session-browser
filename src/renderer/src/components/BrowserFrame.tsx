@@ -1,5 +1,6 @@
 import TabStrip from './browser/TabStrip'
 import Toolbar from './browser/Toolbar'
+import FindBar from './browser/FindBar'
 import BrowserContentAnchor from './browser/BrowserContentAnchor'
 import { useBrowserShortcuts } from './browser/useBrowserShortcuts'
 import { useBrowserStore } from '../stores/browser'
@@ -27,7 +28,11 @@ function BrowserFrame(): React.JSX.Element {
             <p className="chrome-empty-hint">在左侧新建或选择会话，开始隔离浏览</p>
           </div>
         ) : (
-          <BrowserContentAnchor suspended={suspended} />
+          <>
+            {/* 查找栏停靠在锚点上方：挂载即压缩锚点，bounds 重报让位原生层（零新增布局机制） */}
+            <FindBar />
+            <BrowserContentAnchor suspended={suspended} />
+          </>
         )}
       </div>
     </section>

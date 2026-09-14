@@ -4,6 +4,9 @@ import { BROWSER_CHANNELS } from '../shared/browser'
 import type {
   BrowserSnapshot,
   CloseTabPayload,
+  FindStartPayload,
+  FindStopPayload,
+  FoundInPageResult,
   NavigatePayload,
   NewTabPayload,
   OkResult as BrowserOkResult,
@@ -108,6 +111,12 @@ const api = {
     // 拖入插入位上报（阶段 10）：尽力而为 hint——主进程无 hint/陈旧时回退末位追加
     dragInsert: (payload: TabDragInsertPayload): Promise<BrowserOkResult> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.dragInsert, payload),
+    // 页内查找（Chrome find-in-page 对齐）：findStart 对激活 Tab 发起/步进查找，
+    // findStop 结束会话（缺省清除高亮）且主进程随即归还页面焦点；计数经 onFindResult 推送
+    findStart: (payload: FindStartPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.findStart, payload),
+    findStop: (payload?: FindStopPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.findStop, payload ?? {}),
     // 地址栏历史补全（契约见 shared/history.ts）：拉取当前作用域会话的全量历史镜像；
     // 建议检索在 renderer 本地完成，编辑期零 IPC
     getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke(HISTORY_CHANNELS.get),
@@ -148,6 +157,26 @@ const api = {
       ipcRenderer.on(BROWSER_CHANNELS.dragHover, listener)
       return () => {
         ipcRenderer.removeListener(BROWSER_CHANNELS.dragHover, listener)
+      }
+    },
+    // 页面聚焦态 Cmd/Ctrl+F 唤起 shell 查找栏的推送（focusAddress 同构，无载荷）
+    onFindRequest: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+      ipcRenderer.on(BROWSER_CHANNELS.findRequest, listener)
+      return () => {
+        ipcRenderer.removeListener(BROWSER_CHANNELS.findRequest, listener)
+      }
+    },
+    // found-in-page 计数推送：回调只收结果载荷（Electron 事件对象在此剥离）
+    onFindResult: (callback: (result: FoundInPageResult) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, result: FoundInPageResult): void => {
+        callback(result)
+      }
+      ipcRenderer.on(BROWSER_CHANNELS.findResult, listener)
+      return () => {
+        ipcRenderer.removeListener(BROWSER_CHANNELS.findResult, listener)
       }
     }
   }

@@ -12,6 +12,7 @@ import {
   WINDOW_ID_MAIN,
   type BrowserSnapshot,
   type BrowserTabState,
+  type FoundInPageResult,
   type SetBoundsPayload
 } from '../../shared/browser'
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
@@ -54,6 +55,19 @@ export type SnapshotListener = (snapshot: BrowserSnapshot) => void
 
 /** windowId = 请求来源页面所在宿主窗口：独立窗口的地址栏聚焦须发往该窗口而非主窗口 */
 export type FocusAddressListener = (windowId: string) => void
+
+/**
+ * 页面聚焦态 Cmd/Ctrl+F 的查找栏唤起请求（键位 find，见 shared/browserShortcuts）：
+ * manager 吞键后上抛，ipc 按来源窗口定向推 find-request 给 shell renderer 开栏
+ * （focus-address 同构）
+ */
+export type FindRequestListener = (windowId: string) => void
+
+/**
+ * found-in-page 计数事件（页内查找引擎回执）：windowId = 发生查找的 Tab 归属宿主
+ * 窗口，ipc 据此定向推 find-result；result 载荷见 shared/browser 的 FoundInPageResult
+ */
+export type FindResultListener = (windowId: string, result: FoundInPageResult) => void
 
 /**
  * 页面侧导航事实监听（地址栏历史补全的采集面）。manager 只上抛事实不碰持久化，
@@ -105,6 +119,10 @@ export interface TabManager {
   onSnapshotChanged: (cb: SnapshotListener) => () => void
   /** 订阅 focus-address 请求（页面侧 Cmd/Ctrl+L、页面侧快捷键新建空 Tab；回调带来源窗口 id），返回退订函数 */
   onFocusAddressRequest: (cb: FocusAddressListener) => () => void
+  /** 订阅 find 请求（页面侧 Cmd/Ctrl+F 唤起 shell 查找栏；回调带来源窗口 id），返回退订函数 */
+  onFindRequest: (cb: FindRequestListener) => () => void
+  /** 订阅 found-in-page 计数事件（回调带 Tab 归属窗口 id 与结果载荷），返回退订函数 */
+  onFindResult: (cb: FindResultListener) => () => void
 }
 
 /**
@@ -171,11 +189,18 @@ export function createTabManager(
   let disposed = false
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
+  const findRequestListeners = new Set<FindRequestListener>()
+  const findResultListeners = new Set<FindResultListener>()
   const visitListeners = new Set<VisitListener>()
 
   /** focus-address 请求点：manager 不碰 IPC，ipc.ts 订阅后按来源窗口定向转发 */
   function requestFocusAddress(windowId: string): void {
     for (const cb of focusListeners) cb(windowId)
+  }
+
+  /** find 请求点（页面侧 Cmd/Ctrl+F）：同 focus-address，ipc.ts 订阅后定向转发 */
+  function requestFindBar(windowId: string): void {
+    for (const cb of findRequestListeners) cb(windowId)
   }
 
   /**
@@ -281,11 +306,19 @@ export function createTabManager(
    * 激活指定窗口的 Tab：旧 Tab 的页面 view 脱离但保持存活，新 Tab 的页面 view 挂入
    * （挂入窗口 = 该 Tab 归属窗口，调用方保证二者一致）。原生 DevTools 由对应页面
    * webContents 自己持有，随页面 view 一起切换，不另建宿主。
+   * 摘除前对旧 Tab 停止页内查找并清高亮——「切 Tab 即清旧 Tab 高亮」的源头保证，
+   * renderer 关栏无需依赖先发 find-stop 的推送时序（会话切换走 registry 的
+   * detachActiveView，同款清理在其内承担）
    */
   function activate(id: string, windowId: string): void {
     const prevId = activeByWindow.get(windowId) ?? null
     const prev = prevId !== null ? tabs.get(prevId) : undefined
-    if (prev && prev.id !== id) detachView(prev)
+    if (prev && prev.id !== id) {
+      if (!prev.view.webContents.isDestroyed()) {
+        prev.view.webContents.stopFindInPage('clearSelection')
+      }
+      detachView(prev)
+    }
     activeByWindow.set(windowId, id)
     const next = tabs.get(id)
     if (next) attachView(next)
@@ -348,6 +381,10 @@ export function createTabManager(
       emitVisit('favicon', tab, { faviconUrl: tab.faviconUrl })
       emitChange()
     })
+    // 页内查找计数回执：windowId 取 Tab 归属宿主窗口，ipc 层据此定向推送 find-result
+    wc.on('found-in-page', (_event, result) => {
+      for (const cb of findResultListeners) cb(tab.windowId, result)
+    })
     // DevTools 经原生关闭钮等途径关闭时同步状态；本方主动关闭已先复位，守卫拦下重复处理。
     wc.on('devtools-closed', () => {
       if (!tab.devtoolsOpen) return
@@ -390,6 +427,11 @@ export function createTabManager(
           break
         case 'focus-address':
           requestFocusAddress(tab.windowId)
+          break
+        case 'find':
+          // 页面聚焦态 Cmd/Ctrl+F：吞键后唤起该窗口 shell 查找栏（引擎在 find-start 命令，
+          // 此处只做开栏请求；shell 聚焦态不经此路，renderer 本地直接开栏）
+          requestFindBar(tab.windowId)
           break
         case 'toggle-devtools':
           // 页面聚焦态下该 Tab 即其宿主窗口的激活 Tab，开关作用于该窗口激活位
@@ -651,6 +693,16 @@ export function createTabManager(
     return () => focusListeners.delete(cb)
   }
 
+  function onFindRequest(cb: FindRequestListener): () => void {
+    findRequestListeners.add(cb)
+    return () => findRequestListeners.delete(cb)
+  }
+
+  function onFindResult(cb: FindResultListener): () => void {
+    findResultListeners.add(cb)
+    return () => findResultListeners.delete(cb)
+  }
+
   function onVisit(cb: VisitListener): () => void {
     visitListeners.add(cb)
     return () => visitListeners.delete(cb)
@@ -676,6 +728,8 @@ export function createTabManager(
     getSnapshot,
     onSnapshotChanged,
     onFocusAddressRequest,
+    onFindRequest,
+    onFindResult,
     onVisit
   }
 }

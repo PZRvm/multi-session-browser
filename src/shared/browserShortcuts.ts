@@ -12,16 +12,26 @@
 // 明确不做（有意省略，防止误以为遗漏）：
 // - Ctrl+Tab / Ctrl+Shift+Tab 切换 Tab
 // - Ctrl+Shift+T 恢复已关闭 Tab
-// - Ctrl+F 页内查找
 // - 数字键（Cmd/Ctrl+1~9）切 Tab
+//
+// find（Cmd/Ctrl+F 页内查找）2026-09-14 起从原「明确不做」清单解禁（计划：
+// notes/plans/20260914162746-会话网页内查找开发计划.md 2.4 契约点 1）：页面聚焦态经
+// manager before-input-event 唤起 shell 查找栏（find-request 推送），shell 聚焦态由
+// renderer 直接开栏，两侧消费语义见各自实现。
 
 export type BrowserShortcutId =
-  'reload' | 'new-tab' | 'close-tab' | 'focus-address' | 'toggle-devtools' | 'close-devtools'
+  | 'reload'
+  | 'new-tab'
+  | 'close-tab'
+  | 'focus-address'
+  | 'find'
+  | 'toggle-devtools'
+  | 'close-devtools'
 
 /** 单条键位：key 为 KeyboardEvent.key / before-input-event 的 key（字母小写、功能键原名） */
 export interface BrowserShortcut {
   id: BrowserShortcutId
-  key: 'r' | 't' | 'w' | 'l' | 'F5' | 'F12' | 'Escape'
+  key: 'r' | 't' | 'w' | 'f' | 'l' | 'F5' | 'F12' | 'Escape'
 }
 
 export const BROWSER_SHORTCUTS: readonly BrowserShortcut[] = [
@@ -30,6 +40,7 @@ export const BROWSER_SHORTCUTS: readonly BrowserShortcut[] = [
   { id: 'new-tab', key: 't' },
   { id: 'close-tab', key: 'w' },
   { id: 'focus-address', key: 'l' },
+  { id: 'find', key: 'f' },
   { id: 'toggle-devtools', key: 'F12' },
   { id: 'close-devtools', key: 'Escape' }
 ]

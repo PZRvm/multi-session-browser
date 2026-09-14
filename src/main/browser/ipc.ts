@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：二十条通道（16 条命令 + 4 条推送）的装配层。
+// 浏览器 IPC handlers：二十四条通道（18 条命令 + 6 条推送）的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
 // → windows.ts 登记的绑定会话的该窗口作用域；未知窗口/已销毁/绑定会话失效一律抛
@@ -11,6 +11,9 @@
 //（hint 尽力而为语义——结构守卫后的匹配校验不符静默返回 ok，不抛错）。地址栏历史
 // 补全：historyGet 命令（作用域会话解析，renderer 不传 sessionId）+ historyChanged
 // 增量推送（dragHover 同款定向集合）在此接线（契约见 shared/history.ts）。
+// 页内查找（会话网页内查找开发计划 2.4）：findStart/findStop 命令作用于来源窗口作用域
+// 激活 Tab 的 webContents（text 非空 ≤ FIND_TEXT_MAX 守卫；stop 后 focus 归还页面焦点）；
+// findRequest 推送为 focus-address 同构定向，findResult 按 Tab 归属窗口定向。
 // 通道名一律取自 shared/browser 的 BROWSER_CHANNELS 与 shared/history 的
 // HISTORY_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
@@ -19,6 +22,7 @@ import { ipcMain } from 'electron'
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
 import {
   BROWSER_CHANNELS,
+  FIND_TEXT_MAX,
   WINDOW_ID_MAIN,
   type BrowserSnapshot,
   type OkResult,
@@ -92,9 +96,14 @@ export function registerBrowserIpc(
   })
 
   // focus-address 桥接：manager 的页面侧请求点（Cmd/Ctrl+L、页面侧快捷键新建空 Tab）
-  // 经此按来源窗口定向转发
+  // 经此按来源窗口定向转发。推送前先把宿主窗口键盘焦点交还 shell——页面 webContents
+  // 持焦时 shell 内 input.focus() 无法跨 webContents 抢回焦点（Chromium 焦点控制的
+  // 已知约束，实测二次 Cmd+L/Cmd+F 全选但不聚焦即此因），主进程 focus() 是唯一通路
   manager.onFocusAddressRequest((windowId) => {
-    windowForId(windowId)?.webContents.send(BROWSER_CHANNELS.focusAddress)
+    const win = windowForId(windowId)
+    if (!win) return
+    win.webContents.focus()
+    win.webContents.send(BROWSER_CHANNELS.focusAddress)
   })
 
   // 拖拽悬停桥接：控制器只在悬停变化时回调（含 dragStart 初始态与收尾/过期的 null
@@ -120,6 +129,22 @@ export function registerBrowserIpc(
     for (const entry of windows.listForSession(payload.sessionId)) {
       windowForId(entry.windowId)?.webContents.send(HISTORY_CHANNELS.changed, payload)
     }
+  })
+
+  // find-request 桥接：页面聚焦态 Cmd/Ctrl+F 请求唤起来源窗口 shell 查找栏
+  //（registry 接线已含会话归属守卫，此处只做定向）。推送前先把宿主窗口键盘焦点
+  // 交还 shell（同上方 focus-address 桥：页面持焦时 renderer 的 input.focus() 抢不回
+  // 焦点，表现即「关键词被全选但打字进不去」——用户实测二次 Cmd+F 报障）
+  manager.onFindRequest((windowId) => {
+    const win = windowForId(windowId)
+    if (!win) return
+    win.webContents.focus()
+    win.webContents.send(BROWSER_CHANNELS.findRequest)
+  })
+
+  // find-result 桥接：found-in-page 计数按发生查找的 Tab 归属窗口定向推送
+  manager.onFindResult((windowId, result) => {
+    windowForId(windowId)?.webContents.send(BROWSER_CHANNELS.findResult, result)
   })
 
   /** 来源窗口作用域解析（未知来源抛中文错误）；空会话不在此拦——getState/setBounds 对空态合法 */
@@ -339,6 +364,37 @@ export function registerBrowserIpc(
     })
   )
 
+  // findStart：页内查找发起/步进，作用于来源窗口作用域激活 Tab 的 webContents。
+  // text 非空且 ≤ FIND_TEXT_MAX（结构守卫，命令口径拒绝）；forward/findNext 布尔归一
+  // （初搜 findNext=true 自顶部起新会话，Enter/Shift+Enter 步进 findNext=false 换向）
+  ipcMain.handle(BROWSER_CHANNELS.findStart, (event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.findStart, payload, () => {
+      const scope = requireScope(event)
+      if (!isRecord(payload) || typeof payload.text !== 'string') throw invalidParams()
+      if (payload.text.length === 0 || payload.text.length > FIND_TEXT_MAX) throw invalidParams()
+      const forward = payload.forward === true
+      const findNext = payload.findNext === true
+      manager.getActiveWebContents(scope.windowId)?.findInPage(payload.text, { forward, findNext })
+      return { ok: true }
+    })
+  )
+
+  // findStop：结束页内查找（action 仅认两枚举值，缺省 clearSelection 清除高亮），
+  // 停止后对目标 webContents.focus()——关栏焦点归还页面（Chrome 对齐）
+  ipcMain.handle(BROWSER_CHANNELS.findStop, (event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.findStop, payload, () => {
+      const scope = requireScope(event)
+      const action =
+        isRecord(payload) && payload.action === 'keepSelection' ? 'keepSelection' : 'clearSelection'
+      const wc = manager.getActiveWebContents(scope.windowId)
+      if (wc) {
+        wc.stopFindInPage(action)
+        wc.focus()
+      }
+      return { ok: true }
+    })
+  )
+
   // historyGet：拉取来源窗口作用域会话（主窗→激活会话，独立窗→绑定会话）的全量历史
   // 镜像。无 payload——renderer 不传 sessionId，作用域由 sender 解析（防越权读他窗
   // 会话历史）；主窗口零会话拒绝（「未选择会话」，与命令通道同规）。异步（首触懒
@@ -350,5 +406,5 @@ export function registerBrowserIpc(
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（20 条通道，含历史补全 2 条）')
+  console.log('[browser] IPC handlers 已注册（24 条通道，含历史补全与页内查找各 2 条）')
 }

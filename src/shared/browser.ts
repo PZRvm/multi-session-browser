@@ -18,6 +18,8 @@
 // tab-drag-insert 命令上报目标窗计算的插入位 hint，尽力而为语义——无 hint/陈旧一律
 // 回退末位追加）；落盘恢复集升级为全会话归并口径（主窗 Tab 在先 + 独立窗按创建序
 // 并入，退出/关窗时序语义见 browser/persistence.ts）。两口径冻结于上述计划第 3 节。
+// 2026-09-14 起增页内查找 4 通道（find-start/find-stop 命令 + find-request/find-result
+// 推送，契约冻结于会话网页内查找开发计划 2.4 节）。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -38,9 +40,13 @@ export const BROWSER_CHANNELS = {
   dragStart: 'browser:tab-drag-start',
   dragEnd: 'browser:tab-drag-end',
   dragInsert: 'browser:tab-drag-insert',
+  findStart: 'browser:find-start',
+  findStop: 'browser:find-stop',
   stateChanged: 'browser:state-changed',
   focusAddress: 'browser:focus-address',
-  dragHover: 'browser:tab-drag-hover'
+  dragHover: 'browser:tab-drag-hover',
+  findRequest: 'browser:find-request',
+  findResult: 'browser:find-result'
 } as const
 
 /** 单个 Tab 的运行时状态（主进程推送的快照字段） */
@@ -166,6 +172,39 @@ export type TabDragOutcome = 'moved-new-window' | 'moved-window' | 'stayed' | 'r
 
 export interface NavigatePayload {
   url: string
+}
+
+/** findStart 文本长度上限（ipc 层运行时守卫用）：页内查找无超长关键词的合理场景，防御性封顶 */
+export const FIND_TEXT_MAX = 200
+
+/**
+ * 页内查找发起（find-start 命令）：作用于来源窗口作用域激活 Tab 的 webContents。
+ * findNext 语义对齐 Electron findInPage——初搜（输入变化）传 true 自顶部起新会话，
+ * 跟进（Enter/Shift+Enter 步进）传 false 沿 forward 方向换向；forward 缺省 true
+ */
+export interface FindStartPayload {
+  text: string
+  forward?: boolean
+  findNext?: boolean
+}
+
+/**
+ * 页内查找收尾（find-stop 命令）：action 缺省 'clearSelection'（清除高亮）；
+ * 主进程停止查找后对目标 webContents.focus()——关栏焦点归还页面（Chrome 对齐）
+ */
+export interface FindStopPayload {
+  action?: 'clearSelection' | 'keepSelection'
+}
+
+/** found-in-page 结果（Electron webContents 'found-in-page' 事件载荷原样，经 findResult 推送下发） */
+export interface FoundInPageResult {
+  requestId: number
+  /** 当前匹配序号（1 起计） */
+  activeMatchOrdinal: number
+  /** 匹配总数 */
+  matches: number
+  /** 本轮扫描是否已收尾（中间推送 matches 是扫描进度值，renderer 照常采用——Chrome 同款即时计数） */
+  finalUpdate: boolean
 }
 
 /** renderer 内容区在窗口内容坐标系（DIP，与 CSS px 同值）下的矩形 */

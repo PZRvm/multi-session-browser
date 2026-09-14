@@ -288,6 +288,10 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 编辑地址栏时按当前会话的浏览历史即时过滤的建议下拉（Chrome omnibox 对齐）。面板：chrome-surface 底 + chrome-line 发丝线 + 8px 圆角，无阴影（发丝线规则）；行高 30px（与 Tab 同节奏）、内距 0 14px，行 = favicon（16px，缺失灰阶圆点占位）+ 标题（12px chrome-ink，单行省略）+ 网址（12px chrome-ink-dim，右对齐单行省略、悬停 title 全文）；无标题行（历史标题未就绪）单行只示网址。命中子串加粗（同色升 600 字重，Chrome 同款；标题未命中不加粗——诚实优先于硬凑）。选中态用专用 --chrome-select-veil（键盘 ↑↓ 环形移动与鼠标悬停统一经 is-active；:hover 蒙版兜底非高亮行指针反馈），显隐瞬切（离散跳变对齐插入指示器先例）。面板越过工具栏进入内容区——内容区被主进程 WebContentsView 原生覆盖，开合期间经 ui store overlayDepth 收起原生层（与 antd 弹层同规），行点击 onMouseDown 吞默认防输入先失焦。每会话上限 2000 条、输入 ≥2 字符触发、最多 8 条；匹配分级（域名前缀 > URL 前缀 > 子串 > 标题子串）与新近度/频次排序在 renderer 本地同步完成（编辑期零 IPC）。
 
+### 页内查找条（Find Bar）— 会话网页内查找专项新增
+
+Cmd/Ctrl+F 唤起的页内查找停靠条（Chrome find bar 对齐）。**停靠而非浮层**：内容区被主进程 WebContentsView 原生覆盖，DOM 无法浮于页面之上，而整页收起（overlayDepth 路线）与「查找时须看见页面」直接矛盾——查找条以 chrome-body 顶部停靠条呈现，挂载即压缩内容锚点、bounds 重报让位原生层（零新增布局机制），页面轻微 reflow 是该架构下的批复取舍。条：高 36px（与 Tab 栏同节奏）、chrome-toolbar 底 + 底缘 chrome-line 发丝线（无阴影规则）、内容右对齐（Chrome find bar 位感）、显隐瞬切无动效（停靠让位是结构性布局变化，离散跳变先例）。查找框：28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，Chrome find 框观感）、chrome-surface 底 + chrome-line 边框，聚焦（focus-within）边框灰阶加深至 chrome-ink-dim（右侧控件 focus 灰阶化惯例，琥珀不进右侧），输入 12px chrome-ink、占位「在网页中查找」。计数「n/m」：12px chrome-ink-dim + tabular-nums 对位不跳——**不用翻牌砖**（高频变化 + Chrome 原生形态的次要元数据，非「航班信息」级信号）；无匹配 0/0 转 chrome-error。关闭钮 20×20 灰阶蒙版阶梯（hover-veil → pressed-veil，:focus-visible 以 select-veil 加深代替琥珀外框）。页面内匹配高亮由 Chromium 原生绘制（普通匹配黄底、当前匹配橙底），应用零自绘。键盘 Enter/Shift+Enter 前后跳转、Esc 关栏（组件内吞冒泡不让位 close-devtools 快捷键，shell 侧查找栏聚焦豁免为第二道防线）、输入法组合态不触发（Toolbar 同款守卫）；切 Tab/切会话即关栏，旧 Tab 高亮由主进程摘 view 源头清理，计数 0 命中收尾的同 query 单次自动重搜兜底 Chromium find 的瞬时假阴性（重搜仍 0 如实显 0/0）。
+
 ### 原生 DevTools（Managed DevTools）— 阶段 3 新增
 
 每个 Tab 直接调用其页面 `webContents.openDevTools()`，由 Electron/Chromium 创建并管理原生 DevTools；不再通过 `setDevToolsWebContents` 注入第二个 WebContentsView。DevTools 的停靠按钮、方向、分隔条、设备模拟页面和尺寸调整均为 Chromium 原生能力，并沿用其上次停靠状态。应用只维护激活 Tab 的 `devtoolsOpen` 快照和 F12/ESC 路由，不注入 DevTools 样式或布局。这样既保持 DevTools 与页面 webContents 一对一绑定，也避免应用停靠占位与 Chromium 设备模拟布局形成两套互相冲突的坐标系统。阶段 4 会话绑定后，DevTools 随所在 Tab 的 webContents 自然归属其会话分区，切换会话即整体交换（无需任何额外接线）。

@@ -21,6 +21,8 @@ import { loadSnapshot } from '../store'
 import {
   BLANK_URL,
   createTabManager,
+  type FindRequestListener,
+  type FindResultListener,
   type FocusAddressListener,
   type SnapshotListener,
   type TabManager,
@@ -226,6 +228,8 @@ export function createSessionBrowserRegistry(deps: {
 
   const snapshotListeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
+  const findRequestListeners = new Set<FindRequestListener>()
+  const findResultListeners = new Set<FindResultListener>()
   const statusListeners = new Set<(payload: SessionStatusesPayload) => void>()
   /** 会话 → 运行状态；只有建过 manager 的会话有条目，其余隐含 idle */
   const statuses = new Map<string, SessionStatus>()
@@ -288,6 +292,9 @@ export function createSessionBrowserRegistry(deps: {
     const win = getWindow(windowId)
     const wc = manager.getActiveWebContents(windowId)
     if (!win || !wc) return
+    // 摘除前停止页内查找并清高亮（切会话/销毁/批量打开后台化路径的源头清理，与
+    // manager.activate 的切 Tab 清理同规——陈旧高亮不得跨激活位留存）
+    if (!wc.isDestroyed()) wc.stopFindInPage('clearSelection')
     const view = win.contentView.children.find(
       (child): child is WebContentsView =>
         child instanceof WebContentsView && child.webContents === wc
@@ -420,6 +427,19 @@ export function createSessionBrowserRegistry(deps: {
       const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
       if (bound !== id) return
       for (const cb of focusListeners) cb(windowId)
+    })
+    manager.onFindRequest((windowId) => {
+      // find 请求与 focus-address 同规：页面聚焦态按键只可能来自挂入中的页面
+      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      if (bound !== id) return
+      for (const cb of findRequestListeners) cb(windowId)
+    })
+    manager.onFindResult((windowId, result) => {
+      // found-in-page 计数只发往发生查找的宿主窗口（同上归属守卫——后台会话的查找
+      // 计数不上浮主窗，陈旧会话的残余事件不外泄）
+      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      if (bound !== id) return
+      for (const cb of findResultListeners) cb(windowId, result)
     })
     // 历史采集接线（地址栏补全）：manager 上抛的导航事实转发 history 模块合并落盘；
     // about:blank 过滤与超长拒绝在 recordVisit 内承担（manager 只上抛不过滤）
@@ -902,6 +922,16 @@ export function createSessionBrowserRegistry(deps: {
     return () => focusListeners.delete(cb)
   }
 
+  function onFindRequest(cb: FindRequestListener): () => void {
+    findRequestListeners.add(cb)
+    return () => findRequestListeners.delete(cb)
+  }
+
+  function onFindResult(cb: FindResultListener): () => void {
+    findResultListeners.add(cb)
+    return () => findResultListeners.delete(cb)
+  }
+
   function onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void {
     statusListeners.add(cb)
     return () => statusListeners.delete(cb)
@@ -942,6 +972,8 @@ export function createSessionBrowserRegistry(deps: {
     getSnapshot,
     onSnapshotChanged,
     onFocusAddressRequest,
+    onFindRequest,
+    onFindResult,
     switchSession,
     destroySession,
     closeSession,

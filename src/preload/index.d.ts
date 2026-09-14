@@ -1,5 +1,8 @@
 import type {
   CloseTabPayload,
+  FindStartPayload,
+  FindStopPayload,
+  FoundInPageResult,
   NavigatePayload,
   NewTabPayload,
   OkResult,
@@ -63,11 +66,15 @@ declare global {
         dragStart(payload: TabDragStartPayload): Promise<OkResult>
         dragEnd(payload: TabDragEndPayload): Promise<TabDragOutcome>
         dragInsert(payload: TabDragInsertPayload): Promise<OkResult>
+        findStart(payload: FindStartPayload): Promise<OkResult>
+        findStop(payload?: FindStopPayload): Promise<OkResult>
         getHistory(): Promise<HistoryEntry[]>
         onHistoryChanged(callback: (payload: HistoryChangedPayload) => void): () => void
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
         onDragHover(callback: (payload: TabDragHoverPayload) => void): () => void
+        onFindRequest(callback: () => void): () => void
+        onFindResult(callback: (result: FoundInPageResult) => void): () => void
       }
     }
   }
