@@ -11,10 +11,10 @@
 // null 表示「本事件无信息」，不覆盖已有值。
 //
 // 推送与落盘解耦：onEntryChanged 在内存合并后即触发（镜像即时——刚访问的网址
-// 立即可被建议），落盘走 500ms trailing 去抖 + tmp+rename 原子写（照 store.ts
-// 模式），退出链 flushAll 冲刷全部待写并封笔（照 persistence.ts sealed 模式）。
+// 立即可被建议），落盘走 500ms trailing 去抖 + fs-utils 原子写（与 store.ts 共用
+// 单一实现），退出链 flushAll 冲刷全部待写并封笔（照 persistence.ts sealed 模式）。
 
-import { copyFile, mkdir, readFile, rename, rm, unlink, writeFile } from 'fs/promises'
+import { copyFile, readFile, rm } from 'fs/promises'
 import { join } from 'path'
 import { isRecord } from '../../shared/guards'
 import {
@@ -24,6 +24,8 @@ import {
   type HistoryChangedPayload,
   type HistoryEntry
 } from '../../shared/history'
+import { SESSION_ID_RE } from '../../shared/sessions'
+import { atomicWriteJson } from '../fs-utils'
 
 /** 页面侧导航事实（manager 上抛） */
 export interface VisitFact {
@@ -57,9 +59,6 @@ export interface BrowserHistory {
 /** 落盘去抖（trailing）：导航与标题事件密集，写盘前先静默一段时间（与 persistence 同值） */
 const WRITE_DEBOUNCE_MS = 500
 
-/** 文件名安全：会话 id 只允许字母数字与连字符/下划线（拒绝 '.'，即封死 '..' 逃逸） */
-const SESSION_ID_FILE_RE = /^[A-Za-z0-9_-]+$/
-
 /** 单条落盘条目的元素级校验（落盘是跨信任边界输入） */
 function isStoredEntry(value: unknown): value is HistoryEntry {
   if (!isRecord(value)) return false
@@ -89,40 +88,55 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
   let sealed = false
 
   function fileFor(sessionId: string): string {
-    if (!SESSION_ID_FILE_RE.test(sessionId)) {
+    // 文件名安全与会话 id 字符集同源（L2 定案）：SESSION_ID_RE 单源保证 id 只含
+    // [a-z0-9-]（无 '.' 与 '/'，封死 '..' 路径逃逸）；registry 侧 partitionFor 用
+    // 同一正则把守，非法 id 到不了本模块
+    if (!SESSION_ID_RE.test(sessionId)) {
       throw new Error(`会话 id "${sessionId}" 含非法字符，拒绝拼接历史文件路径`)
     }
     return join(deps.historyDir(), `${sessionId}.json`)
   }
 
-  /** 单会话读盘（坏数据容错口径对齐 store.ts：根节点坏 → 回退空史并告警；元素坏 → 剔除并告警） */
-  async function loadSession(sessionId: string): Promise<void> {
+  /**
+   * 单会话读盘（坏数据容错口径对齐 store.ts：根节点坏 → 回退空史并告警；元素坏 →
+   * 剔除并告警）。返回内存条目与「读盘收敛」标志，由 ensureLoaded 在回填判据通过后
+   * 落位——不在本函数内直接写 sessions，防 dropHistory 并发清场后被陈旧读盘结果复活
+   */
+  async function loadSession(
+    sessionId: string
+  ): Promise<{ map: Map<string, HistoryEntry>; converged: boolean }> {
     let raw: string
     const target = fileFor(sessionId)
     try {
       raw = await readFile(target, 'utf-8')
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        sessions.set(sessionId, new Map()) // 首触尚无落盘文件，属正常
-        return
+        return { map: new Map(), converged: false } // 首触尚无落盘文件，属正常
       }
       console.warn(`[history] 读取会话 ${sessionId} 的历史文件失败，已回退空史:`, err)
-      sessions.set(sessionId, new Map())
-      return
+      return { map: new Map(), converged: false }
     }
-    const entries = parseStored(sessionId, raw)
+    const { entries, dropped } = parseStored(sessionId, raw)
     const map = new Map<string, HistoryEntry>()
     for (const entry of entries) map.set(entry.url, entry)
-    sessions.set(sessionId, map)
+    return { map, converged: dropped }
   }
 
-  function parseStored(sessionId: string, raw: string): HistoryEntry[] {
+  /**
+   * 解析落盘内容。dropped = 读盘侧发生过剔除（坏元素/重复 url/超上限裁剪，操作只减
+   * 不增，条数变少即成立）——内存已是收敛结果而磁盘仍滞后（L6）：由调用方安排一次
+   * 收敛写盘，不等到下次自然采集
+   */
+  function parseStored(
+    sessionId: string,
+    raw: string
+  ): { entries: HistoryEntry[]; dropped: boolean } {
     let data: unknown
     try {
       data = JSON.parse(raw)
     } catch {
       console.warn(`[history] 会话 ${sessionId} 的历史不是合法 JSON，已回退空史`)
-      return []
+      return { entries: [], dropped: false } // 坏 JSON 回退空史不视为「剔除」（磁盘无有效内容可收敛）
     }
     if (
       !isRecord(data) ||
@@ -130,7 +144,7 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
       !Array.isArray(data.entries)
     ) {
       console.warn(`[history] 会话 ${sessionId} 的历史文件结构不符（version/entries），已回退空史`)
-      return []
+      return { entries: [], dropped: false }
     }
     const valid = data.entries.filter(isStoredEntry)
     if (valid.length !== data.entries.length) {
@@ -144,7 +158,8 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
       const prev = byUrl.get(entry.url)
       if (!prev || entry.lastVisitedAt > prev.lastVisitedAt) byUrl.set(entry.url, entry)
     }
-    return trimToLimit([...byUrl.values()])
+    const entries = trimToLimit([...byUrl.values()])
+    return { entries, dropped: entries.length < data.entries.length }
   }
 
   /** 超上限淘汰 lastVisitedAt 最旧（并存态稳定：按 lastVisitedAt 升序排序后截尾） */
@@ -158,32 +173,33 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
   function ensureLoaded(sessionId: string): Promise<void> {
     let pending = loads.get(sessionId)
     if (!pending) {
-      pending = loadSession(sessionId)
+      const promise = loadSession(sessionId).then(({ map, converged }) => {
+        // 回填判据（L4 复活窗口修复）：读盘期间会话已被 dropHistory 清场（loads 键
+        // 不再指向本次 promise）即弃置读盘结果，防陈旧条目复活已删会话的内存态
+        if (loads.get(sessionId) !== promise) return
+        sessions.set(sessionId, map)
+        // 落盘滞后收敛（L6）：读盘剔除过坏元素/重复/超限条目时安排一次写盘，
+        // 把磁盘拉平到内存口径，不等下次自然采集
+        if (converged) scheduleWrite(sessionId)
+      })
+      pending = promise
       loads.set(sessionId, pending)
     }
     return pending
   }
 
-  /** 取内存条目快照写盘（tmp+rename 原子写，照 store.ts；失败如实告警，dirty 保留待重试） */
+  /** 取内存条目快照写盘（原子写经 fs-utils 单源；失败如实告警，dirty 保留待重试） */
   function writeSession(sessionId: string): Promise<void> {
     const map = sessions.get(sessionId)
     if (!map) return Promise.resolve() // 会话已清（dropHistory 竞态），静默跳过
-    const target = fileFor(sessionId)
-    const tmp = `${target}.${Date.now()}-${Math.random().toString(36).slice(2, 8)}.tmp`
-    const payload = JSON.stringify(
-      { version: HISTORY_SCHEMA_VERSION, entries: [...map.values()] },
-      null,
-      2
-    )
-    return mkdir(deps.historyDir(), { recursive: true })
-      .then(() => writeFile(tmp, payload, 'utf-8'))
-      .then(() => rename(tmp, target))
+    return atomicWriteJson(fileFor(sessionId), {
+      version: HISTORY_SCHEMA_VERSION,
+      entries: [...map.values()]
+    })
       .then(() => {
         dirty.delete(sessionId)
       })
       .catch((error: unknown) => {
-        // 写失败清本次临时文件（唯一文件名不会被覆盖，不清理会残留堆积）
-        void unlink(tmp).catch(() => undefined)
         console.warn(`[history] 写会话 ${sessionId} 的历史文件失败:`, error)
       })
   }
@@ -233,8 +249,11 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
         return
       }
       // 读盘未完成的毫秒窗口：沿 ensureLoaded 链排队，防内存空态覆盖磁盘既有条目
-      void ensureLoaded(sessionId).then(() => {
+      const pending = ensureLoaded(sessionId)
+      void pending.then(() => {
         if (sealed) return
+        // 与回填同判据：读盘/合并链期间会话已被 dropHistory 清场即弃置本次在途事实
+        if (loads.get(sessionId) !== pending) return
         let map = sessions.get(sessionId)
         if (!map) {
           map = new Map()

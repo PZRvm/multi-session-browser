@@ -38,6 +38,26 @@ function recencyScore(lastVisitedAt: number, now: number): number {
 }
 
 /**
+ * 命中子串切分（供建议行加粗渲染，Chrome omnibox 同款）：按规范化查询在原文的小写
+ * 形态中找首个命中段，命中位置带回原串（大小写保留）；未命中返回整段非命中，不加
+ * 粗——诚实优先于硬凑高亮
+ */
+export function splitByQuery(
+  text: string,
+  normalizedQuery: string
+): { text: string; hit: boolean }[] {
+  if (!normalizedQuery) return [{ text, hit: false }]
+  const lower = text.toLowerCase()
+  const at = lower.indexOf(normalizedQuery)
+  if (at < 0) return [{ text, hit: false }]
+  return [
+    { text: text.slice(0, at), hit: false },
+    { text: text.slice(at, at + normalizedQuery.length), hit: true },
+    { text: text.slice(at + normalizedQuery.length), hit: false }
+  ].filter((part) => part.text.length > 0)
+}
+
+/**
  * 计算地址栏输入的历史建议：输入长度不足阈值返回空（不弹面板）；每条取其最优
  * 匹配等级，等级为主序、（新近度 + 频次）为次序，截断至上限条
  */

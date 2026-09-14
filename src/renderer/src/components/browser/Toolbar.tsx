@@ -8,31 +8,18 @@ import {
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
 import { useUiStore } from '../../stores/ui'
+import OmniboxSuggestPanel from './OmniboxSuggestPanel'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 import type { OmniboxSuggestion } from './omniboxSuggest'
 
 const INVALID_HINT_MS = 2500
 
-/** 命中子串切分（Chrome omnibox 同款加粗）：按规范化查询在原文的小写下找首个命中段，
- * 命中位置带回原串渲染（大小写保留）；未命中（如纯域名前缀对完整 URL 的命中）返回
- * 整段非命中，不加粗——诚实优先于硬凑高亮 */
-function splitByQuery(text: string, normalizedQuery: string): { text: string; hit: boolean }[] {
-  if (!normalizedQuery) return [{ text, hit: false }]
-  const lower = text.toLowerCase()
-  const at = lower.indexOf(normalizedQuery)
-  if (at < 0) return [{ text, hit: false }]
-  return [
-    { text: text.slice(0, at), hit: false },
-    { text: text.slice(at, at + normalizedQuery.length), hit: true },
-    { text: text.slice(at + normalizedQuery.length), hit: false }
-  ].filter((part) => part.text.length > 0)
-}
-
 // 工具栏：导航四键 + 可编辑地址栏；零会话（快照 sessionId === null）时地址栏禁用，
 // 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/主页/DevTools 钮
 // 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖。
 // 地址栏历史建议（Chrome omnibox 对齐）：编辑态按当前会话历史镜像本地过滤（编辑期
-// 零 IPC），下拉面板键盘 ↑↓ 环形高亮 / Enter 高亮优先 / Esc 分层先关面板再还原
+// 零 IPC），下拉面板（OmniboxSuggestPanel 纯展示）键盘 ↑↓ 环形高亮 / Enter 高亮
+// 优先 / Esc 分层先关面板再还原
 function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
@@ -90,7 +77,9 @@ function Toolbar(): React.JSX.Element {
 
   // 面板开合登记 overlay：内容区被主进程 WebContentsView 原生覆盖，DOM 下拉越过工具栏
   // 即被遮挡——经 ui store 既有机制收起原生层（与 antd 弹层同规）；卸载/收合由 effect
-  // cleanup 释放，杜绝计数泄漏把内容区永久收起
+  // cleanup 释放，杜绝计数泄漏把内容区永久收起。已知取舍（评审 L8 裁决维持现状）：
+  // 面板打开期间页面区域随之隐藏、浏览器快捷键冻结，与 Chrome「页面保持可见」有视觉
+  // 差异；Chrome 级保真需主进程原生子窗口承载下拉，另立专项评估
   useEffect(() => {
     if (!panelOpen) return
     openOverlay()
@@ -263,77 +252,13 @@ function Toolbar(): React.JSX.Element {
           onKeyDown={onKeyDown}
         />
         {panelOpen && (
-          <div
-            id="chrome-omnibox-suggest"
-            className="chrome-omnibox-suggest"
-            role="listbox"
-            aria-label="历史记录建议"
-          >
-            {suggestions.map((item, index) => (
-              // mousedown 吞默认防先夺走输入焦点（onBlur 清 draft 会拆面板，click 不达）；
-              // 无标题行（历史标题未就绪）单行只示网址
-              <div
-                key={item.entry.url}
-                role="option"
-                aria-selected={index === activeSuggestIndex}
-                className={`chrome-omnibox-suggest-item${
-                  index === activeSuggestIndex ? ' is-active' : ''
-                }${item.entry.title ? '' : ' chrome-omnibox-suggest-item-untitled'}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setSuggestIndex(index)}
-                onClick={() => pickSuggestion(item.entry.url)}
-              >
-                {item.entry.faviconUrl ? (
-                  <img
-                    className="chrome-omnibox-suggest-favicon"
-                    src={item.entry.faviconUrl}
-                    alt=""
-                    draggable={false}
-                  />
-                ) : (
-                  <span className="chrome-omnibox-suggest-favicon chrome-omnibox-suggest-favicon-dot" />
-                )}
-                {item.entry.title ? (
-                  <>
-                    <span className="chrome-omnibox-suggest-title">
-                      {splitByQuery(item.entry.title, normalizedQuery).map((part, i) =>
-                        part.hit ? (
-                          <b key={i} className="chrome-omnibox-suggest-hit">
-                            {part.text}
-                          </b>
-                        ) : (
-                          <span key={i}>{part.text}</span>
-                        )
-                      )}
-                    </span>
-                    <span className="chrome-omnibox-suggest-url" title={item.entry.url}>
-                      {splitByQuery(item.entry.url, normalizedQuery).map((part, i) =>
-                        part.hit ? (
-                          <b key={i} className="chrome-omnibox-suggest-hit">
-                            {part.text}
-                          </b>
-                        ) : (
-                          <span key={i}>{part.text}</span>
-                        )
-                      )}
-                    </span>
-                  </>
-                ) : (
-                  <span className="chrome-omnibox-suggest-url" title={item.entry.url}>
-                    {splitByQuery(item.entry.url, normalizedQuery).map((part, i) =>
-                      part.hit ? (
-                        <b key={i} className="chrome-omnibox-suggest-hit">
-                          {part.text}
-                        </b>
-                      ) : (
-                        <span key={i}>{part.text}</span>
-                      )
-                    )}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+          <OmniboxSuggestPanel
+            items={suggestions}
+            activeIndex={activeSuggestIndex}
+            query={normalizedQuery}
+            onHover={setSuggestIndex}
+            onPick={pickSuggestion}
+          />
         )}
       </div>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}

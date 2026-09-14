@@ -5,11 +5,12 @@
 // 后续步骤（IPC handlers）不感知实现差异。
 
 import { app } from 'electron'
-import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises'
-import { dirname, join } from 'path'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { isRecord } from '../shared/guards'
 import type { SessionsSnapshot, StoredSession, StoredTab } from '../shared/sessions'
 import { cloneTabs } from '../shared/sessions'
+import { atomicWriteJson } from './fs-utils'
 
 /** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex）；读到不认识的版本一律按坏数据回退，v1/v2 读取时迁移 */
 const SNAPSHOT_VERSION = 3
@@ -137,20 +138,12 @@ export async function loadSnapshot(): Promise<SessionsSnapshot> {
   return parseSnapshot(raw)
 }
 
-/** 写入会话快照（先写唯一临时文件再原子改名，避免半截写入或并发写交错损坏落盘数据） */
+/**
+ * 写入会话快照（原子写经 fs-utils 单源——唯一临时文件 + 改名，失败清理临时文件后
+ * 原样上抛；机制细节见 fs-utils 头注释）
+ */
 export async function saveSnapshot(snapshot: SessionsSnapshot): Promise<void> {
-  const target = getStorePath()
-  // 临时文件名带时间戳 + 随机后缀：并发写各用各的 tmp，也不会与崩溃残留的旧 tmp 交错覆盖
-  const tmp = `${target}.${Date.now()}-${Math.random().toString(36).slice(2, 8)}.tmp`
-  await mkdir(dirname(target), { recursive: true })
-  try {
-    await writeFile(tmp, JSON.stringify(snapshot, null, 2), 'utf-8')
-    await rename(tmp, target)
-  } catch (err) {
-    // 写失败时尽力清理本次临时文件（唯一文件名不会被下次保存覆盖，不清理会残留堆积）
-    await unlink(tmp).catch(() => undefined)
-    throw err
-  }
+  await atomicWriteJson(getStorePath(), snapshot)
 }
 
 // 读-改-写串行队列：同一时刻只允许一个 mutate 执行（读盘、改内存、写盘全程互斥），
