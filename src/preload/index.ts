@@ -15,6 +15,8 @@ import type {
   TabDragOutcome,
   TabDragStartPayload
 } from '../shared/browser'
+import { HISTORY_CHANNELS } from '../shared/history'
+import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
@@ -104,6 +106,19 @@ const api = {
     // 拖入插入位上报（阶段 10）：尽力而为 hint——主进程无 hint/陈旧时回退末位追加
     dragInsert: (payload: TabDragInsertPayload): Promise<BrowserOkResult> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.dragInsert, payload),
+    // 地址栏历史补全（契约见 shared/history.ts）：拉取当前作用域会话的全量历史镜像；
+    // 建议检索在 renderer 本地完成，编辑期零 IPC
+    getHistory: (): Promise<HistoryEntry[]> => ipcRenderer.invoke(HISTORY_CHANNELS.get),
+    // 历史变化增量推送：payload.entry 按 url 并入镜像；订阅/退订照 onDragHover 惯例
+    onHistoryChanged: (callback: (payload: HistoryChangedPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: HistoryChangedPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(HISTORY_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(HISTORY_CHANNELS.changed, listener)
+      }
+    },
     // 推送订阅：listener 内剥离 ipc 事件对象，renderer 回调只收 payload；退订必须 removeListener 同一 listener
     onStateChanged: (callback: (snapshot: BrowserSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: BrowserSnapshot): void => {

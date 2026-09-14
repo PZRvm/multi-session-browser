@@ -12,6 +12,7 @@ import type {
   TabDragStartPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
+import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import type {
   BatchOpenUrlPayload,
@@ -61,6 +62,8 @@ declare global {
         dragStart(payload: TabDragStartPayload): Promise<OkResult>
         dragEnd(payload: TabDragEndPayload): Promise<TabDragOutcome>
         dragInsert(payload: TabDragInsertPayload): Promise<OkResult>
+        getHistory(): Promise<HistoryEntry[]>
+        onHistoryChanged(callback: (payload: HistoryChangedPayload) => void): () => void
         onStateChanged(callback: (snapshot: BrowserSnapshot) => void): () => void
         onFocusAddress(callback: () => void): () => void
         onDragHover(callback: (payload: TabDragHoverPayload) => void): () => void

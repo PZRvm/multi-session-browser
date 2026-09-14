@@ -16,6 +16,7 @@ import {
 } from '../../shared/browser'
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
+import type { VisitFact } from './history'
 import { isOpenableUrl, logLoadFailure } from './url'
 
 const BLANK_URL = 'about:blank'
@@ -53,6 +54,13 @@ export type SnapshotListener = (snapshot: BrowserSnapshot) => void
 
 /** windowId = 请求来源页面所在宿主窗口：独立窗口的地址栏聚焦须发往该窗口而非主窗口 */
 export type FocusAddressListener = (windowId: string) => void
+
+/**
+ * 页面侧导航事实监听（地址栏历史补全的采集面）。manager 只上抛事实不碰持久化，
+ * registry 订阅后转发 history.recordVisit；kind 语义（visit 计数 / title、favicon
+ * 元数据补写）与时序背景见 browser/history.ts 头注释
+ */
+export type VisitListener = (fact: VisitFact) => void
 
 // windowId 参数缺省 'main'：ipc 层经 sender 作用域解析后显式传入（主窗口来源 →
 // 'main'，独立窗口来源 → 其窗口 id）；缺省值仅兼容 registry 内部 main 作用域调用点
@@ -130,6 +138,13 @@ export type TearOffTabManager = TabManager & {
     targetWindowId: string,
     insertIndex?: number
   ) => BrowserSnapshot
+  /**
+   * 订阅页面侧导航事实（历史采集面，kind 语义见 history.ts 的 VisitFact），返回退订
+   * 函数。挂在 TearOffTabManager 扩展面而非 TabManager 基面：基面是 registry 对
+   * ipc 暴露的作用域命令兼容面，采集订阅是具体 manager 的能力（registry 持
+   * TearOffTabManager 实例，ensureManager 接线 history.recordVisit）
+   */
+  onVisit: (cb: VisitListener) => () => void
 }
 
 export function createTabManager(
@@ -156,10 +171,31 @@ export function createTabManager(
   let disposed = false
   const listeners = new Set<SnapshotListener>()
   const focusListeners = new Set<FocusAddressListener>()
+  const visitListeners = new Set<VisitListener>()
 
   /** focus-address 请求点：manager 不碰 IPC，ipc.ts 订阅后按来源窗口定向转发 */
   function requestFocusAddress(windowId: string): void {
     for (const cb of focusListeners) cb(windowId)
+  }
+
+  /**
+   * 历史采集点：只携带事件自身确定的信息（did-navigate 时 TabEntry 的 title/favicon
+   * 还是上一页旧值，不可上抛）——visit 事件 url 取刚落地的导航地址，title/favicon
+   * 事件 url 取 Tab 当前地址、只带本事件新值。manager 不碰持久化，registry 订阅转发
+   */
+  function emitVisit(
+    kind: VisitFact['kind'],
+    tab: TabEntry,
+    overrides: { url?: string; title?: string; faviconUrl?: string | null } = {}
+  ): void {
+    if (visitListeners.size === 0) return
+    const fact: VisitFact = {
+      kind,
+      url: overrides.url ?? tab.url,
+      title: overrides.title ?? '',
+      faviconUrl: overrides.faviconUrl ?? null
+    }
+    for (const cb of visitListeners) cb(fact)
   }
 
   /** 该窗口托管的 Tab id 列表（创建序）："最后留一"作用域判定与邻位补位共用 */
@@ -291,21 +327,25 @@ export function createTabManager(
     })
     wc.on('did-navigate', (_event, navigatedUrl) => {
       tab.url = navigatedUrl
+      emitVisit('visit', tab)
       emitChange()
     })
     wc.on('did-navigate-in-page', (_event, navigatedUrl, isMainFrame) => {
       // 子框架的页内导航不改主 frame 地址
       if (!isMainFrame) return
       tab.url = navigatedUrl
+      emitVisit('visit', tab)
       emitChange()
     })
     wc.on('page-title-updated', (_event, title) => {
       tab.title = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
+      emitVisit('title', tab, { title: tab.title })
       emitChange()
     })
     wc.on('page-favicon-updated', (_event, icons) => {
       // icons 是图标 URL 数组，取最后一个；无图标置 null
       tab.faviconUrl = icons.length > 0 ? icons[icons.length - 1] : null
+      emitVisit('favicon', tab, { faviconUrl: tab.faviconUrl })
       emitChange()
     })
     // DevTools 经原生关闭钮等途径关闭时同步状态；本方主动关闭已先复位，守卫拦下重复处理。
@@ -611,6 +651,11 @@ export function createTabManager(
     return () => focusListeners.delete(cb)
   }
 
+  function onVisit(cb: VisitListener): () => void {
+    visitListeners.add(cb)
+    return () => visitListeners.delete(cb)
+  }
+
   function dispose(): void {
     disposed = true
   }
@@ -630,6 +675,7 @@ export function createTabManager(
     dispose,
     getSnapshot,
     onSnapshotChanged,
-    onFocusAddressRequest
+    onFocusAddressRequest,
+    onVisit
   }
 }

@@ -1,15 +1,18 @@
-// 浏览器 IPC handlers：十八条通道（15 条命令 + 3 条推送）的装配层。
+// 浏览器 IPC handlers：二十条通道（16 条命令 + 4 条推送）的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
 // → windows.ts 登记的绑定会话的该窗口作用域；未知窗口/已销毁/绑定会话失效一律抛
 // 中文错误拒绝（契约点 3，通道名与 payload 零变更）。
-// 推送（stateChanged/focusAddress/dragHover）按快照/请求/悬停的 windowId 会话归属
-// 定向发对应窗口，不盲发主窗口；主窗口空态快照（emptySnapshot）恒属 'main'，自然只
-// 发主窗口。阶段 9：tear-off 的 IPC 通道随临时右键菜单入口退役（建窗/迁移编排下沉
-// registry 内部接口，由拖拽控制器复用）；拖拽通道（tab-drag-start/end 命令 +
-// tab-drag-hover 推送）在此接线。阶段 10：dragInsert 插入位上报命令在此接线（hint
-// 尽力而为语义——结构守卫后的匹配校验不符静默返回 ok，不抛错）。
-// 通道名一律取自 shared/browser 的 BROWSER_CHANNELS，禁止手写字符串。
+// 推送（stateChanged/focusAddress/dragHover/historyChanged）按快照/请求/悬停/条目的
+// windowId 会话归属定向发对应窗口，不盲发主窗口；主窗口空态快照（emptySnapshot）恒属
+// 'main'，自然只发主窗口。阶段 9：tear-off 的 IPC 通道随临时右键菜单入口退役（建窗/
+// 迁移编排下沉 registry 内部接口，由拖拽控制器复用）；拖拽通道（tab-drag-start/end
+// 命令 + tab-drag-hover 推送）在此接线。阶段 10：dragInsert 插入位上报命令在此接线
+//（hint 尽力而为语义——结构守卫后的匹配校验不符静默返回 ok，不抛错）。地址栏历史
+// 补全：historyGet 命令（作用域会话解析，renderer 不传 sessionId）+ historyChanged
+// 增量推送（dragHover 同款定向集合）在此接线（契约见 shared/history.ts）。
+// 通道名一律取自 shared/browser 的 BROWSER_CHANNELS 与 shared/history 的
+// HISTORY_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
 import { ipcMain } from 'electron'
@@ -23,6 +26,8 @@ import {
   type TabDragOutcome,
   type TabDragPreviewPayload
 } from '../../shared/browser'
+import { HISTORY_CHANNELS } from '../../shared/history'
+import type { HistoryEntry } from '../../shared/history'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
 import type { TabDragController } from './dragging'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
@@ -102,6 +107,18 @@ export function registerBrowserIpc(
     }
     for (const entry of windows.listForSession(payload.sessionId)) {
       windowForId(entry.windowId)?.webContents.send(BROWSER_CHANNELS.dragHover, payload)
+    }
+  })
+
+  // 历史变化桥接（地址栏补全）：history 模块内存合并后即回调（镜像即时语义），
+  // 定向集合与 dragHover 同款——主窗口仅当激活会话 = 条目归属会话时发 + 该会话全部
+  // 独立窗发；异会话窗口零触达（会话隔离硬边界）
+  manager.history.onEntryChanged((payload) => {
+    if (manager.getActiveSessionId() === payload.sessionId) {
+      windowForId(WINDOW_ID_MAIN)?.webContents.send(HISTORY_CHANNELS.changed, payload)
+    }
+    for (const entry of windows.listForSession(payload.sessionId)) {
+      windowForId(entry.windowId)?.webContents.send(HISTORY_CHANNELS.changed, payload)
     }
   })
 
@@ -322,5 +339,16 @@ export function registerBrowserIpc(
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（18 条通道）')
+  // historyGet：拉取来源窗口作用域会话（主窗→激活会话，独立窗→绑定会话）的全量历史
+  // 镜像。无 payload——renderer 不传 sessionId，作用域由 sender 解析（防越权读他窗
+  // 会话历史）；主窗口零会话拒绝（「未选择会话」，与命令通道同规）。异步（首触懒
+  // 加载读盘），失败日志走 logFailureAsync
+  ipcMain.handle(HISTORY_CHANNELS.get, (event): Promise<HistoryEntry[]> =>
+    logFailureAsync(HISTORY_CHANNELS.get, undefined, async () => {
+      const scope = requireScope(event)
+      return manager.history.getEntries(scope.sessionId)
+    })
+  )
+
+  console.log('[browser] IPC handlers 已注册（20 条通道，含历史补全 2 条）')
 }

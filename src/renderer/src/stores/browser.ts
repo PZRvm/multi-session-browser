@@ -7,6 +7,7 @@ import type {
   TabDragPreviewPayload
 } from '../../../shared/browser'
 import { WINDOW_ID_MAIN } from '../../../shared/browser'
+import type { HistoryChangedPayload, HistoryEntry } from '../../../shared/history'
 import { useSessionsStore } from './sessions'
 
 // 浏览器状态是主进程快照的纯镜像：sessionId/tabs/activeTabId/devtoolsOpen 原样存储
@@ -29,6 +30,11 @@ interface BrowserState {
   dragCursorY: number | null
   /** 悬停推送的被拖 Tab id 镜像（阶段 10）：目标窗不是源窗，须镜像 payload.tabId 才能上报插入位 hint */
   dragHoverTabId: string | null
+  /**
+   * 当前作用域会话的浏览历史镜像（地址栏补全数据源）：主进程事实源的副本，切会话即
+   * 整体清空重拉（不跨会话串数据）；建议检索在组件层本地同步过滤（编辑期零 IPC）
+   */
+  history: HistoryEntry[]
   init: () => Promise<void>
   /** 重拉当前快照对齐主进程（删除会话等场景：级联推送先于命令回复到达而被守卫丢弃） */
   resync: () => Promise<void>
@@ -83,6 +89,61 @@ const parseWindowIdentity = (): WindowIdentity => {
 
 export const windowIdentity = parseWindowIdentity()
 
+// 历史镜像重拉的过期判据（单调递增 token）：快速连续切换会话时，只有最新一次
+// 重拉的回填生效，晚到的旧回复整体丢弃（独立窗绑定恒定，token 同样防重入叠加）
+let historyPullToken = 0
+
+/**
+ * 会话级历史重拉（init 首帧漂移与切会话共用）：先清空再拉取；回填前比对 token
+ * 与当前镜像会话（主窗比对 store sessionId——主进程 get 按来源解析激活会话，回填
+ * 时会话已再漂移即过期；独立窗绑定恒定只比对 token）。失败保持空镜像并告警——
+ * 建议层无数据即可用性归零，不阻塞浏览
+ */
+const refreshHistory = (
+  set: (partial: Partial<BrowserState>) => void,
+  get: () => BrowserState
+): void => {
+  const token = ++historyPullToken
+  const requestedSession = get().sessionId
+  set({ history: [] })
+  window.api.browser
+    .getHistory()
+    .then((entries) => {
+      if (token !== historyPullToken) return
+      if (windowIdentity.mode === 'main' && get().sessionId !== requestedSession) return
+      set({ history: entries })
+    })
+    .catch((error: unknown) => {
+      if (token === historyPullToken) console.error('拉取会话历史失败', error)
+    })
+}
+
+/**
+ * 历史增量推送守卫与并入（与 applySnapshot 同构的按窗口模式分流）：
+ * - 主窗：payload.sessionId 须等于 sessions store 的 activeId（与快照守卫同源）；
+ * - 独立窗：payload.sessionId 须等于建窗绑定的 identity.sessionId。
+ * 双重校验（activeId 之外还比对镜像 sessionId）：会话切换在途时旧会话推送晚到、
+ * 新会话推送早于快照到达均按过期丢弃——refreshHistory 的全量拉取兜底收编
+ */
+const applyHistoryChanged = (
+  set: (partial: Partial<BrowserState> | ((state: BrowserState) => Partial<BrowserState>)) => void,
+  get: () => BrowserState,
+  payload: HistoryChangedPayload
+): void => {
+  const mine =
+    windowIdentity.mode === 'main'
+      ? payload.sessionId === useSessionsStore.getState().activeId
+      : payload.sessionId === windowIdentity.sessionId
+  if (!mine || get().sessionId !== payload.sessionId) return
+  set((state) => {
+    const index = state.history.findIndex((item) => item.url === payload.entry.url)
+    if (index < 0) return { history: [...state.history, payload.entry] }
+    const next = [...state.history]
+    next[index] = payload.entry
+    return { history: next }
+  })
+}
+
 // 推送与命令返回值同构，以主进程数据为唯一事实源；双到达重复 set 幂等无害。
 // 守卫按窗口模式分流（契约：计划第 3 节点 2）：
 // - 主窗口：windowId 须为 main，且会话与 sessions store 的 activeId 相符
@@ -92,6 +153,7 @@ export const windowIdentity = parseWindowIdentity()
 //   （main.tsx 分流跳过 sessions.init），不得依赖 activeId；作用域会话由建窗绑定。
 const applySnapshot = (
   set: (partial: Partial<BrowserState> | ((state: BrowserState) => Partial<BrowserState>)) => void,
+  get: () => BrowserState,
   snapshot: BrowserSnapshot
 ): void => {
   if (windowIdentity.mode === 'main') {
@@ -100,12 +162,16 @@ const applySnapshot = (
   } else if (snapshot.windowId !== windowIdentity.windowId) {
     return
   }
+  // 历史镜像随会话漂移清空（含切到零会话）：旧会话数据即刻不可见，非空新会话
+  // 随后经 refreshHistory 重拉（快速连续切换时晚到的回复按过期 token 丢弃）
+  const sessionDrifted = get().sessionId !== snapshot.sessionId
   const { sessionId, tabs, activeTabId, devtoolsOpen } = snapshot
   set((state) => ({
     sessionId,
     tabs,
     activeTabId,
     devtoolsOpen,
+    history: sessionDrifted ? [] : state.history,
     // 拖拽瞬态自愈（阶段 9）：快照已不含被拖 Tab（主进程在裁决/级联中先行移除、
     // 或会话切换重排）时清掉本地拖拽源态——dragend 可能因此在已卸载组件上不可达
     // （React 合成事件不派发到脱离文档的节点），卸载路径由此兜底，不悬挂半透明态
@@ -114,6 +180,7 @@ const applySnapshot = (
         ? null
         : state.draggingTabId
   }))
+  if (sessionDrifted && snapshot.sessionId !== null) void refreshHistory(set, get)
 }
 
 // 悬停推送守卫（与 applySnapshot 同构，按窗口模式分流，契约：阶段 9 计划第 3 节）：
@@ -152,7 +219,7 @@ const applyDragHover = (
   set({ hoverWindowId: null, dragCursorX: null, dragCursorY: null, dragHoverTabId: null })
 }
 
-export const useBrowserStore = create<BrowserState>((set) => ({
+export const useBrowserStore = create<BrowserState>((set, get) => ({
   sessionId: null,
   tabs: [],
   activeTabId: null,
@@ -163,6 +230,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   dragCursorX: null,
   dragCursorY: null,
   dragHoverTabId: null,
+  history: [],
 
   // 先订阅推送、再拉取初始快照：订阅先就位后拉取期间到达的推送不会丢失，避免推送与拉取竞态
   init: async () => {
@@ -171,9 +239,14 @@ export const useBrowserStore = create<BrowserState>((set) => ({
     let offStateChanged: (() => void) | null = null
     let offFocusAddress: (() => void) | null = null
     let offDragHover: (() => void) | null = null
+    let offHistoryChanged: (() => void) | null = null
     try {
+      // 历史增量推送（地址栏补全）：订阅先于拉取就位，推送与重拉双到达幂等无害
+      offHistoryChanged = window.api.browser.onHistoryChanged((payload) => {
+        applyHistoryChanged(set, get, payload)
+      })
       offStateChanged = window.api.browser.onStateChanged((snapshot) => {
-        applySnapshot(set, snapshot)
+        applySnapshot(set, get, snapshot)
       })
       // focusTick 仅是聚焦请求的计数信号，无负载数据，UI 层按计数变化响应
       offFocusAddress = window.api.browser.onFocusAddress(() => {
@@ -185,12 +258,13 @@ export const useBrowserStore = create<BrowserState>((set) => ({
         applyDragHover(set, payload)
       })
       const snapshot = await window.api.browser.getState()
-      applySnapshot(set, snapshot)
+      applySnapshot(set, get, snapshot)
     } catch (error) {
       // 失败复位标志允许下次调用重试；已建立的订阅一并退订，防止重试后重复接收推送
       offStateChanged?.()
       offFocusAddress?.()
       offDragHover?.()
+      offHistoryChanged?.()
       initialized = false
       console.error('初始化浏览器状态失败', error)
     }
@@ -199,7 +273,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 主动重拉快照（守卫照常生效）：用于推送已丢、命令回复又不含新快照的路径（删除级联）
   resync: async () => {
     try {
-      applySnapshot(set, await window.api.browser.getState())
+      applySnapshot(set, get, await window.api.browser.getState())
     } catch (error) {
       console.error('重拉浏览器状态失败', error)
     }
@@ -208,7 +282,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 以下命令均不乐观更新：IPC 成功后以返回快照更新，失败保持原状态
   newTab: async (url) => {
     try {
-      applySnapshot(set, await window.api.browser.newTab(url === undefined ? {} : { url }))
+      applySnapshot(set, get, await window.api.browser.newTab(url === undefined ? {} : { url }))
     } catch (error) {
       console.error('新建标签页失败', error)
     }
@@ -216,7 +290,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   closeTab: async (id) => {
     try {
-      applySnapshot(set, await window.api.browser.closeTab({ id }))
+      applySnapshot(set, get, await window.api.browser.closeTab({ id }))
     } catch (error) {
       console.error('关闭标签页失败', error)
     }
@@ -224,7 +298,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   switchTab: async (id) => {
     try {
-      applySnapshot(set, await window.api.browser.switchTab({ id }))
+      applySnapshot(set, get, await window.api.browser.switchTab({ id }))
     } catch (error) {
       console.error('切换标签页失败', error)
     }
@@ -233,7 +307,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 与其他命令不同：导航失败不吞错，返回 false 供地址栏展示「无效的网址」行内提示
   navigate: async (url) => {
     try {
-      applySnapshot(set, await window.api.browser.navigate({ url }))
+      applySnapshot(set, get, await window.api.browser.navigate({ url }))
       return true
     } catch (error) {
       console.error('导航失败', error)
@@ -243,7 +317,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   goBack: async () => {
     try {
-      applySnapshot(set, await window.api.browser.back())
+      applySnapshot(set, get, await window.api.browser.back())
     } catch (error) {
       console.error('后退失败', error)
     }
@@ -251,7 +325,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   goForward: async () => {
     try {
-      applySnapshot(set, await window.api.browser.forward())
+      applySnapshot(set, get, await window.api.browser.forward())
     } catch (error) {
       console.error('前进失败', error)
     }
@@ -259,7 +333,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   reload: async () => {
     try {
-      applySnapshot(set, await window.api.browser.reload())
+      applySnapshot(set, get, await window.api.browser.reload())
     } catch (error) {
       console.error('刷新失败', error)
     }
@@ -267,7 +341,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
 
   stop: async () => {
     try {
-      applySnapshot(set, await window.api.browser.stop())
+      applySnapshot(set, get, await window.api.browser.stop())
     } catch (error) {
       console.error('停止加载失败', error)
     }
@@ -276,7 +350,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 开发者工具开关与既有命令同规：不乐观更新，IPC 成功后以返回快照更新，失败保持原状态
   toggleDevTools: async () => {
     try {
-      applySnapshot(set, await window.api.browser.toggleDevTools())
+      applySnapshot(set, get, await window.api.browser.toggleDevTools())
     } catch (error) {
       console.error('切换开发者工具失败', error)
     }
@@ -286,7 +360,7 @@ export const useBrowserStore = create<BrowserState>((set) => ({
   // 不读镜像态做守卫，消除「守卫 + toggle」之间推送在途导致的误重开窗口
   closeDevTools: async () => {
     try {
-      applySnapshot(set, await window.api.browser.closeDevTools())
+      applySnapshot(set, get, await window.api.browser.closeDevTools())
     } catch (error) {
       console.error('关闭开发者工具失败', error)
     }

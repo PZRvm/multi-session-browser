@@ -28,6 +28,7 @@ import {
 } from './manager'
 import { createCameraPermissionBroker } from './permissions'
 import { createSessionPersistence, type RestoreSet } from './persistence'
+import { createBrowserHistory, type BrowserHistory } from './history'
 import { logLoadFailure } from './url'
 import type { IndependentWindows } from './windows'
 
@@ -147,8 +148,14 @@ export interface SessionBrowserRegistry extends TabManager {
   onSessionStatus(cb: (payload: SessionStatusesPayload) => void): () => void
   /** 当前全量状态 map 的同步快照（sessions:get-statuses 拉取通道的数据源，兜底启动期推送竞态） */
   getStatuses(): SessionStatusesPayload
-  /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
+  /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot/recordVisit no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
   flushPendingReports(): Promise<void>
+  /**
+   * 会话浏览历史模块（地址栏补全的数据层）：ipc 装配层经此取 getEntries 与
+   * onEntryChanged（推送桥接）；recordVisit/dropHistory/cloneHistory 的编排接线
+   * 在本注册表内完成（ensureManager 采集、destroySession 清史、clonePartition 携带）
+   */
+  readonly history: BrowserHistory
 }
 
 export function createSessionBrowserRegistry(deps: {
@@ -188,6 +195,14 @@ export function createSessionBrowserRegistry(deps: {
   })
   /** 最近一次非零内容区矩形：新建 manager 的 initialBounds（无窗口先建 manager 时的挂入兜底） */
   let globalBounds: SetBoundsPayload | null = null
+  /**
+   * 会话浏览历史（地址栏补全数据层）：每会话独立文件 userData/history/<id>.json，
+   * 模块内自持懒加载/去抖落盘/封笔（对称 cameraPermissions 的注册表内自持先例，
+   * index.ts 无需注入）；退出冲刷经 flushPendingReports 聚合
+   */
+  const history = createBrowserHistory({
+    historyDir: () => join(app.getPath('userData'), 'history')
+  })
   /**
    * 持久化上报与恢复集（阶段 6 自本文件抽出为 browser/persistence.ts，复审 L7 定案）：
    * 写侧去抖落盘与读侧恢复集缓存的唯一事实源，本文件只做生命周期编排。阶段 10 起落盘
@@ -406,6 +421,9 @@ export function createSessionBrowserRegistry(deps: {
       if (bound !== id) return
       for (const cb of focusListeners) cb(windowId)
     })
+    // 历史采集接线（地址栏补全）：manager 上抛的导航事实转发 history 模块合并落盘；
+    // about:blank 过滤与超长拒绝在 recordVisit 内承担（manager 只上抛不过滤）
+    manager.onVisit((fact) => history.recordVisit(id, fact))
 
     // 懒创建即按恢复集多开 Tab（阶段 6）：缓存有恢复集则逐条过白名单恢复（顺序 +
     // 激活位），缺失/空则建一个空白 Tab；页面运行态不还原（URL 级恢复，PRD 3.6.4）
@@ -498,6 +516,8 @@ export function createSessionBrowserRegistry(deps: {
     // 阶段4步骤1 冒烟定案），从 Map 移除 manager 即天然保证——本函数此后也不再触碰该分区 session
     managers.delete(id)
     persistence.dropSession(id)
+    // 历史随会话销毁彻底清除（PRD 3.1.2「永久删除」；deleteAll 级联逐会话走本链天然覆盖）
+    await history.dropHistory(id)
     deleteStatus(id)
     // 正常编排里被删激活会话时 index.ts 已先切换走（onDeleted 级联）；此处兜底摘 view 与空态
     const wasActive = activeSessionId === id
@@ -618,6 +638,9 @@ export function createSessionBrowserRegistry(deps: {
           if (!dstStat.isDirectory()) {
             throw new Error(`目标分区路径不是目录（${dstDir}）`)
           }
+          // 克隆携带历史（用户批复假设 2）：先冲刷源会话待写再复制文件与内存条目
+          // （settle 时点快照语义，与分区复制同口径）；失败走同一清理路径视为克隆失败
+          await history.cloneHistory(srcId, dstId)
         } catch (error) {
           failed = true
           // 任何失败先清目标残留再上抛：半成品目录会让新会话挂在不一致环境上；
@@ -884,9 +907,9 @@ export function createSessionBrowserRegistry(deps: {
     return () => statusListeners.delete(cb)
   }
 
-  /** 退出前冲刷全部待写的上报去抖并封笔（index.ts 的 before-quit 钩子调用；委托持久化模块，返回在途写盘汇合） */
+  /** 退出前冲刷全部待写的上报去抖并封笔（index.ts 的 before-quit 钩子；聚合 persistence 与 history 两路写盘，返回全部在途写盘的汇合 promise） */
   function flushPendingReports(): Promise<void> {
-    return persistence.flushAll()
+    return Promise.all([persistence.flushAll(), history.flushAll()]).then(() => undefined)
   }
 
   function getStatuses(): SessionStatusesPayload {
@@ -927,6 +950,7 @@ export function createSessionBrowserRegistry(deps: {
     init,
     onSessionStatus,
     getStatuses,
-    flushPendingReports
+    flushPendingReports,
+    history
   }
 }

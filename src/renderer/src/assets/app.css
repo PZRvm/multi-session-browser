@@ -45,6 +45,7 @@
   --chrome-hover-veil: rgba(60, 64, 67, 0.08);
   --chrome-active-veil: rgba(60, 64, 67, 0.1);
   --chrome-pressed-veil: rgba(60, 64, 67, 0.12);
+  --chrome-select-veil: rgba(60, 64, 67, 0.14);
   --chrome-error: #d93025;
   /* 拖拽落点高亮（阶段 9，Tab 栏层）：tabbar 叠 16% ink 蒙版的合成色（比按压态
      再深一档，落点信号须强于普通悬停），灰阶语义，琥珀不进右侧 */
@@ -91,6 +92,7 @@
     --chrome-hover-veil: rgba(232, 234, 237, 0.08);
     --chrome-active-veil: rgba(232, 234, 237, 0.1);
     --chrome-pressed-veil: rgba(232, 234, 237, 0.14);
+    --chrome-select-veil: rgba(232, 234, 237, 0.2);
     --chrome-error: #f28b82;
     /* 拖拽落点高亮 · 暗：tabbar 叠 18% 亮墨蒙版的合成色（与亮色档位对齐的一档抬升） */
     --chrome-tabbar-drag-target: #444548;
@@ -929,6 +931,13 @@ img.chrome-tab-favicon {
 
 /* 真实地址栏输入框：flex:1 填满导航组与开发者工具开关之间的剩余宽度（Chrome 同款），
    完整 URL 展示（不做 scheme 折叠），聚焦后描边加深示意焦点 */
+.chrome-omnibox-host {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .chrome-omnibox {
   flex: 1;
   min-width: 0;
@@ -962,6 +971,116 @@ img.chrome-tab-favicon {
 /* 输入无效行内提示：边框短暂转当前 Chrome 主题错误色，2.5s 自动消退或下次输入即消 */
 .chrome-omnibox.chrome-omnibox-invalid {
   border-color: var(--chrome-error);
+}
+
+/* 地址栏历史建议下拉（impeccable 定稿）：Chrome 灰阶语系——surface 底 + line 发丝线
+   分层（无阴影，发丝线规则）、hover/active 蒙版阶梯（选中态升一档 hover-veil →
+   active-veil，与导航钮同阶梯）、亮暗成对。行 = favicon + 标题 + 网址（标题缺失时
+   单行只示网址），单行省略；滚动条主题化（chrome 系细滚动条，板面惯例的右侧语系
+   版）。显隐瞬切（离散跳变对齐插入指示器先例，不引入位移动效）；面板越过工具栏进入
+   内容区，开合期间经 ui store overlayDepth 收起原生层防遮挡 */
+.chrome-omnibox-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 298px;
+  overflow-y: auto;
+  border: 1px solid var(--chrome-line);
+  border-radius: 8px;
+  background: var(--chrome-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--chrome-line) transparent;
+}
+
+.chrome-omnibox-suggest::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chrome-omnibox-suggest::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--chrome-line);
+}
+
+.chrome-omnibox-suggest::-webkit-scrollbar-thumb:hover {
+  background: var(--chrome-ink-dim);
+}
+
+.chrome-omnibox-suggest::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chrome-omnibox-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 14px;
+  cursor: default;
+  user-select: none;
+  transition: background-color 0.12s ease;
+}
+
+/* 鼠标悬停兜底蒙版（键盘/悬停统一经 is-active，:hover 覆盖指针在非高亮行的即时反馈） */
+.chrome-omnibox-suggest-item:hover {
+  background: var(--chrome-hover-veil);
+}
+
+/* 键盘/悬停选中态：专用 select 蒙版（阶梯之上再升一档——白底上的选中须一眼可辨，
+   Chrome 同强；悬停统一经 is-active，:hover 兜底非高亮行的指针即时反馈） */
+.chrome-omnibox-suggest-item.is-active {
+  background: var(--chrome-select-veil);
+}
+
+.chrome-omnibox-suggest-favicon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.chrome-omnibox-suggest-favicon-dot {
+  border-radius: 50%;
+  background: var(--chrome-disabled);
+}
+
+.chrome-omnibox-suggest-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--chrome-ink);
+}
+
+.chrome-omnibox-suggest-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+
+/* 命中子串加粗（Chrome omnibox 同款）：同色仅升字重，命中段即刻可辨 */
+.chrome-omnibox-suggest-hit {
+  font-weight: 600;
+}
+
+/* 无标题行（历史条目标题未就绪）：单行只示网址，左对齐恢复 LTR、墨色升主级 */
+.chrome-omnibox-suggest-item.chrome-omnibox-suggest-item-untitled {
+  justify-content: flex-start;
+}
+
+.chrome-omnibox-suggest-item-untitled .chrome-omnibox-suggest-url {
+  flex: 1 1 auto;
+  text-align: left;
+  direction: ltr;
+  color: var(--chrome-ink);
 }
 
 /* 开发者工具开关按钮：沿用提示字样 11px 灰阶基调，开启态以浅灰蒙版持续示意 */
