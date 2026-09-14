@@ -1,6 +1,8 @@
 // 会话网页摄像头权限 broker：Electron 的站点权限 handler 挂在 Session 上，本模块按
 // 「会话 + 安全 origin + video」维护仅本次应用运行有效的授权；操作系统权限仍属于应用
-// 身份和物理设备，不伪装为会话级隔离。只支持纯视频请求，其他权限默认拒绝。
+// 身份和物理设备，不伪装为会话级隔离。摄像头只支持纯视频请求；剪贴板仅放行写入
+// （clipboard-sanitized-write——网页复制按钮所需，用户手势驱动的主动写入），剪贴板
+// 读取与其余权限一律默认拒绝。
 
 import { dialog, systemPreferences } from 'electron'
 import type {
@@ -252,6 +254,9 @@ export function createCameraPermissionBroker(
 
     target.setPermissionCheckHandler(
       (_webContents, permission, requestingOrigin, details): boolean => {
+        // 剪贴板写入放行：网页复制按钮（navigator.clipboard）与复制前的 permissions.query
+        // 探测都经此路径；Chromium 仅在安全上下文暴露该 API，无会话级询问必要。
+        if (permission === 'clipboard-sanitized-write') return true
         if (!isCurrent(binding) || permission !== 'media' || details.mediaType !== 'video') {
           return false
         }
@@ -278,6 +283,12 @@ export function createCameraPermissionBroker(
         finish(false)
       }
 
+      // 剪贴板写入放行：用户点击复制按钮即意图写入，无需会话级询问；拒绝会令
+      // navigator.clipboard.writeText 抛 NotAllowedError、复制按钮失效。
+      if (permission === 'clipboard-sanitized-write') {
+        finish(true)
+        return
+      }
       if (!isCurrent(binding) || permission !== 'media') {
         finish(false)
         return
