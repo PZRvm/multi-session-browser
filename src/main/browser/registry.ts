@@ -26,6 +26,7 @@ import {
   type TabManager,
   type TearOffTabManager
 } from './manager'
+import { createCameraPermissionBroker } from './permissions'
 import { createSessionPersistence, type RestoreSet } from './persistence'
 import { logLoadFailure } from './url'
 import type { IndependentWindows } from './windows'
@@ -164,6 +165,27 @@ export function createSessionBrowserRegistry(deps: {
 
   const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
+
+  /**
+   * 摄像头站点授权随 Electron Session（即会话分区）安装，运行期决定仍由 broker 按
+   * sessionId + origin 隔离。WebContentsView 不是 BrowserWindow.webContents，故原生
+   * 对话框宿主需在窗口 contentView 子视图中反查；后台已摘 view 时返回 null 走应用级弹窗。
+   */
+  const cameraPermissions = createCameraPermissionBroker({
+    resolveSessionName: async (id) =>
+      (await loadSnapshot()).sessions.find((item) => item.id === id)?.name ?? null,
+    resolveHostWindow: (requester) => {
+      const candidates = [getWindow(WINDOW_ID_MAIN), ...windows.listAll().map((entry) => entry.win)]
+      for (const win of candidates) {
+        if (!win || win.isDestroyed()) continue
+        const ownsView = win.contentView.children.some(
+          (child) => child instanceof WebContentsView && child.webContents === requester
+        )
+        if (ownsView) return win
+      }
+      return null
+    }
+  })
   /** 最近一次非零内容区矩形：新建 manager 的 initialBounds（无窗口先建 manager 时的挂入兜底） */
   let globalBounds: SetBoundsPayload | null = null
   /**
@@ -346,9 +368,13 @@ export function createSessionBrowserRegistry(deps: {
   function ensureManager(id: string): TabManager {
     const existing = managers.get(id)
     if (existing) return existing
+    const partition = partitionFor(id)
+    // handler 必须先于首个 WebContentsView 创建安装，避免页面首个 media 请求落入 Electron
+    // 默认自动批准；同一分区重建 manager 时 install 幂等且保留本次运行内的站点决定。
+    cameraPermissions.install(id, session.fromPartition(partition))
     const manager = createTabManager(getWindow, {
       sessionId: id,
-      partition: partitionFor(id),
+      partition,
       initialBounds: globalBounds ?? undefined
     })
     managers.set(id, manager)
@@ -459,6 +485,9 @@ export function createSessionBrowserRegistry(deps: {
       console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
       return
     }
+    // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
+    // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
+    cameraPermissions.disposeSession(id)
     // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
     // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
     // 由下方 killPartitionWebContents 按 session 分区扫杀兜底覆盖，两路都杀不冲突

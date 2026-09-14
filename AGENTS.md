@@ -49,3 +49,4 @@ Electron 三进程结构（electron-vite 脚手架）：
 - 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
 - PRD 5.1 提到的 Playwright 一期不使用（会话隔离由 Electron 原生 partition 承担），勿引入
 - 平台差异：macOS 关窗不退出（模板行为）；打包后 `resources/icon.png` 仅 Linux 用，Windows/Mac 用 `build/` 下的 ico/icns
+- dev 态摄像头/麦克风：`node_modules/electron/dist/Electron.app` 官方分发即 ad-hoc 签名，macOS TCC 对其授权弹窗/记录不可靠（秒拒、不落库）；且从 ZCode 内置终端启动的进程按归责查宿主应用权限会静默失败。`npm install` 后跑一次 `bash scripts/sign-electron-dev.sh` 重签，dev 用 iTerm 等正式终端启动；详见 notes/accept/20260914140000-摄像头权限支持真机验收/

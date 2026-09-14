@@ -1,0 +1,329 @@
+// 会话网页摄像头权限 broker：Electron 的站点权限 handler 挂在 Session 上，本模块按
+// 「会话 + 安全 origin + video」维护仅本次应用运行有效的授权；操作系统权限仍属于应用
+// 身份和物理设备，不伪装为会话级隔离。只支持纯视频请求，其他权限默认拒绝。
+
+import { dialog, systemPreferences } from 'electron'
+import type {
+  BrowserWindow,
+  MediaAccessPermissionRequest,
+  MessageBoxOptions,
+  Session,
+  WebContents
+} from 'electron'
+
+type CameraDecision = 'allow' | 'deny'
+
+interface DecisionOutcome {
+  decision: CameraDecision
+  /** 页面/会话在询问期间失效时不缓存，后续合法请求仍应重新询问。 */
+  cache: boolean
+}
+
+interface SessionBinding {
+  sessionId: string
+  target: Session
+  active: boolean
+  decisions: Map<string, CameraDecision>
+  pending: Map<string, Promise<boolean>>
+}
+
+export interface CameraPermissionBroker {
+  /** 为会话分区幂等安装权限策略；同一 sessionId/Session 重复调用不会重置运行期决定 */
+  install: (sessionId: string, target: Session) => void
+  /** 删除会话前封死权限请求并清理决定；不得恢复 Electron 的默认自动批准 handler */
+  disposeSession: (sessionId: string) => void
+}
+
+interface CameraPermissionBrokerDeps {
+  resolveSessionName: (sessionId: string) => Promise<string | null>
+  resolveHostWindow: (webContents: WebContents) => BrowserWindow | null
+}
+
+/** 仅允许 Web 标准视为安全上下文的 HTTPS 与本机 localhost HTTP。 */
+function secureOrigin(value: string): string | null {
+  try {
+    const parsed = new URL(value)
+    if (parsed.username || parsed.password || parsed.origin === 'null') return null
+    if (parsed.protocol === 'https:') return parsed.origin
+    const loopback =
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]'
+    return parsed.protocol === 'http:' && loopback ? parsed.origin : null
+  } catch {
+    return null
+  }
+}
+
+/** securityOrigin 一旦由 Electron 提供便是权威值；不能在其非法时降级到另一个 URL。 */
+function requestOrigin(
+  securityOrigin: string | undefined,
+  requestingUrl: string | undefined
+): string | null {
+  if (securityOrigin !== undefined) return secureOrigin(securityOrigin)
+  return requestingUrl ? secureOrigin(requestingUrl) : null
+}
+
+function isPureVideoRequest(details: MediaAccessPermissionRequest): boolean {
+  return details.mediaTypes?.length === 1 && details.mediaTypes[0] === 'video'
+}
+
+export function createCameraPermissionBroker(
+  deps: CameraPermissionBrokerDeps
+): CameraPermissionBroker {
+  const bindings = new Map<string, SessionBinding>()
+
+  function isCurrent(binding: SessionBinding): boolean {
+    return binding.active && bindings.get(binding.sessionId) === binding
+  }
+
+  function hostWindow(webContents: WebContents): BrowserWindow | null {
+    try {
+      const win = deps.resolveHostWindow(webContents)
+      return win && !win.isDestroyed() ? win : null
+    } catch {
+      return null
+    }
+  }
+
+  async function showMessage(
+    webContents: WebContents,
+    options: MessageBoxOptions
+  ): Promise<Electron.MessageBoxReturnValue> {
+    const win = hostWindow(webContents)
+    if (win) {
+      try {
+        return await dialog.showMessageBox(win, options)
+      } catch {
+        // 对话框创建前宿主窗恰好销毁时退回应用级对话框；授权判据不因定位失败放宽。
+      }
+    }
+    return dialog.showMessageBox(options)
+  }
+
+  async function showSystemBlocked(
+    webContents: WebContents,
+    platform: 'darwin' | 'win32',
+    status: string
+  ): Promise<void> {
+    console.warn(`[permissions] 摄像头被系统阻止（${platform}/${status}）`)
+    const path =
+      platform === 'darwin'
+        ? '系统设置 > 隐私与安全性 > 摄像头'
+        : '设置 > 隐私和安全性 > 摄像头，并开启“允许桌面应用访问摄像头”'
+    await showMessage(webContents, {
+      type: 'warning',
+      title: '摄像头权限被系统阻止',
+      message: '系统未允许多会话测试浏览器使用摄像头',
+      detail: `当前状态：${status}\n请前往“${path}”允许访问，然后重启应用再试。`,
+      buttons: ['知道了'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    })
+  }
+
+  async function ensureSystemCameraAccess(
+    webContents: WebContents,
+    requestAlive: () => boolean
+  ): Promise<boolean> {
+    if (webContents.isDestroyed() || !requestAlive()) return false
+    if (process.platform === 'darwin') {
+      const status = systemPreferences.getMediaAccessStatus('camera')
+      if (status === 'granted') return true
+      if (status === 'not-determined') {
+        try {
+          const granted = await systemPreferences.askForMediaAccess('camera')
+          if (granted) return true
+          if (webContents.isDestroyed() || !requestAlive()) return false
+          await showSystemBlocked(webContents, 'darwin', 'denied')
+          return false
+        } catch (error) {
+          console.warn('[permissions] 请求 macOS 摄像头权限失败:', error)
+          if (webContents.isDestroyed() || !requestAlive()) return false
+          await showSystemBlocked(webContents, 'darwin', 'unknown')
+          return false
+        }
+      }
+      if (webContents.isDestroyed() || !requestAlive()) return false
+      await showSystemBlocked(webContents, 'darwin', status)
+      return false
+    }
+
+    if (process.platform === 'win32') {
+      const status = systemPreferences.getMediaAccessStatus('camera')
+      if (status === 'denied' || status === 'restricted') {
+        if (webContents.isDestroyed() || !requestAlive()) return false
+        await showSystemBlocked(webContents, 'win32', status)
+        return false
+      }
+      // Windows 的桌面应用开关由系统在真正取流时执行；unknown/not-determined 不在站点层误拒绝。
+      return true
+    }
+
+    // PRODUCT 只承诺 Windows/Mac；其他平台不调用受限 API，由 Chromium/系统决定硬件结果。
+    return true
+  }
+
+  async function decide(
+    binding: SessionBinding,
+    webContents: WebContents,
+    origin: string,
+    requestAlive: () => boolean
+  ): Promise<DecisionOutcome> {
+    let sessionName: string | null = null
+    try {
+      sessionName = await deps.resolveSessionName(binding.sessionId)
+    } catch (error) {
+      console.warn(`[permissions] 读取会话 ${binding.sessionId} 名称失败，使用 id 回退:`, error)
+    }
+    if (!isCurrent(binding) || webContents.isDestroyed() || !requestAlive()) {
+      return { decision: 'deny', cache: false }
+    }
+
+    const result = await showMessage(webContents, {
+      type: 'question',
+      title: '摄像头访问请求',
+      message: '允许此站点使用摄像头吗？',
+      detail: `会话：${sessionName || binding.sessionId}\n站点：${origin}\n\n仅允许摄像头视频，不会开放麦克风。`,
+      buttons: ['拒绝', '允许'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    })
+    if (!isCurrent(binding) || webContents.isDestroyed() || !requestAlive()) {
+      return { decision: 'deny', cache: false }
+    }
+    if (result.response !== 1) return { decision: 'deny', cache: true }
+
+    const allowed = await ensureSystemCameraAccess(webContents, requestAlive)
+    if (!isCurrent(binding) || webContents.isDestroyed() || !requestAlive()) {
+      return { decision: 'deny', cache: false }
+    }
+    // 系统层拒绝不缓存：用户随后在系统设置放行时，同源重试必须重走完整询问流程，
+    // 否则本次运行内的旧决定把站点静默封死；只缓存用户显式拒绝与放行结果。
+    return allowed ? { decision: 'allow', cache: true } : { decision: 'deny', cache: false }
+  }
+
+  function resolveDecision(
+    binding: SessionBinding,
+    webContents: WebContents,
+    origin: string,
+    requestAlive: () => boolean
+  ): Promise<boolean> {
+    const cached = binding.decisions.get(origin)
+    if (cached) return Promise.resolve(cached === 'allow')
+
+    const existing = binding.pending.get(origin)
+    if (existing) return existing
+
+    const pending = decide(binding, webContents, origin, requestAlive)
+      .then((outcome) => {
+        if (outcome.cache && isCurrent(binding)) {
+          binding.decisions.set(origin, outcome.decision)
+        }
+        return outcome.decision === 'allow' && isCurrent(binding)
+      })
+      .catch((error) => {
+        console.warn(`[permissions] 会话 ${binding.sessionId} 的摄像头授权流程失败:`, error)
+        if (isCurrent(binding)) binding.decisions.set(origin, 'deny')
+        return false
+      })
+    binding.pending.set(origin, pending)
+    void pending.finally(() => {
+      if (binding.pending.get(origin) === pending) binding.pending.delete(origin)
+    })
+    return pending
+  }
+
+  function install(sessionId: string, target: Session): void {
+    const existing = bindings.get(sessionId)
+    if (existing?.active && existing.target === target) return
+    if (existing) existing.active = false
+
+    const binding: SessionBinding = {
+      sessionId,
+      target,
+      active: true,
+      decisions: new Map(),
+      pending: new Map()
+    }
+    bindings.set(sessionId, binding)
+
+    target.setPermissionCheckHandler(
+      (_webContents, permission, requestingOrigin, details): boolean => {
+        if (!isCurrent(binding) || permission !== 'media' || details.mediaType !== 'video') {
+          return false
+        }
+        const origin = requestOrigin(
+          details.securityOrigin,
+          details.requestingUrl ?? requestingOrigin
+        )
+        return origin !== null && binding.decisions.get(origin) === 'allow'
+      }
+    )
+
+    target.setPermissionRequestHandler((webContents, permission, callback, rawDetails) => {
+      let completed = false
+      let requestActive = true
+      const finish = (allowed: boolean): void => {
+        if (completed) return
+        completed = true
+        webContents.removeListener('destroyed', abort)
+        webContents.removeListener('did-start-navigation', abort)
+        callback(allowed)
+      }
+      const abort = (): void => {
+        requestActive = false
+        finish(false)
+      }
+
+      if (!isCurrent(binding) || permission !== 'media') {
+        finish(false)
+        return
+      }
+      const details = rawDetails as MediaAccessPermissionRequest
+      if (!isPureVideoRequest(details)) {
+        finish(false)
+        return
+      }
+      const origin = requestOrigin(details.securityOrigin, details.requestingUrl)
+      if (!origin) {
+        finish(false)
+        return
+      }
+
+      // 对话框窗口期页面销毁或任一 frame 开始新导航均视为请求过期；保守拒绝，防旧 origin
+      // 的授权结果回填到已换页的 webContents。finish 的一次性守卫保证 callback 恰好完成一次。
+      webContents.once('destroyed', abort)
+      webContents.once('did-start-navigation', abort)
+      void resolveDecision(binding, webContents, origin, () => requestActive).then((allowed) => {
+        if (!allowed || !isCurrent(binding) || webContents.isDestroyed()) {
+          finish(false)
+          return
+        }
+        if (details.isMainFrame && secureOrigin(webContents.getURL()) !== origin) {
+          finish(false)
+          return
+        }
+        finish(true)
+      })
+    })
+  }
+
+  function disposeSession(sessionId: string): void {
+    const binding = bindings.get(sessionId)
+    if (!binding) return
+    binding.active = false
+    binding.decisions.clear()
+    binding.pending.clear()
+    bindings.delete(sessionId)
+    // 先封死 handler 再由 registry 销毁 webContents/分区，避免销毁窗口期回落到默认自动批准。
+    binding.target.setPermissionCheckHandler(() => false)
+    binding.target.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false)
+    })
+  }
+
+  return { install, disposeSession }
+}
