@@ -24,6 +24,7 @@ import type {
   CreateSessionPayload,
   DeleteSessionPayload,
   RenameSessionPayload,
+  ReorderSessionsPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
@@ -49,6 +50,7 @@ declare global {
         clone(payload: CloneSessionPayload): Promise<StoredSession>
         deleteBatch(payload: BatchDeleteSessionsPayload): Promise<OkResult>
         batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
+        reorder(payload: ReorderSessionsPayload): Promise<OkResult>
       }
       browser: {
         getState(): Promise<BrowserSnapshot>

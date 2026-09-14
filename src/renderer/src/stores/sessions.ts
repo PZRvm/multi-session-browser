@@ -20,6 +20,8 @@ interface SessionsState {
   renameSession: (id: string, name: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
   batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
+  // 返回是否成功：整单拒绝或 IPC 失败返回 false，供调用方呈现中文失败反馈
+  reorderSessions: (ids: string[]) => Promise<boolean>
 }
 
 let initialized = false
@@ -187,6 +189,51 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       return true
     } catch (error) {
       console.error('批量打开测试地址失败', error)
+      return false
+    }
+  },
+
+  // 拖拽排序：只接受与当前本地列表相同 ID 集合的全序（防陈旧顺序覆盖并发新建/删除）。
+  // 无变化直接短路返回 true（相邻无位移/拖回原位零 IPC）；有效变化乐观换序（元素对象
+  // 原样移动，实时 status 保留）后提交一次全序 IPC。失败时重拉主进程快照回到权威
+  // 顺序——以快照顺序映射现有 SessionItem（缺失项按 idle 补齐，activeId 以快照为准），
+  // 不用旧对象整体回滚覆盖并发状态推送；重拉也失败时仅在当前顺序仍等于本次乐观结果
+  // （未被其他操作改写）时回滚原顺序，返回 false 供调用方提示
+  reorderSessions: async (ids) => {
+    const prev = get().sessions
+    const prevIds = prev.map((s) => s.id)
+    const idSet = new Set(ids)
+    if (ids.length !== prevIds.length || prevIds.some((id) => !idSet.has(id))) {
+      console.error('排序入参与当前会话列表不一致')
+      return false
+    }
+    if (ids.every((id, i) => id === prevIds[i])) return true
+    set({ sessions: ids.map((id) => prev.find((s) => s.id === id) as SessionItem) })
+    try {
+      await window.api.sessions.reorder({ ids })
+      return true
+    } catch (error) {
+      console.error('会话排序失败', error)
+      try {
+        const snapshot = await window.api.sessions.list()
+        const byId = new Map(get().sessions.map((s) => [s.id, s]))
+        const sessions: SessionItem[] = snapshot.sessions.map(
+          (item) => byId.get(item.id) ?? { ...item, status: 'idle' }
+        )
+        const activeId = sessions.some((item) => item.id === snapshot.activeId)
+          ? snapshot.activeId
+          : null
+        set({ sessions, activeId })
+      } catch (listError) {
+        console.error('重拉会话列表失败', listError)
+        const stillOptimistic =
+          get()
+            .sessions.map((s) => s.id)
+            .join('\n') === ids.join('\n')
+        if (stillOptimistic) {
+          set({ sessions: prev, activeId: get().activeId })
+        }
+      }
       return false
     }
   }

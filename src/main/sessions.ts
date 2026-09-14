@@ -1,7 +1,7 @@
-// 会话 IPC handlers：九条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
-// batch-open-url 三条）的业务实现，读写一律经 store.ts 的快照接口；status-changed 推送
-// 不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
-// SESSIONS_CHANNELS，禁止手写字符串。
+// 会话 IPC handlers：十条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// batch-open-url 三条 + 排序专项 reorder 一条）的业务实现，读写一律经 store.ts 的
+// 快照接口；status-changed 推送不经本文件（index.ts 直连 registry）。通道名一律取自
+// shared/sessions 的 SESSIONS_CHANNELS，禁止手写字符串。
 // 快照读-改-写一律经 mutateSnapshot 串行执行；入参先过运行时守卫
 // （shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
@@ -62,7 +62,8 @@ function invalidParams(): Error {
 
 /**
  * 从 IPC payload 中解析 ids：必须为非空数组且逐项 string，否则判为非法入参。
- * batch-delete 与 batch-open-url 两条批量通道共用同一校验（规则演进只改此处）
+ * batch-delete、batch-open-url 与 reorder 三条通道共用同一校验（规则演进只改此处；
+ * 上层各自决定重复 id 的处置——批量通道去重容忍，reorder 整单拒绝）
  */
 function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
   const raw = payload.ids
@@ -338,6 +339,40 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 9 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 10 条
-  console.log('[sessions] IPC handlers 已注册（10 条通道）')
+  // reorder：会话列表拖拽排序——只接受当前全部会话 id 的无重复全序（纯重排）；
+  // 格式非法、重复、缺项、多项或未知 id 时整单拒绝且磁盘不变。集合相等校验与
+  // 重排同在 mutateSnapshot 互斥期内完成（无校验/执行竞态窗口：窗口期内被并发
+  // 增删的会话使集合不再相等，整单拒绝）。合法时仅按入参顺序重排 snapshot.sessions
+  // （元素对象原样引用、内容零变更），activeId 不动，无任何编排回调——排序是
+  // 纯元数据操作，浏览器视图、分区与状态推送均不受影响
+  ipcMain.handle(SESSIONS_CHANNELS.reorder, async (_event, payload: unknown): Promise<OkResult> =>
+    logFailure(SESSIONS_CHANNELS.reorder, payload, async () => {
+      // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
+      if (!isRecord(payload)) throw invalidParams()
+      const ids = parseNonEmptyStringIds(payload)
+      // id 格式预校验（同 delete-batch）：被篡改的落盘 id 须在集合校验前拒绝
+      if (!ids.every((id) => SESSION_ID_RE.test(id))) {
+        throw new Error('会话 id 非法（疑似数据被篡改）')
+      }
+      // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
+      if (new Set(ids).size !== ids.length) {
+        throw new Error('会话顺序包含重复 id')
+      }
+      await mutateSnapshot((snapshot) => {
+        // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
+        // 缺项 / 多项 / 未知三类不一致
+        const known = new Set(snapshot.sessions.map((s) => s.id))
+        if (known.size !== ids.length || !ids.every((id) => known.has(id))) {
+          throw new Error('会话顺序与当前会话列表不一致')
+        }
+        const byId = new Map(snapshot.sessions.map((s) => [s.id, s]))
+        snapshot.sessions = ids.map((id) => byId.get(id) as StoredSession)
+        return { ok: true }
+      })
+      return { ok: true }
+    })
+  )
+
+  // 本文件注册 10 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 11 条
+  console.log('[sessions] IPC handlers 已注册（11 条通道）')
 }

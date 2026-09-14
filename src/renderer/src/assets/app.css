@@ -313,6 +313,7 @@ body.col-resizing {
 }
 
 .session-row {
+  position: relative;
   padding: 10px 12px 9px 14px;
   border-bottom: 1px solid var(--board-hairline);
   cursor: pointer;
@@ -326,6 +327,39 @@ body.col-resizing {
 /* 选中行：机场信息屏的高亮航班——琥珀反白 */
 .session-row.selected {
   background: var(--amber);
+}
+
+/* 会话列表拖拽排序（视觉定稿见 DESIGN.md「会话列表拖拽排序」条目）：全灰阶，
+   琥珀零参与（排序是纯结构操作，非「航班信息」级信号） */
+/* 可拖行禁文本选择（防拖动选字；编辑态/批量态行不设，保证重命名输入可选可编辑） */
+.session-row[draggable='true'] {
+  user-select: none;
+}
+
+/* 源行：拖拽中半透明（与 Tab Drag 源 Tab 同语言，不引入新色）；激活行反白随原会话保持 */
+.session-row.drag-source {
+  opacity: 0.45;
+}
+
+/* 插入指示线：目标行上/下缘 2px 墨级实线（板面自己的墨，亮暗随 token 切换），
+   伪元素绝对定位不推挤行、pointer-events 关闭、显隐瞬切（离散跳变） */
+.session-row[data-drop-pos='before']::before,
+.session-row[data-drop-pos='after']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--board-ink);
+  pointer-events: none;
+}
+
+.session-row[data-drop-pos='before']::before {
+  top: -1px;
+}
+
+.session-row[data-drop-pos='after']::after {
+  bottom: -1px;
 }
 
 .session-row-main {

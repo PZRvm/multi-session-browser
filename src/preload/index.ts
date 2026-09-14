@@ -31,6 +31,7 @@ import type {
   DeleteSessionPayload,
   OkResult,
   RenameSessionPayload,
+  ReorderSessionsPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
@@ -71,6 +72,9 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.deleteBatch, payload),
     batchOpenUrl: (payload: BatchOpenUrlPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.batchOpenUrl, payload),
+    // 会话列表排序：只接收当前全部会话 id 的完整顺序（全序），主进程整单校验拒绝制
+    reorder: (payload: ReorderSessionsPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.reorder, payload),
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
     onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {

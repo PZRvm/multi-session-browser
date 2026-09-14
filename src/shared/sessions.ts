@@ -14,6 +14,9 @@
 //   通道整单校验拒绝制，无部分成功
 // - 阶段 6 增量：tabs（恢复用 URL 列表，顺序即创建序）+ activeTabIndex（激活位）；
 //   恢复是 URL 级——页面运行态与 DevTools 开关态不持久化（PRD 3.6.4）
+// - 会话列表排序增量（2026-09-18 专项）：reorder（全序 ids 整单校验拒绝制——格式
+//   非法/重复/缺项/多项/未知 id 任一不满足整单拒绝）；纯元数据重排，不动 activeId、
+//   不触发浏览器编排回调；sessions 数组顺序即唯一持久化顺序，schema 零变更
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -25,7 +28,8 @@ export const SESSIONS_CHANNELS = {
   statusChanged: 'sessions:status-changed',
   clone: 'sessions:clone',
   deleteBatch: 'sessions:delete-batch',
-  batchOpenUrl: 'sessions:batch-open-url'
+  batchOpenUrl: 'sessions:batch-open-url',
+  reorder: 'sessions:reorder'
 } as const
 
 /**
@@ -127,6 +131,15 @@ export interface BatchOpenUrlPayload {
  * 整单校验拒绝制——ids 任一不存在时整单拒绝，无部分成功
  */
 export interface BatchDeleteSessionsPayload {
+  ids: string[]
+}
+
+/**
+ * 会话列表排序：提交当前全部会话 id 的完整排列（全序，非 from/to 增量）。
+ * 整单校验拒绝制——重复、缺项、多项、未知 id 或格式非法任一不满足整单拒绝，
+ * 磁盘顺序不变；合法时纯重排 sessions 数组，activeId 与各会话字段不变
+ */
+export interface ReorderSessionsPayload {
   ids: string[]
 }
 
