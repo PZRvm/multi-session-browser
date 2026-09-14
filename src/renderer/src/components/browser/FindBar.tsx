@@ -1,5 +1,6 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { useEffect, useRef } from 'react'
+import { FIND_TEXT_MAX } from '../../../../shared/browser'
 import { useBrowserStore } from '../../stores/browser'
 
 // 页内查找栏（Chrome find-in-page 对齐，会话网页内查找开发计划步骤 4）：chrome-body
@@ -14,6 +15,7 @@ function FindBar(): React.JSX.Element | null {
   const findQuery = useBrowserStore((s) => s.findQuery)
   const findOrdinal = useBrowserStore((s) => s.findOrdinal)
   const findMatches = useBrowserStore((s) => s.findMatches)
+  const findResolved = useBrowserStore((s) => s.findResolved)
   const findRequestTick = useBrowserStore((s) => s.findRequestTick)
   const searchFind = useBrowserStore((s) => s.searchFind)
   const closeFind = useBrowserStore((s) => s.closeFind)
@@ -32,7 +34,8 @@ function FindBar(): React.JSX.Element | null {
 
   if (!findOpen) return null
 
-  const noMatch = findQuery.length > 0 && findMatches === 0
+  // 首个回执前不计红（输入期留白，结果确认后才显 n/m 与 0/0 红显）——审查 L6
+  const noMatch = findResolved && findQuery.length > 0 && findMatches === 0
 
   return (
     <div className="chrome-findbar">
@@ -46,7 +49,7 @@ function FindBar(): React.JSX.Element | null {
           autoComplete="off"
           spellCheck={false}
           value={findQuery}
-          onChange={(e) => searchFind(e.target.value)}
+          onChange={(e) => searchFind(e.target.value.slice(0, FIND_TEXT_MAX))}
           onKeyDown={(e) => {
             // 输入法组合态的按键属于候选操作（Toolbar 同款守卫）
             if (e.nativeEvent.isComposing) return
@@ -65,7 +68,7 @@ function FindBar(): React.JSX.Element | null {
           className={noMatch ? 'chrome-find-count is-missing' : 'chrome-find-count'}
           aria-live="polite"
         >
-          {findQuery.length > 0 ? `${findOrdinal}/${findMatches}` : ''}
+          {findQuery.length > 0 && findResolved ? `${findOrdinal}/${findMatches}` : ''}
         </span>
         <button
           type="button"

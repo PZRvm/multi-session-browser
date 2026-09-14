@@ -253,6 +253,16 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   /**
+   * 窗口作用域会话归属判定（focusAddress / findRequest / findResult 三订阅共用的
+   * 守卫，审查 L1 抽出）：主窗口须会话激活、独立窗口须绑定会话相符——后台会话的
+   * 页面侧请求与计数不上浮主窗，陈旧会话的残余事件不外泄
+   */
+  function windowBoundTo(windowId: string, sessionId: string): boolean {
+    const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+    return bound === sessionId
+  }
+
+  /**
    * 作用域 → manager：主窗口作用域路由激活 manager（现行为）；独立窗口作用域经登记表
    * 路由其绑定会话的 manager（ipc 命令面的统一出口；未登记/会话无 manager 返回 null，
    * 后者已在 resolveSenderScope 拒绝，此处兜底）
@@ -422,23 +432,18 @@ export function createSessionBrowserRegistry(deps: {
       }
     })
     manager.onFocusAddressRequest((windowId) => {
-      // focus-address 只可能来自挂入中的页面（后台 view 收不到键盘输入）：主窗口来源
-      // 要求会话激活；独立窗口来源要求窗口绑定会话相符（其会话相对主窗口可后台）
-      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
-      if (bound !== id) return
+      // focus-address 只可能来自挂入中的页面（后台 view 收不到键盘输入），守卫见 windowBoundTo
+      if (!windowBoundTo(windowId, id)) return
       for (const cb of focusListeners) cb(windowId)
     })
     manager.onFindRequest((windowId) => {
       // find 请求与 focus-address 同规：页面聚焦态按键只可能来自挂入中的页面
-      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
-      if (bound !== id) return
+      if (!windowBoundTo(windowId, id)) return
       for (const cb of findRequestListeners) cb(windowId)
     })
     manager.onFindResult((windowId, result) => {
-      // found-in-page 计数只发往发生查找的宿主窗口（同上归属守卫——后台会话的查找
-      // 计数不上浮主窗，陈旧会话的残余事件不外泄）
-      const bound = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
-      if (bound !== id) return
+      // found-in-page 计数只发往发生查找的宿主窗口（同 windowBoundTo 守卫）
+      if (!windowBoundTo(windowId, id)) return
       for (const cb of findResultListeners) cb(windowId, result)
     })
     // 历史采集接线（地址栏补全）：manager 上抛的导航事实转发 history 模块合并落盘；

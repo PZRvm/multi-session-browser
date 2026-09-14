@@ -58,8 +58,12 @@ export function useBrowserShortcuts(): void {
       // close-devtools 的豁免先于吞键：DevTools 未开启、地址栏编辑态或查找栏编辑态时
       // 原样放行（查找栏编辑态 ESC 由 FindBar 自理关栏，不误关 DevTools），
       // 与主进程「为假放行不吞键」同规则
-      if (action === 'close-devtools' && (!store.devtoolsOpen || isOmniboxFocused())) return
-      if (action === 'close-devtools' && isFindBarFocused()) return
+      if (
+        action === 'close-devtools' &&
+        (!store.devtoolsOpen || isOmniboxFocused() || isFindBarFocused())
+      ) {
+        return
+      }
       e.preventDefault()
       switch (action) {
         case 'new-tab':

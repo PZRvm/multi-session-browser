@@ -89,6 +89,19 @@ export function registerBrowserIpc(
     return win && !win.isDestroyed() ? win : null
   }
 
+  /**
+   * 焦点归还式定向推送（focusAddress / findRequest 两桥共用，审查 L1 抽出）：send 前
+   * 先把宿主窗口键盘焦点交还 shell——页面 webContents 持焦时 renderer 的
+   * input.focus() 无法跨 webContents 抢回（Chromium 焦点控制约束，实测表现「全选但
+   * 不聚焦」），主进程 focus() 是唯一通路
+   */
+  function focusShellAndSend(windowId: string, channel: string): void {
+    const win = windowForId(windowId)
+    if (!win) return
+    win.webContents.focus()
+    win.webContents.send(channel)
+  }
+
   // 快照变化定向推送：主进程是唯一事实源，renderer 只做镜像；按快照 windowId 发对应
   // 窗口（作用域快照防双窗串台），未登记/已销毁窗口静默跳过
   manager.onSnapshotChanged((snapshot) => {
@@ -96,14 +109,9 @@ export function registerBrowserIpc(
   })
 
   // focus-address 桥接：manager 的页面侧请求点（Cmd/Ctrl+L、页面侧快捷键新建空 Tab）
-  // 经此按来源窗口定向转发。推送前先把宿主窗口键盘焦点交还 shell——页面 webContents
-  // 持焦时 shell 内 input.focus() 无法跨 webContents 抢回焦点（Chromium 焦点控制的
-  // 已知约束，实测二次 Cmd+L/Cmd+F 全选但不聚焦即此因），主进程 focus() 是唯一通路
+  // 经此按来源窗口定向转发（焦点归还语义见 focusShellAndSend）
   manager.onFocusAddressRequest((windowId) => {
-    const win = windowForId(windowId)
-    if (!win) return
-    win.webContents.focus()
-    win.webContents.send(BROWSER_CHANNELS.focusAddress)
+    focusShellAndSend(windowId, BROWSER_CHANNELS.focusAddress)
   })
 
   // 拖拽悬停桥接：控制器只在悬停变化时回调（含 dragStart 初始态与收尾/过期的 null
@@ -132,14 +140,9 @@ export function registerBrowserIpc(
   })
 
   // find-request 桥接：页面聚焦态 Cmd/Ctrl+F 请求唤起来源窗口 shell 查找栏
-  //（registry 接线已含会话归属守卫，此处只做定向）。推送前先把宿主窗口键盘焦点
-  // 交还 shell（同上方 focus-address 桥：页面持焦时 renderer 的 input.focus() 抢不回
-  // 焦点，表现即「关键词被全选但打字进不去」——用户实测二次 Cmd+F 报障）
+  //（registry 接线已含会话归属守卫，此处定向 + 焦点归还见 focusShellAndSend）
   manager.onFindRequest((windowId) => {
-    const win = windowForId(windowId)
-    if (!win) return
-    win.webContents.focus()
-    win.webContents.send(BROWSER_CHANNELS.findRequest)
+    focusShellAndSend(windowId, BROWSER_CHANNELS.findRequest)
   })
 
   // find-result 桥接：found-in-page 计数按发生查找的 Tab 归属窗口定向推送

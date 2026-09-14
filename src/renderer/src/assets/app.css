@@ -1156,7 +1156,8 @@ img.chrome-tab-favicon {
 }
 
 .chrome-find-input {
-  width: 180px;
+  width: 240px;
+  max-width: 40vw;
   border: none;
   outline: none;
   background: transparent;
