@@ -22,13 +22,19 @@ import type {
   BatchOpenUrlPayload,
   CloneSessionPayload,
   CreateSessionPayload,
+  CreateWorkspacePayload,
   DeleteSessionPayload,
+  DeleteWorkspacePayload,
+  MoveSessionToWorkspacePayload,
   RenameSessionPayload,
+  RenameWorkspacePayload,
   ReorderSessionsPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
-  StoredSession
+  SetActiveWorkspacePayload,
+  StoredSession,
+  StoredWorkspace
 } from '../shared/sessions'
 
 declare global {
@@ -51,6 +57,11 @@ declare global {
         deleteBatch(payload: BatchDeleteSessionsPayload): Promise<OkResult>
         batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
         reorder(payload: ReorderSessionsPayload): Promise<OkResult>
+        workspaceCreate(payload: CreateWorkspacePayload): Promise<StoredWorkspace>
+        workspaceRename(payload: RenameWorkspacePayload): Promise<StoredWorkspace>
+        workspaceDelete(payload: DeleteWorkspacePayload): Promise<OkResult>
+        workspaceMoveSession(payload: MoveSessionToWorkspacePayload): Promise<OkResult>
+        workspaceSetActive(payload: SetActiveWorkspacePayload): Promise<OkResult>
       }
       browser: {
         getState(): Promise<BrowserSnapshot>

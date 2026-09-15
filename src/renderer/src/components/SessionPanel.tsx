@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { App, Button, Checkbox, ConfigProvider, Dropdown, Input, Modal, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import { CheckSquareOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
 import FlapCounter from './FlapCounter'
+import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
+import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
@@ -25,8 +27,12 @@ interface SessionRowProps {
   dragEnabled: boolean
   isDragSource: boolean
   dropPos: 'before' | 'after' | null
+  // 「全部会话」视野下在第二行行首显示归属标记（工作区名或「未分组」）；
+  // 工作区视野内全员同归属，不渲染标记
+  wsTag: string | null
   onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
+  onMove: (session: SessionItem) => void
 }
 
 function SessionRow({
@@ -37,8 +43,10 @@ function SessionRow({
   dragEnabled,
   isDragSource,
   dropPos,
+  wsTag,
   onToggleCheck,
-  onClone
+  onClone,
+  onMove
 }: SessionRowProps): React.JSX.Element {
   const { activeId, renameSession, removeSession, selectSession } = useSessionsStore()
   const openOverlay = useUiStore((s) => s.openOverlay)
@@ -63,6 +71,10 @@ function SessionRow({
       label: '克隆会话'
     },
     {
+      key: 'move',
+      label: '移动到工作区…'
+    },
+    {
       key: 'delete',
       label: '删除会话',
       danger: true
@@ -76,6 +88,8 @@ function SessionRow({
       setEditing(true)
     } else if (key === 'clone') {
       void onClone(session.id)
+    } else if (key === 'move') {
+      onMove(session)
     } else if (key === 'delete') {
       // WebContentsView 是 renderer DOM 之上的原生层；先登记弹层（ui store overlayDepth）
       // 收起页面视图，确保确认框完整可见。约束见 stores/ui.ts：新增任何可能延伸到
@@ -165,6 +179,7 @@ function SessionRow({
         <span className="session-page">{session.pageTitle}</span>
       </div>
       <div className="session-row-sub">
+        {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
         <span className="session-note">{session.note || '未填写备注'}</span>
         <span className={`session-status ${cloning ? 'loading' : session.status}`}>
           {cloning ? '克隆中…' : statusText[session.status]}
@@ -197,17 +212,21 @@ interface SessionPanelProps {
 function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
   const sessions = useSessionsStore((s) => s.sessions)
+  const workspaces = useSessionsStore((s) => s.workspaces)
+  const activeWorkspaceId = useSessionsStore((s) => s.activeWorkspaceId)
   const addSession = useSessionsStore((s) => s.addSession)
   const cloneSession = useSessionsStore((s) => s.cloneSession)
   const deleteSessions = useSessionsStore((s) => s.deleteSessions)
   const batchOpenUrl = useSessionsStore((s) => s.batchOpenUrl)
   const reorderSessions = useSessionsStore((s) => s.reorderSessions)
+  const moveSessionToWorkspace = useSessionsStore((s) => s.moveSessionToWorkspace)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
   const { modal, message } = App.useApp()
 
   // 批量模式与克隆反馈均为面板本地 UI 态（不进 store、不进主进程）：
-  // 模式开关、勾选集、URL 弹层 open 与草稿、确认框开关标记、克隆中的行 id
+  // 模式开关、勾选集、URL 弹层 open 与草稿、确认框开关标记、克隆中的行 id、
+  // 移动到工作区弹层的目标会话
   const [batchMode, setBatchMode] = useState(false)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [urlOpen, setUrlOpen] = useState(false)
@@ -216,17 +235,31 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const [urlInvalid, setUrlInvalid] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
+  const [moveTarget, setMoveTarget] = useState<SessionItem | null>(null)
 
-  // 拖拽排序手势整体在 useSessionDragReorder（瞬态本地持有，不进 store/IPC/落盘）；
-  // 失败反馈走整单拒绝不静默惯例
+  // 工作区视野：'all' 全量，否则按归属过滤（store 仍持全量——拖拽全序、级联与
+  // 批量「关闭选中」的集合判定都以全量为准，视野只是渲染过滤，PRD 4.8）
+  const viewIsAll = activeWorkspaceId === WORKSPACE_VIEW_ALL
+  const visibleSessions = useMemo(
+    () => (viewIsAll ? sessions : sessions.filter((s) => s.workspaceId === activeWorkspaceId)),
+    [sessions, viewIsAll, activeWorkspaceId]
+  )
+  // 新建/克隆落点：当前视野对应的工作区（'all' 视野 = 未分组 null，PRD 3.1.5）
+  const membership = viewIsAll ? null : activeWorkspaceId
+  const wsNameById = useMemo(() => new Map(workspaces.map((w) => [w.id, w.name])), [workspaces])
+
+  // 拖拽排序手势整体在 useSessionDragReorder（瞬态本地持有，不进 store/IPC/落盘）。
+  // 入参恒为全量 sessions：drop 全序合成天然保持不可见会话原相对位置（工作区视野
+  // 内只重排可见子序列）；失败反馈走整单拒绝不静默惯例
   const { listHandlers, rowProps } = useSessionDragReorder(sessions, reorderSessions, () =>
     message.error('会话排序失败，列表顺序已恢复')
   )
 
-  // 勾选集以现存会话为准（已删除会话的残留 id 不计数、不参与批量指令）
-  const checkedIds = sessions.filter((s) => checked.has(s.id)).map((s) => s.id)
+  // 勾选集以当前视野的现存会话为准（已删除/不可见会话的残留 id 不计数、不参与
+  // 批量指令——PRD 3.1.5 批量作用域）
+  const checkedIds = visibleSessions.filter((s) => checked.has(s.id)).map((s) => s.id)
   const checkedCount = checkedIds.length
-  const allChecked = sessions.length > 0 && checkedCount === sessions.length
+  const allChecked = visibleSessions.length > 0 && checkedCount === visibleSessions.length
 
   const toggleChecked = (id: string): void => {
     setChecked((prev) => {
@@ -238,7 +271,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   }
 
   const toggleAll = (): void => {
-    setChecked(allChecked ? new Set() : new Set(sessions.map((s) => s.id)))
+    setChecked(allChecked ? new Set() : new Set(visibleSessions.map((s) => s.id)))
   }
 
   const toggleBatchMode = (): void => {
@@ -252,7 +285,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const handleClone = async (id: string): Promise<void> => {
     setCloningIds((prev) => new Set(prev).add(id))
     try {
-      await cloneSession(id)
+      await cloneSession(id, membership)
     } finally {
       setCloningIds((prev) => {
         const next = new Set(prev)
@@ -260,6 +293,22 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         return next
       })
     }
+  }
+
+  // 移动到工作区：行菜单入口 → 弹层列目标工作区（排除当前归属）+ 移出未分组。
+  // 弹层经 overlay 登记（portal 可能延伸到右区，与既有弹层同规）
+  const openMoveModal = (session: SessionItem): void => {
+    openOverlay()
+    setMoveTarget(session)
+  }
+  const closeMoveModal = (): void => setMoveTarget(null)
+  const pickMoveTarget = (workspaceId: string | null): void => {
+    const target = moveTarget
+    if (!target) return
+    void moveSessionToWorkspace(target.id, workspaceId).then((ok) => {
+      if (!ok) message.error('移动会话失败')
+      setMoveTarget(null)
+    })
   }
 
   const openUrlModal = (): void => {
@@ -331,6 +380,15 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKeydown)
   }, [batchMode, urlOpen, confirmOpen])
 
+  // 视野切换清空勾选集：批量作用域随视野（PRD 3.1.3），跨视野残留的勾选不显示
+  // 却仍占着 Set，与全选状态联动产生"已选数对不上所见"的困惑（审查低 5）。
+  // 渲染期调整状态模式（React 官方推荐，替代 effect 内同步 setState）
+  const [prevViewId, setPrevViewId] = useState(activeWorkspaceId)
+  if (prevViewId !== activeWorkspaceId) {
+    setPrevViewId(activeWorkspaceId)
+    setChecked(new Set())
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -356,25 +414,32 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               className={`batch-toggle${batchMode ? ' active' : ''}`}
               title="批量操作"
               aria-label="批量操作"
-              disabled={sessions.length === 0 && !batchMode}
+              disabled={visibleSessions.length === 0 && !batchMode}
               onClick={toggleBatchMode}
             >
               <CheckSquareOutlined />
             </button>
             <span className="board-count">
               <span className="board-count-label">会话</span>
-              <FlapCounter value={sessions.length} />
+              <FlapCounter value={visibleSessions.length} />
             </span>
           </span>
         </header>
+        <WorkspaceSwitcher />
         {sessions.length === 0 ? (
           <div className="session-empty">
             <p className="session-empty-title">尚无会话</p>
             <p className="session-empty-desc">新建第一个隔离环境，并行测试多账号</p>
           </div>
+        ) : visibleSessions.length === 0 ? (
+          // 工作区视野空态：全局有会话但当前工作区没有（板脚新建仍可用，落本工作区）
+          <div className="session-empty">
+            <p className="session-empty-title">该工作区尚无会话</p>
+            <p className="session-empty-desc">新建会话将加入此工作区</p>
+          </div>
         ) : (
           <ul className="session-list" {...listHandlers}>
-            {sessions.map((session) => (
+            {visibleSessions.map((session) => (
               <SessionRow
                 key={session.id}
                 session={session}
@@ -382,9 +447,19 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                 checked={checked.has(session.id)}
                 cloning={cloningIds.has(session.id)}
                 dragEnabled={!batchMode}
+                wsTag={
+                  // 归属标记仅在有工作区存在时的「全部会话」视野渲染——零工作区时
+                  // 每行挂「未分组」是零信息噪音，违反 PRD 4.8 零噪音基线
+                  viewIsAll && workspaces.length > 0
+                    ? session.workspaceId !== null
+                      ? (wsNameById.get(session.workspaceId) ?? '未分组')
+                      : '未分组'
+                    : null
+                }
                 {...rowProps(session)}
                 onToggleCheck={toggleChecked}
                 onClone={handleClone}
+                onMove={openMoveModal}
               />
             ))}
           </ul>
@@ -420,7 +495,13 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               </button>
             </div>
           ) : (
-            <button type="button" className="new-session" onClick={addSession}>
+            <button
+              type="button"
+              className="new-session"
+              onClick={() => {
+                void addSession(membership)
+              }}
+            >
               <PlusOutlined />
               新建会话
             </button>
@@ -451,6 +532,33 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         {urlInvalid && (
           <p className="batch-url-invalid">打开失败：地址无效或选中会话已变化，请修正后重试</p>
         )}
+      </Modal>
+
+      <Modal
+        title={moveTarget ? `移动「${moveTarget.name}」到工作区` : '移动到工作区'}
+        open={moveTarget !== null}
+        footer={null}
+        onCancel={closeMoveModal}
+        afterClose={closeOverlay}
+      >
+        <div className="ws-move-list">
+          {workspaces
+            .filter((w) => w.id !== moveTarget?.workspaceId)
+            .map((w) => (
+              <Button key={w.id} block onClick={() => pickMoveTarget(w.id)}>
+                {w.name}
+              </Button>
+            ))}
+          {moveTarget?.workspaceId != null && (
+            <Button block onClick={() => pickMoveTarget(null)}>
+              移出（未分组）
+            </Button>
+          )}
+          {workspaces.filter((w) => w.id !== moveTarget?.workspaceId).length === 0 &&
+            moveTarget?.workspaceId == null && (
+              <p className="ws-move-empty">尚无其他工作区，先在工作区切换框新建一个</p>
+            )}
+        </div>
       </Modal>
     </ConfigProvider>
   )

@@ -4,8 +4,9 @@
 // （阶段 5 增量契约的历史修订记录见同目录阶段 5 计划第 3 节）。
 //
 // 契约要点：
-// - 落盘 schema version 3（v3 增 tabs/activeTabIndex；v1/v2 文件读取时按
-//   lastUrl 派生单元素 tabs 迁移，写盘恒出 v3，见 src/main/store.ts）
+// - 落盘 schema version 4（v3 增 tabs/activeTabIndex；v4 增工作区三件——快照
+//   workspaces/activeWorkspaceId 与会话 workspaceId；v1—v3 文件读取时按默认值
+//   迁移（空工作区、全会话未分组、视野 'all'），写盘恒出 v4，见 src/main/store.ts）
 // - status 是运行时状态不落盘，由"该会话任一 Tab loading"聚合而来，经
 //   statusChanged 全量 map 推送；renderer 先订阅后拉取（getStatuses）防启动竞态
 // - setActive 通道在主进程内附带副作用：触发浏览器切换到目标会话（编排见 registry）
@@ -16,7 +17,15 @@
 //   恢复是 URL 级——页面运行态与 DevTools 开关态不持久化（PRD 3.6.4）
 // - 会话列表排序增量（2026-09-18 专项）：reorder（全序 ids 整单校验拒绝制——格式
 //   非法/重复/缺项/多项/未知 id 任一不满足整单拒绝）；纯元数据重排，不动 activeId、
-//   不触发浏览器编排回调；sessions 数组顺序即唯一持久化顺序，schema 零变更
+//   不触发浏览器编排回调；sessions 数组顺序即唯一持久化顺序
+// - 工作区增量（2026-09-15 专项，计划 notes/plans/20260915150336-工作区下拉切换
+//   开发计划.md）：新增 workspaces 五通道（create/rename/delete/move-session/
+//   set-active，全 invoke 零推送——工作区仅主窗左栏操作，无跨窗并发源），会话域
+//   通道 11 → 16；workspaceSetActive 主进程内原子完成「视野落盘 + 激活位级联」
+//   （激活位变化才回调 onActiveChanged，纯视野切换零编排）；create/clone 增可选
+//   workspaceId（undefined = create 落未分组 / clone 落源会话归属）；归属独占制，
+//   会话 workspaceId 为 string | null（null = 未分组）；删除工作区必留会话（降级
+//   未分组）；视野与激活正交——除 workspaceSetActive 级联外 activeId 不因视野变化
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -29,7 +38,12 @@ export const SESSIONS_CHANNELS = {
   clone: 'sessions:clone',
   deleteBatch: 'sessions:delete-batch',
   batchOpenUrl: 'sessions:batch-open-url',
-  reorder: 'sessions:reorder'
+  reorder: 'sessions:reorder',
+  workspaceCreate: 'workspaces:create',
+  workspaceRename: 'workspaces:rename',
+  workspaceDelete: 'workspaces:delete',
+  workspaceMoveSession: 'workspaces:move-session',
+  workspaceSetActive: 'workspaces:set-active'
 } as const
 
 /**
@@ -39,6 +53,22 @@ export const SESSIONS_CHANNELS = {
  * 防两模块靠注释互相同步的漂移（纵深防御：被篡改的落盘 id 在拼分区串前即被拒绝）
  */
 export const SESSION_ID_RE = /^sess-[a-z0-9-]+$/
+
+/**
+ * 工作区 id 的格式契约：ws-<base36 时间戳>-<自增 seq>（生成端与校验端同源，防
+ * 篡改落盘 id 经 IPC 写穿——照 SESSION_ID_RE 的纵深防御先例）。恒 ws- 前缀，
+ * 与视野哨兵值 WORKSPACE_VIEW_ALL（'all'）无碰撞
+ */
+export const WORKSPACE_ID_RE = /^ws-[a-z0-9-]+$/
+
+/** 工作区名长度上限（IPC 入口 clamp，按 UTF-16 码元切） */
+export const WORKSPACE_NAME_MAX = 20
+
+/**
+ * 视野哨兵值：activeWorkspaceId 为 'all'（全部会话视野）或某工作区 id。
+ * 单一事实源——主进程校验与 renderer 派生共用，禁止手写字面量 'all'
+ */
+export const WORKSPACE_VIEW_ALL = 'all'
 
 /**
  * pageTitle / tab title 的截断上限（按 UTF-16 码元切，中文不受影响）。
@@ -77,6 +107,19 @@ export interface StoredSession {
   lastUrl: string
   tabs: StoredTab[]
   activeTabIndex: number
+  /** 所属工作区 id；null = 未分组（归属独占制，PRD 4.8） */
+  workspaceId: string | null
+}
+
+/**
+ * 落盘的工作区元数据。workspaces 数组顺序即下拉展示序（不做工作区排序）；
+ * lastActiveSessionId 为该工作区内上次激活的会话（恢复「视野 + 激活位」用，
+ * 只随真实激活更新；null = 无记忆），不参与任何编排
+ */
+export interface StoredWorkspace {
+  id: string
+  name: string
+  lastActiveSessionId: string | null
 }
 
 /** renderer 运行时会话 = 落盘数据 + 状态 */
@@ -91,11 +134,17 @@ export interface SessionsSnapshot {
   version: number
   sessions: StoredSession[]
   activeId: string | null
+  /** 工作区列表（v4；v1—v3 迁移为空数组） */
+  workspaces: StoredWorkspace[]
+  /** 当前视野：WORKSPACE_VIEW_ALL（'all'）或工作区 id（v4；v1—v3 迁移为 'all'） */
+  activeWorkspaceId: string
 }
 
 export interface CreateSessionPayload {
   name?: string
   note?: string
+  /** 落入的工作区：undefined = 未分组；显式传值须格式合法且存在，否则整单拒绝 */
+  workspaceId?: string | null
 }
 
 export interface RenameSessionPayload {
@@ -111,9 +160,13 @@ export interface SetActiveSessionPayload {
   id: string | null
 }
 
-/** 克隆会话：复制源会话的分区数据（登录态等持久环境）与元数据，生成同款新环境 */
+/**
+ * 克隆会话：复制源会话的分区数据（登录态等持久环境）与元数据，生成同款新环境。
+ * workspaceId 缺省落源会话归属；显式传值（含 null = 未分组）须格式合法且存在
+ */
 export interface CloneSessionPayload {
   id: string
+  workspaceId?: string | null
 }
 
 /**
@@ -141,6 +194,43 @@ export interface BatchDeleteSessionsPayload {
  */
 export interface ReorderSessionsPayload {
   ids: string[]
+}
+
+/** 新建工作区：name trim 非空、≤WORKSPACE_NAME_MAX、与现存重名拒绝 */
+export interface CreateWorkspacePayload {
+  name: string
+}
+
+export interface RenameWorkspacePayload {
+  id: string
+  name: string
+}
+
+/**
+ * 删除工作区：其中会话全部移入未分组（会话与其数据不受影响，PRD 4.8）；
+ * activeWorkspaceId 指向它时回落 'all'，activeId 不动、零编排回调
+ */
+export interface DeleteWorkspacePayload {
+  id: string
+}
+
+/**
+ * 移动会话到工作区（独占归属）：workspaceId 传 null = 移出到未分组；
+ * 目标须格式合法且存在；移动到当前归属为 no-op ok（幂等）；不动 activeId
+ */
+export interface MoveSessionToWorkspacePayload {
+  sessionId: string
+  workspaceId: string | null
+}
+
+/**
+ * 切换工作区视野：id 为 WORKSPACE_VIEW_ALL（'all'）或工作区 id。
+ * 主进程同一临界区内原子完成：落 activeWorkspaceId + 必要时级联 activeId
+ * （该工作区 lastActiveSessionId → 无记忆取全序首个 → 空工作区 null），
+ * 仅激活位变化时回调 onActiveChanged 触发浏览器切换；'all' 与纯视野切换零编排
+ */
+export interface SetActiveWorkspacePayload {
+  id: string
 }
 
 export interface OkResult {

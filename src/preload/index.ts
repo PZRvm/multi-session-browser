@@ -28,14 +28,20 @@ import type {
   BatchOpenUrlPayload,
   CloneSessionPayload,
   CreateSessionPayload,
+  CreateWorkspacePayload,
   DeleteSessionPayload,
+  DeleteWorkspacePayload,
+  MoveSessionToWorkspacePayload,
   OkResult,
   RenameSessionPayload,
+  RenameWorkspacePayload,
   ReorderSessionsPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
-  StoredSession
+  SetActiveWorkspacePayload,
+  StoredSession,
+  StoredWorkspace
 } from '../shared/sessions'
 
 // Custom APIs for renderer
@@ -75,6 +81,18 @@ const api = {
     // 会话列表排序：只接收当前全部会话 id 的完整顺序（全序），主进程整单校验拒绝制
     reorder: (payload: ReorderSessionsPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.reorder, payload),
+    // 工作区五通道（2026-09-15 专项）：全部 invoke、零推送（工作区仅主窗左栏操作）
+    workspaceCreate: (payload: CreateWorkspacePayload): Promise<StoredWorkspace> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceCreate, payload),
+    workspaceRename: (payload: RenameWorkspacePayload): Promise<StoredWorkspace> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceRename, payload),
+    workspaceDelete: (payload: DeleteWorkspacePayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceDelete, payload),
+    workspaceMoveSession: (payload: MoveSessionToWorkspacePayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceMoveSession, payload),
+    // 视野切换：id 为 'all'（WORKSPACE_VIEW_ALL 单源）或工作区 id；主进程原子级联
+    workspaceSetActive: (payload: SetActiveWorkspacePayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceSetActive, payload),
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
     onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {

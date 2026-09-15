@@ -1,11 +1,12 @@
-// 会话 IPC handlers：十条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
-// batch-open-url 三条 + 排序专项 reorder 一条）的业务实现，读写一律经 store.ts 的
-// 快照接口；status-changed 推送不经本文件（index.ts 直连 registry）。通道名一律取自
-// shared/sessions 的 SESSIONS_CHANNELS，禁止手写字符串。
-// 快照读-改-写一律经 mutateSnapshot 串行执行；入参先过运行时守卫
-// （shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
+// 会话 IPC handlers：十五条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项五条 create/rename/delete/
+// move-session/set-active）的业务实现，读写一律经 store.ts 的快照接口；status-changed
+// 推送不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
+// SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
+// 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
-// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。
+// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区五通道纯元数据：唯一
+// 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
 
 import { ipcMain } from 'electron'
 import { isRecord } from '../shared/guards'
@@ -13,12 +14,16 @@ import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
   SESSIONS_CHANNELS,
+  WORKSPACE_ID_RE,
+  WORKSPACE_NAME_MAX,
+  WORKSPACE_VIEW_ALL,
   cloneTabs,
   type OkResult,
   type SessionStatusesPayload,
   type SessionsSnapshot,
   type StoredSession,
-  type StoredTab
+  type StoredTab,
+  type StoredWorkspace
 } from '../shared/sessions'
 import { normalizeInput } from './browser/url'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
@@ -117,6 +122,62 @@ function generateSessionId(existingIds: Set<string>): string {
 // 生成的 id 恒满足 shared/sessions.ts 的 SESSION_ID_RE（格式契约单源，registry 的
 // 分区拼装/目录解析按该校验拦截被篡改 id）——本函数与其共同引用同一格式定义
 
+/**
+ * 生成新工作区 id：ws-<base36 时间戳>-<自增 seq>，与现存工作区 id 撞车则重新生成。
+ * 与 generateSessionId 共用同一 seq 计数器（两命名空间前缀不同，跨命名空间天然不撞）
+ */
+function generateWorkspaceId(existingIds: Set<string>): string {
+  let id: string
+  do {
+    seq += 1
+    id = `ws-${Date.now().toString(36)}-${seq}`
+  } while (existingIds.has(id))
+  return id
+}
+// 生成的 id 恒满足 WORKSPACE_ID_RE（单源格式契约，workspaceSetActive 的视野哨兵
+// WORKSPACE_VIEW_ALL 恒 'all' 与 ws- 前缀无碰撞）
+
+/**
+ * 工作区 id 格式预校验（单值）：不满足 WORKSPACE_ID_RE 即抛错——被篡改的落盘 id
+ * 须在存在性校验前拒绝（照 assertSessionIdFormat 的纵深防御先例）
+ */
+function assertWorkspaceIdFormat(id: string): void {
+  if (!WORKSPACE_ID_RE.test(id)) {
+    throw new Error('工作区 id 非法（疑似数据被篡改）')
+  }
+}
+
+/**
+ * 解析可选归属入参（create/clone 的 workspaceId）为落盘归属：
+ * - undefined → fallback（create 未分组 / clone 源会话归属）
+ * - null → 未分组（显式移出）
+ * - string → 格式合法且存在才通过（跨 IPC 边界不可信任，存在性以互斥期内快照为准）
+ */
+function resolveMembership(
+  raw: unknown,
+  fallback: string | null,
+  workspaceIds: Set<string>
+): string | null {
+  if (raw === undefined) return fallback
+  if (raw === null) return null
+  if (typeof raw !== 'string') throw invalidParams()
+  assertWorkspaceIdFormat(raw)
+  if (!workspaceIds.has(raw)) throw new Error('工作区不存在')
+  return raw
+}
+
+/**
+ * 工作区激活记忆净化：全部指向被删会话的 lastActiveSessionId 置 null（悬空不落盘）。
+ * delete 与 deleteBatch 在同一互斥临界区末尾调用
+ */
+function clearDanglingMemory(snapshot: SessionsSnapshot, removedIds: Set<string>): void {
+  for (const ws of snapshot.workspaces) {
+    if (ws.lastActiveSessionId !== null && removedIds.has(ws.lastActiveSessionId)) {
+      ws.lastActiveSessionId = null
+    }
+  }
+}
+
 /** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + payload 摘要）后原样 rethrow */
 function logFailure<T>(channel: string, payload: unknown, run: () => Promise<T>): Promise<T> {
   return run().catch((err: unknown) => {
@@ -137,10 +198,11 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     SESSIONS_CHANNELS.create,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.create, payload, async () => {
-        // payload 缺省视为 {}；name/note 若存在必须是 string
+        // payload 缺省视为 {}；name/note 若存在必须是 string；workspaceId 可选归属
         const raw = isRecord(payload) ? payload : {}
         const inputName = optionalString(raw.name)?.trim() ?? ''
         const inputNote = optionalString(raw.note) ?? ''
+        const membership = raw.workspaceId
         return mutateSnapshot((snapshot) => {
           const id = generateSessionId(new Set(snapshot.sessions.map((s) => s.id)))
           const session: StoredSession = {
@@ -153,7 +215,13 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             lastUrl: '',
             // 阶段 6 契约：新建会话无恢复集，懒创建时回退单空白 Tab
             tabs: [],
-            activeTabIndex: 0
+            activeTabIndex: 0,
+            // 工作区专项：可选归属（undefined 未分组 / null 未分组 / 须存在）
+            workspaceId: resolveMembership(
+              membership,
+              null,
+              new Set(snapshot.workspaces.map((w) => w.id))
+            )
           }
           snapshot.sessions.push(session)
           return session
@@ -201,6 +269,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         if (snapshot.activeId === removed.id) {
           snapshot.activeId = snapshot.sessions[0]?.id ?? null
         }
+        // 工作区激活记忆净化：指向被删会话的记忆置 null（悬空不落盘）
+        clearDanglingMemory(snapshot, new Set([removed.id]))
         return snapshot.activeId
       })
       // 落盘成功后联动（删除守卫或写盘失败时抛错，不联动）
@@ -222,6 +292,15 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           throw new Error('会话不存在')
         }
         snapshot.activeId = nextId
+        // 工作区专项：激活落盘同临界区顺带更新所属工作区激活记忆（只随真实激活更新；
+        // 未分组会话不动 workspaces）
+        if (nextId !== null) {
+          const activated = snapshot.sessions.find((s) => s.id === nextId)
+          if (activated && activated.workspaceId !== null) {
+            const ws = snapshot.workspaces.find((w) => w.id === activated.workspaceId)
+            if (ws) ws.lastActiveSessionId = nextId
+          }
+        }
         return { ok: true }
       })
       // 落盘成功后联动（id 守卫或写盘失败时抛错，不联动）
@@ -242,13 +321,25 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     SESSIONS_CHANNELS.clone,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.clone, payload, async () => {
-        // payload 必须含 string 类型的 id
+        // payload 必须含 string 类型的 id；workspaceId 可选归属（缺省随源会话）
         if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
         const srcId = payload.id
+        const membership = payload.workspaceId
         // 源会话存在性校验（读盘）；同一份快照兼作生成新 id 的撞车判据
         const snapshot = await loadSnapshot()
         const src = snapshot.sessions.find((s) => s.id === srcId)
         if (!src) throw new Error('会话不存在')
+        // 归属预校验（显式传值时）：在 clonePartition 这个高成本副作用之前完成——
+        // 可预期的整单拒绝不得先产生分区目录残留（审查中 1）。mutateSnapshot 内的
+        // resolveMembership 仍以互斥期最新快照复验（预检与复制间的工作区并发删除
+        // 走既有孤儿告警路径，与源会话并发删除同口径）
+        if (membership !== undefined && membership !== null) {
+          if (typeof membership !== 'string') throw invalidParams()
+          assertWorkspaceIdFormat(membership)
+          if (!snapshot.workspaces.some((w) => w.id === membership)) {
+            throw new Error('工作区不存在')
+          }
+        }
         const newId = generateSessionId(new Set(snapshot.sessions.map((s) => s.id)))
         // 先复制分区（close-then-copy，含关闭源会话 webContents），成功才落元数据。
         // 生成的 id 此后无需复核：本运行期落盘新增的 id 同样出自单调 seq，必不与之相同；
@@ -271,7 +362,13 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
               lastUrl: source.lastUrl,
               // 阶段 6：恢复集随元数据复制（克隆产物同款页面集，URL 级）
               tabs: cloneTabs(restore ? restore.tabs : source.tabs),
-              activeTabIndex: restore ? restore.activeTabIndex : source.activeTabIndex
+              activeTabIndex: restore ? restore.activeTabIndex : source.activeTabIndex,
+              // 工作区专项：可选归属（undefined 随源 / null 未分组 / 须存在）
+              workspaceId: resolveMembership(
+                membership,
+                source.workspaceId,
+                new Set(data.workspaces.map((w) => w.id))
+              )
             }
             data.sessions.push(cloned)
             return cloned
@@ -311,6 +408,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           if (snapshot.activeId !== null && idSet.has(snapshot.activeId)) {
             snapshot.activeId = snapshot.sessions[0]?.id ?? null
           }
+          clearDanglingMemory(snapshot, idSet)
           return snapshot.activeId
         })
         // 落盘成功后联动（校验守卫或写盘失败时抛错，不联动）
@@ -378,6 +476,166 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     })
   )
 
-  // 本文件注册 10 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 11 条
-  console.log('[sessions] IPC handlers 已注册（11 条通道）')
+  // workspaces:create：新建工作区。name trim 非空、≤WORKSPACE_NAME_MAX、与现存重名
+  // 拒绝；纯元数据（不动会话/视野/激活），零编排回调。返回新建的 StoredWorkspace
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceCreate,
+    async (_event, payload: unknown): Promise<StoredWorkspace> =>
+      logFailure(SESSIONS_CHANNELS.workspaceCreate, payload, async () => {
+        if (!isRecord(payload) || typeof payload.name !== 'string') throw invalidParams()
+        const name = clampString(payload.name.trim(), WORKSPACE_NAME_MAX)
+        if (!name) throw new Error('工作区名称不能为空')
+        return mutateSnapshot((snapshot) => {
+          if (snapshot.workspaces.some((w) => w.name === name)) {
+            throw new Error('已存在同名工作区')
+          }
+          const workspace: StoredWorkspace = {
+            id: generateWorkspaceId(new Set(snapshot.workspaces.map((w) => w.id))),
+            name,
+            lastActiveSessionId: null
+          }
+          snapshot.workspaces.push(workspace)
+          return workspace
+        })
+      })
+  )
+
+  // workspaces:rename：id 格式 + 存在性校验，name 规则同 create（重名排除自身）；
+  // 纯元数据（工作区名不出现在窗口标题/页面标题，无 onRenamed 类联动），零编排回调
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceRename,
+    async (_event, payload: unknown): Promise<StoredWorkspace> =>
+      logFailure(SESSIONS_CHANNELS.workspaceRename, payload, async () => {
+        if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+        if (typeof payload.name !== 'string') throw invalidParams()
+        assertWorkspaceIdFormat(payload.id)
+        const id = payload.id
+        const name = clampString(payload.name.trim(), WORKSPACE_NAME_MAX)
+        if (!name) throw new Error('工作区名称不能为空')
+        return mutateSnapshot((snapshot) => {
+          const target = snapshot.workspaces.find((w) => w.id === id)
+          if (!target) throw new Error('工作区不存在')
+          if (snapshot.workspaces.some((w) => w.name === name && w.id !== id)) {
+            throw new Error('已存在同名工作区')
+          }
+          target.name = name
+          return target
+        })
+      })
+  )
+
+  // workspaces:delete：删除工作区——其中会话全部移入未分组（会话与其数据不受影响，
+  // PRD 4.8）；activeWorkspaceId 指向它时回落 'all'；activeId 不动（视野与激活正交，
+  // 会话仍在，右侧无需切换）；零编排回调
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceDelete,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.workspaceDelete, payload, async () => {
+        if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+        assertWorkspaceIdFormat(payload.id)
+        const id = payload.id
+        await mutateSnapshot((snapshot) => {
+          if (!snapshot.workspaces.some((w) => w.id === id)) throw new Error('工作区不存在')
+          snapshot.workspaces = snapshot.workspaces.filter((w) => w.id !== id)
+          for (const s of snapshot.sessions) {
+            if (s.workspaceId === id) s.workspaceId = null
+          }
+          if (snapshot.activeWorkspaceId === id) {
+            snapshot.activeWorkspaceId = WORKSPACE_VIEW_ALL
+          }
+          return { ok: true }
+        })
+        return { ok: true }
+      })
+  )
+
+  // workspaces:move-session：移动会话归属（独占制）。workspaceId 传 null = 移出未分组；
+  // 目标须格式合法且存在；移动到当前归属为 no-op ok（幂等）；不动 activeId 与激活记忆
+  // （记忆只随真实激活更新），零编排回调
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceMoveSession,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.workspaceMoveSession, payload, async () => {
+        if (!isRecord(payload)) throw invalidParams()
+        if (typeof payload.sessionId !== 'string') throw invalidParams()
+        if (payload.workspaceId !== null && typeof payload.workspaceId !== 'string') {
+          throw invalidParams()
+        }
+        assertSessionIdFormat([payload.sessionId])
+        const sessionId = payload.sessionId
+        const target = payload.workspaceId
+        if (target !== null) assertWorkspaceIdFormat(target)
+        await mutateSnapshot((snapshot) => {
+          const session = snapshot.sessions.find((s) => s.id === sessionId)
+          if (!session) throw new Error('会话不存在')
+          if (target !== null && !snapshot.workspaces.some((w) => w.id === target)) {
+            throw new Error('工作区不存在')
+          }
+          // 源工作区记忆清理：记忆指向被移会话时置 null（记忆指向不存在的归属即脏
+          // 数据——审查低 3；目标侧与未分组侧记忆不动，记忆只随真实激活更新）
+          const prevWorkspaceId = session.workspaceId
+          session.workspaceId = target
+          if (prevWorkspaceId !== null && prevWorkspaceId !== target) {
+            const source = snapshot.workspaces.find((w) => w.id === prevWorkspaceId)
+            if (source && source.lastActiveSessionId === sessionId) {
+              source.lastActiveSessionId = null
+            }
+          }
+          return { ok: true }
+        })
+        return { ok: true }
+      })
+  )
+
+  // workspaces:set-active：切换工作区视野（主进程内原子副作用，setActive 同模式）。
+  // 同一 mutateSnapshot 临界区内完成：落 activeWorkspaceId + 必要时级联 activeId——
+  // 当前激活会话不属于目标工作区时，级联到该工作区 lastActiveSessionId（记忆悬空
+  // 则全序首个、空工作区 null），级联即真实激活故同步更新记忆；落盘成功后仅当
+  // activeId 值变化时回调 onActiveChanged 触发浏览器切换。'all' 与纯视野切换零编排
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceSetActive,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.workspaceSetActive, payload, async () => {
+        if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+        const viewId = payload.id
+        if (viewId !== WORKSPACE_VIEW_ALL) assertWorkspaceIdFormat(viewId)
+        const outcome = await mutateSnapshot((snapshot) => {
+          const prevActive = snapshot.activeId
+          if (viewId === WORKSPACE_VIEW_ALL) {
+            // 全部视野：纯视野切换，activeId 不动，零编排
+            snapshot.activeWorkspaceId = WORKSPACE_VIEW_ALL
+            return { prevActive, nextActive: snapshot.activeId }
+          }
+          const ws = snapshot.workspaces.find((w) => w.id === viewId)
+          if (!ws) throw new Error('工作区不存在')
+          snapshot.activeWorkspaceId = viewId
+          const current = snapshot.sessions.find((s) => s.id === snapshot.activeId)
+          if (!current || current.workspaceId !== viewId) {
+            // 级联激活位：记忆优先（须仍属于该工作区）→ 全序首个 → 空工作区 null
+            let nextActive: string | null = null
+            if (ws.lastActiveSessionId !== null) {
+              const remembered = snapshot.sessions.find(
+                (s) => s.id === ws.lastActiveSessionId && s.workspaceId === viewId
+              )
+              if (remembered) nextActive = remembered.id
+            }
+            if (nextActive === null) {
+              nextActive = snapshot.sessions.find((s) => s.workspaceId === viewId)?.id ?? null
+            }
+            snapshot.activeId = nextActive
+            // 级联即真实激活：同步更新该工作区记忆（空工作区记 null，语义一致）
+            ws.lastActiveSessionId = nextActive
+          }
+          return { prevActive, nextActive: snapshot.activeId }
+        })
+        // 落盘成功后联动（守卫或写盘失败即抛错，不联动）；仅激活位值变化才编排
+        if (outcome.nextActive !== outcome.prevActive) {
+          deps.onActiveChanged(outcome.nextActive)
+        }
+        return { ok: true }
+      })
+  )
+
+  // 本文件注册 15 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 16 条
+  console.log('[sessions] IPC handlers 已注册（16 条通道）')
 }

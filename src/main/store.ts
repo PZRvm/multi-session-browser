@@ -8,16 +8,27 @@ import { app } from 'electron'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { isRecord } from '../shared/guards'
-import type { SessionsSnapshot, StoredSession, StoredTab } from '../shared/sessions'
-import { cloneTabs } from '../shared/sessions'
+import type {
+  SessionsSnapshot,
+  StoredSession,
+  StoredTab,
+  StoredWorkspace
+} from '../shared/sessions'
+import { cloneTabs, WORKSPACE_VIEW_ALL } from '../shared/sessions'
 import { atomicWriteJson } from './fs-utils'
 
-/** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex）；读到不认识的版本一律按坏数据回退，v1/v2 读取时迁移 */
-const SNAPSHOT_VERSION = 3
+/** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex；v4 增工作区三件）；读到不认识的版本一律按坏数据回退，v1—v3 读取时迁移 */
+const SNAPSHOT_VERSION = 4
 
 /** 回退用的空快照（每次新建，避免共享可变数组） */
 function emptySnapshot(): SessionsSnapshot {
-  return { version: SNAPSHOT_VERSION, sessions: [], activeId: null }
+  return {
+    version: SNAPSHOT_VERSION,
+    sessions: [],
+    activeId: null,
+    workspaces: [],
+    activeWorkspaceId: WORKSPACE_VIEW_ALL
+  }
 }
 
 /** 落盘文件路径：userData/sessions.json */
@@ -171,17 +182,26 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
 }
 
 /**
- * 解析并校验快照。对抗性坏数据矩阵（阶段 1 步骤 7 逐项核对 + 阶段 6 扩写，2026-09-12）：
+ * 解析并校验快照。对抗性坏数据矩阵（阶段 1 步骤 7 逐项核对 + 阶段 6 扩写，2026-09-12；
+ * v4 工作区三件扩写，2026-09-15）：
  * - 非法 JSON（截断 / BOM / 二进制垃圾 / 空串）：JSON.parse 抛错 → 回退空快照并告警
  * - 根节点为数组 / 字符串 / null 等非普通对象：回退空快照（深嵌套数组即使解析成功也在此被拒）
- * - version 缺失或非 1/2/3（含 0、4、字符串 "1"）：回退空快照
- *   （v1/v2 按 lastUrl 派生单元素 tabs 迁移，写盘恒出 v3）
+ * - version 缺失或非 1/2/3/4（含 0、5、字符串 "1"）：回退空快照
+ *   （v1/v2 按 lastUrl 派生单元素 tabs、v1—v3 按默认值迁工作区，写盘恒出 v4）
  * - sessions 为对象 / 字符串等非数组，或元素为 null / 嵌套数组 / 缺四硬字段 / 硬字段类型错：
- *   回退空快照（lastUrl/tabs/activeTabIndex 例外：缺失或类型错按 restoreTabs 的迁移/回退规则处理，不回退）
+ *   回退空快照（lastUrl/tabs/activeTabIndex/workspaceId 例外：缺失或类型错按各自迁移/回退
+ *   规则处理，不回退）
  * - 元素含多余字段：容忍，但重建时只保留契约字段（注入的未知字段不会被回存落盘）
- * - v3 元素 tabs 非数组 / 元素非对象 / url 非 string：回退 lastUrl 派生列表并告警；
+ * - v3+ 元素 tabs 非数组 / 元素非对象 / url 非 string：回退 lastUrl 派生列表并告警；
  *   activeTabIndex 非整数 / 负数 / 越上界：钳制到有效范围（空列表恒 0）并告警
+ * - v4 元素 workspaceId 非法（非 string/null）或悬空（不指向任何工作区）：置 null 并告警，
+ *   会话保留（v1—v3 元素无此字段，静默迁移 null）
  * - sessions 内重复 id：保留首个、剔除后续重复项并告警
+ * - workspaces 缺失/非数组/元素缺 id 或 name 硬字段：回退空工作区并告警（**不回退会话**——
+ *   工作区数据损坏不得丢会话列表，PRD 4.8）；元素 lastActiveSessionId 非法或悬空（不指向
+ *   任何会话/不属于该工作区）：置 null 并告警；重复 id：保留首个并告警
+ * - activeWorkspaceId 非字符串、悬空（既非 'all' 也不指向任何工作区）：回退 'all' 并告警
+ *   （v1—v3 无此字段，静默迁移 'all'）
  * - activeId 为数字等非 string/null：回退空快照；为空串或悬空 id：按悬空处理，置 null 保留列表
  */
 function parseSnapshot(raw: string): SessionsSnapshot {
@@ -204,8 +224,13 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     fallback('根节点不是对象')
     return emptySnapshot()
   }
-  // v1（无 lastUrl）/v2（无 tabs）与当前 v3 均接受，其余版本按坏数据回退
-  if (data.version !== 1 && data.version !== 2 && data.version !== SNAPSHOT_VERSION) {
+  // v1（无 lastUrl）/v2（无 tabs）/v3（无工作区三件）与当前 v4 均接受，其余版本按坏数据回退
+  if (
+    data.version !== 1 &&
+    data.version !== 2 &&
+    data.version !== 3 &&
+    data.version !== SNAPSHOT_VERSION
+  ) {
     fallback(`version 不认识: ${JSON.stringify(data.version)}`)
     return emptySnapshot()
   }
@@ -225,15 +250,97 @@ function parseSnapshot(raw: string): SessionsSnapshot {
 
   // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段。
   // lastUrl 迁移（v1 → v2+）：老落盘元素无此字段，缺失或类型错一律补空串；
-  // tabs/activeTabIndex 重建（v1/v2 迁移 + v3 容错）统一走 restoreTabs 单一出口
-  const sessions: StoredSession[] = data.sessions.map((item) => ({
-    id: item.id,
-    name: item.name,
-    note: item.note,
-    pageTitle: item.pageTitle,
-    lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : '',
-    ...restoreTabs(item, version)
-  }))
+  // tabs/activeTabIndex 重建（v1/v2 迁移 + v3 容错）统一走 restoreTabs 单一出口；
+  // workspaceId 原始值先并行带出，悬空净化在 workspaces 解析后统一处理（下方）
+  const rawWorkspaceIds: unknown[] = []
+  const sessions: StoredSession[] = data.sessions.map((item) => {
+    rawWorkspaceIds.push(item.workspaceId)
+    return {
+      id: item.id,
+      name: item.name,
+      note: item.note,
+      pageTitle: item.pageTitle,
+      lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : '',
+      workspaceId: null,
+      ...restoreTabs(item, version)
+    }
+  })
+
+  // 工作区解析（v4 新增）：整体容错——缺失（v1—v3 迁移静默 / v4 缺失告警）、非数组、
+  // 元素缺 id/name 硬字段，一律回退空工作区并告警，**绝不回退会话列表**（工作区
+  // 数据损坏不得丢会话，PRD 4.8「删除工作区必留会话」的同族原则）；元素多余字段
+  // 剔除，lastActiveSessionId 宽容（类型错 → null 告警，悬空净化在后）
+  const isStoredWorkspace = (
+    value: unknown
+  ): value is { id: string; name: string; lastActiveSessionId: unknown } =>
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string'
+
+  let workspaces: StoredWorkspace[] = []
+  if (Array.isArray(data.workspaces)) {
+    if (data.workspaces.every(isStoredWorkspace)) {
+      workspaces = data.workspaces.map((w) => {
+        if (
+          w.lastActiveSessionId !== undefined &&
+          w.lastActiveSessionId !== null &&
+          typeof w.lastActiveSessionId !== 'string'
+        ) {
+          console.warn(
+            `[store] 工作区 ${w.id} 的 lastActiveSessionId 类型错，已按无记忆处理: ${summarize(w.lastActiveSessionId)}`
+          )
+        }
+        return {
+          id: w.id,
+          name: w.name,
+          lastActiveSessionId:
+            typeof w.lastActiveSessionId === 'string' ? w.lastActiveSessionId : null
+        }
+      })
+    } else {
+      console.warn(
+        `[store] workspaces 存在缺字段或类型错的元素，已回退空工作区（会话列表保留）。原始内容摘要: ${summarize(data.workspaces)}`
+      )
+    }
+  } else if (data.workspaces !== undefined || version >= 4) {
+    console.warn(
+      `[store] workspaces 不是数组，已回退空工作区（会话列表保留）。原始内容摘要: ${summarize(data.workspaces)}`
+    )
+  }
+
+  // 工作区重复 id 去重：保留首个、剔除后续（镜像 sessions 去重规则）
+  const seenWsIds = new Set<string>()
+  const uniqueWorkspaces: StoredWorkspace[] = []
+  for (const ws of workspaces) {
+    if (seenWsIds.has(ws.id)) {
+      console.warn(`[store] workspaces 存在重复 id "${ws.id}"（已保留首个，剔除后续）`)
+      continue
+    }
+    seenWsIds.add(ws.id)
+    uniqueWorkspaces.push(ws)
+  }
+
+  // 会话 workspaceId 净化：类型错或悬空（不指向任何工作区）→ 置 null 并告警，会话保留；
+  // v1—v3 元素无此字段（rawWorkspaceIds 全 undefined）按迁移静默处理，v4 缺字段告警
+  const sessionCount = sessions.length
+  for (let i = 0; i < sessionCount; i++) {
+    const raw = rawWorkspaceIds[i]
+    if (raw === undefined) {
+      if (version >= 4) {
+        console.warn(`[store] 会话 ${sessions[i].id} 缺 workspaceId，已按未分组处理`)
+      }
+      continue
+    }
+    if (raw === null) continue
+    if (typeof raw !== 'string' || !seenWsIds.has(raw)) {
+      console.warn(
+        `[store] 会话 ${sessions[i].id} 的 workspaceId 非法或悬空（${summarize(raw)}），已按未分组处理`
+      )
+      continue
+    }
+    sessions[i].workspaceId = raw
+  }
 
   // 重复 id 去重：保留首个、剔除后续重复项，防止重复条目进入列表与 id 索引
   const seenIds = new Set<string>()
@@ -262,5 +369,40 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     activeId = null
   }
 
-  return { version: SNAPSHOT_VERSION, sessions: uniqueSessions, activeId }
+  // lastActiveSessionId 净化：悬空（不指向任何会话，或不属于该工作区）→ 置 null 并告警
+  // （记忆只随真实激活更新，坏记忆不阻断恢复）
+  const sessionById = new Map(uniqueSessions.map((s) => [s.id, s]))
+  for (const ws of uniqueWorkspaces) {
+    const ref = ws.lastActiveSessionId
+    if (ref === null) continue
+    const target = sessionById.get(ref)
+    if (!target || target.workspaceId !== ws.id) {
+      console.warn(
+        `[store] 工作区 ${ws.id} 的 lastActiveSessionId "${ref}" 悬空或不属于该工作区，已按无记忆处理`
+      )
+      ws.lastActiveSessionId = null
+    }
+  }
+
+  // activeWorkspaceId 解析：'all' 或指向已知工作区；非法/悬空回退 'all' 并告警
+  // （v1—v3 无此字段，静默迁移 'all'；v4 缺字段告警）
+  let activeWorkspaceId = WORKSPACE_VIEW_ALL
+  if (data.activeWorkspaceId !== undefined) {
+    const rawView = data.activeWorkspaceId
+    if (typeof rawView === 'string' && (rawView === WORKSPACE_VIEW_ALL || seenWsIds.has(rawView))) {
+      activeWorkspaceId = rawView
+    } else {
+      console.warn(`[store] activeWorkspaceId 非法或悬空（${summarize(rawView)}），已回退全部视野`)
+    }
+  } else if (version >= 4) {
+    console.warn('[store] 快照缺 activeWorkspaceId，已回退全部视野')
+  }
+
+  return {
+    version: SNAPSHOT_VERSION,
+    sessions: uniqueSessions,
+    activeId,
+    workspaces: uniqueWorkspaces,
+    activeWorkspaceId
+  }
 }
