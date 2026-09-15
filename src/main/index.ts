@@ -9,6 +9,7 @@ import { createTabDragController } from './browser/dragging'
 import { createDragPreview } from './browser/dragPreview'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
 import { createIndependentWindows } from './browser/windows'
+import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import { installShellInputGuard } from './inputGuard'
 import { loadSnapshot } from './store'
 import {
@@ -47,6 +48,9 @@ let registry: SessionBrowserRegistry | null = null
 // 独立窗口；registry 的 getWindow('main')、ipc 定向推送、会话状态推送均经此引用。
 // macOS 关窗期间自然为 null（closed 置空），重开由 activate → createWindow 回填
 let mainWindow: BrowserWindow | null = null
+// 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
+// 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
+let suggestWindows: OmniboxSuggestWindows | null = null
 const appearanceController = createAppearanceController()
 
 /**
@@ -144,9 +148,10 @@ function createWindow(): void {
   }
 
   // 主窗口销毁（macOS 关窗）即置空显式引用：getWindow('main')/定向推送此后自然跳过；
-  // 重开由 activate → createWindow 重建并回填
+  // 重开由 activate → createWindow 重建并回填。建议子窗随之销毁（挂池摘监听）
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
+    suggestWindows?.dispose(WINDOW_ID_MAIN)
   })
 
   // macOS 关窗重开场景：重挂当前激活会话的 view 到新窗口（注册表路由到激活 manager；
@@ -192,8 +197,16 @@ app.whenReady().then(async () => {
       registry?.onIndependentWindowReady(sessionId, windowId)
     },
     onWindowClosed: (sessionId: string, windowId: string): void => {
+      suggestWindows?.dispose(windowId)
       registry?.onIndependentWindowClosed(sessionId, windowId)
     }
+  })
+
+  // 建议子窗池（原生子窗口化专项）：每宿主窗口至多一个透明无框子窗承载地址栏建议
+  //（懒创建/隐藏复用/宿主 move-resize 跟随），宿主窗口解析与 registry 同源
+  suggestWindows = createOmniboxSuggestWindows({
+    getWindow: (windowId: string): BrowserWindow | null =>
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId)
   })
 
   // 会话浏览器注册表：每会话一个独立分区（persist:sess-<id>）的 TabManager，命令按
@@ -239,7 +252,8 @@ app.whenReady().then(async () => {
   registerBrowserIpc(created, {
     getMainWindow: () => mainWindow,
     windows: independentWindows,
-    dragController: tabDragController
+    dragController: tabDragController,
+    suggestWindows
   })
   registerAppearanceIpc(appearanceController)
   registerSessionIpc({

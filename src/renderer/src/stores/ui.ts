@@ -2,7 +2,9 @@ import { create } from 'zustand'
 
 // shell 层 UI 临时状态（区别于 browser/sessions 的主进程快照镜像，本 store 纯 renderer 本地）。
 //
-// overlayDepth：会遮挡或需要收起原生页面层的全局弹层计数（当前唯一登记方是删除确认框）。
+// overlayDepth：会遮挡或需要收起原生页面层的全局弹层计数（登记方：SessionPanel 与
+// WorkspaceSwitcher 的 antd Modal 弹层。地址栏建议面板曾登记于此——原生子窗口化专项
+// 起改由主进程原生子窗口承载，面板打开期间页面保持可见，不再登记）。
 // 两个消费语义：
 // 1. BrowserFrame 据此暂停内容锚点上报（主进程按零矩形收起 WebContentsView，防弹层被原生层遮挡）；
 // 2. useBrowserShortcuts 据此冻结浏览器快捷键（原生层已隐藏，快捷键不应盲操作不可见的浏览器）。

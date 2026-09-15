@@ -1,4 +1,5 @@
-// 浏览器 IPC handlers：二十四条通道（18 条命令 + 6 条推送）的装配层。
+// 浏览器 IPC handlers：三十一条通道（浏览器域 24 条（18 命令 + 6 推送）+ 建议子窗域
+// 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
 // → windows.ts 登记的绑定会话的该窗口作用域；未知窗口/已销毁/绑定会话失效一律抛
@@ -18,8 +19,8 @@
 // HISTORY_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
-import { ipcMain } from 'electron'
-import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import {
   BROWSER_CHANNELS,
   FIND_TEXT_MAX,
@@ -30,10 +31,13 @@ import {
   type TabDragOutcome,
   type TabDragPreviewPayload
 } from '../../shared/browser'
-import { HISTORY_CHANNELS } from '../../shared/history'
+import { HISTORY_CHANNELS, SUGGEST_MAX_RESULTS } from '../../shared/history'
 import type { HistoryEntry } from '../../shared/history'
+import { OMNIBOX_SUGGEST_CHANNELS, SUGGEST_TEXT_MAX } from '../../shared/omniboxSuggest'
+import type { OmniboxSuggestShowPayload } from '../../shared/omniboxSuggest'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
 import type { TabDragController } from './dragging'
+import type { OmniboxSuggestWindows } from './omniboxSuggest'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
 import type { IndependentWindows } from './windows'
 import { logLoadFailure, normalizeInput } from './url'
@@ -73,15 +77,70 @@ function parseDragPreview(value: unknown): TabDragPreviewPayload {
   }
 }
 
+/**
+ * 建议子窗 show 载荷运行时守卫：anchor 四有限数（x/y 非负——内容坐标系不会为负，
+ * 负值属垃圾入参整单拒绝；宽高须为正）、items 非空且不超过建议上限（条目结构宽容
+ * 归一——title 非 string 以空串、favicon 非 string 以 null 收口，与拖拽虚影 favicon
+ * 同口径；title/query 超 SUGGEST_TEXT_MAX 截断而非拒绝——超长标题页面建议仍可用，
+ * 与 dragPreview 截断先例同口径）、query string、activeIndex -1 起且不越 items。
+ * 子窗定位/高度计算依赖这些字段可信（面板高度 = 行数 × SUGGEST_ROW_HEIGHT 常量）
+ */
+function parseSuggestShow(value: unknown): OmniboxSuggestShowPayload {
+  if (!isRecord(value) || !isRecord(value.anchor) || typeof value.query !== 'string') {
+    throw invalidParams()
+  }
+  const anchor = {
+    x: requiredNumber(value.anchor.x),
+    y: requiredNumber(value.anchor.y),
+    width: requiredNumber(value.anchor.width),
+    height: requiredNumber(value.anchor.height)
+  }
+  if (anchor.x < 0 || anchor.y < 0) throw invalidParams()
+  if (anchor.width <= 0 || anchor.height <= 0) throw invalidParams()
+  if (
+    !Array.isArray(value.items) ||
+    value.items.length === 0 ||
+    value.items.length > SUGGEST_MAX_RESULTS
+  ) {
+    throw invalidParams()
+  }
+  const items = value.items.map((item) => {
+    if (!isRecord(item) || typeof item.url !== 'string' || item.url.length === 0) {
+      throw invalidParams()
+    }
+    return {
+      url: item.url,
+      title: typeof item.title === 'string' ? item.title.slice(0, SUGGEST_TEXT_MAX) : '',
+      faviconUrl: typeof item.faviconUrl === 'string' ? item.faviconUrl : null
+    }
+  })
+  if (
+    typeof value.activeIndex !== 'number' ||
+    !Number.isInteger(value.activeIndex) ||
+    value.activeIndex < -1 ||
+    value.activeIndex >= items.length
+  ) {
+    throw invalidParams()
+  }
+  return {
+    anchor,
+    items,
+    query: value.query.slice(0, SUGGEST_TEXT_MAX),
+    activeIndex: value.activeIndex
+  }
+}
+
 export function registerBrowserIpc(
   manager: SessionBrowserRegistry,
   deps: {
     getMainWindow: () => BrowserWindow | null
     windows: IndependentWindows
     dragController: TabDragController
+    /** 建议子窗池（原生子窗口化专项）：show/hide 编排 + 子窗 sender 身份判别 */
+    suggestWindows: OmniboxSuggestWindows
   }
 ): void {
-  const { getMainWindow, windows, dragController } = deps
+  const { getMainWindow, windows, dragController, suggestWindows } = deps
 
   /** 推送目标窗口：'main' → 主窗口显式引用；独立窗口 → 登记表现取（销毁即跳过；主窗口 macOS 关窗期间为 null，均静默跳过） */
   function windowForId(windowId: string): BrowserWindow | null {
@@ -409,5 +468,80 @@ export function registerBrowserIpc(
     })
   )
 
-  console.log('[browser] IPC handlers 已注册（24 条通道，含历史补全与页内查找各 2 条）')
+  // —— 建议子窗域（原生子窗口化专项，契约见 shared/omniboxSuggest.ts）——
+
+  /** show/hide 的宿主身份解析：sender 所属窗口须为主窗口或登记独立窗口（建议面板是
+   * 窗口级 UI，不做会话守卫——零会话时地址栏禁用，面板开合本就不可达） */
+  function requireOwnerWindow(event: IpcMainInvokeEvent): string {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) throw new Error('无法识别命令来源窗口')
+    if (win === getMainWindow()) return WINDOW_ID_MAIN
+    for (const entry of windows.listAll()) {
+      if (entry.win === win) return entry.windowId
+    }
+    throw new Error('无法识别命令来源窗口')
+  }
+
+  /** hover/pick 的子窗身份解析：sender 须属池内子窗，返回宿主 windowId 供定向转发 */
+  function requireChildOwner(event: IpcMainInvokeEvent): string {
+    const windowId = suggestWindows.resolveOwnerOf(event.sender)
+    if (windowId === null) throw new Error('无法识别命令来源窗口')
+    return windowId
+  }
+
+  // suggest-show：开/更新面板（幂等全量）。宿主解析 → 守卫 → 子窗池承载
+  ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.show, (event, payload: unknown): OkResult =>
+    logFailure(OMNIBOX_SUGGEST_CHANNELS.show, payload, () => {
+      const windowId = requireOwnerWindow(event)
+      suggestWindows.show(windowId, parseSuggestShow(payload))
+      return { ok: true }
+    })
+  )
+
+  // suggest-hide：收起面板（无 payload，隐藏不销毁）
+  ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.hide, (event): OkResult =>
+    logFailure(OMNIBOX_SUGGEST_CHANNELS.hide, undefined, () => {
+      suggestWindows.hide(requireOwnerWindow(event))
+      return { ok: true }
+    })
+  )
+
+  // suggest-hover：子窗悬停行上报 → 转发宿主 shell（消费回 setSuggestIndex，
+  // 越界由 shell 渲染期钳制兜底，此处守卫整数与上限）
+  ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.hover, (event, payload: unknown): OkResult =>
+    logFailure(OMNIBOX_SUGGEST_CHANNELS.hover, payload, () => {
+      const windowId = requireChildOwner(event)
+      if (
+        !isRecord(payload) ||
+        typeof payload.index !== 'number' ||
+        !Number.isInteger(payload.index) ||
+        payload.index < -1 ||
+        payload.index >= SUGGEST_MAX_RESULTS
+      ) {
+        throw invalidParams()
+      }
+      windowForId(windowId)?.webContents.send(OMNIBOX_SUGGEST_CHANNELS.hovered, {
+        index: payload.index
+      })
+      return { ok: true }
+    })
+  )
+
+  // suggest-pick：子窗点选行上报 → 转发宿主 shell（导航与失败提示走 shell 既有链）
+  ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.pick, (event, payload: unknown): OkResult =>
+    logFailure(OMNIBOX_SUGGEST_CHANNELS.pick, payload, () => {
+      const windowId = requireChildOwner(event)
+      if (!isRecord(payload) || typeof payload.url !== 'string' || payload.url.length === 0) {
+        throw invalidParams()
+      }
+      windowForId(windowId)?.webContents.send(OMNIBOX_SUGGEST_CHANNELS.picked, {
+        url: payload.url
+      })
+      return { ok: true }
+    })
+  )
+
+  console.log(
+    '[browser] IPC handlers 已注册（31 条通道：浏览器域 24 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
+  )
 }

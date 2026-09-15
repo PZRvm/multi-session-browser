@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { splitByQuery } from './omniboxSuggest'
-import type { OmniboxSuggestion } from './omniboxSuggest'
+import type { OmniboxSuggestItemPayload } from '../../../../shared/omniboxSuggest'
 
 // 地址栏历史建议面板（Toolbar 抽出的纯展示组件，L7 定案）：行渲染、命中加粗、
 // favicon 占位全部收在这里；开合时机、键盘状态机与提交编排留在 Toolbar。
@@ -52,7 +52,9 @@ function HighlightedText({
 }
 
 export interface OmniboxSuggestPanelProps {
-  items: OmniboxSuggestion[]
+  /** 建议行（结构化窄类型：渲染只用 url/title/faviconUrl 三字段——shell 侧传
+   * OmniboxSuggestion[]（HistoryEntry 超集）与子窗侧传共享 payload 均可赋值） */
+  items: { entry: OmniboxSuggestItemPayload }[]
   /** 高亮行（Toolbar 渲染期钳制后的值；键盘与悬停统一经此） */
   activeIndex: number
   /** 规范化查询（与 suggest 同规，命中加粗切分用） */
@@ -77,8 +79,8 @@ export default function OmniboxSuggestPanel({
       aria-label="历史记录建议"
     >
       {items.map((item, index) => (
-        // mousedown 吞默认防先夺走输入焦点（onBlur 清 draft 会拆面板，click 不达）；
-        // 无标题行（历史标题未就绪）单行只示网址
+        // 建议行现由子窗承载：focusable:false 子窗不夺焦，无输入焦点可失（DESIGN
+        // 「行点击不再吞默认」）——无需 mousedown 吞默认
         <div
           key={item.entry.url}
           role="option"
@@ -86,7 +88,6 @@ export default function OmniboxSuggestPanel({
           className={`chrome-omnibox-suggest-item${
             index === activeIndex ? ' is-active' : ''
           }${item.entry.title ? '' : ' chrome-omnibox-suggest-item-untitled'}`}
-          onMouseDown={(e) => e.preventDefault()}
           onMouseEnter={() => onHover(index)}
           onClick={() => onPick(item.entry.url)}
         >

@@ -20,6 +20,13 @@ import type {
 } from '../shared/browser'
 import { HISTORY_CHANNELS } from '../shared/history'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
+import { OMNIBOX_SUGGEST_CHANNELS } from '../shared/omniboxSuggest'
+import type {
+  OmniboxSuggestDataPayload,
+  OmniboxSuggestHoverPayload,
+  OmniboxSuggestPickPayload,
+  OmniboxSuggestShowPayload
+} from '../shared/omniboxSuggest'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
@@ -199,6 +206,45 @@ const api = {
       ipcRenderer.on(BROWSER_CHANNELS.findResult, listener)
       return () => {
         ipcRenderer.removeListener(BROWSER_CHANNELS.findResult, listener)
+      }
+    }
+  },
+  // 地址栏建议原生子窗口（承载机制见 shared/omniboxSuggest.ts 头注释）：宿主 shell
+  // 用 show/hide 编排开合 + onHovered/onPicked 消费子窗鼠标转发；子窗用 hover/pick
+  // 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需
+  omniboxSuggest: {
+    show: (payload: OmniboxSuggestShowPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.show, payload),
+    hide: (): Promise<BrowserOkResult> => ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.hide),
+    hover: (payload: OmniboxSuggestHoverPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.hover, payload),
+    pick: (payload: OmniboxSuggestPickPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.pick, payload),
+    onData: (callback: (payload: OmniboxSuggestDataPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: OmniboxSuggestDataPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(OMNIBOX_SUGGEST_CHANNELS.data, listener)
+      return () => {
+        ipcRenderer.removeListener(OMNIBOX_SUGGEST_CHANNELS.data, listener)
+      }
+    },
+    onHovered: (callback: (payload: OmniboxSuggestHoverPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: OmniboxSuggestHoverPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(OMNIBOX_SUGGEST_CHANNELS.hovered, listener)
+      return () => {
+        ipcRenderer.removeListener(OMNIBOX_SUGGEST_CHANNELS.hovered, listener)
+      }
+    },
+    onPicked: (callback: (payload: OmniboxSuggestPickPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: OmniboxSuggestPickPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(OMNIBOX_SUGGEST_CHANNELS.picked, listener)
+      return () => {
+        ipcRenderer.removeListener(OMNIBOX_SUGGEST_CHANNELS.picked, listener)
       }
     }
   }

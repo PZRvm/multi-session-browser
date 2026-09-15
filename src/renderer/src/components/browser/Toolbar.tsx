@@ -7,10 +7,8 @@ import {
   RightOutlined
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
-import { useUiStore } from '../../stores/ui'
-import OmniboxSuggestPanel from './OmniboxSuggestPanel'
+import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
-import type { OmniboxSuggestion } from './omniboxSuggest'
 
 const INVALID_HINT_MS = 2500
 
@@ -18,8 +16,9 @@ const INVALID_HINT_MS = 2500
 // 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/主页/DevTools 钮
 // 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖。
 // 地址栏历史建议（Chrome omnibox 对齐）：编辑态按当前会话历史镜像本地过滤（编辑期
-// 零 IPC），下拉面板（OmniboxSuggestPanel 纯展示）键盘 ↑↓ 环形高亮 / Enter 高亮
-// 优先 / Esc 分层先关面板再还原
+// 检索零 IPC），下拉面板由主进程原生子窗口承载（原生子窗口化专项——面板打开期间
+// 页面保持可见，不再经 overlayDepth 收起原生层）；子窗开合/锚点/数据推送/鼠标转发
+// 消费的编排整体在 useOmniboxSuggestWindow hook，本组件只供状态机与回调。
 function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
@@ -33,8 +32,6 @@ function Toolbar(): React.JSX.Element {
   const stop = useBrowserStore((s) => s.stop)
   const navigate = useBrowserStore((s) => s.navigate)
   const toggleDevTools = useBrowserStore((s) => s.toggleDevTools)
-  const openOverlay = useUiStore((s) => s.openOverlay)
-  const closeOverlay = useUiStore((s) => s.closeOverlay)
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
@@ -62,7 +59,7 @@ function Toolbar(): React.JSX.Element {
 
   // 历史建议（地址栏补全）：编辑态对当前会话镜像本地过滤；-1 = 无键盘高亮。
   // dismissed：Esc 首按只关面板的抑制标志，继续输入或重新聚焦即复位（Chrome 对齐）
-  const suggestions = useMemo<OmniboxSuggestion[]>(
+  const suggestions = useMemo(
     () => (draft === null ? [] : suggest(history, draft)),
     [history, draft]
   )
@@ -74,17 +71,18 @@ function Toolbar(): React.JSX.Element {
   // 越界（输入变化/镜像更新条数变少）视为无高亮
   const activeSuggestIndex = suggestIndex < suggestions.length ? suggestIndex : -1
   const panelOpen = draft !== null && !suggestDismissed && suggestions.length > 0
+  // 子窗展示条目（结构化窄类型）：随 suggestions 记忆化，避免无关渲染触发重发
+  const items = useMemo(
+    () =>
+      suggestions.map(({ entry: { url, title, faviconUrl } }) => ({
+        url,
+        title,
+        faviconUrl
+      })),
+    [suggestions]
+  )
 
-  // 面板开合登记 overlay：内容区被主进程 WebContentsView 原生覆盖，DOM 下拉越过工具栏
-  // 即被遮挡——经 ui store 既有机制收起原生层（与 antd 弹层同规）；卸载/收合由 effect
-  // cleanup 释放，杜绝计数泄漏把内容区永久收起。已知取舍（评审 L8 裁决维持现状）：
-  // 面板打开期间页面区域随之隐藏、浏览器快捷键冻结，与 Chrome「页面保持可见」有视觉
-  // 差异；Chrome 级保真需主进程原生子窗口承载下拉，另立专项评估
-  useEffect(() => {
-    if (!panelOpen) return
-    openOverlay()
-    return () => closeOverlay()
-  }, [panelOpen, openOverlay, closeOverlay])
+  const hostRef = useRef<HTMLDivElement>(null)
 
   // 消费主进程 focus-address（Cmd/Ctrl+L 与新建空 Tab）：按计数变化聚焦地址栏并全选
   useEffect(() => {
@@ -147,6 +145,19 @@ function Toolbar(): React.JSX.Element {
     setSuggestIndex(-1)
     void submitUrl(url)
   }
+
+  // 子窗编排（锚点采集/show 幂等全量推送/hide 收合/悬停点选转发消费）整体下沉
+  // useOmniboxSuggestWindow hook；onHover/onPick 每渲染透传最新闭包由 hook 内
+  // latest-ref 兜底，onPick 闭包含 pending 基线（当前 Tab/URL）不惧陈旧
+  useOmniboxSuggestWindow({
+    hostRef,
+    panelOpen,
+    items,
+    query: normalizedQuery,
+    activeIndex: activeSuggestIndex,
+    onHover: setSuggestIndex,
+    onPick: pickSuggestion
+  })
 
   // 输入法组合中的回车（isComposing）只用于候选确认，不触发提交；建议面板的键盘
   // 语义分层（Chrome 对齐）：Enter 高亮项优先、Esc 先关面板（编辑态保留，再按才还原
@@ -218,7 +229,7 @@ function Toolbar(): React.JSX.Element {
           <HomeOutlined />
         </button>
       </div>
-      <div className="chrome-omnibox-host">
+      <div className="chrome-omnibox-host" ref={hostRef}>
         <input
           ref={inputRef}
           type="text"
@@ -232,7 +243,6 @@ function Toolbar(): React.JSX.Element {
           value={draft ?? pendingShown ?? mainUrl}
           aria-invalid={invalid}
           aria-expanded={panelOpen}
-          aria-controls={panelOpen ? 'chrome-omnibox-suggest' : undefined}
           role="combobox"
           title={invalid ? '无效的网址' : undefined}
           onChange={(e) => {
@@ -251,15 +261,6 @@ function Toolbar(): React.JSX.Element {
           }}
           onKeyDown={onKeyDown}
         />
-        {panelOpen && (
-          <OmniboxSuggestPanel
-            items={suggestions}
-            activeIndex={activeSuggestIndex}
-            query={normalizedQuery}
-            onHover={setSuggestIndex}
-            onPick={pickSuggestion}
-          />
-        )}
       </div>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button

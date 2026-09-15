@@ -1252,8 +1252,10 @@ img.chrome-tab-favicon {
    分层（无阴影，发丝线规则）、hover/active 蒙版阶梯（选中态升一档 hover-veil →
    active-veil，与导航钮同阶梯）、亮暗成对。行 = favicon + 标题 + 网址（标题缺失时
    单行只示网址），单行省略；滚动条主题化（chrome 系细滚动条，板面惯例的右侧语系
-   版）。显隐瞬切（离散跳变对齐插入指示器先例，不引入位移动效）；面板越过工具栏进入
-   内容区，开合期间经 ui store overlayDepth 收起原生层防遮挡 */
+   版）。显隐瞬切（离散跳变对齐插入指示器先例，不引入位移动效）。承载：主进程
+   原生子窗口渲染（原生子窗口化专项定稿，替代 overlayDepth 整页收起）——面板打开
+   期间页面保持可见；下方 body[data-role] 作用域为子窗满窗承载态，shell 内不再
+   内联渲染本面板 */
 .chrome-omnibox-suggest {
   position: absolute;
   top: calc(100% + 6px);
@@ -1267,6 +1269,20 @@ img.chrome-tab-favicon {
   background: var(--chrome-surface);
   scrollbar-width: thin;
   scrollbar-color: var(--chrome-line) transparent;
+}
+
+/* 建议子窗承载态（原生子窗口化专项）：窗口边界即面板边界（宽 = omnibox host 宽、
+   高 = 行数 × 30 + 2 封顶 298，由主进程按 shared/omniboxSuggest.ts 同源常量确定性
+   计算）；透明窗体 + 8px 圆角透出页面，主题随 nativeTheme 的 prefers-color-scheme
+   自动亮暗。子窗渲染端为 OmniboxSuggestWindow（纯展示零自治） */
+body[data-role='omnibox-suggest'] {
+  background: transparent;
+}
+
+body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
+  position: fixed;
+  inset: 0;
+  max-height: none;
 }
 
 .chrome-omnibox-suggest::-webkit-scrollbar {

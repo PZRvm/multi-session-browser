@@ -6,11 +6,12 @@
 // 侧乐观标题）；不持有任何 WebContentsView（挂摘一律经 manager，本模块只在
 // ready-to-show / closed 两个时点回调 registry 编排）。
 
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
 import { installShellInputGuard } from '../inputGuard'
+import { clampRectIntoWorkArea } from './screen'
 
 /** 默认/最小窗口尺寸（DIP）：Chrome 新窗口量级，可自由调整 */
 const DEFAULT_WIDTH = 1024
@@ -109,14 +110,8 @@ export function createIndependentWindows(deps: {
         width: DEFAULT_WIDTH,
         height: DEFAULT_HEIGHT
       }
-      const area = screen.getDisplayMatching(rect).workArea
-      // clamp 到工作区（上界不小于下界——极端小工作区时贴左/上对齐，不越界）
-      const clamp = (v: number, lo: number, hi: number): number =>
-        Math.min(Math.max(v, lo), Math.max(lo, hi))
-      return {
-        x: clamp(rect.x, area.x, area.x + area.width - DEFAULT_WIDTH),
-        y: clamp(rect.y, area.y, area.y + area.height - DEFAULT_HEIGHT)
-      }
+      const { x: cx, y: cy } = clampRectIntoWorkArea(rect)
+      return { x: cx, y: cy }
     } catch {
       return null
     }

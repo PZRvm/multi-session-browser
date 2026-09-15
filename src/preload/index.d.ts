@@ -16,6 +16,12 @@ import type {
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
+import type {
+  OmniboxSuggestDataPayload,
+  OmniboxSuggestHoverPayload,
+  OmniboxSuggestPickPayload,
+  OmniboxSuggestShowPayload
+} from '../shared/omniboxSuggest'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
 import type {
   BatchDeleteSessionsPayload,
@@ -88,6 +94,15 @@ declare global {
         onDragHover(callback: (payload: TabDragHoverPayload) => void): () => void
         onFindRequest(callback: () => void): () => void
         onFindResult(callback: (result: FoundInPageResult) => void): () => void
+      }
+      omniboxSuggest: {
+        show(payload: OmniboxSuggestShowPayload): Promise<OkResult>
+        hide(): Promise<OkResult>
+        hover(payload: OmniboxSuggestHoverPayload): Promise<OkResult>
+        pick(payload: OmniboxSuggestPickPayload): Promise<OkResult>
+        onData(callback: (payload: OmniboxSuggestDataPayload) => void): () => void
+        onHovered(callback: (payload: OmniboxSuggestHoverPayload) => void): () => void
+        onPicked(callback: (payload: OmniboxSuggestPickPayload) => void): () => void
       }
     }
   }
