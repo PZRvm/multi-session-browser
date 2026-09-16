@@ -64,8 +64,9 @@ function AppearanceEntry({ panelWidth }: AppearanceEntryProps): React.JSX.Elemen
   }
 
   return (
-    // 分段控件融入信息板色阶：轨道=抬升层，选中瓣=深砖面+琥珀字形（翻牌语言），
-    // token 取值走 CSS 变量以随主题媒体查询同步翻转；algorithm 自上层 ConfigProvider 继承
+    // 分段控件融入信息板色阶：轨道=抬升层，选中瓣=白面抬升，字形随翻牌砖的昼夜墨色
+    // （白天深琥珀 / 黑夜航显琥珀，即砖上数字 token），取值走 CSS 变量以随主题媒体查询同步翻转；
+    // algorithm 自上层 ConfigProvider 继承
     <ConfigProvider
       theme={{
         components: {
@@ -75,7 +76,7 @@ function AppearanceEntry({ panelWidth }: AppearanceEntryProps): React.JSX.Elemen
             itemHoverColor: 'var(--board-ink)',
             itemHoverBg: 'var(--board-hover-veil)',
             itemSelectedBg: 'var(--board-segment-selected-bg)',
-            itemSelectedColor: 'var(--amber)',
+            itemSelectedColor: 'var(--board-tile-ink)',
             borderRadius: 4
           }
         }

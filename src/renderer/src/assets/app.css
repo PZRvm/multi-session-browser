@@ -18,8 +18,9 @@
   --board-scrollbar-thumb: #c9c1b2;
   --board-ink: #1e2329;
   --board-ink-dim: #616974;
-  /* 板头外观分段控件选中瓣：亮色取黑夜砖面（暗瓣亮字，自成对照） */
-  --board-segment-selected-bg: #1a2026;
+  /* 板头外观分段控件选中瓣：亮色取纯白抬升瓣（分段控件惯例——暖灰轨道上浮起白瓣），
+     昼夜各按自家轨道抬升，砖面暗瓣只属于黑夜 */
+  --board-segment-selected-bg: #ffffff;
   --board-hover-veil: rgba(30, 35, 41, 0.08);
   --board-scrollbar-hover: #bcb4a6;
   /* 工作区专项：板面表单控件描边（切换框/搜索框边界；与滚动条 hover 同值异义 token） */
