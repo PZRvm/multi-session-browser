@@ -34,6 +34,15 @@
   --amber-veil: rgba(34, 26, 0, 0.12);
   --idle: #6b7280;
   --loading: #9a5f00;
+  /* 设置专项阶段二：危险色域（DESIGN「设置窗口」——危险区与两步确认弹层专用；
+     亮值对齐 antd danger 红阶 red-7、暗值 red-5，历久经 antd danger 供色先例；
+     veil 为危险钮 hover 蒙版（0.08 档，对齐板面 hover 蒙版惯例） */
+  --danger: #d4380d;
+  --danger-veil: rgba(212, 56, 13, 0.08);
+  /* 弹层遮罩与两步确认卡片底（DESIGN 定稿：卡片底亮纯白 / 暗 raised 层同值，
+     antd 弹层 elevated 白同源） */
+  --mask: rgba(0, 0, 0, 0.45);
+  --settings-confirm-card-bg: #ffffff;
 
   /* Chrome 右侧 · 亮色 */
   --chrome-tabbar: #dee1e6;
@@ -82,6 +91,12 @@
     --board-control-line: #3a434e;
     --panel-divider: #0b0e11;
     --loading: #ffb000;
+    /* 危险色域 · 暗（red-5 提亮保暗底可读；veil 提一档至 0.12） */
+    --danger: #ff7875;
+    --danger-veil: rgba(255, 120, 117, 0.12);
+    /* 弹层遮罩 · 暗加重一档（近黑蓝底上保遮罩可辨）；卡片底 = raised 层同值 */
+    --mask: rgba(0, 0, 0, 0.6);
+    --settings-confirm-card-bg: #1a2026;
 
     /* Chrome 右侧 · Chromium 深色灰阶 */
     --chrome-tabbar: #202124;
@@ -849,7 +864,34 @@ body.col-resizing {
   opacity: 0.4;
 }
 
-/* 三段外观分段控件（左栏 ≥360px 时替换图标入口）：
+/* 板头设置齿轮（设置专项阶段一）：度量镜像上方两枚板头入口（20×20 / 4px 圆角 /
+   12px 图标字阶），hover 走蒙版抬升 + 主墨（设置专项定稿态：次墨 → hover
+   board-hover-veil + board-ink）；无禁用态——入口恒可用（单例开窗无失效场景，
+   亦不随左栏宽度降级），:focus-visible 走全局琥珀外框规则 */
+.settings-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.settings-toggle:hover {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+
+/* 三段外观分段控件（左栏 ≥390px 时替换图标入口；阈值随 AppearanceEntry 常量同源）：
    图标 12px 对齐相邻板头入口字阶，配色经 ConfigProvider 组件 token 走信息板色阶 */
 .appearance-segmented {
   flex: none;
@@ -934,6 +976,476 @@ body.col-resizing {
 .new-session:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* ---------- 设置窗口（设置专项；形态与内容契约见 DESIGN.md「设置窗口」条目，侧栏双栏重构定稿） ---------- */
+
+/* 根容器挂 data-role="settings"（窗口级作用域先例：建议子窗的 body[data-role]）。
+   板面双世界 token：board-bg 底 / board-ink 墨 / board-hairline 收边——色值全部经
+   既有变量体系取值，亮暗随 prefers-color-scheme 自动翻转（主进程 nativeTheme
+   .themeSource 驱动），不设独立暗态块；无卡片、无阴影。
+   双栏骨架（侧栏双栏契约）：根容器 flex row（左 176px 侧栏 + 右详情区）兼定位锚
+   （position: relative 供两步确认弹层 absolute inset-0 覆盖整个窗内容区，不受
+   .settings-detail 滚动影响），滚动职责独占在详情区 */
+.settings-window {
+  position: relative;
+  display: flex;
+  height: 100%;
+  background: var(--board-bg);
+  color: var(--board-ink);
+}
+
+/* 侧栏（nav）：176px、抬升层底、右缘发丝线、内距 10px 8px；自身不滚动
+   （五分类恒不满溢，超视口分类数为 DESIGN 留白再议）；
+   分类行间 2px 间隙（2026-09-17 用户裁决）：密集导航行的呼吸位，不破坏 34px 行高 */
+.settings-sidebar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 176px;
+  padding: 10px 8px;
+  background: var(--board-bg-raised);
+  border-right: 1px solid var(--board-hairline);
+}
+
+/* 分类行：34px、6px 圆角、15px 图标 + 13px 文字、9px 间隙、左内距 10px；
+   hover 走板面蒙版；选中 = 琥珀反白（--amber 底 + --amber-ink 字与图标 + 600 字重，
+   与会话行 Inversion Rule 同构——导航是位置信号，「设置窗零琥珀」的显式例外，
+   裁决见 DESIGN）；选中态经 aria-current 属性选择器驱动（视觉态与无障碍态单源） */
+.settings-side-cat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--board-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+/* 未选中态图标次墨（选中反白由下方属性选择器整体接管） */
+.settings-side-cat-icon {
+  flex: none;
+  display: inline-flex;
+  font-size: 15px;
+  color: var(--board-ink-dim);
+}
+
+.settings-side-cat:hover {
+  background: var(--board-hover-veil);
+}
+
+.settings-side-cat[aria-current='page'] {
+  background: var(--amber);
+  color: var(--amber-ink);
+  font-weight: 600;
+}
+
+.settings-side-cat[aria-current='page'] .settings-side-cat-icon {
+  color: var(--amber-ink);
+}
+
+/* 恢复出厂分类：沉底（margin-top: auto）恒 danger 色（字与图标），hover 走危险
+   蒙版；选中 = danger 实底白字（反白语言的危险变体，不用琥珀）；规则须排在
+   琥珀反白之后覆盖之 */
+.settings-side-cat-danger {
+  margin-top: auto;
+  color: var(--danger);
+}
+
+.settings-side-cat-danger .settings-side-cat-icon {
+  color: var(--danger);
+}
+
+.settings-side-cat-danger:hover {
+  background: var(--danger-veil);
+}
+
+.settings-side-cat-danger[aria-current='page'] {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.settings-side-cat-danger[aria-current='page'] .settings-side-cat-icon {
+  color: #ffffff;
+}
+
+/* 详情区：留白 22px 28px、滚动职责独占（8px 主题化滚动条镜像会话列表） */
+.settings-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 22px 28px;
+}
+
+.settings-detail::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-detail::-webkit-scrollbar-thumb {
+  background: var(--board-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.settings-detail::-webkit-scrollbar-thumb:hover {
+  background: var(--board-scrollbar-hover);
+}
+
+.settings-detail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 版面标题：15/600 板面主墨（h2 归位到版面级字阶），标题下 2px 接版面说明 */
+.settings-pane-title {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+
+/* 版面说明：11px 次墨，说明下 8px 接行区 */
+.settings-pane-desc {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--board-ink-dim);
+}
+
+/* 控件行（44px 行体系，双栏契约）：min-height 44px、底部发丝线分隔（末行无）、
+   左 = label 13/500 + 描述副行 11px 次墨（行主体 min-width: 0——窄窗下描述可换行
+   撑高行高）+ 右 = 控件（flex: none 不换行，space-between 收到右端）；
+   行内距 6px 0 保换行时的呼吸 */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--board-hairline);
+}
+
+.settings-pane > .settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-row-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--board-ink);
+}
+
+.settings-row-desc {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--board-ink-dim);
+}
+
+.settings-row-control {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+/* 外观行图标三段（2026-09-17 用户裁决改图标形态，与板头同款）：配色经
+   ConfigProvider 组件 token 走信息板色阶（配方同板头 .appearance-segmented）；
+   瓣内图标经内嵌 span 居中（label 槽位留空规避 antd 裸 span 包装陷阱） */
+.settings-appearance-segmented {
+  flex: none;
+  font-size: 13px;
+}
+
+.settings-appearance-seg-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 语言行展示态选择框（WorkspaceSwitcher 收起态同构）：26px 高、1px 控件线描边、
+   4px 圆角、内容 13px、右端 10px 下箭头次墨；纯展示非交互——无 hover 无 pointer */
+.settings-select-ghost {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--board-ink);
+}
+
+.settings-select-ghost-text {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.settings-select-ghost-caret {
+  flex: none;
+  display: inline-flex;
+  font-size: 10px;
+  color: var(--board-ink-dim);
+}
+
+/* 关于版面静态值（数据目录行）：13px 次墨右对齐（由 .settings-row-control 收到
+   右端），纯展示 */
+.settings-static-value {
+  flex: none;
+  font-size: 13px;
+  color: var(--board-ink-dim);
+}
+
+/* 快捷键键帽（双栏契约）：高 22px、min-width 26px、0 7px 内距、砖底 + 砖线 +
+   3px 圆角、mono 11px——翻牌砖同源的板面砖语言；多键以 10px 次墨「+」相隔
+   （kbd 元素承载键位语义，mono 栈对齐翻牌数字） */
+.settings-kbd-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.settings-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--board-tile-line);
+  border-radius: 3px;
+  background: var(--board-tile);
+  color: var(--board-ink);
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.settings-kbd-plus {
+  font-size: 10px;
+  color: var(--board-ink-dim);
+}
+
+/* 关于版面居中签名：产品名 15/600 + letter-spacing 0.02em（板头产品名同语言），
+   版本 11px 次墨（占位「—」）；留白 26px 0 18px（demo 方案一度量） */
+.settings-about-hero {
+  padding: 26px 0 18px;
+  text-align: center;
+}
+
+/* 应用图标：64px 居中于产品名上方（2026-09-17 用户裁决补入；圆角已在图标资产内
+   烘焙，CSS 不再裁切） */
+.settings-about-icon {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 12px;
+}
+
+.settings-about-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--board-ink);
+}
+
+.settings-about-version {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+/* antd Input 板面化覆写（设置窗两处输入：主页行与两步确认第二步，度量同源）：
+   28px 高、1px 控件线、4px 圆角、透明底融入板面（卡片内即透卡片底）、focus 边框
+   加深至次墨；压掉 antd 聚焦态自带的蓝色描边与 box-shadow（蓝不进板面 + 无阴影
+   规则），hover 加深同 ws-combobox 惯例；主页行在 44px 行体系内取 220px 定宽
+   （控件不换行，卡片内第二步维持 100% 宽） */
+.settings-input.ant-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-size: 13px;
+  transition: border-color 0.12s ease;
+}
+
+.settings-input.ant-input:hover {
+  border-color: var(--board-ink-dim);
+}
+
+.settings-input.ant-input:focus,
+.settings-input.ant-input-focused {
+  border-color: var(--board-ink-dim);
+  outline: none;
+  box-shadow: none;
+}
+
+.settings-input.ant-input::placeholder {
+  color: var(--board-ink-dim);
+  opacity: 0.75;
+}
+
+/* 主页行输入在行体系内的定宽覆写（220px，demo 方案一度量；行控件不换行） */
+.settings-row-control .settings-input.ant-input {
+  width: 220px;
+}
+
+/* 危险区（恢复出厂版面，双栏契约）：版面标题与说明之下——独立版面后不再需要
+   单列时代的顶部发丝线收边；danger 描边钮 + 11px 次墨后果说明；
+   :focus-visible 沿用全局琥珀外框规则 */
+.settings-danger-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-danger-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--board-ink-dim);
+}
+
+/* danger 描边钮（恢复出厂设置… / 弹层第一步「下一步」）：1px --danger 描边 +
+   --danger 字 + 6px 圆角，hover 走危险蒙版（亮 0.08 档，DESIGN 定稿值） */
+.settings-danger-btn {
+  height: 26px;
+  padding: 0 14px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--danger);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.settings-danger-btn:not(:disabled):hover {
+  background: var(--danger-veil);
+}
+
+/* 弹层第二步「确认重置」：danger 实底白字，输入精确等于「重置」才启用；hover 以
+   危险蒙版叠加示意（背景图叠底色，不引入新色值）；禁用灰化沿用主按钮惯例 */
+.settings-danger-solid-btn {
+  height: 26px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--danger);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.settings-danger-solid-btn:not(:disabled):hover {
+  background-image: linear-gradient(var(--danger-veil), var(--danger-veil));
+}
+
+.settings-danger-solid-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* 弹层普通钮（「取消」）：plain——无边框无底色，hover 走板面蒙版（会话行菜单同惯例） */
+.settings-plain-btn {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--board-ink);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.settings-plain-btn:hover {
+  background: var(--board-hover-veil);
+}
+
+/* 两步确认弹层（DESIGN「两步确认弹层」定稿，自绘 overlay）：absolute inset-0 覆盖
+   设置窗内容区、底 --mask、flex 居中、z-index 40（.settings-window 为定位锚，
+   不随 .settings-detail 滚动）；居中卡片 340px、1px 发丝线、8px 圆角、无阴影 */
+.settings-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--mask);
+}
+
+.settings-confirm-card {
+  width: 340px;
+  max-width: 100%;
+  padding: 16px;
+  border: 1px solid var(--board-hairline);
+  /* 6px 对齐板面弹层先例（WorkspaceSwitcher 面板同值）；8px 属 Chrome tab 语法 */
+  border-radius: 6px;
+  background: var(--settings-confirm-card-bg);
+}
+
+/* 第一步标题（第二步复用）：13/600 板面主墨 */
+.settings-confirm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+
+/* 后果清单三条：12px 次墨、无项目符号（清单语义由 <ul> 承担） */
+.settings-confirm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-confirm-list li {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--board-ink-dim);
+}
+
+/* 第二步受控输入：主页行 Input 同度量（.settings-input 板面化覆写共用） */
+.settings-confirm-input {
+  margin-top: 12px;
+}
+
+/* 按钮行：右对齐（DESIGN 定稿），与标题/清单的间距一档收紧到 16px */
+.settings-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 /* ---------- 右侧：Chrome 浏览器框架 ---------- */

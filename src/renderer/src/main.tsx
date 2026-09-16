@@ -6,17 +6,37 @@ import OmniboxSuggestWindow from './components/browser/OmniboxSuggestWindow'
 import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore, windowIdentity } from './stores/browser'
 import { useSessionsStore } from './stores/sessions'
+import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 
-// App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest）只渲染轻量的
-// OmniboxSuggestWindow，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
+// App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
+// 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
 // 独立窗首帧经 Suspense fallback=null 过渡，加载完成后照常绘制
 const App = lazy(() => import('./App'))
 
-// 建议子窗角色先行分流（原生子窗口化专项）：纯渲染端——只订阅 data 推送渲染建议
-// 面板，不初始化 sessions/browser stores（零拉取零持有，状态单源在宿主 shell）；
-// 主题随 nativeTheme themeSource 驱动的 prefers-color-scheme 自动亮暗，appearance
-// 订阅亦不需要。其余角色同走既有链路
-if (new URLSearchParams(window.location.search).get('role') === 'omnibox-suggest') {
+// 设置窗壳体同款惰性分流（设置专项阶段一）：阶段一只有三组分组标题骨架
+const SettingsWindow = lazy(() => import('./components/SettingsWindow'))
+
+const role = new URLSearchParams(window.location.search).get('role')
+
+// 设置窗角色先行分流（设置专项阶段一，?role=settings）：单例设置子窗由主进程加载
+// 本 renderer 包进入该角色。不初始化 sessions/browser store（无会话面板与浏览区）；
+// 阶段二起初始化 appearance 只读镜像（设置窗外观行显示真实当前模式）。壳体主题仍走
+// CSS 媒体查询：app.css 的暗色 token 经 prefers-color-scheme 随主进程 nativeTheme
+// .themeSource 自动翻转（与建窗注入的 backgroundColor 同源对账）
+if (role === SETTINGS_WINDOW_ROLE) {
+  document.body.dataset.role = SETTINGS_WINDOW_ROLE
+  // 外观行只读镜像自阶段二初始化（兑现阶段一「阶段二再议」备注）：init 先订阅后拉取，
+  // 有 in-flight 防重入与失败容错——失败不阻塞壳体渲染，保留 CSS 媒体查询主题；设置窗
+  // 只读消费 mode/resolvedTheme，不调用 setMode（切换仍由板头/主进程承担）
+  void useAppearanceStore.getState().init()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={null}>
+        <SettingsWindow />
+      </Suspense>
+    </StrictMode>
+  )
+} else if (role === 'omnibox-suggest') {
   document.body.dataset.role = 'omnibox-suggest'
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

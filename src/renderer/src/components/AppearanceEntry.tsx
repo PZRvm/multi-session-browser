@@ -1,24 +1,12 @@
 import { ConfigProvider, Dropdown, Segmented } from 'antd'
 import type { MenuProps, SegmentedProps } from 'antd'
-import { DesktopOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
-import { useAppearanceStore } from '../stores/appearance'
+import { useAppearanceStore, appearanceText } from '../stores/appearance'
+import { appearanceIcons } from './appearanceIcons'
 import { APPEARANCE_MODES, isAppearanceMode } from '../../../shared/appearance'
-import type { AppearanceMode } from '../../../shared/appearance'
 
-const appearanceText: Record<AppearanceMode, string> = {
-  system: '跟随系统',
-  light: '白天',
-  dark: '黑夜'
-}
-
-// 外观三态共用一套图标词汇：跟随系统=显示器、白天=太阳、黑夜=月亮；
+// 外观三态共用一套图标词汇：跟随系统=显示器、白天=太阳、黑夜=月亮（单源在
+// appearanceIcons.tsx，设置窗外观行同词汇）；
 // 窄态按钮显示当前态，宽态分段控件三态并置，下拉菜单保持同名同图标
-const appearanceIcons: Record<AppearanceMode, React.ReactNode> = {
-  system: <DesktopOutlined />,
-  light: <SunOutlined />,
-  dark: <MoonOutlined />
-}
-
 const appearanceMenuItems: MenuProps['items'] = APPEARANCE_MODES.map((mode) => ({
   key: mode,
   icon: appearanceIcons[mode],
@@ -38,8 +26,11 @@ const appearanceSegmentedOptions: SegmentedProps['options'] = APPEARANCE_MODES.m
   )
 }))
 
-// 左栏拖拽 ≥ 该宽度时外观入口升级为三段分段控件；更窄时维持图标+下拉单选
-const APPEARANCE_SEGMENTED_MIN_WIDTH = 360
+// 左栏拖拽 ≥ 该宽度时外观入口升级为三段分段控件；更窄时维持图标+下拉单选。
+// 390 为设置专项阶段一由 360 上调的定稿值（DESIGN.md「应用外观扩展契约」）：
+// 板头入列设置齿轮使右侧控件带增宽约 28px（20px 钮 + 8px 间隙），原 360px 档
+// 转三段形态时板头过挤；390 保证可拖区间 [390, 420] 内宽态仍可达（< 420 上限）
+const APPEARANCE_SEGMENTED_MIN_WIDTH = 390
 
 interface AppearanceEntryProps {
   panelWidth: number

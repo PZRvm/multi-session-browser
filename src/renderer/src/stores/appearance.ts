@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import type { AppearanceMode, AppearanceSnapshot, ResolvedTheme } from '../../../shared/appearance'
 
+// 外观三态中文文案的单一副本（板头 AppearanceEntry 与设置窗外观行同词消费；本模块为
+// 非组件文件，常量导出不触发 react-refresh 限制——阶段六 i18n 字典接管后迁入字典）
+export const appearanceText: Record<AppearanceMode, string> = {
+  system: '跟随系统',
+  light: '白天',
+  dark: '黑夜'
+}
+
 interface AppearanceState extends AppearanceSnapshot {
   setting: boolean
   init: () => Promise<void>

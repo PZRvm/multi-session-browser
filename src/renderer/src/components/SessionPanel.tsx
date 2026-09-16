@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { App, Button, Checkbox, ConfigProvider, Dropdown, Input, Modal, theme } from 'antd'
 import type { MenuProps } from 'antd'
-import { CheckSquareOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import { CheckSquareOutlined, MoreOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
 import FlapCounter from './FlapCounter'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
@@ -418,6 +418,22 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               onClick={toggleBatchMode}
             >
               <CheckSquareOutlined />
+            </button>
+            {/* 设置齿轮（设置专项阶段一）：恒渲染不随左栏宽度降级——它是 Windows 的
+                唯一发现路径，宽度降级由外观三段阈值（AppearanceEntry）承担；开窗/
+                聚焦单例由主进程裁决（重复点击聚焦既有窗） */}
+            <button
+              type="button"
+              className="settings-toggle"
+              title="设置"
+              aria-label="设置"
+              onClick={() => {
+                window.api.settings.open().catch((error: unknown) => {
+                  console.warn('打开设置窗口失败:', error)
+                })
+              }}
+            >
+              <SettingOutlined />
             </button>
             <span className="board-count">
               <span className="board-count-label">会话</span>
