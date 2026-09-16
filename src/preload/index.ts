@@ -50,6 +50,8 @@ import type {
   StoredSession,
   StoredWorkspace
 } from '../shared/sessions'
+import { SETTINGS_CHANNELS } from '../shared/settings'
+import type { OkResult as SettingsOkResult } from '../shared/settings'
 
 // Custom APIs for renderer
 const api = {
@@ -247,6 +249,11 @@ const api = {
         ipcRenderer.removeListener(OMNIBOX_SUGGEST_CHANNELS.picked, listener)
       }
     }
+  },
+  // 设置域（契约见 shared/settings.ts）：板头齿轮请求主进程打开/聚焦单例设置窗口；
+  // 应用菜单路径在主进程内直连不经此通道。设置项读写通道随阶段二起扩展
+  settings: {
+    open: (): Promise<SettingsOkResult> => ipcRenderer.invoke(SETTINGS_CHANNELS.open)
   }
 }
 

@@ -17,6 +17,11 @@ import {
   getAppearanceBackgroundColor,
   registerAppearanceIpc
 } from './appearance'
+import {
+  createSettingsWindowController,
+  registerSettingsIpc,
+  type SettingsWindowController
+} from './settingsWindow'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { WINDOW_ID_MAIN } from '../shared/browser'
 
@@ -51,6 +56,11 @@ let mainWindow: BrowserWindow | null = null
 // 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
 // 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
 let suggestWindows: OmniboxSuggestWindows | null = null
+// 设置窗控制器（设置专项阶段一）：单例设置子窗的创建/聚焦/主窗级联——应用菜单
+//「设置… ⌘,」直连 open()（模块级晚绑定：菜单安装先于控制器创建，click 触发必在
+// 用户交互时、控制器已就绪），板头齿轮经设置域 open IPC 通道；主窗 closed 钩子经
+// 此引用级联关闭设置窗（whenReady 内创建，此前为 null）
+let settingsWindowController: SettingsWindowController | null = null
 const appearanceController = createAppearanceController()
 
 /**
@@ -69,6 +79,15 @@ function installChineseMenu(): void {
           label: appName,
           submenu: [
             { role: 'about' as const, label: `关于${appName}` },
+            // 设置入口（设置专项阶段一）：macOS「偏好设置」惯例位——关于之后、服务
+            // 分隔线之前，加速键 CmdOrCtrl+,；click 经模块级控制器晚绑定（菜单安装
+            // 先于控制器创建，触发时必已就绪）。仅 darwin 加此项——Win/Linux 菜单栏
+            // 默认隐藏（autoHideMenuBar），设置发现路径只有板头齿轮（PRD 3.8.1）
+            {
+              label: '设置…',
+              accelerator: 'CmdOrCtrl+,',
+              click: () => settingsWindowController?.open()
+            },
             { type: 'separator' as const },
             { role: 'services' as const, label: '服务' },
             { type: 'separator' as const },
@@ -148,10 +167,12 @@ function createWindow(): void {
   }
 
   // 主窗口销毁（macOS 关窗）即置空显式引用：getWindow('main')/定向推送此后自然跳过；
-  // 重开由 activate → createWindow 重建并回填。建议子窗随之销毁（挂池摘监听）
+  // 重开由 activate → createWindow 重建并回填。建议子窗随之销毁（挂池摘监听），
+  // 设置窗（若有）一并级联关闭（单例控制器内自清引用，重开主窗后可再次开窗）
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
     suggestWindows?.dispose(WINDOW_ID_MAIN)
+    settingsWindowController?.dispose()
   })
 
   // macOS 关窗重开场景：重挂当前激活会话的 view 到新窗口（注册表路由到激活 manager；
@@ -209,6 +230,15 @@ app.whenReady().then(async () => {
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId)
   })
 
+  // 设置窗控制器（设置专项阶段一）：单例设置子窗——应用菜单「设置… ⌘,」直连
+  // open()，板头齿轮经设置域 open IPC 通道（下方注册区接线）；建窗背景色随外观主题
+  // 现取（主窗同款注入），后续主题翻转由 appearance 广播链自动覆盖（getAllWindows
+  // 逐窗 setBackgroundColor，设置窗创建后即纳入），无需本控制器额外接线
+  settingsWindowController = createSettingsWindowController({
+    getMainWindow: () => mainWindow,
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme
+  })
+
   // 会话浏览器注册表：每会话一个独立分区（persist:sess-<id>）的 TabManager，命令按
   // 来源窗口作用域路由（ipc.ts 经 resolveSenderScope 解析后委托），会话运行状态
   //（idle/loading）在注册表内聚合；宿主窗口解析：'main' → 主窗口显式引用，独立窗口
@@ -256,6 +286,7 @@ app.whenReady().then(async () => {
     suggestWindows
   })
   registerAppearanceIpc(appearanceController)
+  registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)

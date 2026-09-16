@@ -23,6 +23,7 @@ import type {
   OmniboxSuggestShowPayload
 } from '../shared/omniboxSuggest'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
+import type { OkResult as SettingsOkResult } from '../shared/settings'
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
@@ -103,6 +104,9 @@ declare global {
         onData(callback: (payload: OmniboxSuggestDataPayload) => void): () => void
         onHovered(callback: (payload: OmniboxSuggestHoverPayload) => void): () => void
         onPicked(callback: (payload: OmniboxSuggestPickPayload) => void): () => void
+      }
+      settings: {
+        open(): Promise<SettingsOkResult>
       }
     }
   }
