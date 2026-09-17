@@ -169,8 +169,10 @@ export function createSessionBrowserRegistry(deps: {
   getWindow: (windowId: string) => BrowserWindow | null
   /** 独立窗口登记表（index.ts 注入）：tear-off 建窗、空窗收口与作用域解析经此触达 */
   windows: IndependentWindows
+  /** 当前主页（空串 = 未设置）现取：index.ts 注入 settings 域同步缓存——newUserTab 的默认地址源（PRD 3.8.2 修订） */
+  getHomepageUrl: () => string
 }): SessionBrowserRegistry {
-  const { getWindow, windows } = deps
+  const { getWindow, windows, getHomepageUrl } = deps
 
   const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
@@ -407,7 +409,8 @@ export function createSessionBrowserRegistry(deps: {
     const manager = createTabManager(getWindow, {
       sessionId: id,
       partition,
-      initialBounds: globalBounds ?? undefined
+      initialBounds: globalBounds ?? undefined,
+      getHomepageUrl
     })
     managers.set(id, manager)
 
@@ -767,6 +770,11 @@ export function createSessionBrowserRegistry(deps: {
     return manager ? manager.newTab(url, windowId) : emptySnapshot()
   }
 
+  function newUserTab(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.newUserTab(windowId) : emptySnapshot()
+  }
+
   function closeTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
     return manager ? manager.closeTab(id, windowId) : emptySnapshot()
@@ -958,6 +966,7 @@ export function createSessionBrowserRegistry(deps: {
 
   return {
     newTab,
+    newUserTab,
     closeTab,
     tearOffTab,
     moveTabToWindow,

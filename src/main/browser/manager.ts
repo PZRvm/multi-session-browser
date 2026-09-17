@@ -83,6 +83,13 @@ export interface TabManager {
   /** 新建 Tab 归属指定窗口并立即激活（挂入该窗 contentView、应用该窗当前 bounds）；空 url 加载 about:blank */
   newTab: (url?: string, windowId?: string) => BrowserSnapshot
   /**
+   * 用户语义新建 Tab（renderer ⌘T / Tab 栏 +、页面聚焦态快捷键、会话首 Tab 与零恢复
+   * 集兜底，PRD 3.8.2 2026-09-17 修订）：主页设置非空时加载主页，留空与 newTab() 同为
+   * 空白页；归属窗口与激活语义同 newTab。恢复径逐条 newTab(url) 与 window.open 的
+   * newTab(openUrl) 不经此口——恢复地址与页面指定地址优先于主页
+   */
+  newUserTab: (windowId?: string) => BrowserSnapshot
+  /**
    * 关闭 Tab；"最后留一"仅主窗口作用域（Chrome 式保底 Tab，现行为不变）；独立窗口
    * 作用域最后一个 Tab 允许关闭——关毕该作用域空快照经 emitChange 分发，关窗由
    * registry 快照监听收口（manager 不直接关窗）；id 不存在或异窗托管时 no-op；
@@ -167,7 +174,13 @@ export type TearOffTabManager = TabManager & {
 
 export function createTabManager(
   getWindow: (windowId: string) => BrowserWindow | null,
-  opts: { sessionId: string; partition: string; initialBounds?: SetBoundsPayload }
+  opts: {
+    sessionId: string
+    partition: string
+    initialBounds?: SetBoundsPayload
+    /** 当前主页（空串 = 未设置）现取：registry 注入 settings 域同步缓存——newTab 为同步函数，主页须经内存缓存同步可取 */
+    getHomepageUrl: () => string
+  }
 ): TearOffTabManager {
   // Map 迭代序即创建序，快照 tabs 顺序直接按此输出（作用域过滤不改变窗口内创建序）
   const tabs = new Map<string, TabEntry>()
@@ -324,6 +337,12 @@ export function createTabManager(
     if (next) attachView(next)
   }
 
+  /** 用户语义新标签页（PRD 3.8.2 修订）：主页非空加载主页、留空与 newTab() 同为空白；
+   *  分流语义见 TabManager.newUserTab 注释 */
+  function newUserTab(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    return newTab(opts.getHomepageUrl() || undefined, windowId)
+  }
+
   function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     // 已注销（注册表销毁会话）：拒绝一切创建，防垂死页面 window.open 复生 webContents
     if (disposed) return buildSnapshot(windowId)
@@ -417,8 +436,9 @@ export function createTabManager(
           wc.reload()
           break
         case 'new-tab':
-          // 与 IPC 新建空 Tab 行为对齐：新建后随即请求聚焦地址栏（Chrome Cmd+T 惯例）
-          newTab(undefined, tab.windowId)
+          // 用户语义新建（主页非空加载主页，PRD 3.8.2 修订）：新建后随即请求聚焦
+          // 地址栏（Chrome Cmd+T 惯例）
+          newUserTab(tab.windowId)
           requestFocusAddress(tab.windowId)
           break
         case 'close-tab':
@@ -714,6 +734,7 @@ export function createTabManager(
 
   return {
     newTab,
+    newUserTab,
     closeTab,
     tearOffTab,
     moveTabToWindow,

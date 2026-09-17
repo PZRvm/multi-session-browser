@@ -238,15 +238,16 @@ export function registerBrowserIpc(
     })
   )
 
-  // newTab：url 可选——缺省新建空白新标签页并推送 focus-address（发起窗口聚焦地址栏）；
-  // 携带 url 时先规范化，失败抛「无效的网址」
+  // newTab：url 可选——缺省为用户语义新标签页（主页非空加载主页，PRD 3.8.2 修订）
+  // 并推送 focus-address（发起窗口聚焦地址栏，Chrome ⌘T 惯例）；携带 url 时先规范化，
+  // 失败抛「无效的网址」
   ipcMain.handle(BROWSER_CHANNELS.newTab, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.newTab, payload, () => {
       const scope = requireScope(event)
       const raw = isRecord(payload) ? payload : {}
       const url = optionalString(raw.url)
       if (url === undefined) {
-        const snapshot = manager.newTab(undefined, scope.windowId)
+        const snapshot = manager.newUserTab(scope.windowId)
         windowForId(scope.windowId)?.webContents.send(BROWSER_CHANNELS.focusAddress)
         return snapshot
       }

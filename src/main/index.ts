@@ -22,7 +22,7 @@ import {
   registerSettingsIpc,
   type SettingsWindowController
 } from './settingsWindow'
-import { registerSettingsValueIpc } from './settings'
+import { registerSettingsValueIpc, initHomepageCache, getHomepageUrl } from './settings'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { WINDOW_ID_MAIN } from '../shared/browser'
 
@@ -206,6 +206,10 @@ app.whenReady().then(async () => {
   // 读取、校验或应用异常回退为“跟随系统”，不会阻断既有会话恢复与窗口创建。
   await appearanceController.init()
 
+  // 主页同步缓存先于窗口创建与会话恢复填充（新建标签页/会话首 Tab 的默认地址源，
+  // PRD 3.8.2 修订）：读失败在 loadSettings 内已回退空串（空白语义），不阻塞启动
+  await initHomepageCache()
+
   // 中文应用菜单：先于窗口创建安装，mac 菜单栏首帧即为中文且无冲突加速键
   installChineseMenu()
 
@@ -247,7 +251,8 @@ app.whenReady().then(async () => {
   const created = createSessionBrowserRegistry({
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
-    windows: independentWindows
+    windows: independentWindows,
+    getHomepageUrl
   })
   registry = created
 

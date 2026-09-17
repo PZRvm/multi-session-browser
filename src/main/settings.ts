@@ -81,6 +81,22 @@ export async function loadSettings(): Promise<StoredSettings> {
   }
 }
 
+// —— 主进程侧同步缓存（新建标签页打开主页，PRD 3.8.2 2026-09-17 修订）——
+// manager.newUserTab 等同步消费方读内存不读盘：启动经 initHomepageCache 填充
+//（index.ts 建窗前 await，loadSettings 失败已内部回退空骨架，空白语义不阻塞启动）；
+// setHomepage 落盘成功后更新——缓存与盘面一致，拒绝路径零变更
+let cachedHomepageUrl = ''
+
+/** 启动填充主页同步缓存：唯一调用点 index.ts whenReady（先于窗口创建与会话恢复） */
+export async function initHomepageCache(): Promise<void> {
+  cachedHomepageUrl = (await loadSettings()).homepageUrl
+}
+
+/** 主进程内同步取当前主页（空串 = 未设置）：registry 注入 createTabManager 消费 */
+export function getHomepageUrl(): string {
+  return cachedHomepageUrl
+}
+
 /** 值域键读取：缺键（v1 空骨架存量）静默补 ''；坏值（非字符串）中文告警回退 '' */
 function readHomepageUrl(data: Record<string, unknown>): string {
   const value = data.homepageUrl
@@ -137,6 +153,7 @@ export async function setHomepage(raw: string): Promise<SettingsSnapshot> {
   const homepageUrl = normalizeHomepageInput(raw)
   const next: StoredSettings = { ...(await loadSettings()), homepageUrl }
   await saveSettings(next)
+  cachedHomepageUrl = homepageUrl
   return { homepageUrl }
 }
 

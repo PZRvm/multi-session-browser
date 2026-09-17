@@ -272,7 +272,9 @@ export function createSessionPersistence(deps: {
     applyRestore(manager, id, hasLiveBlankTab) {
       const restore = restoreSets.get(id)
       if (!restore || restore.tabs.length === 0) {
-        if (!hasLiveBlankTab) manager.newTab(undefined)
+        // 空白兜底 = 用户语义起始页（PRD 3.8.2 修订）：新建/克隆会话首 Tab 与零恢复集
+        // 会话的兜底 Tab 主页非空时加载主页、留空维持空白；恢复集非空的逐条恢复不经此口
+        if (!hasLiveBlankTab) manager.newUserTab()
         return
       }
       const valid: string[] = []
@@ -285,8 +287,8 @@ export function createSessionPersistence(deps: {
         }
       }
       if (valid.length === 0) {
-        console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退空白 Tab`)
-        if (!hasLiveBlankTab) manager.newTab(undefined)
+        console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退用户语义起始页`)
+        if (!hasLiveBlankTab) manager.newUserTab()
         return
       }
       if (hasLiveBlankTab) {

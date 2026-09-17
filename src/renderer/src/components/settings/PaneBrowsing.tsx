@@ -9,7 +9,7 @@ import { useSettingsStore } from '../../stores/settings'
 //——输入框 danger 描边 + 描述副行临时替换错误文案，随下一次成功提交或重新聚焦
 // 清零；空串提交 = 清除主页（维持默认起始页）。校验单源在主进程守卫，本组件只
 // 呈现拒绝结果（DESIGN「设置窗口」条目主页行交互口径）
-const HOMEPAGE_DESC = '工具栏『主页』按钮的跳转地址'
+const HOMEPAGE_DESC = '工具栏『主页』按钮与新建标签页的默认地址'
 
 export function PaneBrowsing(): React.JSX.Element {
   const homepageUrl = useSettingsStore((s) => s.homepageUrl)
