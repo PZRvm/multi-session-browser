@@ -979,10 +979,6 @@ body.col-resizing {
 .batch-select-all:hover {
   background: var(--board-bg-raised);
 }
-/* danger 文字钮配色由 antd 暗色层供色，仅作右缘对齐微调 */
-.batch-close-selected {
-  margin-right: -7px;
-}
 
 /* 批量移动次级钮（2026-09-17 增量，形态契约见 DESIGN「批量模式」条目）：与
    select-all 同族文字钮（12px board-ink、hover 抬升）；窄栏图标变体收 20×20
