@@ -12,17 +12,13 @@ import AppearanceEntry from './AppearanceEntry'
 import FlapCounter from './FlapCounter'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
+import { useT } from '../i18n'
 import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
-
-const statusText: Record<SessionItem['status'], string> = {
-  idle: '空闲',
-  loading: '加载中'
-}
 
 interface SessionRowProps {
   session: SessionItem
@@ -55,6 +51,7 @@ function SessionRow({
   onClone,
   onMove
 }: SessionRowProps): React.JSX.Element {
+  const t = useT()
   const { activeId, renameSession, removeSession, selectSession } = useSessionsStore()
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
@@ -62,6 +59,12 @@ function SessionRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.name)
   const selected = activeId === session.id
+
+  // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
+  const statusText: Record<SessionItem['status'], string> = {
+    idle: t('sessions.sessionRow.status.idle'),
+    loading: t('sessions.sessionRow.status.loading')
+  }
 
   const commitRename = (): void => {
     setEditing(false)
@@ -71,19 +74,19 @@ function SessionRow({
   const menuItems: MenuProps['items'] = [
     {
       key: 'rename',
-      label: '重命名'
+      label: t('sessions.sessionRow.menu.rename')
     },
     {
       key: 'clone',
-      label: '克隆会话'
+      label: t('sessions.sessionRow.menu.clone')
     },
     {
       key: 'move',
-      label: '移动到工作区…'
+      label: t('sessions.sessionRow.menu.move')
     },
     {
       key: 'delete',
-      label: '删除会话',
+      label: t('sessions.sessionRow.menu.delete'),
       danger: true
     }
   ]
@@ -104,11 +107,11 @@ function SessionRow({
       openOverlay()
       try {
         modal.confirm({
-          title: '删除会话',
-          content: `将永久删除「${session.name}」及其全部本地数据，且不可恢复。`,
-          okText: '删除',
+          title: t('sessions.sessionRow.deleteConfirm.title'),
+          content: t('sessions.sessionRow.deleteConfirm.content', { name: session.name }),
+          okText: t('sessions.shared.delete'),
           okButtonProps: { danger: true },
-          cancelText: '取消',
+          cancelText: t('common.cancel'),
           onOk: () => removeSession(session.id),
           afterClose: () => closeOverlay()
         })
@@ -187,9 +190,9 @@ function SessionRow({
       </div>
       <div className="session-row-sub">
         {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
-        <span className="session-note">{session.note || '未填写备注'}</span>
+        <span className="session-note">{session.note || t('sessions.sessionRow.noteEmpty')}</span>
         <span className={`session-status ${cloning ? 'loading' : session.status}`}>
-          {cloning ? '克隆中…' : statusText[session.status]}
+          {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
         </span>
         {!batchMode && (
           <Dropdown
@@ -200,7 +203,7 @@ function SessionRow({
             <button
               type="button"
               className="session-menu"
-              aria-label="会话操作"
+              aria-label={t('sessions.sessionRow.menuAria')}
               onClick={(e) => e.stopPropagation()}
             >
               <MoreOutlined />
@@ -217,6 +220,7 @@ interface SessionPanelProps {
 }
 
 function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
+  const t = useT()
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
   const themeColor = useAppearanceStore((s) => s.themeColor)
   const sessions = useSessionsStore((s) => s.sessions)
@@ -273,7 +277,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   // 入参恒为全量 sessions：drop 全序合成天然保持不可见会话原相对位置（工作区视野
   // 内只重排可见子序列）；失败反馈走整单拒绝不静默惯例
   const { listHandlers, rowProps } = useSessionDragReorder(sessions, reorderSessions, () =>
-    message.error('会话排序失败，列表顺序已恢复')
+    message.error(t('sessions.panel.reorderFailed'))
   )
 
   // 勾选集以当前视野的现存会话为准（已删除/不可见会话的残留 id 不计数、不参与
@@ -343,7 +347,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     const target = moveTarget
     if (!target) return
     void moveSessionToWorkspace(target.id, workspaceId).then((ok) => {
-      if (!ok) message.error('移动会话失败')
+      if (!ok) message.error(t('sessions.panel.moveFailed'))
       setMoveTarget(null)
     })
   }
@@ -363,17 +367,23 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     try {
       const result = await moveSessionsToWorkspace(checkedIds, workspaceId)
       if (!result) {
-        setBatchFeedback({ tone: 'danger', text: '批量移动失败：部分会话或工作区已变化，请重试' })
+        setBatchFeedback({ tone: 'danger', text: t('sessions.batchFeedback.moveFailed') })
         return
       }
       setBatchMoveOpen(false)
       setChecked(new Set())
-      const targetName = workspaceId ? (wsNameById.get(workspaceId) ?? '工作区') : '未分组'
+      const targetName = workspaceId
+        ? (wsNameById.get(workspaceId) ?? t('sessions.shared.workspaceFallback'))
+        : t('sessions.shared.ungrouped')
       showBatchFeedback(
         'success',
         result.skipped > 0
-          ? `已移动 ${result.moved} 个到「${targetName}」（${result.skipped} 个已在目标，已跳过）`
-          : `已移动 ${result.moved} 个到「${targetName}」`
+          ? t('sessions.batchFeedback.movedSkipped', {
+              n: result.moved,
+              name: targetName,
+              skipped: result.skipped
+            })
+          : t('sessions.batchFeedback.moved', { n: result.moved, name: targetName })
       )
     } finally {
       batchMoveInFlight.current = false
@@ -410,17 +420,17 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     setConfirmOpen(true)
     try {
       modal.confirm({
-        title: '关闭选中会话',
-        content: `将永久删除选中的 ${checkedCount} 个会话及其全部本地数据，且不可恢复。`,
-        okText: '删除',
+        title: t('sessions.batchBar.closeConfirm.title'),
+        content: t('sessions.batchBar.closeConfirm.content', { n: checkedCount }),
+        okText: t('sessions.shared.delete'),
         okButtonProps: { danger: true },
-        cancelText: '取消',
+        cancelText: t('common.cancel'),
         // 整单拒绝（选中集在窗口期内变化等）：message 提示原因 + onOk reject 保持
         // 确认框开启（对齐打开测试地址弹层「整单拒绝不静默、保持开启」惯例）
         onOk: async () => {
           const ok = await deleteSessions(checkedIds)
           if (!ok) {
-            message.error('关闭选中会话失败：选中会话已发生变化，请重试')
+            message.error(t('sessions.batchBar.closeConfirm.failed'))
             throw new Error('关闭选中会话被整单拒绝')
           }
         },
@@ -481,15 +491,15 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
       <aside className="session-panel">
         <header className="board-head">
           <span className="board-title">
-            <span className="board-title-text">多会话测试浏览器</span>
+            <span className="board-title-text">{t('common.appName')}</span>
           </span>
           <span className="board-head-right">
             <AppearanceEntry panelWidth={panelWidth} />
             <button
               type="button"
               className={`batch-toggle${batchMode ? ' active' : ''}`}
-              title="批量操作"
-              aria-label="批量操作"
+              title={t('sessions.panel.batchToggle')}
+              aria-label={t('sessions.panel.batchToggle')}
               disabled={visibleSessions.length === 0 && !batchMode}
               onClick={toggleBatchMode}
             >
@@ -501,8 +511,8 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             <button
               type="button"
               className="settings-toggle"
-              title="设置"
-              aria-label="设置"
+              title={t('sessions.panel.settings')}
+              aria-label={t('sessions.panel.settings')}
               onClick={() => {
                 window.api.settings.open().catch((error: unknown) => {
                   console.warn('打开设置窗口失败:', error)
@@ -512,7 +522,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               <SettingOutlined />
             </button>
             <span className="board-count">
-              <span className="board-count-label">会话</span>
+              <span className="board-count-label">{t('sessions.panel.countLabel')}</span>
               <FlapCounter value={visibleSessions.length} />
             </span>
           </span>
@@ -520,14 +530,14 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         <WorkspaceSwitcher />
         {sessions.length === 0 ? (
           <div className="session-empty">
-            <p className="session-empty-title">尚无会话</p>
-            <p className="session-empty-desc">新建第一个隔离环境，并行测试多账号</p>
+            <p className="session-empty-title">{t('sessions.panel.emptyAll.title')}</p>
+            <p className="session-empty-desc">{t('sessions.panel.emptyAll.desc')}</p>
           </div>
         ) : visibleSessions.length === 0 ? (
           // 工作区视野空态：全局有会话但当前工作区没有（板脚新建仍可用，落本工作区）
           <div className="session-empty">
-            <p className="session-empty-title">该工作区尚无会话</p>
-            <p className="session-empty-desc">新建会话将加入此工作区</p>
+            <p className="session-empty-title">{t('sessions.panel.emptyWorkspace.title')}</p>
+            <p className="session-empty-desc">{t('sessions.panel.emptyWorkspace.desc')}</p>
           </div>
         ) : (
           <ul className="session-list" {...listHandlers}>
@@ -544,8 +554,8 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                   // 每行挂「未分组」是零信息噪音，违反 PRD 4.8 零噪音基线
                   viewIsAll && workspaces.length > 0
                     ? session.workspaceId !== null
-                      ? (wsNameById.get(session.workspaceId) ?? '未分组')
-                      : '未分组'
+                      ? (wsNameById.get(session.workspaceId) ?? t('sessions.shared.ungrouped'))
+                      : t('sessions.shared.ungrouped')
                     : null
                 }
                 {...rowProps(session)}
@@ -561,9 +571,13 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             <div className="batch-bar">
               <div className="batch-bar-row">
                 <div className="batch-bar-left">
-                  <span className="batch-count">已选 {checkedCount}</span>
+                  <span className="batch-count">
+                    {t('sessions.batchBar.selectedCount', { n: checkedCount })}
+                  </span>
                   <button type="button" className="batch-select-all" onClick={toggleAll}>
-                    {allChecked ? '取消全选' : '全选'}
+                    {allChecked
+                      ? t('sessions.batchBar.selectNone')
+                      : t('sessions.batchBar.selectAll')}
                   </button>
                   {panelWidth >= 340 ? (
                     <button
@@ -572,10 +586,13 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                       disabled={checkedCount === 0}
                       onClick={openBatchMoveModal}
                     >
-                      移动到工作区…
+                      {t('sessions.batchBar.moveToWorkspace')}
                     </button>
                   ) : (
-                    <Tooltip title="移动到工作区" mouseEnterDelay={0.2}>
+                    <Tooltip
+                      title={t('sessions.batchBar.moveToWorkspaceIcon')}
+                      mouseEnterDelay={0.2}
+                    >
                       {/* 禁用态原生 button 不派发鼠标事件——外层 span 承接 hover
                           让 Tooltip 在禁用时仍可解释图标用途（审查修复轮低 5） */}
                       <span className="batch-move-icon-wrap">
@@ -583,7 +600,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                           type="button"
                           className="batch-move-btn batch-move-icon"
                           disabled={checkedCount === 0}
-                          aria-label="移动到工作区"
+                          aria-label={t('sessions.batchBar.moveToWorkspaceIcon')}
                           onClick={openBatchMoveModal}
                         >
                           <FolderOpenOutlined />
@@ -600,7 +617,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                   disabled={checkedCount === 0}
                   onClick={confirmCloseSelected}
                 >
-                  关闭选中会话
+                  {t('sessions.batchBar.closeSelected')}
                 </Button>
               </div>
               <button
@@ -609,7 +626,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                 disabled={checkedCount === 0}
                 onClick={openUrlModal}
               >
-                打开测试地址
+                {t('sessions.batchBar.openTestUrl')}
               </button>
               {batchFeedback && !batchMoveOpen && (
                 <div
@@ -629,23 +646,23 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               }}
             >
               <PlusOutlined />
-              新建会话
+              {t('sessions.panel.newSession')}
             </button>
           )}
         </footer>
       </aside>
       <Modal
-        title="打开测试地址"
+        title={t('sessions.urlModal.title')}
         open={urlOpen}
-        okText="确定"
-        cancelText="取消"
+        okText={t('sessions.urlModal.okText')}
+        cancelText={t('common.cancel')}
         okButtonProps={{ disabled: !urlDraft.trim() }}
         onOk={confirmUrl}
         onCancel={() => setUrlOpen(false)}
         afterClose={() => closeOverlay()}
       >
         <Input
-          placeholder="输入测试地址，将打开在每个选中会话的新标签页"
+          placeholder={t('sessions.urlModal.placeholder')}
           value={urlDraft}
           autoFocus
           status={urlInvalid ? 'error' : undefined}
@@ -655,13 +672,15 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             setUrlInvalid(false)
           }}
         />
-        {urlInvalid && (
-          <p className="batch-url-invalid">打开失败：地址无效或选中会话已变化，请修正后重试</p>
-        )}
+        {urlInvalid && <p className="batch-url-invalid">{t('sessions.urlModal.invalid')}</p>}
       </Modal>
 
       <Modal
-        title={moveTarget ? `移动「${moveTarget.name}」到工作区` : '移动到工作区'}
+        title={
+          moveTarget
+            ? t('sessions.moveModal.title', { name: moveTarget.name })
+            : t('sessions.moveModal.titleFallback')
+        }
         open={moveTarget !== null}
         footer={null}
         onCancel={closeMoveModal}
@@ -677,24 +696,24 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             ))}
           {moveTarget?.workspaceId != null && (
             <Button block onClick={() => pickMoveTarget(null)}>
-              移出（未分组）
+              {t('sessions.moveModal.moveOut')}
             </Button>
           )}
           {workspaces.filter((w) => w.id !== moveTarget?.workspaceId).length === 0 &&
             moveTarget?.workspaceId == null && (
-              <p className="ws-move-empty">尚无其他工作区，先在工作区切换框新建一个</p>
+              <p className="ws-move-empty">{t('sessions.moveModal.emptyOther')}</p>
             )}
         </div>
       </Modal>
 
       <Modal
-        title={`移动 ${checkedCount} 个会话到工作区`}
+        title={t('sessions.moveModal.batchTitle', { n: checkedCount })}
         open={batchMoveOpen}
         footer={null}
         onCancel={closeBatchMoveModal}
         afterClose={closeOverlay}
       >
-        <p className="batch-move-sub">移动后归属更新，会话数据与登录态不受影响</p>
+        <p className="batch-move-sub">{t('sessions.moveModal.batchSub')}</p>
         <div className="ws-move-list">
           {workspaces.map((w) => (
             <Button
@@ -707,7 +726,10 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             >
               <span>{w.name}</span>
               <span className="ws-move-count">
-                {batchInTargetCount(w.id)} / {checkedCount} 在此
+                {t('sessions.moveModal.inTargetCount', {
+                  here: batchInTargetCount(w.id),
+                  total: checkedCount
+                })}
               </span>
             </Button>
           ))}
@@ -719,11 +741,11 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
                 void pickBatchMoveTarget(null)
               }}
             >
-              <span>移出（未分组）</span>
+              <span>{t('sessions.moveModal.moveOut')}</span>
             </Button>
           )}
           {workspaces.length === 0 && !batchHasGrouped && (
-            <p className="ws-move-empty">尚无工作区，先在工作区切换框新建一个</p>
+            <p className="ws-move-empty">{t('sessions.moveModal.emptyNone')}</p>
           )}
         </div>
         {batchFeedback?.tone === 'danger' && (

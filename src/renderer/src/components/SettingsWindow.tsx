@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ConfigProvider, theme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import {
   GlobalOutlined,
   InfoCircleOutlined,
@@ -9,7 +8,10 @@ import {
   WarningOutlined
 } from '@ant-design/icons'
 import { useAppearanceStore } from '../stores/appearance'
+import { useI18nStore } from '../stores/i18n'
+import { ANTD_LOCALES, useT } from '../i18n'
 import { applyThemeTokens } from '../theme'
+import type { DictKey } from '../../../shared/i18n'
 import { PaneGeneral } from './settings/PaneGeneral'
 import { PaneBrowsing } from './settings/PaneBrowsing'
 import { PaneShortcuts } from './settings/PaneShortcuts'
@@ -29,26 +31,36 @@ import type { ConfirmResetStep } from './settings/ConfirmResetOverlay'
 // 主题色行已随阶段五入窗（PaneGeneral 色板行，形态契约见 DESIGN「设置窗口」条目）。
 
 // 五分类导航词汇（侧栏双栏契约）：快捷键分类取列表语义图标（图标库无键盘图标，
-// 库存认见开发计划）；恢复出厂为 danger 分类（沉底恒红、选中 danger 实底白字）
+// 库存认见开发计划）；恢复出厂为 danger 分类（沉底恒红、选中 danger 实底白字）。
+// 分类名归 settings.categories 字典键（随界面语言取词），图标常量留模块级
 type SettingsPaneId = 'general' | 'browsing' | 'shortcuts' | 'about' | 'danger'
 
 const SETTINGS_CATEGORIES: ReadonlyArray<{
   id: SettingsPaneId
-  label: string
+  labelKey: DictKey
   icon: React.ReactNode
   danger?: boolean
 }> = [
-  { id: 'general', label: '通用', icon: <SettingOutlined /> },
-  { id: 'browsing', label: '浏览', icon: <GlobalOutlined /> },
-  { id: 'shortcuts', label: '快捷键', icon: <OrderedListOutlined /> },
-  { id: 'about', label: '关于', icon: <InfoCircleOutlined /> },
-  { id: 'danger', label: '恢复出厂', icon: <WarningOutlined />, danger: true }
+  { id: 'general', labelKey: 'settings.categories.general', icon: <SettingOutlined /> },
+  { id: 'browsing', labelKey: 'settings.categories.browsing', icon: <GlobalOutlined /> },
+  { id: 'shortcuts', labelKey: 'settings.categories.shortcuts', icon: <OrderedListOutlined /> },
+  { id: 'about', labelKey: 'settings.categories.about', icon: <InfoCircleOutlined /> },
+  {
+    id: 'danger',
+    labelKey: 'settings.categories.danger',
+    icon: <WarningOutlined />,
+    danger: true
+  }
 ]
 
 export default function SettingsWindow(): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
   const themeColor = useAppearanceStore((s) => s.themeColor)
   const appearanceInitialized = useAppearanceStore((s) => s.initialized)
+  // 界面语言（阶段六 i18n）：语言镜像按选择器订阅，语言行切换即时翻转 antd 内置文案
+  const language = useI18nStore((s) => s.language)
+  // 壳层取词（侧栏分类名随语言；版面内文案归各版面组件自取）
+  const t = useT()
 
   // 主题 token 重注：设置窗不经 App 包裹（main.tsx 分支独立渲染），需独立挂接——
   // 首帧与 OS 翻转归 theme.ts bootstrap；以 init 真值回填为门控（审查修复轮中 1，
@@ -74,7 +86,7 @@ export default function SettingsWindow(): React.JSX.Element {
 
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={ANTD_LOCALES[language]}
       theme={{
         algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         // token 对齐 App.tsx 写法（borderRadius 6 + 系统栈字体），但不设 colorPrimary：
@@ -95,6 +107,27 @@ export default function SettingsWindow(): React.JSX.Element {
             itemSelectedBg: 'var(--board-segment-selected-bg)',
             itemSelectedColor: 'var(--board-tile-ink)',
             borderRadius: 4
+          },
+          // 语言行受控下拉（阶段六 i18n，DESIGN「设置窗口」语言段定稿）：Select 板面化
+          // 组件 token——几何（26px 高 / 4px 圆角 / 13px 字）与描边色态全部走信息板语义
+          // token（antd 6 outlined 变体的 border/hover/active/outline 直通消费，零硬编码
+          // 色值）；描边 hover/激活转次墨、激活 outline 透明（压掉 antd 聚焦蓝描边与
+          // 光晕——蓝不进板面）；触发器透明底融入板面（.settings-input 同惯例）、选项
+          // 选中底透明（对勾即选中，色样同语言）、悬停走板面蒙版。其余细节（定宽、
+          // 触发器字重、下箭头、弹层描边）在 app.css 的 .settings-language-select /
+          // .settings-language-dropdown 类内实现
+          Select: {
+            controlHeight: 26,
+            borderRadius: 4,
+            fontSize: 13,
+            colorText: 'var(--board-ink)',
+            colorBorder: 'var(--board-control-line)',
+            hoverBorderColor: 'var(--board-ink-dim)',
+            activeBorderColor: 'var(--board-ink-dim)',
+            activeOutlineColor: 'transparent',
+            selectorBg: 'transparent',
+            optionSelectedBg: 'transparent',
+            optionActiveBg: 'var(--board-hover-veil)'
           }
         }
       }}
@@ -102,7 +135,7 @@ export default function SettingsWindow(): React.JSX.Element {
       <div className="settings-window" data-role="settings">
         {/* 侧栏五分类导航：nav 语义；选中经 aria-current 驱动（视觉态与无障碍态单源）；
             恢复出厂沉底恒 danger 色 */}
-        <nav className="settings-sidebar" aria-label="设置分类">
+        <nav className="settings-sidebar" aria-label={t('settings.sidebar.navLabel')}>
           {SETTINGS_CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -116,7 +149,7 @@ export default function SettingsWindow(): React.JSX.Element {
               <span className="settings-side-cat-icon" aria-hidden="true">
                 {cat.icon}
               </span>
-              <span>{cat.label}</span>
+              <span>{t(cat.labelKey)}</span>
             </button>
           ))}
         </nav>

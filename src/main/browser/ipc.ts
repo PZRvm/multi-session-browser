@@ -36,14 +36,18 @@ import type { HistoryEntry } from '../../shared/history'
 import { OMNIBOX_SUGGEST_CHANNELS, SUGGEST_TEXT_MAX } from '../../shared/omniboxSuggest'
 import type { OmniboxSuggestShowPayload } from '../../shared/omniboxSuggest'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
+import { t } from '../i18n'
 import type { TabDragController } from './dragging'
 import type { OmniboxSuggestWindows } from './omniboxSuggest'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
 import type { IndependentWindows } from './windows'
 import { logLoadFailure, normalizeInput } from './url'
 
-const { invalidParams, isRecord, optionalString, parseRect, requiredNumber } =
-  createIpcGuards('无效的浏览器参数')
+// 守卫消息构造期经 t 取词（errors 命名空间）——语言 = 装配时语言（语言切换后新建的
+// 守卫消息不重译，风险口径见计划：报错语言 = 构造时语言，如实接受）
+const { invalidParams, isRecord, optionalString, parseRect, requiredNumber } = createIpcGuards(
+  t('errors.invalidBrowserParams')
+)
 
 /**
  * 拖拽虚影载荷（dragStart 可选携带）运行时守卫：结构垃圾按命令口径拒绝（dragStart
@@ -219,14 +223,14 @@ export function registerBrowserIpc(
    * null 已抛错，守卫后的调用方（如 dragStart 的会话参数）无需再判空 */
   function requireScope(event: IpcMainInvokeEvent): SenderWindowScope & { sessionId: string } {
     const { windowId, sessionId } = manager.resolveSenderScope(event.sender)
-    if (sessionId === null) throw new Error('未选择会话')
+    if (sessionId === null) throw new Error(t('errors.noSessionSelected'))
     return { windowId, sessionId }
   }
 
   /** id 存在性校验（按来源窗口作用域）：不存在抛错（manager 对不存在 id 是静默 no-op，必须在 handler 层拦截） */
   function requireTabId(windowId: string, id: string): void {
     if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
-      throw new Error('标签页不存在')
+      throw new Error(t('errors.tabNotFound'))
     }
   }
 
@@ -252,7 +256,7 @@ export function registerBrowserIpc(
         return snapshot
       }
       const normalized = normalizeInput(url)
-      if (!normalized) throw new Error('无效的网址')
+      if (!normalized) throw new Error(t('errors.invalidUrl'))
       return manager.newTab(normalized, scope.windowId)
     })
   )
@@ -285,7 +289,7 @@ export function registerBrowserIpc(
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.url !== 'string') throw invalidParams()
       const normalized = normalizeInput(payload.url)
-      if (!normalized) throw new Error('无效的网址')
+      if (!normalized) throw new Error(t('errors.invalidUrl'))
       const wc = manager.getActiveWebContents(scope.windowId)
       if (wc)
         void wc.loadURL(normalized).catch((error: unknown) => logLoadFailure(normalized, error))
@@ -475,18 +479,18 @@ export function registerBrowserIpc(
    * 窗口级 UI，不做会话守卫——零会话时地址栏禁用，面板开合本就不可达） */
   function requireOwnerWindow(event: IpcMainInvokeEvent): string {
     const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win || win.isDestroyed()) throw new Error('无法识别命令来源窗口')
+    if (!win || win.isDestroyed()) throw new Error(t('errors.unknownCommandSource'))
     if (win === getMainWindow()) return WINDOW_ID_MAIN
     for (const entry of windows.listAll()) {
       if (entry.win === win) return entry.windowId
     }
-    throw new Error('无法识别命令来源窗口')
+    throw new Error(t('errors.unknownCommandSource'))
   }
 
   /** hover/pick 的子窗身份解析：sender 须属池内子窗，返回宿主 windowId 供定向转发 */
   function requireChildOwner(event: IpcMainInvokeEvent): string {
     const windowId = suggestWindows.resolveOwnerOf(event.sender)
-    if (windowId === null) throw new Error('无法识别命令来源窗口')
+    if (windowId === null) throw new Error(t('errors.unknownCommandSource'))
     return windowId
   }
 

@@ -36,7 +36,7 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 - Prettier：无分号、单引号、行宽 100、无尾逗号；.editorconfig：LF、2 空格缩进
 - ESLint 用 @electron-toolkit ts 配置 + react-hooks 规则，提交前 lint 和 typecheck 必须通过
-- 界面文案一律中文；面向专业测试人员，不写引导式提示文案
+- 界面文案经 i18n 字典单源管理（`src/shared/i18n/`：zh-CN 为源语言与类型来源，en-US 并行受类型完备性约束；新增语言走注册表扩展入口，方法见 `docs/项目骨架.md`）——新增文案 zh/en 双语并行落字典，组件内不写用户可见文案字面量；面向专业测试人员，不写引导式提示文案。开发注释与 console 日志保持中文不入字典
 
 ## 界面设计
 

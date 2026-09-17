@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useT } from '../../i18n'
 import { splitByQuery } from './omniboxSuggest'
 import type { OmniboxSuggestItemPayload } from '../../../../shared/omniboxSuggest'
 
@@ -71,12 +72,13 @@ export default function OmniboxSuggestPanel({
   onHover,
   onPick
 }: OmniboxSuggestPanelProps): React.JSX.Element {
+  const t = useT()
   return (
     <div
       id="chrome-omnibox-suggest"
       className="chrome-omnibox-suggest"
       role="listbox"
-      aria-label="历史记录建议"
+      aria-label={t('browser.omniboxSuggest.listAria')}
     >
       {items.map((item, index) => (
         // 建议行现由子窗承载：focusable:false 子窗不夺焦，无输入焦点可失（DESIGN

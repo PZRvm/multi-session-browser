@@ -22,9 +22,16 @@ import {
   registerSettingsIpc,
   type SettingsWindowController
 } from './settingsWindow'
-import { registerSettingsValueIpc, initHomepageCache, getHomepageUrl } from './settings'
+import {
+  registerSettingsValueIpc,
+  initHomepageCache,
+  getHomepageUrl,
+  getBootLanguage
+} from './settings'
+import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { WINDOW_ID_MAIN } from '../shared/browser'
+import type { TFunc } from '../shared/i18n'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
 // userData（sessions.json、Partitions 分区数据）整体指向该目录，开发期验证/冒烟
@@ -65,61 +72,63 @@ let settingsWindowController: SettingsWindowController | null = null
 const appearanceController = createAppearanceController()
 
 /**
- * 安装中文应用菜单（替代 Electron 默认英文菜单）。默认菜单的问题有二：
+ * 安装应用菜单（替代 Electron 默认英文菜单；阶段六参数化为 installAppMenu(t)——文案
+ * 经 shared/i18n 字典 menu 命名空间取词，语言切换由 onMainLanguageChanged 回调重建，
+ * 只换 label：结构、加速键与 click 晚绑定一律不动）。默认菜单的问题有二：
  * ① macOS 菜单栏恒显示（autoHideMenuBar 仅影响 Win/Linux），英文 File/Edit/View
- *   违反「界面纯中文」产品原则；② 默认 File/View 角色带 ⌘W（关窗）/⌘R（重载 shell）
+ *   违反界面语言产品原则；② 默认 File/View 角色带 ⌘W（关窗）/⌘R（重载 shell）
  *   等加速键，与产品键位（⌘W 关 Tab、⌘R 刷页面）语义冲突，且菜单加速键优先于
  *   before-input-event——故直接裁掉 File/View 菜单，只保留 mac 文本编辑必需的
- *   Edit 角色与窗口管理项，全部中文文案。
+ *   Edit 角色与窗口管理项。
  */
-function installChineseMenu(): void {
-  const appName = '多会话测试浏览器'
+function installAppMenu(t: TFunc): void {
+  const appName = t('common.appName')
   const appMenu =
     process.platform === 'darwin'
       ? {
           label: appName,
           submenu: [
-            { role: 'about' as const, label: `关于${appName}` },
+            { role: 'about' as const, label: t('menu.about', { name: appName }) },
             // 设置入口（设置专项阶段一）：macOS「偏好设置」惯例位——关于之后、服务
             // 分隔线之前，加速键 CmdOrCtrl+,；click 经模块级控制器晚绑定（菜单安装
             // 先于控制器创建，触发时必已就绪）。仅 darwin 加此项——Win/Linux 菜单栏
             // 默认隐藏（autoHideMenuBar），设置发现路径只有板头齿轮（PRD 3.8.1）
             {
-              label: '设置…',
+              label: t('menu.settings'),
               accelerator: 'CmdOrCtrl+,',
               click: () => settingsWindowController?.open()
             },
             { type: 'separator' as const },
-            { role: 'services' as const, label: '服务' },
+            { role: 'services' as const, label: t('menu.services') },
             { type: 'separator' as const },
-            { role: 'hide' as const, label: `隐藏${appName}` },
-            { role: 'hideOthers' as const, label: '隐藏其他' },
-            { role: 'unhide' as const, label: '全部显示' },
+            { role: 'hide' as const, label: t('menu.hide', { name: appName }) },
+            { role: 'hideOthers' as const, label: t('menu.hideOthers') },
+            { role: 'unhide' as const, label: t('menu.unhide') },
             { type: 'separator' as const },
-            { role: 'quit' as const, label: `退出${appName}` }
+            { role: 'quit' as const, label: t('menu.quit', { name: appName }) }
           ]
         }
-      : { label: appName, submenu: [{ role: 'quit' as const, label: '退出' }] }
+      : { label: appName, submenu: [{ role: 'quit' as const, label: t('menu.quitSimple') }] }
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       appMenu,
       {
-        label: '编辑',
+        label: t('menu.edit'),
         submenu: [
-          { role: 'undo', label: '撤销' },
-          { role: 'redo', label: '重做' },
+          { role: 'undo', label: t('menu.undo') },
+          { role: 'redo', label: t('menu.redo') },
           { type: 'separator' },
-          { role: 'cut', label: '剪切' },
-          { role: 'copy', label: '复制' },
-          { role: 'paste', label: '粘贴' },
-          { role: 'selectAll', label: '全选' }
+          { role: 'cut', label: t('menu.cut') },
+          { role: 'copy', label: t('menu.copy') },
+          { role: 'paste', label: t('menu.paste') },
+          { role: 'selectAll', label: t('menu.selectAll') }
         ]
       },
       {
-        label: '窗口',
+        label: t('menu.window'),
         submenu: [
-          { role: 'minimize', label: '最小化' },
-          { role: 'zoom', label: '缩放' }
+          { role: 'minimize', label: t('menu.minimize') },
+          { role: 'zoom', label: t('menu.zoom') }
         ]
       }
     ])
@@ -166,14 +175,15 @@ function createWindow(): void {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   // query sys = 建窗时刻主题色（renderer 求值期消费作首帧初始值；运行期变更一律经
-  // appearance:changed 广播，query 不再被读取）
+  // appearance:changed 广播，query 不再被读取）；query lang = 建窗时刻语言（阶段六
+  // 首帧语言注入，防英文用户首帧中文闪变；运行期变更经 settings:changed 广播）
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     // dev 路径与其余三处建窗同为 URLSearchParams 形态（审查修复轮低 6，防御式一致）
-    const query = new URLSearchParams({ sys: appearance.themeColor })
+    const query = new URLSearchParams({ sys: appearance.themeColor, lang: getCurrentLanguage() })
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'), {
-      query: { sys: appearance.themeColor }
+      query: { sys: appearance.themeColor, lang: getCurrentLanguage() }
     })
   }
 
@@ -216,12 +226,19 @@ app.whenReady().then(async () => {
   // 读取、校验或应用异常回退为“跟随系统”，不会阻断既有会话恢复与窗口创建。
   await appearanceController.init()
 
-  // 主页同步缓存先于窗口创建与会话恢复填充（新建标签页/会话首 Tab 的默认地址源，
-  // PRD 3.8.2 修订）：读失败在 loadSettings 内已回退空串（空白语义），不阻塞启动
+  // 主页与语言同步缓存先于窗口创建与会话恢复填充（新建标签页/会话首 Tab 的默认地址
+  // 源 + 主进程语言 boot 初值，PRD 3.8.2 修订）：读失败在 loadSettings 内已回退默认
+  // 骨架，不阻塞启动
   await initHomepageCache()
 
-  // 中文应用菜单：先于窗口创建安装，mac 菜单栏首帧即为中文且无冲突加速键
-  installChineseMenu()
+  // 主进程语言态 boot（阶段六）：getBootLanguage（settings 语言缓存）是唯一初值来源，
+  // 必须在 initHomepageCache 之后（缓存已填充）、装菜单与建窗之前——菜单语言即启动
+  // 语言；语言切换经下方回调重建菜单（只换 label，结构/加速键/晚绑定不动）
+  initMainProcessLanguage(getBootLanguage())
+  onMainLanguageChanged(() => installAppMenu(t))
+
+  // 应用菜单：先于窗口创建安装，mac 菜单栏首帧即为当前语言且无冲突加速键
+  installAppMenu(t)
 
   // 独立窗口登记表先建（其回调经模块级 registry 晚绑定触达——创建期 registry 尚为
   // null，回调只会在用户交互（tear-off 建窗）后触发）：ready-to-show 挂 view（防
@@ -310,8 +327,10 @@ app.whenReady().then(async () => {
   })
   registerAppearanceIpc(appearanceController)
   registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
-  // 设置值域三通道（阶段四）：get / changed / set-homepage——无 sender 白名单
-  //（对齐外观域先例，入参值守卫承担），changed 经 getAllWindows 全推
+  // 设置值域四通道（阶段四 get/changed/set-homepage + 阶段六 set-language）：无 sender
+  // 白名单（对齐外观域先例，入参值守卫承担），changed 经 getAllWindows 全推；
+  // set-language 成功链在 settings.ts 内闭环（落盘 + 语言缓存 + 主进程语言态——菜单
+  // 重建/设置窗标题经 onMainLanguageChanged 装配回调触发，见上方注册点）
   registerSettingsValueIpc()
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {

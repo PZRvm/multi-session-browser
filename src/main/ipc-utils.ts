@@ -3,7 +3,8 @@
 // sessions.ts 仍持有一份旧实现——该文件属阶段 1 冻结契约，待后续阶段统一迁移。
 
 export interface IpcGuards {
-  /** 守卫失败统一抛出的业务错误（消息按域注入，如「无效的浏览器参数」） */
+  /** 守卫失败统一抛出的业务错误（消息按域注入；阶段六起消息由调用点构造期经主进程
+   * t() 取词——errors 命名空间，报错语言 = 工厂装配时语言） */
   invalidParams(): Error
   isRecord(value: unknown): value is Record<string, unknown>
   /** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */

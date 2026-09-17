@@ -2,6 +2,7 @@ import { CloseOutlined } from '@ant-design/icons'
 import { useEffect, useRef } from 'react'
 import { FIND_TEXT_MAX } from '../../../../shared/browser'
 import { useBrowserStore } from '../../stores/browser'
+import { useT } from '../../i18n'
 
 // 页内查找栏（Chrome find-in-page 对齐，会话网页内查找开发计划步骤 4）：chrome-body
 // 顶部停靠条——WebContentsView 原生层覆盖内容区，DOM 无法浮于页面之上，停靠让位是
@@ -20,6 +21,7 @@ function FindBar(): React.JSX.Element | null {
   const searchFind = useBrowserStore((s) => s.searchFind)
   const closeFind = useBrowserStore((s) => s.closeFind)
   const findNextStep = useBrowserStore((s) => s.findNextStep)
+  const t = useT()
   const inputRef = useRef<HTMLInputElement>(null)
 
   // 开栏（含页面聚焦态 find-request 推送与 shell 重复触发的 tick）即聚焦并全选：
@@ -44,8 +46,8 @@ function FindBar(): React.JSX.Element | null {
           ref={inputRef}
           className="chrome-find-input"
           type="text"
-          placeholder="在网页中查找"
-          aria-label="在网页中查找"
+          placeholder={t('browser.find.placeholder')}
+          aria-label={t('browser.find.placeholder')}
           autoComplete="off"
           spellCheck={false}
           value={findQuery}
@@ -73,8 +75,8 @@ function FindBar(): React.JSX.Element | null {
         <button
           type="button"
           className="chrome-find-close"
-          title="关闭查找栏（Esc）"
-          aria-label="关闭查找栏"
+          title={t('browser.find.closeTitle')}
+          aria-label={t('browser.find.close')}
           onClick={() => closeFind()}
         >
           <CloseOutlined />

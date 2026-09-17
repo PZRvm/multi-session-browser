@@ -979,7 +979,6 @@ body.col-resizing {
 .batch-select-all:hover {
   background: var(--board-bg-raised);
 }
-
 /* danger 文字钮配色由 antd 暗色层供色，仅作右缘对齐微调 */
 .batch-close-selected {
   margin-right: -7px;
@@ -1317,32 +1316,63 @@ body.col-resizing {
   outline-color: var(--accent);
 }
 
-/* 语言行展示态选择框（WorkspaceSwitcher 收起态同构）：26px 高、1px 控件线描边、
-   4px 圆角、内容 13px、右端 10px 下箭头次墨；纯展示非交互——无 hover 无 pointer */
-.settings-select-ghost {
+/* 语言行受控下拉（设置专项阶段六点亮，DESIGN「设置窗口」语言段定稿）：antd Select
+   板面化——几何（26px 高 / 1px 控件线 / 4px 圆角 / 13px 字）与全部颜色态经
+   SettingsWindow 的 Select 组件 token 走信息板语义 token（描边 hover/激活转次墨、
+   激活 outline 透明压掉聚焦蓝晕、触发器透明底融入板面、选项选中底透明 + 悬停蒙版），
+   此处只补 token 表达不了的细节：定宽、触发器 500 字重（展示态文字前身同语言）、
+   下箭头 10px 次墨（ghost caret 同度量）、描边过渡 0.12s（色样 hover 语言同源，
+   antd 默认 all 0.3s 慢档） */
+.settings-language-select.ant-select {
   flex: none;
-  display: inline-flex;
+  width: 160px;
+}
+
+.settings-language-select.ant-select .ant-select-selection-item {
+  font-weight: 500;
+}
+
+.settings-language-select.ant-select .ant-select-selector {
+  transition: border-color 0.12s ease;
+}
+
+.settings-language-select.ant-select .ant-select-selector .ant-select-suffix {
+  color: var(--board-ink-dim);
+  font-size: 10px;
+}
+
+/* 下拉弹层（类经 Select classNames.popup.root 挂载）：抬升层底 + 1px 发丝线 +
+   6px 圆角、无阴影（板面弹层先例——两步确认卡片同语言，antd 默认色底投影不进板面） */
+.settings-language-dropdown.ant-select-dropdown {
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+  box-shadow: none;
+}
+
+/* 选项内容行（optionRender 传入结构）：label 左 + 选中对勾右；对勾 11px 次墨
+   （DESIGN：内容区零强调色，不用强调色对勾） */
+.settings-language-option {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--board-control-line);
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--board-ink);
 }
 
-.settings-select-ghost-text {
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.settings-select-ghost-caret {
+.settings-language-option-check {
   flex: none;
   display: inline-flex;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--board-ink-dim);
+}
+
+/* 选中项悬停叠加态：antd 默认走强调色浅底（蓝不进板面）——压回板面蒙版，选中
+   信号由对勾与字重承担（对齐主题色样「对勾即选中」语言） */
+.settings-language-dropdown
+  .ant-select-item.ant-select-item-option-selected.ant-select-item-option-active:not(
+    .ant-select-item-option-disabled
+  ) {
+  background: var(--board-hover-veil);
 }
 
 /* 关于版面数据目录「打开」行动钮（阶段三点亮）：与语言展示态选择框同度量器件族

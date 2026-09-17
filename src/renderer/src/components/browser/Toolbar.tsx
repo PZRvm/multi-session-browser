@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
 import { useSettingsStore } from '../../stores/settings'
+import { useT } from '../../i18n'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -21,6 +22,7 @@ const INVALID_HINT_MS = 2500
 // 页面保持可见，不再经 overlayDepth 收起原生层）；子窗开合/锚点/数据推送/鼠标转发
 // 消费的编排整体在 useOmniboxSuggestWindow hook，本组件只供状态机与回调。
 function Toolbar(): React.JSX.Element {
+  const t = useT()
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
@@ -190,8 +192,8 @@ function Toolbar(): React.JSX.Element {
       <div className="chrome-nav">
         <button
           type="button"
-          aria-label="后退"
-          title="后退"
+          aria-label={t('browser.toolbar.back')}
+          title={t('browser.toolbar.back')}
           disabled={!activeTab?.canGoBack}
           onClick={goBack}
         >
@@ -199,22 +201,27 @@ function Toolbar(): React.JSX.Element {
         </button>
         <button
           type="button"
-          aria-label="前进"
-          title="前进"
+          aria-label={t('browser.toolbar.forward')}
+          title={t('browser.toolbar.forward')}
           disabled={!activeTab?.canGoForward}
           onClick={goForward}
         >
           <RightOutlined />
         </button>
         {activeTab?.loading ? (
-          <button type="button" aria-label="停止加载" title="停止加载" onClick={stop}>
+          <button
+            type="button"
+            aria-label={t('browser.toolbar.stop')}
+            title={t('browser.toolbar.stop')}
+            onClick={stop}
+          >
             <CloseOutlined />
           </button>
         ) : (
           <button
             type="button"
-            aria-label="刷新"
-            title="刷新"
+            aria-label={t('browser.toolbar.reload')}
+            title={t('browser.toolbar.reload')}
             disabled={!activeTab}
             onClick={reload}
           >
@@ -223,8 +230,8 @@ function Toolbar(): React.JSX.Element {
         )}
         <button
           type="button"
-          aria-label="主页"
-          title="主页"
+          aria-label={t('browser.toolbar.home')}
+          title={t('browser.toolbar.home')}
           disabled={!activeTab}
           // 主页按钮（阶段四对接）：跳设置窗自定义主页，留空维持既有默认起始页
           // about:blank；值来自主进程快照的 settings 镜像（changed 推送即时跟随，
@@ -239,7 +246,7 @@ function Toolbar(): React.JSX.Element {
           ref={inputRef}
           type="text"
           className={`chrome-omnibox${invalid ? ' chrome-omnibox-invalid' : ''}`}
-          placeholder="输入网址"
+          placeholder={t('browser.toolbar.addressPlaceholder')}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"
@@ -249,7 +256,7 @@ function Toolbar(): React.JSX.Element {
           aria-invalid={invalid}
           aria-expanded={panelOpen}
           role="combobox"
-          title={invalid ? '无效的网址' : undefined}
+          title={invalid ? t('browser.toolbar.addressInvalid') : undefined}
           onChange={(e) => {
             setDraft(e.target.value)
             setSuggestIndex(-1)
@@ -271,13 +278,17 @@ function Toolbar(): React.JSX.Element {
       <button
         type="button"
         className="chrome-devtools-toggle"
-        aria-label="开发者工具"
+        aria-label={t('browser.toolbar.devtools')}
         aria-pressed={devtoolsOpen}
-        title={devtoolsOpen ? '关闭开发者工具（Esc）' : '打开开发者工具（F12）'}
+        title={
+          devtoolsOpen
+            ? t('browser.toolbar.devtoolsCloseTitle')
+            : t('browser.toolbar.devtoolsOpenTitle')
+        }
         disabled={!activeTab}
         onClick={() => void toggleDevTools()}
       >
-        开发者工具
+        {t('browser.toolbar.devtools')}
       </button>
     </div>
   )

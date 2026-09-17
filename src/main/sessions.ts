@@ -27,6 +27,7 @@ import {
   type StoredWorkspace
 } from '../shared/sessions'
 import { normalizeInput } from './browser/url'
+import { t } from './i18n'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
 
 /**
@@ -61,9 +62,9 @@ let seq = 0
 const NAME_MAX = 50
 const NOTE_MAX = 200
 
-/** 守卫失败统一抛出的业务错误 */
+/** 守卫失败统一抛出的业务错误（文案经字典 errors 命名空间，报错语言 = 取词时语言） */
 function invalidParams(): Error {
-  return new Error('无效的会话参数')
+  return new Error(t('errors.invalidSessionParams'))
 }
 
 /**
@@ -91,7 +92,7 @@ function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
  */
 function assertSessionIdFormat(ids: string[]): void {
   if (!ids.every((id) => SESSION_ID_RE.test(id))) {
-    throw new Error('会话 id 非法（疑似数据被篡改）')
+    throw new Error(t('errors.sessionIdTampered'))
   }
 }
 
@@ -144,7 +145,7 @@ function generateWorkspaceId(existingIds: Set<string>): string {
  */
 function assertWorkspaceIdFormat(id: string): void {
   if (!WORKSPACE_ID_RE.test(id)) {
-    throw new Error('工作区 id 非法（疑似数据被篡改）')
+    throw new Error(t('errors.workspaceIdTampered'))
   }
 }
 
@@ -163,7 +164,7 @@ function resolveMembership(
   if (raw === null) return null
   if (typeof raw !== 'string') throw invalidParams()
   assertWorkspaceIdFormat(raw)
-  if (!workspaceIds.has(raw)) throw new Error('工作区不存在')
+  if (!workspaceIds.has(raw)) throw new Error(t('errors.workspaceNotFound'))
   return raw
 }
 
@@ -208,10 +209,11 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           const id = generateSessionId(new Set(snapshot.sessions.map((s) => s.id)))
           const session: StoredSession = {
             id,
-            name: clampString(inputName || `会话 ${seq}`, NAME_MAX),
+            name: clampString(inputName || t('sessions.defaults.name', { n: seq }), NAME_MAX),
             note: clampString(inputNote, NOTE_MAX),
-            // 创建时标题为固定占位文案，仍过一道截断以维持入口上限不变式
-            pageTitle: clampString('未打开页面', PAGE_TITLE_MAX),
+            // 创建时标题为构造期本地化占位文案（i18n 种子语义：语言切换前的存量值
+            // 不追溯），仍过一道截断以维持入口上限不变式
+            pageTitle: clampString(t('sessions.defaults.noPageTitle'), PAGE_TITLE_MAX),
             // 阶段 4 契约（步骤 2 冻结）：新建会话无上次打开页，恒空串
             lastUrl: '',
             // 阶段 6 契约：新建会话无恢复集，懒创建时回退单空白 Tab
@@ -242,10 +244,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         }
         const id = payload.id
         const name = payload.name.trim()
-        if (!name) throw new Error('会话名称不能为空')
+        if (!name) throw new Error(t('errors.sessionNameEmpty'))
         const renamed = await mutateSnapshot((snapshot) => {
           const target = snapshot.sessions.find((s) => s.id === id)
-          if (!target) throw new Error('会话不存在')
+          if (!target) throw new Error(t('errors.sessionNotFound'))
           target.name = clampString(name, NAME_MAX)
           return target
         })
@@ -265,7 +267,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       // 级联后的 activeId 须在闭包内捕获传出（快照互斥期间才可见），供编排层跟随切换
       const nextActiveId = await mutateSnapshot((snapshot) => {
         const index = snapshot.sessions.findIndex((s) => s.id === id)
-        if (index === -1) throw new Error('会话不存在')
+        if (index === -1) throw new Error(t('errors.sessionNotFound'))
         const [removed] = snapshot.sessions.splice(index, 1)
         if (snapshot.activeId === removed.id) {
           snapshot.activeId = snapshot.sessions[0]?.id ?? null
@@ -290,7 +292,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       const nextId = payload.id
       await mutateSnapshot((snapshot) => {
         if (nextId !== null && !snapshot.sessions.some((s) => s.id === nextId)) {
-          throw new Error('会话不存在')
+          throw new Error(t('errors.sessionNotFound'))
         }
         snapshot.activeId = nextId
         // 工作区专项：激活落盘同临界区顺带更新所属工作区激活记忆（只随真实激活更新；
@@ -329,7 +331,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // 源会话存在性校验（读盘）；同一份快照兼作生成新 id 的撞车判据
         const snapshot = await loadSnapshot()
         const src = snapshot.sessions.find((s) => s.id === srcId)
-        if (!src) throw new Error('会话不存在')
+        if (!src) throw new Error(t('errors.sessionNotFound'))
         // 归属预校验（显式传值时）：在 clonePartition 这个高成本副作用之前完成——
         // 可预期的整单拒绝不得先产生分区目录残留（审查中 1）。mutateSnapshot 内的
         // resolveMembership 仍以互斥期最新快照复验（预检与复制间的工作区并发删除
@@ -338,7 +340,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           if (typeof membership !== 'string') throw invalidParams()
           assertWorkspaceIdFormat(membership)
           if (!snapshot.workspaces.some((w) => w.id === membership)) {
-            throw new Error('工作区不存在')
+            throw new Error(t('errors.workspaceNotFound'))
           }
         }
         const newId = generateSessionId(new Set(snapshot.sessions.map((s) => s.id)))
@@ -357,7 +359,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             const restore = deps.getRestoreSet(srcId)
             const cloned: StoredSession = {
               id: newId,
-              name: clampString(`${source.name} 副本`, NAME_MAX),
+              name: clampString(`${source.name} ${t('sessions.defaults.copySuffix')}`, NAME_MAX),
               note: source.note,
               pageTitle: source.pageTitle,
               lastUrl: source.lastUrl,
@@ -404,7 +406,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         const nextActiveId = await mutateSnapshot((snapshot) => {
           const idSet = new Set(ids)
           const known = new Set(snapshot.sessions.map((s) => s.id))
-          if (!ids.every((id) => known.has(id))) throw new Error('会话不存在')
+          if (!ids.every((id) => known.has(id))) throw new Error(t('errors.sessionNotFound'))
           snapshot.sessions = snapshot.sessions.filter((s) => !idSet.has(s.id))
           if (snapshot.activeId !== null && idSet.has(snapshot.activeId)) {
             snapshot.activeId = snapshot.sessions[0]?.id ?? null
@@ -436,10 +438,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // 竞态窗口（窗口内被并发删除的会话）按已通过处理，不在此二次设防
         const snapshot = await loadSnapshot()
         const known = new Set(snapshot.sessions.map((s) => s.id))
-        if (!ids.every((id) => known.has(id))) throw new Error('会话不存在')
+        if (!ids.every((id) => known.has(id))) throw new Error(t('errors.sessionNotFound'))
         // 地址栏输入规范化（scheme 白名单 + 缺省补 https://），失败整单拒绝
         const normalized = normalizeInput(payload.url)
-        if (!normalized) throw new Error('无效的网址')
+        if (!normalized) throw new Error(t('errors.invalidUrl'))
         deps.onBatchOpenUrl(ids, normalized)
         return { ok: true }
       })
@@ -460,14 +462,14 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       assertSessionIdFormat(ids)
       // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
       if (new Set(ids).size !== ids.length) {
-        throw new Error('会话顺序包含重复 id')
+        throw new Error(t('errors.reorderDuplicateIds'))
       }
       await mutateSnapshot((snapshot) => {
         // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
         // 缺项 / 多项 / 未知三类不一致
         const known = new Set(snapshot.sessions.map((s) => s.id))
         if (known.size !== ids.length || !ids.every((id) => known.has(id))) {
-          throw new Error('会话顺序与当前会话列表不一致')
+          throw new Error(t('errors.reorderMismatch'))
         }
         const byId = new Map(snapshot.sessions.map((s) => [s.id, s]))
         snapshot.sessions = ids.map((id) => byId.get(id) as StoredSession)
@@ -485,10 +487,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       logFailure(SESSIONS_CHANNELS.workspaceCreate, payload, async () => {
         if (!isRecord(payload) || typeof payload.name !== 'string') throw invalidParams()
         const name = clampString(payload.name.trim(), WORKSPACE_NAME_MAX)
-        if (!name) throw new Error('工作区名称不能为空')
+        if (!name) throw new Error(t('errors.workspaceNameEmpty'))
         return mutateSnapshot((snapshot) => {
           if (snapshot.workspaces.some((w) => w.name === name)) {
-            throw new Error('已存在同名工作区')
+            throw new Error(t('errors.workspaceNameExists'))
           }
           const workspace: StoredWorkspace = {
             id: generateWorkspaceId(new Set(snapshot.workspaces.map((w) => w.id))),
@@ -512,12 +514,12 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         assertWorkspaceIdFormat(payload.id)
         const id = payload.id
         const name = clampString(payload.name.trim(), WORKSPACE_NAME_MAX)
-        if (!name) throw new Error('工作区名称不能为空')
+        if (!name) throw new Error(t('errors.workspaceNameEmpty'))
         return mutateSnapshot((snapshot) => {
           const target = snapshot.workspaces.find((w) => w.id === id)
-          if (!target) throw new Error('工作区不存在')
+          if (!target) throw new Error(t('errors.workspaceNotFound'))
           if (snapshot.workspaces.some((w) => w.name === name && w.id !== id)) {
-            throw new Error('已存在同名工作区')
+            throw new Error(t('errors.workspaceNameExists'))
           }
           target.name = name
           return target
@@ -536,7 +538,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         assertWorkspaceIdFormat(payload.id)
         const id = payload.id
         await mutateSnapshot((snapshot) => {
-          if (!snapshot.workspaces.some((w) => w.id === id)) throw new Error('工作区不存在')
+          if (!snapshot.workspaces.some((w) => w.id === id))
+            throw new Error(t('errors.workspaceNotFound'))
           snapshot.workspaces = snapshot.workspaces.filter((w) => w.id !== id)
           for (const s of snapshot.sessions) {
             if (s.workspaceId === id) s.workspaceId = null
@@ -568,9 +571,9 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         if (target !== null) assertWorkspaceIdFormat(target)
         await mutateSnapshot((snapshot) => {
           const session = snapshot.sessions.find((s) => s.id === sessionId)
-          if (!session) throw new Error('会话不存在')
+          if (!session) throw new Error(t('errors.sessionNotFound'))
           if (target !== null && !snapshot.workspaces.some((w) => w.id === target)) {
-            throw new Error('工作区不存在')
+            throw new Error(t('errors.workspaceNotFound'))
           }
           // 源工作区记忆清理：记忆指向被移会话时置 null（记忆指向不存在的归属即脏
           // 数据——审查低 3；目标侧与未分组侧记忆不动，记忆只随真实激活更新）
@@ -610,11 +613,11 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         let skipped = 0
         await mutateSnapshot((snapshot) => {
           if (target !== null && !snapshot.workspaces.some((w) => w.id === target)) {
-            throw new Error('工作区不存在')
+            throw new Error(t('errors.workspaceNotFound'))
           }
           for (const id of ids) {
             const session = snapshot.sessions.find((item) => item.id === id)
-            if (!session) throw new Error('会话不存在')
+            if (!session) throw new Error(t('errors.sessionNotFound'))
             if (session.workspaceId === target) {
               skipped++
               continue
@@ -655,7 +658,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             return { prevActive, nextActive: snapshot.activeId }
           }
           const ws = snapshot.workspaces.find((w) => w.id === viewId)
-          if (!ws) throw new Error('工作区不存在')
+          if (!ws) throw new Error(t('errors.workspaceNotFound'))
           snapshot.activeWorkspaceId = viewId
           const current = snapshot.sessions.find((s) => s.id === snapshot.activeId)
           if (!current || current.workspaceId !== viewId) {
@@ -685,5 +688,5 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   )
 
   // 本文件注册 16 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 17 条
-  console.log('[sessions] IPC handlers 已注册（16 条通道）')
+  console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

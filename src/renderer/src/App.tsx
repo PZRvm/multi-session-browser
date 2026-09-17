@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { App as AntdApp, ConfigProvider, theme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import { THEME_SYSTEMS } from '../../shared/themeSystems'
 import BrowserFrame from './components/BrowserFrame'
 import IndependentWindowFrame from './components/IndependentWindowFrame'
 import SessionPanel from './components/SessionPanel'
 import { useAppearanceStore } from './stores/appearance'
 import { windowIdentity } from './stores/browser'
+import { useI18nStore } from './stores/i18n'
+import { ANTD_LOCALES, useT } from './i18n'
 import { applyThemeTokens } from './theme'
 
 const PANEL_MIN = 220
@@ -18,6 +19,7 @@ const PANEL_DEFAULT = 280
 function MainShell(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
   const dragging = useRef(false)
+  const t = useT()
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
     if (!dragging.current) return
@@ -59,7 +61,7 @@ function MainShell(): React.JSX.Element {
         className="panel-divider"
         role="separator"
         aria-orientation="vertical"
-        aria-label="调整面板宽度"
+        aria-label={t('browser.divider.adjustWidth')}
         onPointerDown={startDrag}
       />
       <div className="panel-right">
@@ -76,6 +78,8 @@ function App(): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
   const themeColor = useAppearanceStore((s) => s.themeColor)
   const appearanceInitialized = useAppearanceStore((s) => s.initialized)
+  // 界面语言（阶段六 i18n）：语言镜像按选择器订阅，切换即时翻转 antd 组件内置文案
+  const language = useI18nStore((s) => s.language)
 
   // 运行期主题 token 重注（首帧与 OS 翻转归 theme.ts bootstrap）：以 init 真值回填为
   // 门控（审查修复轮中 1）——未初始化期间 store 的 'amber' 占位初值不得覆盖 bootstrap
@@ -87,7 +91,7 @@ function App(): React.JSX.Element {
 
   return (
     <ConfigProvider
-      locale={zhCN}
+      locale={ANTD_LOCALES[language]}
       theme={{
         algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {

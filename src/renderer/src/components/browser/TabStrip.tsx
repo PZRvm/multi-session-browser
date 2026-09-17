@@ -3,6 +3,7 @@ import { CloseOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import type { BrowserTabState } from '../../../../shared/browser'
 import { useAppearanceStore } from '../../stores/appearance'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
+import { useT } from '../../i18n'
 
 interface TabItemProps {
   tab: BrowserTabState
@@ -24,6 +25,7 @@ const DRAG_ENGAGE_RADIUS_PX = 5
 // 指针手势三态：idle → armed（已按下未过阈值，仍是点击候选）→ dragging（位移
 // 过阈值，已上报主进程开轮询）。
 function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
+  const t = useT()
   const switchTab = useBrowserStore((s) => s.switchTab)
   const closeTab = useBrowserStore((s) => s.closeTab)
   const dragStart = useBrowserStore((s) => s.dragStart)
@@ -101,7 +103,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
     })
   }
 
-  const title = tab.title || '新标签页'
+  const title = tab.title || t('common.blankTabTitle')
 
   /** 位移过阈值，正式进入拖拽：上报主进程开轮询（携带虚影描述）+ 挂 Esc 放回 */
   const engageDrag = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -235,7 +237,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
       <button
         type="button"
         className="chrome-tab-close"
-        aria-label={`关闭标签页：${title}`}
+        aria-label={t('browser.tabs.closeWith', { title })}
         disabled={lastOne}
         // 关闭钮显式不可拖（阻断继承自 Tab 的拖拽源），点击与键盘激活不受手势扰动
         draggable={false}
@@ -258,6 +260,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
 // 0-Tab 组合（sessionId 非 null 且 tabs 空，移出唯一 Tab 后可达）：列表区天然为空、
 // 新建钮可用，不伪造占位 Tab；工具栏禁用链由 !activeTab 自然覆盖。
 function TabStrip(): React.JSX.Element {
+  const t = useT()
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const sessionId = useBrowserStore((s) => s.sessionId)
@@ -348,7 +351,7 @@ function TabStrip(): React.JSX.Element {
       ref={tabsElRef}
       className={`chrome-tabs${dragTarget ? ' drag-target' : ''}`}
       role="tablist"
-      aria-label="浏览器标签页"
+      aria-label={t('browser.tabs.listAria')}
     >
       {tabs.map((tab) => (
         <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} lastOne={lastOne} />
@@ -358,7 +361,7 @@ function TabStrip(): React.JSX.Element {
       <button
         type="button"
         className="chrome-newtab"
-        aria-label="新建标签页"
+        aria-label={t('browser.tabs.newTab')}
         disabled={sessionId === null}
         onClick={() => newTab()}
       >

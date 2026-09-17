@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { atomicWriteJson } from './fs-utils'
+import { t } from './i18n'
 import {
   APPEARANCE_CHANNELS,
   isAppearanceMode,
@@ -163,7 +164,7 @@ class NativeAppearanceController implements AppearanceController {
 
   setMode(mode: AppearanceMode): Promise<AppearanceSnapshot> {
     if (!isAppearanceMode(mode)) {
-      return Promise.reject(new Error('无效的外观模式参数'))
+      return Promise.reject(new Error(t('errors.invalidAppearanceParams')))
     }
 
     const run = async (): Promise<AppearanceSnapshot> => {
@@ -190,7 +191,7 @@ class NativeAppearanceController implements AppearanceController {
 
   setThemeColor(themeColor: ThemeSystemId): Promise<AppearanceSnapshot> {
     if (!isThemeSystemId(themeColor)) {
-      return Promise.reject(new Error('无效的主题色参数'))
+      return Promise.reject(new Error(t('errors.invalidThemeColorParams')))
     }
 
     const run = async (): Promise<AppearanceSnapshot> => {
@@ -257,7 +258,7 @@ export function registerAppearanceIpc(controller: AppearanceController): void {
     APPEARANCE_CHANNELS.setMode,
     (_event, payload: unknown): Promise<AppearanceSnapshot> => {
       if (!isRecord(payload) || !isAppearanceMode(payload.mode)) {
-        return Promise.reject(new Error('无效的外观模式参数'))
+        return Promise.reject(new Error(t('errors.invalidAppearanceParams')))
       }
       return controller.setMode(payload.mode)
     }
@@ -266,7 +267,7 @@ export function registerAppearanceIpc(controller: AppearanceController): void {
     APPEARANCE_CHANNELS.setThemeColor,
     (_event, payload: unknown): Promise<AppearanceSnapshot> => {
       if (!isRecord(payload) || !isThemeSystemId(payload.themeColor)) {
-        return Promise.reject(new Error('无效的主题色参数'))
+        return Promise.reject(new Error(t('errors.invalidThemeColorParams')))
       }
       return controller.setThemeColor(payload.themeColor)
     }

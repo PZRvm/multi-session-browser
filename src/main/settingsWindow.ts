@@ -22,6 +22,7 @@ import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
+import { getCurrentLanguage, onMainLanguageChanged, t } from './i18n'
 import type { ResolvedTheme } from '../shared/appearance'
 import type { ThemeSystemId } from '../shared/themeSystems'
 import { SETTINGS_CHANNELS, SETTINGS_WINDOW_ROLE } from '../shared/settings'
@@ -55,6 +56,13 @@ export function createSettingsWindowController(deps: {
 }): SettingsWindowController {
   let win: BrowserWindow | null = null
 
+  // 语言变更 → 存活设置窗标题即时刷新（建窗 title 同键 menu.settingsWindow；标题归
+  // 本控制器管理，故订阅在本模块接线而非 index.ts——最小侵入装配点）。控制器应用期
+  // 单例，订阅随其存续；窗不存在/已销毁自然 no-op
+  onMainLanguageChanged(() => {
+    if (win && !win.isDestroyed()) win.setTitle(t('menu.settingsWindow'))
+  })
+
   function open(): void {
     if (win && !win.isDestroyed()) {
       win.focus()
@@ -66,7 +74,8 @@ export function createSettingsWindowController(deps: {
     const resolvedTheme = deps.getResolvedTheme()
     const themeColor = deps.getThemeColor()
     const created = new BrowserWindow({
-      title: '设置',
+      // 标题经字典取词（menu.settingsWindow）：建窗时语言 + 语言变更回调 setTitle
+      title: t('menu.settingsWindow'),
       width: DEFAULT_WIDTH,
       height: DEFAULT_HEIGHT,
       minWidth: MIN_WIDTH,
@@ -104,18 +113,23 @@ export function createSettingsWindowController(deps: {
       if (win === created) win = null
     })
 
-    // 同 renderer 入口 + query 设置窗角色 + sys 主题色（omniboxSuggest / windows.ts
-    // 双路径同款）；catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的
-    // 竞态，不成年抛错）
+    // 同 renderer 入口 + query 设置窗角色 + sys 主题色 + lang 当前语言（omniboxSuggest
+    // / windows.ts 双路径同款；lang 首帧语言注入防闪变，运行期变更经 settings:changed
+    // 广播）；catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的竞态，
+    // 不成年抛错）
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: SETTINGS_WINDOW_ROLE, sys: themeColor })
+      const query = new URLSearchParams({
+        role: SETTINGS_WINDOW_ROLE,
+        sys: themeColor,
+        lang: getCurrentLanguage()
+      })
       created
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
         .catch(() => undefined)
     } else {
       created
         .loadFile(join(__dirname, '../renderer/index.html'), {
-          query: { role: SETTINGS_WINDOW_ROLE, sys: themeColor }
+          query: { role: SETTINGS_WINDOW_ROLE, sys: themeColor, lang: getCurrentLanguage() }
         })
         .catch(() => undefined)
     }
@@ -145,7 +159,7 @@ export function registerSettingsIpc(
     const mainWindow = deps.getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
       console.warn('[settings] 拒绝非主窗来源的设置窗打开请求')
-      throw new Error('设置窗命令仅接受主窗口来源')
+      throw new Error(t('errors.settingsWindowSourceOnly'))
     }
     controller.open()
     return { ok: true }
@@ -174,11 +188,11 @@ export function registerSettingsIpc(
       event.sender !== settingsWindow.webContents
     ) {
       console.warn('[settings] 拒绝非设置窗来源的数据目录打开请求')
-      throw new Error('数据目录命令仅接受设置窗口来源')
+      throw new Error(t('errors.dataDirSourceOnly'))
     }
     const errorMessage = await shell.openPath(app.getPath('userData'))
     if (errorMessage) {
-      throw new Error(`打开数据目录失败：${errorMessage}`)
+      throw new Error(t('errors.openDataDirFailed', { reason: errorMessage }))
     }
     return { ok: true }
   })

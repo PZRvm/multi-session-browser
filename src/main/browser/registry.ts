@@ -18,6 +18,7 @@ import {
   type SessionStatusesPayload
 } from '../../shared/sessions'
 import { loadSnapshot } from '../store'
+import { t } from '../i18n'
 import {
   BLANK_URL,
   createTabManager,
@@ -41,7 +42,7 @@ import type { IndependentWindows } from './windows'
  */
 function partitionFor(sessionId: string): string {
   if (!SESSION_ID_RE.test(sessionId)) {
-    throw new Error(`非法会话 id "${sessionId}"（疑似落盘数据被篡改），拒绝拼装分区`)
+    throw new Error(t('errors.partitionAssemblyBlocked', { id: sessionId }))
   }
   return `persist:sess-${sessionId}`
 }
@@ -52,7 +53,7 @@ function partitionFor(sessionId: string): string {
 function partitionDir(partition: string): string {
   const name = partition.replace(/^persist:/, '')
   if (!SESSION_ID_RE.test(name)) {
-    throw new Error(`非法分区名 "${name}"（疑似落盘数据被篡改），拒绝解析目录路径`)
+    throw new Error(t('errors.partitionNameTampered', { name }))
   }
   return join(app.getPath('userData'), 'Partitions', name)
 }
@@ -652,7 +653,7 @@ export function createSessionBrowserRegistry(deps: {
       }
       if (srcStat) {
         if (!srcStat.isDirectory()) {
-          throw new Error(`源分区路径不是目录（${srcDir}），疑似数据损坏，拒绝克隆`)
+          throw new Error(t('errors.cloneSourceNotDirectory', { path: srcDir }))
         }
         try {
           await cp(srcDir, dstDir, {
@@ -664,7 +665,7 @@ export function createSessionBrowserRegistry(deps: {
           // 复制完成后目标目录就位性复核：半成品复制在此暴露（失败走下方清理路径）
           const dstStat = await stat(dstDir)
           if (!dstStat.isDirectory()) {
-            throw new Error(`目标分区路径不是目录（${dstDir}）`)
+            throw new Error(t('errors.cloneTargetNotDirectory', { path: dstDir }))
           }
           // 克隆携带历史（用户批复假设 2）：先冲刷源会话待写再复制文件与内存条目
           // （settle 时点快照语义，与分区复制同口径）；失败走同一清理路径视为克隆失败
@@ -837,11 +838,11 @@ export function createSessionBrowserRegistry(deps: {
     windowId: string
   ): { sessionId: string; manager: TearOffTabManager } {
     const sessionId = windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
-    if (sessionId === null) throw new Error('未选择会话')
+    if (sessionId === null) throw new Error(t('errors.noSessionSelected'))
     const manager = managers.get(sessionId)
-    if (!manager) throw new Error('会话已不可用')
+    if (!manager) throw new Error(t('errors.sessionUnavailable'))
     if (!manager.getSnapshot(windowId).tabs.some((tab) => tab.id === id)) {
-      throw new Error('标签页不存在')
+      throw new Error(t('errors.tabNotFound'))
     }
     return { sessionId, manager }
   }
@@ -857,7 +858,7 @@ export function createSessionBrowserRegistry(deps: {
     // 建窗标题=会话名（与会话名严格同源，不做乐观标题）：会话元数据只在落盘（store.ts），
     // 读盘异步——先读再建窗，期间被移出的 Tab 仍挂源窗口、用户无感；读不到回退占位
     // 标题，不阻断 tear-off 主流程（标题随后续重命名经 setTitleForSession 同步）
-    let title = '会话窗口'
+    let title = t('menu.sessionWindow')
     try {
       const stored = await loadSnapshot()
       const found = stored.sessions.find((item) => item.id === sessionId)
@@ -882,10 +883,10 @@ export function createSessionBrowserRegistry(deps: {
     const { sessionId, manager } = requireScopeForTab(id, sourceWindowId)
     // 目标窗同会话强校验（拒绝判定已在拖拽控制器按命中集预判，此处兜底拦截竞态与
     // 内部误用——异会话一律拒绝，无任何宽容路径，计划 2.2 定案）
-    if (targetWindowId === sourceWindowId) throw new Error('目标窗口与源窗口相同')
+    if (targetWindowId === sourceWindowId) throw new Error(t('errors.moveTargetSameWindow'))
     const targetSessionId =
       targetWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(targetWindowId)
-    if (targetSessionId !== sessionId) throw new Error('目标窗口不属于该会话，拒绝转移')
+    if (targetSessionId !== sessionId) throw new Error(t('errors.moveTargetSessionMismatch'))
     manager.moveTabToWindow(id, sourceWindowId, targetWindowId, insertIndex)
   }
 
@@ -899,16 +900,16 @@ export function createSessionBrowserRegistry(deps: {
 
   function resolveSenderScope(sender: WebContents): SenderWindowScope {
     const win = BrowserWindow.fromWebContents(sender)
-    if (!win || win.isDestroyed()) throw new Error('无法识别命令来源窗口')
+    if (!win || win.isDestroyed()) throw new Error(t('errors.unknownCommandSource'))
     if (win === getWindow(WINDOW_ID_MAIN)) {
       return { windowId: WINDOW_ID_MAIN, sessionId: activeSessionId }
     }
     const windowId = String(win.id)
     const sessionId = windows.getSessionId(windowId)
-    if (sessionId === null) throw new Error('无法识别命令来源窗口')
+    if (sessionId === null) throw new Error(t('errors.unknownCommandSource'))
     // 独立窗口守卫：绑定会话的 manager 须仍在注册表（会话销毁/关闭后的残余窗口命令
     // 一律拒绝——步骤 5 起会话级联会先关掉这些窗口，此处是过渡期兜底）
-    if (!managers.has(sessionId)) throw new Error('会话已不可用')
+    if (!managers.has(sessionId)) throw new Error(t('errors.sessionUnavailable'))
     return { windowId, sessionId }
   }
 

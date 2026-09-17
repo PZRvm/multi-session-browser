@@ -9,10 +9,17 @@
 //   无害信息通道不设 sender 白名单——对齐 appearance.getState 先例，入参无值守卫需求）、
 //   open-data-dir（在系统文件管理器打开 userData，唯一触发 OS 级外部动作的通道，
 //   sender 白名单 = 设置窗 webContents）；
-// - 值域（阶段四，settings.json 首个真实键 homepageUrl）：get / changed / set-homepage
-//   三通道，对齐 appearance 域模式不设 sender 白名单（入参值守卫承担）；changed 推送
-//   BrowserWindow.getAllWindows() 全推（appearance 先例，未订阅窗口收到无消费无害），
-//   订阅方 = 主窗 / 独立窗 / 设置窗（各自 settings store init；omnibox-suggest 不订阅）。
+// - 值域（阶段四，settings.json 首个真实键 homepageUrl；阶段六增第二键 language）：
+//   get / changed / set-homepage / set-language 四通道，对齐 appearance 域模式不设
+//   sender 白名单（入参值守卫承担）；changed 推送 BrowserWindow.getAllWindows() 全推
+//   （appearance 先例，未订阅窗口收到无消费无害），订阅方 = 主窗 / 独立窗 / 设置窗 /
+//   建议子窗（各自 store init；阶段六起建议子窗 i18n 镜像也订阅 changed——建议子窗
+//   是懒建复用池，语言切换不重建，语言更新只能靠推送）。
+// 契约修订：阶段六值域 3→4 通道 + 快照增 language，见
+// notes/plans/20260917172635-设置阶段六语言切换i18n开发计划.md 契约核对第 1 条。
+// 语言域引用：SupportedLanguage 来自 shared/i18n（注册表单源），本文件不复制闭集。
+
+import type { SupportedLanguage } from './i18n'
 
 /** renderer 第四角色标识：主进程建窗 query 与 main.tsx 求值期分流共用的单源 */
 export const SETTINGS_WINDOW_ROLE = 'settings'
@@ -24,12 +31,14 @@ export const SETTINGS_CHANNELS = {
   getAppInfo: 'settings:get-app-info',
   /** 设置窗 → 主进程：在系统文件管理器打开 userData 数据目录 */
   openDataDir: 'settings:open-data-dir',
-  /** 任意壳层 → 主进程：拉取设置快照（当前唯一键 homepageUrl） */
+  /** 任意壳层 → 主进程：拉取设置快照（homepageUrl + language） */
   get: 'settings:get',
   /** 主进程 → 全部窗口：设置快照变更推送 */
   changed: 'settings:changed',
   /** 设置窗 → 主进程：设置主页 URL（空串 = 清除，维持默认起始页语义） */
-  setHomepage: 'settings:set-homepage'
+  setHomepage: 'settings:set-homepage',
+  /** 设置窗 → 主进程：设置界面语言（阶段六；合法值 = shared/i18n 注册表 code 闭集） */
+  setLanguage: 'settings:set-language'
 } as const
 
 export interface OkResult {
@@ -48,13 +57,20 @@ export interface SettingsAppInfo {
   platform: 'darwin' | 'win32' | 'linux'
 }
 
-/** 设置值域快照（阶段四）：renderer 消费的形状单源；落盘形状 StoredSettings 留在
- * src/main/settings.ts（主进程私有，与 sessions 域 StoredSession 同口径） */
+/** 设置值域快照（阶段四建形状、阶段六增语言键）：renderer 消费的形状单源；落盘形状
+ * StoredSettings 留在 src/main/settings.ts（主进程私有，与 sessions 域 StoredSession
+ * 同口径） */
 export interface SettingsSnapshot {
   /** 主页 URL：规范化绝对 URL 或空串（空 = 工具栏主页按钮维持 about:blank 默认） */
   homepageUrl: string
+  /** 界面语言（阶段六）：合法值 = shared/i18n 注册表 code 闭集，切换即时全窗生效 */
+  language: SupportedLanguage
 }
 
 export interface SetHomepagePayload {
   homepageUrl: string
+}
+
+export interface SetLanguagePayload {
+  language: SupportedLanguage
 }

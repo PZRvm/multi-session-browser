@@ -29,8 +29,9 @@ import type {
 } from '../shared/appearance'
 import type {
   OkResult as SettingsOkResult,
-  SettingsAppInfo,
   SetHomepagePayload,
+  SetLanguagePayload,
+  SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
 import type {
@@ -126,6 +127,7 @@ declare global {
         openDataDir(): Promise<SettingsOkResult>
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
+        setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
     }

@@ -1,19 +1,23 @@
 // 设置域偏好存储与值域 IPC（设置专项）：userData/settings.json 的读写与
-// get / changed / set-homepage 三通道（阶段四入住首个真实键 homepageUrl）。容错/
-// 原子写/串行队列逐条对齐外观域 preferences.json（src/main/appearance.ts）的实现
-// 模式，告警一律 [settings] 前缀与外观域区分；与 preferences.json 分域并行存储
+// get / changed / set-homepage / set-language 四通道（阶段四入住首个真实键
+// homepageUrl，阶段六入住第二键 language——v1 内增键属兼容扩展，不升 version）。
+// 容错/原子写/串行队列逐条对齐外观域 preferences.json（src/main/appearance.ts）的
+// 实现模式，告警一律 [settings] 前缀与外观域区分；与 preferences.json 分域并行存储
 //（PRD 4.9：设置与 sessions.json、分区数据分别独立读写），两域各自的写队列互不耦合。
 // 值域通道不设 sender 白名单（对齐 appearance 域 getState/setMode 先例，入参值守卫
 // 承担）；changed 推送 BrowserWindow.getAllWindows() 全推——订阅方 = 主窗/独立窗/
-// 设置窗各自 settings store init，未订阅窗口（建议子窗）收到无消费无害。
+// 设置窗/建议子窗（阶段六起建议子窗 i18n 镜像也订阅），未订阅窗口收到无消费无害。
 
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { isRecord } from '../shared/guards'
+import { DEFAULT_LANGUAGE, isSupportedLanguage } from '../shared/i18n'
+import type { SupportedLanguage } from '../shared/i18n'
 import { SETTINGS_CHANNELS } from '../shared/settings'
 import type { SettingsSnapshot } from '../shared/settings'
 import { atomicWriteJson } from './fs-utils'
+import { setMainProcessLanguage, t } from './i18n'
 import { normalizeInput } from './browser/url'
 
 const SETTINGS_VERSION = 1
@@ -21,12 +25,15 @@ const SETTINGS_VERSION = 1
 /** 主页 URL 输入长度上限（对齐 history 域 URL 上限 2000 的既有惯例） */
 const HOMEPAGE_URL_MAX = 2000
 
-/** settings.json 的 v1 存储形状：v1 空骨架（仅 version）之上随阶段四入住首个真实键
- * homepageUrl——v1 内增键属兼容扩展（存量文件缺键读侧补默认 ''，不升 version） */
+/** settings.json 的 v1 存储形状：v1 空骨架（仅 version）之上随阶段四入住
+ * homepageUrl、阶段六入住 language——v1 内增键属兼容扩展（存量文件缺键读侧补默认，
+ * 不升 version） */
 export interface StoredSettings {
   version: typeof SETTINGS_VERSION
   /** 主页 URL：规范化绝对 URL 或空串（空 = 工具栏主页按钮维持 about:blank 默认） */
   homepageUrl: string
+  /** 界面语言（阶段六）：合法值 = shared/i18n 注册表闭集 */
+  language: SupportedLanguage
 }
 
 function settingsPath(): string {
@@ -35,7 +42,7 @@ function settingsPath(): string {
 
 /** 默认骨架（每次新对象：调用方持有返回值改写不得污染共享常量） */
 function defaultSettings(): StoredSettings {
-  return { version: SETTINGS_VERSION, homepageUrl: '' }
+  return { version: SETTINGS_VERSION, homepageUrl: '', language: DEFAULT_LANGUAGE }
 }
 
 function warnInvalidSettings(reason: string): void {
@@ -77,24 +84,39 @@ export async function loadSettings(): Promise<StoredSettings> {
 
   return {
     version: SETTINGS_VERSION,
-    homepageUrl: readHomepageUrl(data)
+    homepageUrl: readHomepageUrl(data),
+    language: readLanguage(data)
   }
 }
 
-// —— 主进程侧同步缓存（新建标签页打开主页，PRD 3.8.2 2026-09-17 修订）——
-// manager.newUserTab 等同步消费方读内存不读盘：启动经 initHomepageCache 填充
-//（index.ts 建窗前 await，loadSettings 失败已内部回退空骨架，空白语义不阻塞启动）；
-// setHomepage 落盘成功后更新——缓存与盘面一致，拒绝路径零变更
+// —— 主进程侧同步缓存（新建标签页打开主页，PRD 3.8.2 2026-09-17 修订；阶段六增
+// 语言缓存）——manager.newUserTab / 主进程 i18n 等同步消费方读内存不读盘：启动经
+// initHomepageCache 填充（index.ts 建窗前 await，loadSettings 失败已内部回退默认骨架，
+// 不阻塞启动）；setHomepage / setLanguage 落盘成功后更新——缓存与盘面一致，拒绝路径
+// 零变更
 let cachedHomepageUrl = ''
+let cachedLanguage: SupportedLanguage = DEFAULT_LANGUAGE
 
-/** 启动填充主页同步缓存：唯一调用点 index.ts whenReady（先于窗口创建与会话恢复） */
+/** 启动填充主页与语言同步缓存：唯一调用点 index.ts whenReady（先于菜单安装与窗口创建） */
 export async function initHomepageCache(): Promise<void> {
-  cachedHomepageUrl = (await loadSettings()).homepageUrl
+  const settings = await loadSettings()
+  cachedHomepageUrl = settings.homepageUrl
+  cachedLanguage = settings.language
 }
 
 /** 主进程内同步取当前主页（空串 = 未设置）：registry 注入 createTabManager 消费 */
 export function getHomepageUrl(): string {
   return cachedHomepageUrl
+}
+
+/** 主进程内同步取当前语言（阶段六）：菜单安装、原生对话框、报错文案构造期消费 */
+export function getBootLanguage(): SupportedLanguage {
+  return cachedLanguage
+}
+
+/** 语言缓存更新（setLanguage 落盘成功后调用，阶段六接线） */
+export function updateCachedLanguage(language: SupportedLanguage): void {
+  cachedLanguage = language
 }
 
 /** 值域键读取：缺键（v1 空骨架存量）静默补 ''；坏值中文告警回退 ''。坏值判据与
@@ -111,6 +133,20 @@ function readHomepageUrl(data: Record<string, unknown>): string {
   if (value !== '' && (value.length > HOMEPAGE_URL_MAX || normalizeInput(value) !== value)) {
     console.warn('[settings] homepageUrl 非法（超长或未过规范化校验），已回退空值')
     return ''
+  }
+  return value
+}
+
+/** 界面语言读取（阶段六）：缺键（存量 v1 文件）静默补默认中文；坏值（不在
+ * shared/i18n 注册表闭集）中文告警回退默认——手改盘值不直达消费面 */
+function readLanguage(data: Record<string, unknown>): SupportedLanguage {
+  const value = data.language
+  if (value === undefined) return DEFAULT_LANGUAGE
+  if (!isSupportedLanguage(value)) {
+    console.warn(
+      `[settings] language 非法（不在语言注册表闭集），已回退默认语言: ${JSON.stringify(value)}`
+    )
+    return DEFAULT_LANGUAGE
   }
   return value
 }
@@ -146,11 +182,11 @@ function normalizeHomepageInput(raw: string): string {
   const input = raw.trim()
   if (!input) return ''
   if (input.length > HOMEPAGE_URL_MAX) {
-    throw new Error('主页地址过长')
+    throw new Error(t('errors.homepageUrlTooLong'))
   }
   const normalized = normalizeInput(input)
   if (normalized === null) {
-    throw new Error('无效的主页地址')
+    throw new Error(t('errors.invalidHomepageUrl'))
   }
   return normalized
 }
@@ -161,7 +197,20 @@ export async function setHomepage(raw: string): Promise<SettingsSnapshot> {
   const next: StoredSettings = { ...(await loadSettings()), homepageUrl }
   await saveSettings(next)
   cachedHomepageUrl = homepageUrl
-  return { homepageUrl }
+  return { homepageUrl, language: next.language }
+}
+
+/**
+ * 设置界面语言并落盘（阶段六）：读-改-写经既有 loadSettings + saveSettings 串行队列
+ * （与 setHomepage 同语义——并发以写队列为准、后写胜出）；落盘成功后同步语言缓存
+ * （updateCachedLanguage）并返回新快照。主进程语言态（菜单/对话框取词面）由 handler
+ * 在本函数成功后经 setMainProcessLanguage 推进——两缓存同步、拒绝路径零变更。
+ */
+export async function setLanguage(language: SupportedLanguage): Promise<SettingsSnapshot> {
+  const next: StoredSettings = { ...(await loadSettings()), language }
+  await saveSettings(next)
+  updateCachedLanguage(language)
+  return { homepageUrl: next.homepageUrl, language }
 }
 
 /** 设置快照变更推送：全部应用窗口（appearance.syncSnapshot 同款口径），失败静默跳过 */
@@ -173,19 +222,41 @@ function broadcastSettingsChanged(snapshot: SettingsSnapshot): void {
   }
 }
 
-/** 值域 IPC 装配（阶段四）：get 拉快照 / set-homepage 守卫 + 落盘 + changed 全推 */
+/** 值域 IPC 装配（阶段四 + 阶段六 set-language）：get 拉快照 / set-homepage、
+ * set-language 守卫 + 落盘 + changed 全推 */
 export function registerSettingsValueIpc(): void {
   ipcMain.handle(SETTINGS_CHANNELS.get, (): Promise<SettingsSnapshot> =>
-    loadSettings().then((settings) => ({ homepageUrl: settings.homepageUrl }))
+    loadSettings().then((settings) => ({
+      homepageUrl: settings.homepageUrl,
+      language: settings.language
+    }))
   )
 
   ipcMain.handle(
     SETTINGS_CHANNELS.setHomepage,
     (_event, payload: unknown): Promise<SettingsSnapshot> => {
       if (!isRecord(payload) || typeof payload.homepageUrl !== 'string') {
-        return Promise.reject(new Error('无效的主页设置参数'))
+        return Promise.reject(new Error(t('errors.invalidHomepageParams')))
       }
       return setHomepage(payload.homepageUrl).then((snapshot) => {
+        broadcastSettingsChanged(snapshot)
+        return snapshot
+      })
+    }
+  )
+
+  // set-language（阶段六）：语言值守卫（注册表闭集）→ setLanguage 落盘并同步缓存 →
+  // setMainProcessLanguage（内部按注册序触发变更回调：菜单重建、设置窗标题刷新，
+  // 装配点 index.ts / settingsWindow.ts）→ changed 全窗推送 → 快照返回（renderer
+  // 以返回值为权威回填）；任一失败如实抛错，盘与两处缓存保持旧值
+  ipcMain.handle(
+    SETTINGS_CHANNELS.setLanguage,
+    (_event, payload: unknown): Promise<SettingsSnapshot> => {
+      if (!isRecord(payload) || !isSupportedLanguage(payload.language)) {
+        return Promise.reject(new Error(t('errors.invalidLanguageParams')))
+      }
+      return setLanguage(payload.language).then((snapshot) => {
+        setMainProcessLanguage(snapshot.language)
         broadcastSettingsChanged(snapshot)
         return snapshot
       })

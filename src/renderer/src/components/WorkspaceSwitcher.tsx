@@ -5,6 +5,7 @@ import { CheckOutlined, DownOutlined, PlusOutlined, SearchOutlined } from '@ant-
 import { WORKSPACE_NAME_MAX, WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
+import { useT } from '../i18n'
 
 /** 下拉选项（全部会话 + 各工作区；新建行独立渲染不入 options） */
 interface WsOption {
@@ -24,6 +25,7 @@ interface WsOption {
  * 瞬态，不进 store、不进 IPC；持久动作经 store 工作区动作落盘
  */
 export default function WorkspaceSwitcher(): React.JSX.Element {
+  const t = useT()
   const workspaces = useSessionsStore((s) => s.workspaces)
   const activeWorkspaceId = useSessionsStore((s) => s.activeWorkspaceId)
   const sessions = useSessionsStore((s) => s.sessions)
@@ -50,12 +52,16 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
 
   const viewName =
     activeWorkspaceId === WORKSPACE_VIEW_ALL
-      ? '全部会话'
-      : (workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部会话')
+      ? t('sessions.workspaceSwitcher.allSessions')
+      : (workspaces.find((w) => w.id === activeWorkspaceId)?.name ??
+        t('sessions.workspaceSwitcher.allSessions'))
 
   const allOptions: WsOption[] = useMemo(
-    () => [{ id: WORKSPACE_VIEW_ALL, name: '全部会话' }, ...workspaces],
-    [workspaces]
+    () => [
+      { id: WORKSPACE_VIEW_ALL, name: t('sessions.workspaceSwitcher.allSessions') },
+      ...workspaces
+    ],
+    [workspaces, t]
   )
   const keyword = filter.trim().toLowerCase()
   const filtered = useMemo(
@@ -89,7 +95,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const pick = (option: WsOption): void => {
     closePanel()
     void switchWorkspace(option.id).then((ok) => {
-      if (!ok) message.error('切换工作区失败，已恢复')
+      if (!ok) message.error(t('sessions.workspaceSwitcher.errors.switchFailed'))
     })
   }
 
@@ -98,12 +104,12 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
     if (!name) return
     void createWorkspace(name).then((created) => {
       if (!created) {
-        message.error('新建工作区失败')
+        message.error(t('sessions.workspaceSwitcher.errors.createFailed'))
         return
       }
       // 建即切入（空工作区空态引导用户就地新建会话）
       void switchWorkspace(created.id).then((ok) => {
-        if (!ok) message.error('切换工作区失败，已恢复')
+        if (!ok) message.error(t('sessions.workspaceSwitcher.errors.switchFailed'))
       })
     })
     closePanel()
@@ -150,7 +156,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
     const name = renameDraft.trim()
     if (!id || !name) return
     void renameWorkspace(id, name).then((ok) => {
-      if (!ok) message.error('重命名工作区失败')
+      if (!ok) message.error(t('sessions.workspaceSwitcher.errors.renameFailed'))
       setRenameOpen(false)
     })
   }
@@ -160,19 +166,19 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
     openOverlay()
     try {
       modal.confirm({
-        title: '删除工作区',
+        title: t('sessions.workspaceSwitcher.deleteConfirm.title'),
         content:
-          `将删除工作区「${name}」。` +
+          t('sessions.workspaceSwitcher.deleteConfirm.prefix', { name }) +
           (count > 0
-            ? `其中 ${count} 个会话将移入「未分组」，会话与其数据不受影响。`
-            : '该工作区没有会话。'),
-        okText: '删除',
+            ? t('sessions.workspaceSwitcher.deleteConfirm.withSessions', { n: count })
+            : t('sessions.workspaceSwitcher.deleteConfirm.empty')),
+        okText: t('sessions.shared.delete'),
         okButtonProps: { danger: true },
-        cancelText: '取消',
+        cancelText: t('common.cancel'),
         onOk: () =>
           deleteWorkspace(id).then((ok) => {
             if (!ok) {
-              message.error('删除工作区失败')
+              message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
               throw new Error('删除工作区被拒绝')
             }
           }),
@@ -191,7 +197,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
         className={`ws-combobox${open ? ' open' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="切换工作区（可输入过滤）"
+        title={t('sessions.workspaceSwitcher.comboboxTitle')}
         onClick={() => (open ? closePanel() : setOpen(true))}
       >
         <span className="ws-combobox-label">{viewName}</span>
@@ -201,7 +207,11 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
       </button>
 
       {open && (
-        <div className="ws-panel" role="listbox" aria-label="工作区">
+        <div
+          className="ws-panel"
+          role="listbox"
+          aria-label={t('sessions.workspaceSwitcher.panelAria')}
+        >
           <div className="ws-search-host">
             <span className="ws-search-icon">
               <SearchOutlined />
@@ -211,8 +221,8 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
               className="ws-search"
               size="small"
               variant="borderless"
-              placeholder="输入以过滤工作区"
-              aria-label="过滤工作区"
+              placeholder={t('sessions.workspaceSwitcher.searchPlaceholder')}
+              aria-label={t('sessions.workspaceSwitcher.searchAria')}
               // combobox 键盘域：读屏经 aria-activedescendant 感知 ↑↓ 高亮行（审查低 4）
               id="ws-search-input"
               aria-controls="ws-listbox"
@@ -242,7 +252,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                   title={
                     option.id === WORKSPACE_VIEW_ALL
                       ? option.name
-                      : `${option.name}（右键：重命名 / 删除）`
+                      : t('sessions.workspaceSwitcher.optionHint', { name: option.name })
                   }
                   onClick={() => {
                     if (isCtx) return
@@ -261,7 +271,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                         size="small"
                         onClick={() => startRename(option.id, option.name)}
                       >
-                        重命名
+                        {t('sessions.workspaceSwitcher.rowRename')}
                       </Button>
                       <Button
                         type="text"
@@ -269,7 +279,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                         danger
                         onClick={() => confirmDelete(option.id, option.name)}
                       >
-                        删除
+                        {t('sessions.workspaceSwitcher.rowDelete')}
                       </Button>
                     </span>
                   ) : (
@@ -295,19 +305,23 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                 <span className="ws-create-icon">
                   <PlusOutlined />
                 </span>
-                <span className="ws-option-name">新建工作区「{createCandidate}」</span>
+                <span className="ws-option-name">
+                  {t('sessions.workspaceSwitcher.createOption', { name: createCandidate })}
+                </span>
               </div>
             )}
-            {selectableCount === 0 && <div className="ws-option-empty">无匹配工作区</div>}
+            {selectableCount === 0 && (
+              <div className="ws-option-empty">{t('sessions.workspaceSwitcher.noMatch')}</div>
+            )}
           </div>
         </div>
       )}
 
       <Modal
-        title="重命名工作区"
+        title={t('sessions.workspaceSwitcher.renameModalTitle')}
         open={renameOpen}
-        okText="保存"
-        cancelText="取消"
+        okText={t('sessions.workspaceSwitcher.saveText')}
+        cancelText={t('common.cancel')}
         onOk={confirmRename}
         onCancel={() => setRenameOpen(false)}
         afterClose={() => {
@@ -319,7 +333,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
         <Input
           value={renameDraft}
           maxLength={WORKSPACE_NAME_MAX}
-          aria-label="工作区名称"
+          aria-label={t('sessions.workspaceSwitcher.nameAria')}
           onChange={(e) => setRenameDraft(e.target.value)}
           onPressEnter={confirmRename}
         />

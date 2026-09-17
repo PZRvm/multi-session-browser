@@ -15,6 +15,7 @@ import type { WebContents } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { installShellInputGuard } from '../inputGuard'
+import { getCurrentLanguage } from '../i18n'
 import { clampRectIntoWorkArea } from './screen'
 import {
   OMNIBOX_SUGGEST_CHANNELS,
@@ -188,17 +189,22 @@ export function createOmniboxSuggestWindows(deps: {
     // 同 renderer 入口 + query 子窗角色（windows.ts 独立窗同款双路径）；catch 静默
     // dispose 销毁期在途加载的 ERR_ABORTED（与 loadLoadFailure 的静默口径一致）。
     // sys 统一注入不特判（面板为 chrome 侧配色不随主题变，但 renderer 求值期首帧
-    // bootstrap 全窗统一执行——契约见 shared/themeSystems.ts 头注）
+    // bootstrap 全窗统一执行——契约见 shared/themeSystems.ts 头注）；lang = 建窗时刻
+    // 语言（阶段六首帧语言注入；懒建池已存活子窗的语言更新走 settings:changed 推送）
     const sys = deps.getThemeColor()
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: 'omnibox-suggest', sys })
+      const query = new URLSearchParams({
+        role: 'omnibox-suggest',
+        sys,
+        lang: getCurrentLanguage()
+      })
       win
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
         .catch(() => undefined)
     } else {
       win
         .loadFile(join(__dirname, '../renderer/index.html'), {
-          query: { role: 'omnibox-suggest', sys }
+          query: { role: 'omnibox-suggest', sys, lang: getCurrentLanguage() }
         })
         .catch(() => undefined)
     }

@@ -2,19 +2,22 @@ import { Fragment, useEffect, useState } from 'react'
 import { SettingsPane, SettingsRow } from './SettingsParts'
 import { BROWSER_SHORTCUTS, type BrowserShortcutId } from '../../../../shared/browserShortcuts'
 import type { SettingsAppInfo } from '../../../../shared/settings'
+import type { DictKey } from '../../../../shared/i18n'
+import { useT } from '../../i18n'
 
 // 快捷键版面：键帽速查表（阶段三实装）。键位数据单源派生自 src/shared/
-// browserShortcuts——版面内不维护第二副本键位，仅维护中文文案映射与展示行序；
+// browserShortcuts——版面内不维护第二副本键位，仅维护动作名字典键映射与展示行序
+//（动作名与簇 B 的 browser 命名空间 Toolbar title 同词，两命名空间独立定义互不影响）；
 // 修饰键键帽按平台派生（macOS ⌘ / 其他平台 Ctrl，platform 经 settings:get-app-info
 // 主进程单源带回，不自建 navigator 推断副本）；字母键帽大写、Escape 键帽简写 Esc
-const SHORTCUT_LABELS: Record<BrowserShortcutId, string> = {
-  reload: '刷新',
-  'new-tab': '新建标签页',
-  'close-tab': '关闭标签页',
-  'focus-address': '聚焦地址栏',
-  find: '页内查找',
-  'toggle-devtools': '打开或关闭开发者工具',
-  'close-devtools': '关闭开发者工具'
+const SHORTCUT_LABEL_KEYS: Record<BrowserShortcutId, DictKey> = {
+  reload: 'settings.shortcutActions.reload',
+  'new-tab': 'settings.shortcutActions.newTab',
+  'close-tab': 'settings.shortcutActions.closeTab',
+  'focus-address': 'settings.shortcutActions.focusAddress',
+  find: 'settings.shortcutActions.find',
+  'toggle-devtools': 'settings.shortcutActions.toggleDevtools',
+  'close-devtools': 'settings.shortcutActions.closeDevtools'
 }
 
 // 展示行序（浏览器操作逻辑：导航 → Tab → 地址栏 → 查找 → DevTools）
@@ -69,6 +72,7 @@ function ShortcutKeys({ groups }: { groups: readonly string[][] }): React.JSX.El
 export function PaneShortcuts(): React.JSX.Element {
   const [platform, setPlatform] = useState<SettingsAppInfo['platform'] | null>(null)
   const [failed, setFailed] = useState(false)
+  const t = useT()
 
   useEffect(() => {
     let cancelled = false
@@ -91,15 +95,15 @@ export function PaneShortcuts(): React.JSX.Element {
   return (
     <SettingsPane
       id="shortcuts"
-      title="快捷键"
-      desc={failed ? '应用信息获取失败' : '应用与浏览器区的键位速查'}
+      title={t('settings.panes.shortcuts.title')}
+      desc={failed ? t('settings.panes.shortcuts.fetchFailed') : t('settings.panes.shortcuts.desc')}
     >
       {platform === null ? null : (
         <>
           {SHORTCUT_ROW_ORDER.map((id) => (
             <SettingsRow
               key={id}
-              label={SHORTCUT_LABELS[id]}
+              label={t(SHORTCUT_LABEL_KEYS[id])}
               control={<ShortcutKeys groups={keyGroupsFor(id, platform)} />}
             />
           ))}

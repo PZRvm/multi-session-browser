@@ -1,13 +1,15 @@
 import { create } from 'zustand'
 import type { AppearanceMode, AppearanceSnapshot, ResolvedTheme } from '../../../shared/appearance'
 import type { ThemeSystemId } from '../../../shared/themeSystems'
+import { DICTIONARIES } from '../../../shared/i18n'
+import { useI18nStore } from './i18n'
 
-// 外观三态中文文案的单一副本（板头 AppearanceEntry 与设置窗外观行同词消费；本模块为
-// 非组件文件，常量导出不触发 react-refresh 限制——阶段六 i18n 字典接管后迁入字典）
-export const appearanceText: Record<AppearanceMode, string> = {
-  system: '跟随系统',
-  light: '白天',
-  dark: '黑夜'
+// 外观三态文案取词（板头 AppearanceEntry 与设置窗外观行同词消费）：阶段六 i18n 字典
+// 接管后三态名归 sessions 命名空间跨簇共享键 sessions.appearanceGroup.modes（簇 A
+// 定义），本函数按 i18n 镜像当前语言取词——组件在语言订阅的重渲染期调用即得新词；
+// 本模块为非组件文件，非组件导出不触发 react-refresh 限制
+export function appearanceText(mode: AppearanceMode): string {
+  return DICTIONARIES[useI18nStore.getState().language].sessions.appearanceGroup.modes[mode]
 }
 
 interface AppearanceState extends AppearanceSnapshot {

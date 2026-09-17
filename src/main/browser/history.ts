@@ -26,6 +26,7 @@ import {
 } from '../../shared/history'
 import { SESSION_ID_RE } from '../../shared/sessions'
 import { atomicWriteJson } from '../fs-utils'
+import { t } from '../i18n'
 
 /** 页面侧导航事实（manager 上抛） */
 export interface VisitFact {
@@ -92,7 +93,7 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
     // [a-z0-9-]（无 '.' 与 '/'，封死 '..' 路径逃逸）；registry 侧 partitionFor 用
     // 同一正则把守，非法 id 到不了本模块
     if (!SESSION_ID_RE.test(sessionId)) {
-      throw new Error(`会话 id "${sessionId}" 含非法字符，拒绝拼接历史文件路径`)
+      throw new Error(t('errors.historyPathBlocked', { id: sessionId }))
     }
     return join(deps.historyDir(), `${sessionId}.json`)
   }

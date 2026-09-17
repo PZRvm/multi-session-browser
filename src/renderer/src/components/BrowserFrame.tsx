@@ -5,6 +5,7 @@ import BrowserContentAnchor from './browser/BrowserContentAnchor'
 import { useBrowserShortcuts } from './browser/useBrowserShortcuts'
 import { useBrowserStore } from '../stores/browser'
 import { useUiStore } from '../stores/ui'
+import { useT } from '../i18n'
 
 // 右侧浏览器框架：Tab 栏 + 工具栏 + 内容区三段组装；内容区由主进程 WebContentsView
 // 按锚点矩形覆盖，shell 内不放页面可见内容；原生 DevTools 在该 WebContentsView
@@ -13,6 +14,7 @@ import { useUiStore } from '../stores/ui'
 // 全局弹层（ui store 的 overlayDepth）打开时暂停上报，主进程按零矩形收起原生层，
 // 弹层不被遮挡。
 function BrowserFrame(): React.JSX.Element {
+  const t = useT()
   const suspended = useUiStore((s) => s.overlayDepth > 0)
   const sessionId = useBrowserStore((s) => s.sessionId)
   useBrowserShortcuts()
@@ -23,9 +25,9 @@ function BrowserFrame(): React.JSX.Element {
       <Toolbar />
       <div className="chrome-body">
         {sessionId === null ? (
-          <div className="chrome-empty" role="status" aria-label="尚无会话">
-            <p className="chrome-empty-title">尚无会话</p>
-            <p className="chrome-empty-hint">在左侧新建或选择会话，开始隔离浏览</p>
+          <div className="chrome-empty" role="status" aria-label={t('browser.frame.noSession')}>
+            <p className="chrome-empty-title">{t('browser.frame.noSession')}</p>
+            <p className="chrome-empty-hint">{t('browser.frame.noSessionHint')}</p>
           </div>
         ) : (
           <>

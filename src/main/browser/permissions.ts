@@ -12,6 +12,7 @@ import type {
   Session,
   WebContents
 } from 'electron'
+import { t } from '../i18n'
 
 type CameraDecision = 'allow' | 'deny'
 
@@ -109,16 +110,18 @@ export function createCameraPermissionBroker(
     status: string
   ): Promise<void> {
     console.warn(`[permissions] 摄像头被系统阻止（${platform}/${status}）`)
+    // 对话框文案构造期经 t 取词（dialogs 命名空间；询问/阻止可能发生在语言切换前后，
+    // 报错语言 = 对话框构造时语言）；OS 设置路径文案同为用户可见，一并入字典
     const path =
       platform === 'darwin'
-        ? '系统设置 > 隐私与安全性 > 摄像头'
-        : '设置 > 隐私和安全性 > 摄像头，并开启“允许桌面应用访问摄像头”'
+        ? t('dialogs.camera.blockedPathMac')
+        : t('dialogs.camera.blockedPathWindows')
     await showMessage(webContents, {
       type: 'warning',
-      title: '摄像头权限被系统阻止',
-      message: '系统未允许多会话测试浏览器使用摄像头',
-      detail: `当前状态：${status}\n请前往“${path}”允许访问，然后重启应用再试。`,
-      buttons: ['知道了'],
+      title: t('dialogs.camera.blockedTitle'),
+      message: t('dialogs.camera.blockedMessage', { name: t('common.appName') }),
+      detail: t('dialogs.camera.blockedDetail', { status, path }),
+      buttons: [t('dialogs.camera.blockedButton')],
       defaultId: 0,
       cancelId: 0,
       noLink: true
@@ -185,10 +188,13 @@ export function createCameraPermissionBroker(
 
     const result = await showMessage(webContents, {
       type: 'question',
-      title: '摄像头访问请求',
-      message: '允许此站点使用摄像头吗？',
-      detail: `会话：${sessionName || binding.sessionId}\n站点：${origin}\n\n仅允许摄像头视频，不会开放麦克风。`,
-      buttons: ['拒绝', '允许'],
+      title: t('dialogs.camera.requestTitle'),
+      message: t('dialogs.camera.requestMessage'),
+      detail: t('dialogs.camera.requestDetail', {
+        session: sessionName || binding.sessionId,
+        origin
+      }),
+      buttons: [t('dialogs.camera.requestDeny'), t('dialogs.camera.requestAllow')],
       defaultId: 0,
       cancelId: 0,
       noLink: true

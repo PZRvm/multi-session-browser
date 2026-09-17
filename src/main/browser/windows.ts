@@ -11,6 +11,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
 import { installShellInputGuard } from '../inputGuard'
+import { getCurrentLanguage } from '../i18n'
 import { clampRectIntoWorkArea } from './screen'
 import type { ThemeSystemId } from '../../shared/themeSystems'
 
@@ -184,14 +185,27 @@ export function createIndependentWindows(deps: {
     // 同 renderer 入口 + query 独立窗口模式（契约点 1：URL 无 query = 主窗口；
     // role=tab-window = 独立窗口，windowId/session 取自 query；dev 走 HMR 入口 + query）。
     // sys = 建窗时刻主题色（renderer 求值期消费作首帧初始值防闪色；运行期变更一律经
-    // appearance:changed 广播，query 不再被读取——契约见 shared/themeSystems.ts 头注）
+    // appearance:changed 广播，query 不再被读取——契约见 shared/themeSystems.ts 头注）；
+    // lang = 建窗时刻语言（阶段六首帧语言注入，运行期变更经 settings:changed 广播）
     const sys = deps.getThemeColor()
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: 'tab-window', session: sessionId, windowId, sys })
+      const query = new URLSearchParams({
+        role: 'tab-window',
+        session: sessionId,
+        windowId,
+        sys,
+        lang: getCurrentLanguage()
+      })
       win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
     } else {
       win.loadFile(join(__dirname, '../renderer/index.html'), {
-        query: { role: 'tab-window', session: sessionId, windowId, sys }
+        query: {
+          role: 'tab-window',
+          session: sessionId,
+          windowId,
+          sys,
+          lang: getCurrentLanguage()
+        }
       })
     }
     return { windowId, win }

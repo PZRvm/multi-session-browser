@@ -59,8 +59,9 @@ import type {
 import { SETTINGS_CHANNELS } from '../shared/settings'
 import type {
   OkResult as SettingsOkResult,
-  SettingsAppInfo,
   SetHomepagePayload,
+  SetLanguagePayload,
+  SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
 
@@ -281,6 +282,9 @@ const api = {
     getHomepage: (): Promise<SettingsSnapshot> => ipcRenderer.invoke(SETTINGS_CHANNELS.get),
     setHomepage: (payload: SetHomepagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setHomepage, payload),
+    // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
+    setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
     onChanged: (callback: (snapshot: SettingsSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: SettingsSnapshot): void => {
         callback(snapshot)

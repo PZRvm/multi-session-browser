@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import OmniboxSuggestWindow from './components/browser/OmniboxSuggestWindow'
 import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore, windowIdentity } from './stores/browser'
+import { bootstrapLanguage, useI18nStore } from './stores/i18n'
 import { useSessionsStore } from './stores/sessions'
 import { useSettingsStore } from './stores/settings'
 import { bootstrapThemeTokens } from './theme'
@@ -24,6 +25,12 @@ const SettingsWindow = lazy(() => import('./components/SettingsWindow'))
 // 三分支全覆盖，首帧先于 React 提交，非琥珀主题开窗不闪琥珀缺省色
 bootstrapThemeTokens()
 
+// 语言首帧注入（设置专项阶段六 i18n）：建窗 URL query 的 lang 是主进程建窗注入的
+// 首帧初始值契约（sys 同点），求值期同步定 i18n 镜像初值——先于 role 分流与一切
+// 渲染，四角色全覆盖；isSupportedLanguage 校验，非法/缺省忽略走默认中文，英文窗
+// 首帧不闪中文
+bootstrapLanguage(new URLSearchParams(window.location.search).get('lang'))
+
 const role = new URLSearchParams(window.location.search).get('role')
 
 // 设置窗角色先行分流（设置专项阶段一，?role=settings）：单例设置子窗由主进程加载
@@ -39,6 +46,10 @@ if (role === SETTINGS_WINDOW_ROLE) {
   void useAppearanceStore.getState().init()
   // 设置值域镜像自阶段四初始化（主页行受控值与写入）；失败不阻塞壳体渲染
   void useSettingsStore.getState().init()
+  // 语言镜像自阶段六初始化（语言行受控值与写入 + ConfigProvider locale）：首帧语言
+  // 已由 bootstrapLanguage 按 query 定值，init 只做 changed 订阅与真值校准；失败
+  // 不阻塞壳体渲染
+  void useI18nStore.getState().init()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Suspense fallback={null}>
@@ -48,6 +59,10 @@ if (role === SETTINGS_WINDOW_ROLE) {
   )
 } else if (role === 'omnibox-suggest') {
   document.body.dataset.role = 'omnibox-suggest'
+  // 语言镜像订阅（阶段六 i18n）：建议子窗是懒建复用池，语言切换不重建已存活子窗，
+  // 文案更新只能靠 settings:changed 推送——仅 init i18n 镜像（失败不阻塞面板渲染）；
+  // 不初始化 sessions/browser/settings 等其他 store 的现状保持不变
+  void useI18nStore.getState().init()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <OmniboxSuggestWindow />
@@ -60,6 +75,9 @@ if (role === SETTINGS_WINDOW_ROLE) {
   // 设置值域镜像（阶段四，主页按钮消费）：与快照守卫无耦合，不进 sessions→browser
   // 串行链，与 browser.init 并行即可
   void useSettingsStore.getState().init()
+  // 语言镜像（阶段六 i18n，主窗与独立窗共用此分支）：失败不阻塞会话与浏览器恢复，
+  // 首帧语言已由 bootstrapLanguage 按 query 定值
+  void useI18nStore.getState().init()
 
   if (windowIdentity.mode === 'main') {
     // 首帧前从主进程加载状态；init 内部有防重入守卫，StrictMode 下安全。

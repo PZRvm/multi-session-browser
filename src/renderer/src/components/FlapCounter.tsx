@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useT } from '../i18n'
 
 interface FlapDigitProps {
   digit: string
@@ -29,11 +30,12 @@ interface FlapCounterProps {
 }
 
 function FlapCounter({ value, pad = 2 }: FlapCounterProps): React.JSX.Element {
+  const t = useT()
   const shown = Math.min(value, 10 ** pad - 1)
   const digits = String(shown).padStart(pad, '0').split('')
 
   return (
-    <span className="flap-counter" aria-label={`${value} 个会话`}>
+    <span className="flap-counter" aria-label={t('sessions.flapCounter.aria', { n: value })}>
       {digits.map((d, i) => (
         <FlapDigit key={i} digit={d} />
       ))}

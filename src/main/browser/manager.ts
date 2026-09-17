@@ -17,11 +17,11 @@ import {
 } from '../../shared/browser'
 import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
+import { t } from '../i18n'
 import type { VisitFact } from './history'
 import { isOpenableUrl, logLoadFailure } from './url'
 
 const BLANK_URL = 'about:blank'
-const BLANK_TITLE = '新标签页'
 export { BLANK_URL }
 /** 悬挂（确认框等弹层）时的收起矩形 */
 const HIDDEN_RECT: SetBoundsPayload = { x: 0, y: 0, width: 0, height: 0 }
@@ -262,7 +262,9 @@ export function createTabManager(
       list.push({
         id: tab.id,
         url: tab.url,
-        title: blank ? BLANK_TITLE : tab.title,
+        // 空白 Tab 标题经字典取词（common.blankTabTitle，构建快照时现取——语言切换后
+        // 新建 Tab 即新语言；TabStrip 的兜底渲染消费同一键）
+        title: blank ? t('common.blankTabTitle') : tab.title,
         faviconUrl: blank ? null : tab.faviconUrl,
         loading: tab.loading,
         // canGoBack/canGoForward 构建快照时从 webContents 现读，不缓存
