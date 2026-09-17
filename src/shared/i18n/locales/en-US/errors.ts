@@ -34,6 +34,14 @@ export const errors: Dictionary['errors'] = {
   dataDirSourceOnly: 'Data directory commands are only accepted from the settings window',
   openDataDirFailed: 'Failed to open data directory: {reason}',
 
+  // Factory reset (factoryReset.ts orchestration chain); any failure aborts and
+  // surfaces honestly (PRD 4.9)
+  factoryResetSourceOnly: 'Factory reset can only be triggered from the settings window',
+  factoryResetSessionWriteFailed:
+    'Failed to persist clearing sessions and workspaces; aborted (no changes were made)',
+  factoryResetCleanupFailed: 'Some session data failed to be cleaned up; subsequent reset aborted',
+  factoryResetPreferenceWriteFailed: 'Failed to persist default settings; aborted',
+
   invalidAppearanceParams: 'Invalid appearance mode parameters',
   invalidThemeColorParams: 'Invalid theme color parameters',
 

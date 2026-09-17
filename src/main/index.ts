@@ -28,6 +28,7 @@ import {
   getHomepageUrl,
   getBootLanguage
 } from './settings'
+import { registerFactoryResetIpc } from './factoryReset'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { WINDOW_ID_MAIN } from '../shared/browser'
@@ -332,6 +333,25 @@ app.whenReady().then(async () => {
   // set-language 成功链在 settings.ts 内闭环（落盘 + 语言缓存 + 主进程语言态——菜单
   // 重建/设置窗标题经 onMainLanguageChanged 装配回调触发，见上方注册点）
   registerSettingsValueIpc()
+  // 恢复出厂通道（设置专项阶段七）：sender 白名单 = 设置窗；编排链在 factoryReset.ts——
+  // 单临界区清会话/工作区元数据 → 先切后毁（onBatchDeleted 先例）→ 逐会话既有销毁链 →
+  // 偏好重置（外观 + 设置，主进程语言态回默认在前者链内）→ sessions:changed 推送清空
+  // 快照（主窗列表归零的跨窗事实通道，接线对齐下方 statusChanged：引用现取，无窗静默跳过）
+  registerFactoryResetIpc({
+    getSettingsWindow: () => settingsWindowController?.getSettingsWindow() ?? null,
+    switchToNoSession: () => {
+      try {
+        created.switchSession(null)
+      } catch (error) {
+        console.warn('[main] 恢复出厂切换到空会话失败:', error)
+      }
+    },
+    destroySession: (id: string) => created.destroySession(id),
+    resetAppearancePreferences: () => appearanceController.resetToDefaults(),
+    pushSessionsChanged: (snapshot) => {
+      mainWindow?.webContents.send(SESSIONS_CHANNELS.changed, snapshot)
+    }
+  })
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)

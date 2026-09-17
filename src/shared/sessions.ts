@@ -32,6 +32,11 @@
 //   计入 skipped（合法语义非拒绝），sessionIds/workspaceId 非法或不存在则整单
 //   拒绝（零部分成功、磁盘不变）；单 mutateSnapshot 临界区一次落盘，返回真实
 //   moved/skipped 计数（renderer 反馈条不自算口径）；不动 activeId
+// - 恢复出厂增量（2026-09-18，计划 notes/plans/20260918010928-设置阶段七恢复
+//   出厂设置开发计划.md 第 2.4 节）：changed（17 → 18，推送通道）——跨窗口发起
+//   的会话事实变更通知：payload = 完整 SessionsSnapshot，主进程定向推送主窗口
+//   （会话面板只在主窗，接线对齐 statusChanged 先例），收方以快照权威接管
+//   （adoptSnapshot）；现触发源仅恢复出厂完成时，其他跨窗 mutation 未来复用
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -41,6 +46,8 @@ export const SESSIONS_CHANNELS = {
   setActive: 'sessions:set-active',
   getStatuses: 'sessions:get-statuses',
   statusChanged: 'sessions:status-changed',
+  /** 会话事实变更推送（恢复出厂增量）：payload = 完整快照，定向主窗，收方权威接管 */
+  changed: 'sessions:changed',
   clone: 'sessions:clone',
   deleteBatch: 'sessions:delete-batch',
   batchOpenUrl: 'sessions:batch-open-url',

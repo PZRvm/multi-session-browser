@@ -7,19 +7,30 @@ import { useT } from '../../i18n'
 // Modal 默认投影违反板面无阴影规则）。第一步后果清单，第二步输入确认词精确匹配才
 // 点亮确认钮——确认词随界面语言（PRD 26 本地化确认词口径：中文「重置」/英文
 // reset，settings.confirmReset.confirmWord 单键供标题插值/输入框 aria/匹配比对
-// 三处同词消费）；取消/确认/关闭均零清理执行（真实执行归恢复出厂功能阶段）。
-// 弹层随关闭整体卸载：输入态自动清零，重开从禁用态起步（2026-09-17 拆分时的
-// 行为收口——旧实现 resetText 存在窗口级 state，重开弹层会带着上次的输入）
+// 三处同词消费）。阶段七点亮真实执行：确认钮点击经 onConfirm 发起
+// settings:factory-reset——执行中（executing）双钮禁用、确认钮文案切 resetting、
+// Esc 不关闭（在途语义由禁用态如实表达，无进度条）；失败（error 非空）在按钮行
+// 上方 danger 错误行如实呈现（role="alert"），弹层保持可重试可取消，不静默不伪造
+// 完成；成功由编排层关闭弹层，各版面默认态经既有广播自动回显。第一步与取消仍是
+// 本地瞬态（只切换/关闭弹层）。弹层随关闭整体卸载：输入态自动清零，重开从禁用态
+// 起步（2026-09-17 拆分时的行为收口——旧实现 resetText 存在窗口级 state，重开弹层
+// 会带着上次的输入）
 export type ConfirmResetStep = 1 | 2
 
 export function ConfirmResetOverlay({
   step,
   onNext,
-  onClose
+  onClose,
+  onConfirm,
+  executing,
+  error
 }: {
   step: ConfirmResetStep
   onNext: () => void
   onClose: () => void
+  onConfirm: () => void
+  executing: boolean
+  error: string | null
 }): React.JSX.Element {
   // 第二步受控输入：纯本地瞬态（不落盘、不进 IPC）
   const [resetText, setResetText] = useState('')
@@ -29,10 +40,11 @@ export function ConfirmResetOverlay({
   }
 
   // Esc 关闭：弹层挂载期监听并拦截（独立 OS 窗内无浏览器快捷键冲突，拦截只为防
-  // Esc 冒泡引发其他默认行为），卸载即摘除
+  // Esc 冒泡引发其他默认行为），卸载即摘除；执行中早退不关闭（在途清理不可半途弃单）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        if (executing) return
         e.preventDefault()
         e.stopPropagation()
         onClose()
@@ -40,7 +52,7 @@ export function ConfirmResetOverlay({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [executing, onClose])
 
   return (
     <div className="settings-confirm">
@@ -80,17 +92,29 @@ export function ConfirmResetOverlay({
               value={resetText}
               onChange={onResetTextChange}
             />
+            {error !== null && (
+              <div className="settings-confirm-error" role="alert">
+                {error}
+              </div>
+            )}
             <div className="settings-confirm-actions">
-              <button type="button" className="settings-plain-btn" onClick={onClose}>
+              <button
+                type="button"
+                className="settings-plain-btn"
+                onClick={onClose}
+                disabled={executing}
+              >
                 {t('common.cancel')}
               </button>
               <button
                 type="button"
                 className="settings-danger-solid-btn"
-                disabled={resetText !== t('settings.confirmReset.confirmWord')}
-                onClick={onClose}
+                disabled={executing || resetText !== t('settings.confirmReset.confirmWord')}
+                onClick={onConfirm}
               >
-                {t('settings.confirmReset.confirmButton')}
+                {executing
+                  ? t('settings.confirmReset.resetting')
+                  : t('settings.confirmReset.confirmButton')}
               </button>
             </div>
           </>

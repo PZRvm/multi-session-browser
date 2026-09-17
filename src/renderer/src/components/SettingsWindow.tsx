@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import {
   GlobalOutlined,
@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import { useAppearanceStore } from '../stores/appearance'
 import { useI18nStore } from '../stores/i18n'
+import { useSettingsStore } from '../stores/settings'
 import { ANTD_LOCALES, useT } from '../i18n'
 import { applyThemeTokens } from '../theme'
 import type { DictKey } from '../../../shared/i18n'
@@ -74,15 +75,41 @@ export default function SettingsWindow(): React.JSX.Element {
   const [pane, setPane] = useState<SettingsPaneId>('general')
   // 两步确认弹层：0=关闭 / 1=第一步（后果清单）/ 2=第二步（输入「重置」点亮确认）
   const [confirmStep, setConfirmStep] = useState<ConfirmResetStep | 0>(0)
+  // 恢复出厂执行链（阶段七）：executing = 在途（双钮禁用 + Esc 守卫由弹层承担），
+  // resetError = 主进程上浮的失败文案（弹层保持可重试）；成功关弹层清错误态，
+  // 各版面默认态经既有 changed 广播自动回显，本组件零额外回填
+  const [executing, setExecuting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const resetInFlight = useRef(false)
   const closeConfirm = useCallback((): void => {
     setConfirmStep(0)
   }, [])
   const openConfirm = useCallback((): void => {
+    setResetError(null) // 重开弹层不残留上次的失败文案（审查低 1）
     setConfirmStep(1)
   }, [])
   const nextConfirm = useCallback((): void => {
     setConfirmStep(2)
   }, [])
+  const factoryReset = useSettingsStore((s) => s.factoryReset)
+  const confirmReset = useCallback(async (): Promise<void> => {
+    // 在途守卫（批量移动 batchMoveInFlight 同款）：禁用态渲染前的极速连点防重复 IPC
+    if (resetInFlight.current) return
+    resetInFlight.current = true
+    setExecuting(true)
+    setResetError(null)
+    try {
+      const error = await factoryReset()
+      if (error === null) {
+        setConfirmStep(0)
+      } else {
+        setResetError(error)
+      }
+    } finally {
+      resetInFlight.current = false
+      setExecuting(false)
+    }
+  }, [factoryReset])
 
   return (
     <ConfigProvider
@@ -162,7 +189,14 @@ export default function SettingsWindow(): React.JSX.Element {
           {pane === 'danger' && <PaneDanger onRequestReset={openConfirm} />}
         </div>
         {confirmStep !== 0 && (
-          <ConfirmResetOverlay step={confirmStep} onNext={nextConfirm} onClose={closeConfirm} />
+          <ConfirmResetOverlay
+            step={confirmStep}
+            onNext={nextConfirm}
+            onClose={closeConfirm}
+            onConfirm={confirmReset}
+            executing={executing}
+            error={resetError}
+          />
         )}
       </div>
     </ConfigProvider>

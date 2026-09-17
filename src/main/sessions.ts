@@ -687,6 +687,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 16 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 17 条
+  // 本文件注册 16 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 18 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

@@ -17,6 +17,10 @@
 //   是懒建复用池，语言切换不重建，语言更新只能靠推送）。
 // 契约修订：阶段六值域 3→4 通道 + 快照增 language，见
 // notes/plans/20260917172635-设置阶段六语言切换i18n开发计划.md 契约核对第 1 条。
+// 契约修订：阶段七增 factoryReset（6→7 通道）——两步确认通过后的恢复出厂执行口：
+// 无 payload（两步确认的执行门在 renderer UI 层，主进程不复验确认词），invoke，
+// sender 白名单 = 设置窗 webContents（对齐 open-data-dir 先例——破坏性动作收紧
+// 暴露面），见 notes/plans/20260918010928-设置阶段七恢复出厂设置开发计划.md 2.4 第 1 条。
 // 语言域引用：SupportedLanguage 来自 shared/i18n（注册表单源），本文件不复制闭集。
 
 import type { SupportedLanguage } from './i18n'
@@ -38,7 +42,10 @@ export const SETTINGS_CHANNELS = {
   /** 设置窗 → 主进程：设置主页 URL（空串 = 清除，维持默认起始页语义） */
   setHomepage: 'settings:set-homepage',
   /** 设置窗 → 主进程：设置界面语言（阶段六；合法值 = shared/i18n 注册表 code 闭集） */
-  setLanguage: 'settings:set-language'
+  setLanguage: 'settings:set-language',
+  /** 设置窗 → 主进程：恢复出厂设置（阶段七；两步确认通过后调用，无 payload；
+   * sender 白名单 = 设置窗——非设置窗来源一律拒绝） */
+  factoryReset: 'settings:factory-reset'
 } as const
 
 export interface OkResult {

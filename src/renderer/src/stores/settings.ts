@@ -32,6 +32,9 @@ interface SettingsState {
   setting: boolean
   init: () => Promise<void>
   setHomepage: (raw: string) => Promise<SetHomepageResult>
+  /** 恢复出厂（阶段七）：成功返回 null，失败返回可呈现的中文错误；镜像不改——
+   * 成功后各镜像（settings/appearance/i18n）经主进程 changed 广播自动回默认 */
+  factoryReset: () => Promise<string | null>
 }
 
 let initialized = false
@@ -89,6 +92,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return { error: readableIpcError(error, t('settings.homepageRow.saveFailed')) }
     } finally {
       set({ setting: false })
+    }
+  },
+
+  // 恢复出厂（阶段七，两步确认弹层确认钮的唯一消费动作）：主进程编排全量清理并
+  // 中止制失败。兜底文案把原始错误串填入 {message}（readableIpcError 剥不出主进程
+  // 中文前缀时的如实降级，不静默）
+  factoryReset: async () => {
+    try {
+      await window.api.settings.factoryReset()
+      return null
+    } catch (error) {
+      console.error('恢复出厂设置失败', error)
+      const raw = error instanceof Error ? error.message : String(error)
+      return readableIpcError(error, t('settings.confirmReset.resetFailed', { message: raw }))
     }
   }
 }))

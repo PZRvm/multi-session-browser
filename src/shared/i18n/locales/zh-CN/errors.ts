@@ -38,6 +38,12 @@ export const errors = {
   dataDirSourceOnly: '数据目录命令仅接受设置窗口来源',
   openDataDirFailed: '打开数据目录失败：{reason}',
 
+  /** 恢复出厂（factoryReset.ts 编排链；失败即中止并如实上抛，PRD 4.9） */
+  factoryResetSourceOnly: '恢复出厂设置仅能从设置窗口发起',
+  factoryResetSessionWriteFailed: '清空会话与工作区落盘失败，已中止（未产生任何变更）',
+  factoryResetCleanupFailed: '部分会话数据清理失败，已中止后续重置',
+  factoryResetPreferenceWriteFailed: '恢复默认设置落盘失败，已中止',
+
   /** 外观域 handler（appearance.ts setMode/setThemeColor 守卫） */
   invalidAppearanceParams: '无效的外观模式参数',
   invalidThemeColorParams: '无效的主题色参数',

@@ -132,6 +132,17 @@ const api = {
       return () => {
         ipcRenderer.removeListener(SESSIONS_CHANNELS.statusChanged, listener)
       }
+    },
+    // 会话事实变更订阅（恢复出厂增量）：回调收完整快照，收方以快照权威接管；
+    // 订阅/退订形态对齐 onStatusChanged 先例
+    onChanged: (callback: (snapshot: SessionsSnapshot) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, snapshot: SessionsSnapshot): void => {
+        callback(snapshot)
+      }
+      ipcRenderer.on(SESSIONS_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(SESSIONS_CHANNELS.changed, listener)
+      }
     }
   },
   browser: {
@@ -285,6 +296,9 @@ const api = {
     // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
     setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
+    // 恢复出厂（阶段七）：两步确认通过后调用；无 payload，sender 白名单 = 设置窗
+    factoryReset: (): Promise<SettingsOkResult> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.factoryReset),
     onChanged: (callback: (snapshot: SettingsSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: SettingsSnapshot): void => {
         callback(snapshot)

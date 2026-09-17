@@ -31,6 +31,8 @@ export interface AppearanceController {
   getSnapshot(): AppearanceSnapshot
   setMode(mode: AppearanceMode): Promise<AppearanceSnapshot>
   setThemeColor(themeColor: ThemeSystemId): Promise<AppearanceSnapshot>
+  /** 恢复出厂（阶段七）：写回默认偏好并复位内存态与 nativeTheme，随写队列串行执行 */
+  resetToDefaults(): Promise<AppearanceSnapshot>
 }
 
 function preferencesPath(): string {
@@ -207,6 +209,31 @@ class NativeAppearanceController implements AppearanceController {
       // nativeTheme 不为主题色变化发 updated：背景色随系统底色族变化，这里显式走
       // 同一同步入口——setBackgroundColor 循环按新快照派生底色，changed 广播由
       // snapshotEquals 的 themeColor 比较去重
+      this.syncSnapshot(true)
+      return this.getSnapshot()
+    }
+
+    const result = this.writeQueue.then(run, run)
+    this.writeQueue = result.catch(() => undefined)
+    return result
+  }
+
+  /**
+   * 恢复出厂重置（阶段七，factoryReset 编排调用）：写回默认偏好（跟随系统 + 琥珀）
+   * 并复位内存态与 nativeTheme.themeSource，经 syncSnapshot(true) 走既有收尾——
+   * 全窗 setBackgroundColor 循环 + changed 去重广播（全部窗口镜像、底色、亮暗自动
+   * 跟随，无需调用方额外接线）。与 setMode/setThemeColor 同队列串行，失败原样上抛
+   * 由编排层如实中止；不设同值短路——重置语义下同值重写无害且保持「执行过」的落盘事实
+   */
+  resetToDefaults(): Promise<AppearanceSnapshot> {
+    const run = async (): Promise<AppearanceSnapshot> => {
+      const defaults = defaultPreferences()
+      await savePreferences(defaults)
+      this.mode = defaults.appearanceMode
+      this.themeColor = defaults.themeColor
+      nativeTheme.themeSource = this.mode
+      // Electron 会为 themeSource 变化发送 updated；这里复用同一同步入口作兜底，
+      // 同步事件与后续异步事件都会被完整 snapshot 去重（setMode 同款注释）
       this.syncSnapshot(true)
       return this.getSnapshot()
     }

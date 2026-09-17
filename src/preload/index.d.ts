@@ -73,6 +73,7 @@ declare global {
         setActive(payload: SetActiveSessionPayload): Promise<OkResult>
         getStatuses(): Promise<SessionStatusesPayload>
         onStatusChanged(callback: (payload: SessionStatusesPayload) => void): () => void
+        onChanged(callback: (snapshot: SessionsSnapshot) => void): () => void
         clone(payload: CloneSessionPayload): Promise<StoredSession>
         deleteBatch(payload: BatchDeleteSessionsPayload): Promise<OkResult>
         batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
@@ -128,6 +129,7 @@ declare global {
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
+        factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
     }

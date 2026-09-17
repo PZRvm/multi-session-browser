@@ -110,7 +110,8 @@ export const settings = {
 
   /** 两步确认弹层（ConfirmResetOverlay）：确认词随语言（PRD 26 本地化确认词口径，
    * 精确匹配语义不变）；第二步标题经 {word} 插值、输入框 aria 与匹配比对同用
-   * confirmWord 一键 */
+   * confirmWord 一键；resetting = 执行中确认钮文案，resetFailed = 失败错误行
+   * （{message} 取主进程上浮的中文错误，阶段七） */
   confirmReset: {
     dialogAria: '恢复出厂设置',
     step1Title: '恢复出厂设置',
@@ -120,6 +121,8 @@ export const settings = {
     next: '下一步',
     step2Title: '最后确认：输入「{word}」二字',
     confirmWord: '重置',
-    confirmButton: '确认重置'
+    confirmButton: '确认重置',
+    resetting: '正在恢复出厂…',
+    resetFailed: '恢复出厂失败：{message}'
   }
 }

@@ -213,6 +213,28 @@ export async function setLanguage(language: SupportedLanguage): Promise<Settings
   return { homepageUrl: next.homepageUrl, language }
 }
 
+/**
+ * 恢复出厂重置（阶段七，factoryReset 编排调用）：写回默认骨架（homepageUrl '' +
+ * DEFAULT_LANGUAGE）并同步两处内存缓存，随后按 set-language 成功链推进主进程语言态
+ * （setMainProcessLanguage → 菜单重建 + 设置窗标题刷新经 onMainLanguageChanged 装配
+ * 回调）并 changed 全窗推送（i18n / settings 镜像自动回默认）。落盘经既有串行队列，
+ * 失败原样上抛由编排层如实中止；语言已在默认值时 setMainProcessLanguage 幂等
+ * （菜单同构重建一次，无害）。
+ */
+export async function resetSettingsToDefaults(): Promise<SettingsSnapshot> {
+  const defaults = defaultSettings()
+  await saveSettings(defaults)
+  cachedHomepageUrl = defaults.homepageUrl
+  cachedLanguage = defaults.language
+  setMainProcessLanguage(defaults.language)
+  const snapshot: SettingsSnapshot = {
+    homepageUrl: defaults.homepageUrl,
+    language: defaults.language
+  }
+  broadcastSettingsChanged(snapshot)
+  return snapshot
+}
+
 /** 设置快照变更推送：全部应用窗口（appearance.syncSnapshot 同款口径），失败静默跳过 */
 function broadcastSettingsChanged(snapshot: SettingsSnapshot): void {
   for (const window of BrowserWindow.getAllWindows()) {

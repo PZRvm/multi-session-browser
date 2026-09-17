@@ -90,6 +90,8 @@ export const settings: Dictionary['settings'] = {
     next: 'Next',
     step2Title: 'Type "{word}" to confirm',
     confirmWord: 'reset',
-    confirmButton: 'Reset'
+    confirmButton: 'Reset',
+    resetting: 'Resetting to factory defaults…',
+    resetFailed: 'Factory reset failed: {message}'
   }
 }

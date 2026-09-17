@@ -1578,7 +1578,8 @@ body.col-resizing {
   opacity: 0.45;
 }
 
-/* 弹层普通钮（「取消」）：plain——无边框无底色，hover 走板面蒙版（会话行菜单同惯例） */
+/* 弹层普通钮（「取消」）：plain——无边框无底色，hover 走板面蒙版（会话行菜单同惯例）；
+   禁用态（执行中）与 danger 实底钮同灰化语言 */
 .settings-plain-btn {
   height: 26px;
   padding: 0 12px;
@@ -1592,8 +1593,13 @@ body.col-resizing {
   transition: background-color 0.12s ease;
 }
 
-.settings-plain-btn:hover {
+.settings-plain-btn:not(:disabled):hover {
   background: var(--board-hover-veil);
+}
+
+.settings-plain-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* 两步确认弹层（DESIGN「两步确认弹层」定稿，自绘 overlay）：absolute inset-0 覆盖
@@ -1654,6 +1660,15 @@ body.col-resizing {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* 失败错误行（阶段七）：按钮行上方 11px danger，主页行 danger 描述副行同语言；
+   间距取本卡 8px 标准档，随文案换行（line-height 1.5），零新色值 */
+.settings-confirm-error {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--danger);
 }
 
 /* ---------- 右侧：Chrome 浏览器框架 ---------- */
