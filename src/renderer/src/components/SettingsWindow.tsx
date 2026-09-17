@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import {
@@ -9,6 +9,7 @@ import {
   WarningOutlined
 } from '@ant-design/icons'
 import { useAppearanceStore } from '../stores/appearance'
+import { applyThemeTokens } from '../theme'
 import { PaneGeneral } from './settings/PaneGeneral'
 import { PaneBrowsing } from './settings/PaneBrowsing'
 import { PaneShortcuts } from './settings/PaneShortcuts'
@@ -25,7 +26,7 @@ import type { ConfirmResetStep } from './settings/ConfirmResetOverlay'
 // 只读镜像的 resolvedTheme，组件 token 走 CSS 变量融入板面）。窗口标题「设置」
 // 由主进程管理。
 //
-// 主题色行本阶段不渲染（三色已定稿琥珀/雾蓝/苔绿，行随阶段五颜色系统专项入窗）。
+// 主题色行已随阶段五入窗（PaneGeneral 色板行，形态契约见 DESIGN「设置窗口」条目）。
 
 // 五分类导航词汇（侧栏双栏契约）：快捷键分类取列表语义图标（图标库无键盘图标，
 // 库存认见开发计划）；恢复出厂为 danger 分类（沉底恒红、选中 danger 实底白字）
@@ -46,6 +47,17 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{
 
 export default function SettingsWindow(): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
+  const themeColor = useAppearanceStore((s) => s.themeColor)
+  const appearanceInitialized = useAppearanceStore((s) => s.initialized)
+
+  // 主题 token 重注：设置窗不经 App 包裹（main.tsx 分支独立渲染），需独立挂接——
+  // 首帧与 OS 翻转归 theme.ts bootstrap；以 init 真值回填为门控（审查修复轮中 1，
+  // 与 App.tsx 同款），未初始化期间占位初值不得覆盖 bootstrap 按 sys 的首帧注入
+  useEffect(() => {
+    if (!appearanceInitialized) return
+    applyThemeTokens(themeColor, resolvedTheme)
+  }, [appearanceInitialized, themeColor, resolvedTheme])
+
   // 当前版面 id：组件本地瞬态（不落盘不进 IPC），默认「通用」，切换瞬切无动效
   const [pane, setPane] = useState<SettingsPaneId>('general')
   // 两步确认弹层：0=关闭 / 1=第一步（后果清单）/ 2=第二步（输入「重置」点亮确认）

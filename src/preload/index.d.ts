@@ -22,7 +22,11 @@ import type {
   OmniboxSuggestPickPayload,
   OmniboxSuggestShowPayload
 } from '../shared/omniboxSuggest'
-import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
+import type {
+  AppearanceSnapshot,
+  SetAppearanceModePayload,
+  SetThemeColorPayload
+} from '../shared/appearance'
 import type {
   OkResult as SettingsOkResult,
   SettingsAppInfo,
@@ -55,6 +59,7 @@ declare global {
       appearance: {
         getState(): Promise<AppearanceSnapshot>
         setMode(payload: SetAppearanceModePayload): Promise<AppearanceSnapshot>
+        setThemeColor(payload: SetThemeColorPayload): Promise<AppearanceSnapshot>
         onChanged(callback: (snapshot: AppearanceSnapshot) => void): () => void
       }
       sessions: {

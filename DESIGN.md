@@ -1,6 +1,7 @@
 ---
 name: 多会话测试浏览器
-description: 会话到发信息板——左侧航显信息板配琥珀信号，右侧交给 Chrome 原生语法，双世界各有亮暗变体
+description: 会话到发信息板——左侧航显信息板配可切换的强调色系统（琥珀/雾蓝/苔绿，配置单源 themeSystems.ts），右侧交给 Chrome 原生语法，双世界各有亮暗变体
+theme-systems: 三套设计系统（琥珀/雾蓝/苔绿）的完整 token 单源在 src/shared/themeSystems.ts；本 colors 块仅默认琥珀系统（亮/暗两态）的缺省值快照，与 app.css 对账
 colors:
   # 信息板（左侧世界，默认亮色）
   board-bg: "#f6f4ee"
@@ -19,10 +20,10 @@ colors:
   board-tile-ink-dark: "#ffb000"
   board-ink-dark: "#f5f0e8"
   board-ink-dim-dark: "#9aa3ad"
-  amber: "#ffb000"
-  amber-strong: "#ffc133"
-  amber-press: "#e6a000"
-  amber-ink: "#221a00"
+  accent: "#ffb000"
+  accent-strong: "#ffc133"
+  accent-press: "#e6a000"
+  accent-ink: "#221a00"
   idle: "#6b7280"
   loading: "#ffb000"
   # Chrome 右侧（列车本身，默认亮色）
@@ -96,14 +97,14 @@ spacing:
   xl: "14px"
 components:
   button-primary:
-    backgroundColor: "{colors.amber}"
-    textColor: "{colors.amber-ink}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.accent-ink}"
     rounded: "{rounded.md}"
     height: "34px"
   button-primary-hover:
-    backgroundColor: "{colors.amber-strong}"
+    backgroundColor: "{colors.accent-strong}"
   button-primary-active:
-    backgroundColor: "{colors.amber-press}"
+    backgroundColor: "{colors.accent-press}"
   session-row:
     backgroundColor: "{colors.board-bg}"
     textColor: "{colors.board-ink}"
@@ -111,8 +112,8 @@ components:
   session-row-hover:
     backgroundColor: "{colors.board-bg-raised}"
   session-row-selected:
-    backgroundColor: "{colors.amber}"
-    textColor: "{colors.amber-ink}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.accent-ink}"
   flap-tile:
     backgroundColor: "{colors.board-tile}"
     textColor: "{colors.board-tile-ink}"
@@ -145,7 +146,7 @@ components:
 
 **Creative North Star: "到发信息板（The Departure Board）"**
 
-这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：暖灰或近黑蓝底上的行式栅格，1px 发丝线分隔，航显琥珀（#FFB000）只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮。右侧是列车本身：完全交给 Chrome 的原生灰阶语法（tab 栏、工具栏、药丸地址栏），板面语言不得越界。两个世界各有完整 light/dark 变体，切换只改变表面与墨色，不改变布局、层级或会话状态。
+这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：暖灰或近黑蓝底上的行式栅格，1px 发丝线分隔，强调色只作为「航班信息」出现——当前选中的会话、加载中的信号、翻牌计数的数字、唯一的全宽主按钮（默认系统为航显琥珀 #FFB000；强调色系统可在琥珀/雾蓝/苔绿三套间整套切换，单源 `src/shared/themeSystems.ts`，与亮暗正交组合）。右侧是列车本身：完全交给 Chrome 的原生灰阶语法（tab 栏、工具栏、药丸地址栏），板面语言不得越界。两个世界各有完整 light/dark 变体，切换只改变表面与墨色，不改变布局、层级或会话状态。
 
 密度是桌面效率工具的密度：13px 基准字号、双行会话行、一切状态静置可读。深度不靠阴影——全应用 0 box-shadow——靠发丝线与色阶（board-bg / board-bg-raised / board-tile 三层）。动效只有一个签名时刻：翻牌砖的 rotateX 翻转（0.4s，指数缓出），其余状态过渡压在 120ms。
 
@@ -155,10 +156,10 @@ components:
 
 - 两个世界：左侧信息板（自著语言）/ 右侧 Chrome（原生语法），翻牌砖是跨界信使
 - 行式栅格 + 1px 发丝线（#232830），无阴影、无卡片
-- 琥珀 = 航班信息：选中反白、加载脉冲、主按钮、翻牌数字、焦点环，屏幕占比极小；翻牌数字与加载信号在白天降饱和为深琥珀，其余琥珀两态不变
+- 强调色 = 航班信息：选中反白、加载脉冲、主按钮、翻牌数字、焦点环，屏幕占比极小；翻牌数字与加载信号在白天降饱和为信号深色，其余强调色两态不变（三套系统整套切换，配置单源 themeSystems.ts）
 - 数字即翻牌：计数与序号一律 mono 翻牌砖（22×30，中缝，tabular-nums）
 - 桌面工具密度：13px 基准，双行会话行，状态静置可读，操作悬停显现
-- antd 6 承担交互件（随实际主题切换 default/dark algorithm + colorPrimary #FFB000），视觉骨架自著 CSS
+- antd 6 承担交互件（随实际主题切换 default/dark algorithm + colorPrimary 动态取自主题配置单源），视觉骨架自著 CSS
 
 ### 应用外观扩展契约
 
@@ -170,18 +171,18 @@ components:
 
 ## Colors
 
-一句话：暖灰/近黑蓝两套信息板表面共享单一琥珀信号色，对页使用 Chrome 自己的亮暗灰阶——两个色域始终不互通。
+一句话：三套信息板色彩系统（琥珀/雾蓝/苔绿，各含亮暗两态，信号色与底色族随主题整套同族切换），对页使用 Chrome 自己的亮暗灰阶——两个色域始终不互通。**下文色值叙述均为默认琥珀系统的定稿值**；雾蓝/苔绿的同名 token 值见配置单源 `src/shared/themeSystems.ts`（新增主题 = 该文件加一条配置）。
 
 ### Primary
 
-- **航显琥珀（Amber）**（#ffb000 / `--amber`）：唯一的信号色。出现在五处：选中行整行反白底、翻牌砖数字、底部新建会话按钮、loading 状态点与状态字、`:focus-visible` 焦点环。它的稀缺就是它的信息量。
-- **琥珀悬停（Amber Strong）**（#ffc133 / `--amber-strong`）：主按钮 hover。
-- **琥珀按压（Amber Press）**（#e6a000 / `--amber-press`）：主按钮 active。
-- **琥珀上的墨（Amber Ink）**（#221a00 / `--amber-ink`）：反白行与主按钮上的近黑字，是琥珀世界里唯一的文字色。
+- **强调色基（Accent）**（默认琥珀 #ffb000 / `--accent`）：唯一的大面积信号色。出现在五处：选中行整行反白底、翻牌砖数字、底部新建会话按钮、loading 状态点与状态字、`:focus-visible` 焦点环。它的稀缺就是它的信息量。
+- **强调色悬停（Accent Strong）**（默认 #ffc133 / `--accent-strong`）：主按钮 hover。
+- **强调色按压（Accent Press）**（默认 #e6a000 / `--accent-press`）：主按钮 active。
+- **强调色上的墨（Accent Ink）**（默认 #221a00 / `--accent-ink`）：反白行与主按钮上的近黑字，是强调色世界里唯一的文字色。
 
 ### Secondary
 
-- **空闲灰（Idle）**（#6b7280 / `--idle`）：空闲状态点。状态系统只有两信号：灰=空闲，琥珀=加载（`--loading` 与 `--amber` 同值，语义分开命名）。
+- **空闲灰（Idle）**（#6b7280 / `--idle`）：空闲状态点。状态系统只有两信号：灰=空闲，强调色=加载（`--loading` 亮态取信号深色、暗态取信号基色，随主题系统切换，与 `--accent` 同源异名）。
 
 ### Neutral
 
@@ -199,13 +200,13 @@ Chrome 侧（右侧世界专用，禁入板面）：
 - **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368。
 - **语义状态：** hover/pressed 蒙版、建议列表选中蒙版（--chrome-select-veil 亮 rgba(60,64,67,0.14) / 暗 rgba(232,234,237,0.20)——白底上的键盘选中须一眼可辨）、地址错误红、分隔条与滚动条悬停都必须各有亮暗 token；组件只能引用语义 token，不直接假设底色为白或黑。
 
-半透明蒙版（veil）全部按主题提升为语义 token——翻牌砖中缝亦同（`--board-tile-seam`：亮 rgba(34, 26, 0, 0.2) 暖色缝 / 暗 rgba(0, 0, 0, 0.45)）；反白行内菜单仍使用琥珀上的墨色 veil。
+半透明蒙版（veil）全部按主题提升为语义 token——翻牌砖中缝亦同（`--board-tile-seam`：亮 rgba(34, 26, 0, 0.2) 暖色缝 / 暗 rgba(0, 0, 0, 0.45)）；反白行内菜单仍使用强调色上的墨色 veil（`--accent-veil`）。
 
 ### Named Rules
 
-**The Amber Stays On The Board Rule（琥珀不出板）.** 琥珀只出现在左侧信息板与全局焦点环上；右侧 Chrome 区域只用 chrome-\* 灰阶。琥珀在大面积上只允许两种形态：选中行的整行反白、底部唯一的全宽主按钮——此外永远是点、字、数字级的小信号。
+**The Accent Stays On The Board Rule（强调色不出板）.** 强调色只出现在左侧信息板与全局焦点环上；右侧 Chrome 区域只用 chrome-\* 灰阶。强调色在大面积上只允许两种形态：选中行的整行反白、底部唯一的全宽主按钮——此外永远是点、字、数字级的小信号。（原「琥珀不出板」随主题色系统化更名：琥珀是默认强调色，不是专属品牌色。）
 
-**The Inversion Rule（反白即选中）.** 选中态不是描边、不是下划线、不是左侧色条，是整行琥珀反白（#ffb000 底 + #221a00 字），行内次级文字降不透明度 0.72，空闲状态点同步变 #221a00。如机场信息屏的高亮航班。
+**The Inversion Rule（反白即选中）.** 选中态不是描边、不是下划线、不是左侧色条，是整行强调色反白（`--accent` 底 + `--accent-ink` 字），行内次级文字降不透明度 0.72，空闲状态点同步变墨色。如机场信息屏的高亮航班。
 
 ## Typography
 
@@ -274,7 +275,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 新建会话按钮（Primary Button）
 
-左栏板脚唯一按钮，全宽、34px 高、6px 圆角、13px/600。琥珀底 + amber-ink 字 + PlusOutlined 图标，hover #ffc133，active #e6a000（均为 0.12s 背景过渡）。它是屏幕上唯一的大面积琥珀。
+左栏板脚唯一按钮，全宽、34px 高、6px 圆角、13px/600。琥珀底（默认系统）+ accent-ink 字 + PlusOutlined 图标，hover #ffc133，active #e6a000（均为 0.12s 背景过渡）。它是屏幕上唯一的大面积琥珀。
 
 ### 板头（Board Head）
 
@@ -296,7 +297,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 独立子窗口承载应用级设置（macOS「偏好设置」惯例）：系统标题栏 + 标题「设置」，parent 归主窗、浮于其上；单例——重复触发（应用菜单「设置… ⌘,」/ 板头齿轮）聚焦既有窗而非新开；主窗 closed 级联关闭。打开期间主窗浏览器页面保持可见可交互（独立窗体，原生 WebContentsView 零触碰，不占用 overlayDepth）。可拉伸窗口：**初值 700×480、min 600×420、max 900×680**（侧栏双栏重构定稿，2026-09-17）；窗口位置与尺寸记忆为已知留白（不落盘，每次打开在主窗工作区内合理落位）。
 
-**双栏契约（侧栏双栏重构定稿，2026-09-17 用户选定方案一，视觉基准 notes/demo/settings-redesign-demo.html；前身「单列内容契约」废弃）：** 窗体 = 左侧栏 176px + 右详情区；阶段三/四点亮外观、关于与主页后，仅语言行维持静态展示态（点亮归阶段六 i18n）、恢复出厂 UI 维持静态可走形（执行归阶段七）——静态控件点选静默无效、不写「待实现」类引导文案。**侧栏**：抬升层底、右缘发丝线、内距 10px 8px；分类行 34px（6px 圆角、15px 图标 + 13px 文字、9px 间隙、左内距 10px），**行间 2px 间隙**（2026-09-17 用户裁决：密集导航行的呼吸位），五分类图标词汇 = 通用 SettingOutlined / 浏览 GlobalOutlined / 快捷键 OrderedListOutlined（速查表列表语义，图标库无键盘图标）/ 关于 InfoCircleOutlined / 恢复出厂 WarningOutlined；hover=board-hover-veil；**选中 = 琥珀反白**（`--amber` 底 + `--amber-ink` 字与图标、600 字重、`aria-current`）——「设置窗零琥珀」就此修订为：导航选中位琥珀反白是**显式例外**（导航是位置信号而非状态信号，与会话行 Inversion Rule 同构、不稀释信号稀缺；内容区至危险区前仍零琥珀），恢复出厂分类沉底（`margin-top: auto`）恒 danger 色、hover rgba(212,56,13,0.08)、选中 danger 实底白字；侧栏自身不滚动（五分类恒不满溢；超视口分类数为留白再议）。**详情区**：留白 22px 28px、滚动职责独占（8px 主题化滚动条）；版面标题 15/600 + 版面说明 11px 次墨（标题下 8px）；**版面切换瞬切无动效**（离散跳变先例，同查找条显隐）；行体系 = min-height 44px、发丝线分隔（末行无）、label 13/500 + 描述副行 11px 次墨（可换行撑高行高，控件不换行）+ 控件右对齐。**五版面**：通用 = 外观（antd Segmented **图标三段**，2026-09-17 用户裁决改与首页板头同款形态——图标词汇单源 `appearanceIcons.tsx`（跟随系统=显示器/白天=太阳/黑夜=月亮），label 槽位留空（antd 裸 span 包装陷阱，板头先例）、中文模式名藏于 icon 节点内供读屏，**悬停经 Tooltip popover 提示瓣的模式名**（区别于板头的原生 title——设置行空间充裕，popover 更醒目）；token 配方同板头三段——轨道 board-bg-raised / 选中瓣 `--board-segment-selected-bg` / 字形 `--board-tile-ink` / 圆角 4；**受控交互（阶段三点亮）**：value 绑 appearance 镜像、onChange 经 `appearance.setMode`，板头 ↔ 设置窗经主进程 changed 广播双向即时同步（复用外观域三通道与偏好存储，零新增；连点由 store 既有串行队列承担）；描述「应用壳、原生界面与 DevTools 的亮暗模式」）+ 语言（展示态选择框：26px 高、1px `--board-control-line` 描边、4px 圆角、右端 10px 下箭头次墨、内容「中文（简体）」，点击无行为；描述「界面文案语言，切换即时生效」）+ **主题色行缺席**（三色已定稿琥珀/雾蓝/苔绿，行随阶段五颜色系统专项入窗）。浏览 = 主页（antd Input 板面化：28px 高、1px `--board-control-line`、4px 圆角、placeholder「留空使用默认起始页」次墨；描述「工具栏『主页』按钮与新建标签页的默认地址」（2026-09-17 PRD 3.8.2 修订：新建标签页——Tab 栏 + / renderer ⌘T / 页面聚焦态快捷键 / 新建与克隆会话首 Tab / 零恢复集兜底——主页非空时默认加载主页，window.open 与重启恢复不受影响；主进程 newUserTab 语义分流，newTab 缺省恒真空白）。**交互口径（阶段四点亮，2026-09-17 scoped 定稿）**：受控值绑 settings 镜像 + 本地编辑草稿（聚焦修改不即时提交）；**Enter 或失焦提交**、值未变化短路零 IPC；成功回填主进程返回的规范化值（如 `example.com` → `https://example.com`）；**拒绝/失败行内红显不落盘**——输入框 1px `--danger` 描边 + 描述副行临时替换为错误文案（11px `--danger`，如「无效的主页地址」），随下一次成功提交或重新聚焦清零；空串提交 = 清除主页（维持默认起始页，主窗与独立窗主页按钮即时经 changed 推送同步）。视觉无新增器件——Input 既有度量 + danger token 既有）。快捷键 = 键帽速查表，行体系同上，右侧 kbd 键帽组（高 22px、min-width 26px、0 7px 内距、砖底 + 砖线 + 3px 圆角、mono 11px；多键以 10px 次墨「+」相隔）。**键位单源派生自 `browserShortcuts`（阶段三实装，2026-09-17 scoped 定稿）**：7 行按浏览器操作逻辑排序——刷新（⌘R 与 F5 双键组并排同行）、新建标签页、关闭标签页、聚焦地址栏、页内查找、打开或关闭开发者工具（F12）、关闭开发者工具（Esc）；中文文案与工具栏 title 同词；修饰键键帽按平台派生（macOS ⌘ / 其他平台 Ctrl）、字母键帽大写；**「+」仅表同一动作的组合键，同一动作的两个独立键位（如 ⌘R 与 F5）为两个键组并排、组间 6px 间隙无「+」**——组合与二选一的语义在视觉上严格区分。关于 = 居中签名（**应用图标 64px 居中于产品名上方**（`resources/icon.png`，圆角已在资产内烘焙，2026-09-17 用户裁决补入）+ 产品名 15/600 letter-spacing 0.02em + **版本三元组（阶段三实装，2026-09-17 scoped 定稿：Chrome「关于」页先例——单一版本行 + 引擎信息次级呈现，完整 patch 号不省略，测试人员关注被测环境内核版本）**：主行「版本 x.y.z」11px 次墨（真实值，dev 态即 package.json 版本）+ 其下一次行「Electron a.b.c · Chromium d.e.f.g」11px 次墨（间隔号 · 分隔，值经 `settings:get-app-info` 通道拉取一次，运行期不变无订阅）；留白 26px 0 18px）+ 数据目录行（描述「会话、分区数据与偏好的落盘位置」/ **「打开」小号文字钮（阶段三点亮，2026-09-17 scoped 定稿）**：26px 高、1px `--board-control-line` 描边、4px 圆角、13px board-ink 字、内距 0 10px、hover board-hover-veil——与语言展示态选择框同度量器件族（内容区零琥珀规则下的中性描边行动钮）；点击经 `settings:open-data-dir`（sender 白名单 = 设置窗）打开 userData；**失败如实呈现**——描述副行临时替换为「打开数据目录失败：<系统错误串>」（11px `--danger`），下次操作成功后恢复默认描述）。恢复出厂 = 版面标题 + 说明「高危操作：删除全部数据并重置设置」+ danger 描边钮「恢复出厂设置…」（1px `--danger` 描边、`--danger` 字、6px 圆角、hover rgba(212,56,13,0.08) veil）+ 后果说明 11px 次墨「删除全部会话、工作区与浏览数据，恢复默认设置，不可撤销」。板面双世界 token，无卡片、无阴影；`:focus-visible` 沿用全局琥珀外框规则。
+**双栏契约（侧栏双栏重构定稿，2026-09-17 用户选定方案一，视觉基准 notes/demo/settings-redesign-demo.html；前身「单列内容契约」废弃）：** 窗体 = 左侧栏 176px + 右详情区；阶段三/四点亮外观、关于与主页后，仅语言行维持静态展示态（点亮归阶段六 i18n）、恢复出厂 UI 维持静态可走形（执行归阶段七）——静态控件点选静默无效、不写「待实现」类引导文案。**侧栏**：抬升层底、右缘发丝线、内距 10px 8px；分类行 34px（6px 圆角、15px 图标 + 13px 文字、9px 间隙、左内距 10px），**行间 2px 间隙**（2026-09-17 用户裁决：密集导航行的呼吸位），五分类图标词汇 = 通用 SettingOutlined / 浏览 GlobalOutlined / 快捷键 OrderedListOutlined（速查表列表语义，图标库无键盘图标）/ 关于 InfoCircleOutlined / 恢复出厂 WarningOutlined；hover=board-hover-veil；**选中 = 强调色反白**（`--accent` 底 + `--accent-ink` 字与图标、600 字重、`aria-current`）——「设置窗内容区零强调色」就此修订为：导航选中位强调色反白是**显式例外**（导航是位置信号而非状态信号，与会话行 Inversion Rule 同构、不稀释信号稀缺；内容区至危险区前仍零强调色），恢复出厂分类沉底（`margin-top: auto`）恒 danger 色、hover rgba(212,56,13,0.08)、选中 danger 实底白字；侧栏自身不滚动（五分类恒不满溢；超视口分类数为留白再议）。**详情区**：留白 22px 28px、滚动职责独占（8px 主题化滚动条）；版面标题 15/600 + 版面说明 11px 次墨（标题下 8px）；**版面切换瞬切无动效**（离散跳变先例，同查找条显隐）；行体系 = min-height 44px、发丝线分隔（末行无）、label 13/500 + 描述副行 11px 次墨（可换行撑高行高，控件不换行）+ 控件右对齐。**五版面**：通用 = 外观（antd Segmented **图标三段**，2026-09-17 用户裁决改与首页板头同款形态——图标词汇单源 `appearanceIcons.tsx`（跟随系统=显示器/白天=太阳/黑夜=月亮），label 槽位留空（antd 裸 span 包装陷阱，板头先例）、中文模式名藏于 icon 节点内供读屏，**悬停经 Tooltip popover 提示瓣的模式名**（区别于板头的原生 title——设置行空间充裕，popover 更醒目）；token 配方同板头三段——轨道 board-bg-raised / 选中瓣 `--board-segment-selected-bg` / 字形 `--board-tile-ink` / 圆角 4；**受控交互（阶段三点亮）**：value 绑 appearance 镜像、onChange 经 `appearance.setMode`，板头 ↔ 设置窗经主进程 changed 广播双向即时同步（复用外观域三通道与偏好存储，零新增；连点由 store 既有串行队列承担）；描述「应用壳、原生界面与 DevTools 的亮暗模式」）+ **主题色（阶段五点亮，2026-09-17 scoped 定稿）**：三枚砖形色样单选（26px 方砖、1px `--board-control-line` 描边、4px 圆角——语言展示态选择框同族度量；色底 = 各主题系统 swatch、hover 描边转次墨 0.12s）——色样是内容色，经内联样式取自 `src/shared/themeSystems.ts` 配置单源（CSS 零硬编码色值），不违内容区零强调色；**选中 = 2px `--board-ink` 墨 outline 环**（offset 1px 不推挤布局）+ 砖上对勾（CheckOutlined 11px，对勾色 = 各系统自己的 accentInk 经配置取用，不随当前主题漂移——雾蓝主题下琥珀色样的对勾仍是琥珀墨）；radiogroup 语义 + roving tabindex（Tab 只达选中项，↑↓←→ 循环移动并即时应用）；受控交互——value 绑 appearance 镜像 themeColor、onChange 经 `appearance.setThemeColor`，与主进程广播双向即时同步；描述「左侧信息板的强调色与底色系统，右侧浏览区不受影响」+ 语言（展示态选择框：26px 高、1px `--board-control-line` 描边、4px 圆角、右端 10px 下箭头次墨、内容「中文（简体）」，点击无行为；描述「界面文案语言，切换即时生效」）。浏览 = 主页（antd Input 板面化：28px 高、1px `--board-control-line`、4px 圆角、placeholder「留空使用默认起始页」次墨；描述「工具栏『主页』按钮与新建标签页的默认地址」（2026-09-17 PRD 3.8.2 修订：新建标签页——Tab 栏 + / renderer ⌘T / 页面聚焦态快捷键 / 新建与克隆会话首 Tab / 零恢复集兜底——主页非空时默认加载主页，window.open 与重启恢复不受影响；主进程 newUserTab 语义分流，newTab 缺省恒真空白）。**交互口径（阶段四点亮，2026-09-17 scoped 定稿）**：受控值绑 settings 镜像 + 本地编辑草稿（聚焦修改不即时提交）；**Enter 或失焦提交**、值未变化短路零 IPC；成功回填主进程返回的规范化值（如 `example.com` → `https://example.com`）；**拒绝/失败行内红显不落盘**——输入框 1px `--danger` 描边 + 描述副行临时替换为错误文案（11px `--danger`，如「无效的主页地址」），随下一次成功提交或重新聚焦清零；空串提交 = 清除主页（维持默认起始页，主窗与独立窗主页按钮即时经 changed 推送同步）。视觉无新增器件——Input 既有度量 + danger token 既有）。快捷键 = 键帽速查表，行体系同上，右侧 kbd 键帽组（高 22px、min-width 26px、0 7px 内距、砖底 + 砖线 + 3px 圆角、mono 11px；多键以 10px 次墨「+」相隔）。**键位单源派生自 `browserShortcuts`（阶段三实装，2026-09-17 scoped 定稿）**：7 行按浏览器操作逻辑排序——刷新（⌘R 与 F5 双键组并排同行）、新建标签页、关闭标签页、聚焦地址栏、页内查找、打开或关闭开发者工具（F12）、关闭开发者工具（Esc）；中文文案与工具栏 title 同词；修饰键键帽按平台派生（macOS ⌘ / 其他平台 Ctrl）、字母键帽大写；**「+」仅表同一动作的组合键，同一动作的两个独立键位（如 ⌘R 与 F5）为两个键组并排、组间 6px 间隙无「+」**——组合与二选一的语义在视觉上严格区分。关于 = 居中签名（**应用图标 64px 居中于产品名上方**（`resources/icon.png`，圆角已在资产内烘焙，2026-09-17 用户裁决补入）+ 产品名 15/600 letter-spacing 0.02em + **版本三元组（阶段三实装，2026-09-17 scoped 定稿：Chrome「关于」页先例——单一版本行 + 引擎信息次级呈现，完整 patch 号不省略，测试人员关注被测环境内核版本）**：主行「版本 x.y.z」11px 次墨（真实值，dev 态即 package.json 版本）+ 其下一次行「Electron a.b.c · Chromium d.e.f.g」11px 次墨（间隔号 · 分隔，值经 `settings:get-app-info` 通道拉取一次，运行期不变无订阅）；留白 26px 0 18px）+ 数据目录行（描述「会话、分区数据与偏好的落盘位置」/ **「打开」小号文字钮（阶段三点亮，2026-09-17 scoped 定稿）**：26px 高、1px `--board-control-line` 描边、4px 圆角、13px board-ink 字、内距 0 10px、hover board-hover-veil——与语言展示态选择框同度量器件族（内容区零强调色规则下的中性描边行动钮）；点击经 `settings:open-data-dir`（sender 白名单 = 设置窗）打开 userData；**失败如实呈现**——描述副行临时替换为「打开数据目录失败：<系统错误串>」（11px `--danger`），下次操作成功后恢复默认描述）。恢复出厂 = 版面标题 + 说明「高危操作：删除全部数据并重置设置」+ danger 描边钮「恢复出厂设置…」（1px `--danger` 描边、`--danger` 字、6px 圆角、hover rgba(212,56,13,0.08) veil）+ 后果说明 11px 次墨「删除全部会话、工作区与浏览数据，恢复默认设置，不可撤销」。板面双世界 token，无卡片、无阴影；`:focus-visible` 沿用全局强调色外框规则。
 
 **两步确认弹层（危险区触发；UI 阶段二先行，真实执行归恢复出厂功能阶段）：** **形态裁决：自绘 overlay**——antd Modal 默认投影违反板面无阴影规则，去 token 阴影后与自绘成本相当而自绘更贴板面语言（WorkspaceSwitcher 自绘弹层先例；设置窗为独立 OS 窗、无原生层遮挡，antd Modal 技术可用但视觉一致性优先）。结构：absolute inset-0 覆盖设置窗内容区、底 `--mask`、居中卡片 340px（底=亮 #ffffff / 暗 #1a2026，antd 弹层 elevated 白同源；1px 发丝线边、6px 圆角对齐板面弹层先例（WorkspaceSwitcher 面板同值）、无阴影）。第一步：标题「恢复出厂设置」13/600 + 后果清单三条（12px 次墨：全部会话与工作区 / 全部分区数据（Cookie、缓存、LocalStorage、登录态）/ 全部设置恢复默认）+ 右对齐按钮行（取消 plain / 下一步 danger 描边）。第二步：「最后确认：输入「重置」二字」+ 输入框（主页行 Input 同度量）+ 按钮行（取消 / 确认重置 danger 实底白字——输入精确等于「重置」才启用）。两步均为本地瞬态：取消与确认只关闭弹层，零清理执行。窗口底色与 `--board-bg` 两值同源（建窗注入 + 主题切换经 appearance 广播链 `setBackgroundColor`）。renderer 入口为第四角色 `?role=settings`（惰性 chunk，不初始化 sessions/browser stores；**appearance 镜像自阶段二初始化、阶段三起同时消费与写入**（setMode 经既有通道，失败不阻塞壳体、保留 CSS 媒体查询主题）；**settings 值域镜像自阶段四初始化**（主页行受控值与写入经 settings store，先订阅后拉取）；壳体主题仍随 `nativeTheme.themeSource` 翻转）。
 
@@ -306,7 +307,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 
-Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标题 12px 单行省略、favicon `<img>`（CSP 已放行 img-src https:，null 时灰阶圆点占位）、加载中 LoadingOutlined 旋转替位、hover 显关闭钮、最后一个 tab 关闭钮禁用）+ 可用的新建按钮（PlusOutlined）。工具栏（#f1f3f4，40px）：后退/前进/刷新/主页四枚 28px 圆形按钮按 canGoBack/canGoForward 与激活态启停（禁用 chrome-disabled 色），加载中刷新钮切 CloseOutlined 停止态 + 胶囊地址栏（`flex: 1` 占满工具栏剩余宽度；真实 input：28px 药丸度量不变、文字左对齐 ink 色、about:blank 显示空、无效地址边框短暂 Chrome 错误红 #d93025 并 aria-invalid）+ 右侧「开发者工具」开关按钮（阶段 3 实装：11px chrome-ink-dim 文字、`aria-pressed` 随 DevTools 开关态翻转、title 随态提示「打开/关闭开发者工具（F12/Esc）」、按下态与 hover 走灰阶蒙版加深、无激活 tab 时禁用）。内容区的 `.chrome-body` / `.chrome-content` 始终作为单一全尺寸锚点，主进程 WebContentsView 按该矩形覆盖；DevTools 的页面分割、停靠方向和尺寸由 Chromium 在同一 WebContentsView 内原生管理，renderer 不再绘制重复的停靠占位。右侧控件的 :focus-visible 一律灰阶化（outline:none + 蒙版/描边加深），琥珀不进右侧。
+Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标题 12px 单行省略、favicon `<img>`（CSP 已放行 img-src https:，null 时灰阶圆点占位）、加载中 LoadingOutlined 旋转替位、hover 显关闭钮、最后一个 tab 关闭钮禁用）+ 可用的新建按钮（PlusOutlined）。工具栏（#f1f3f4，40px）：后退/前进/刷新/主页四枚 28px 圆形按钮按 canGoBack/canGoForward 与激活态启停（禁用 chrome-disabled 色），加载中刷新钮切 CloseOutlined 停止态 + 胶囊地址栏（`flex: 1` 占满工具栏剩余宽度；真实 input：28px 药丸度量不变、文字左对齐 ink 色、about:blank 显示空、无效地址边框短暂 Chrome 错误红 #d93025 并 aria-invalid）+ 右侧「开发者工具」开关按钮（阶段 3 实装：11px chrome-ink-dim 文字、`aria-pressed` 随 DevTools 开关态翻转、title 随态提示「打开/关闭开发者工具（F12/Esc）」、按下态与 hover 走灰阶蒙版加深、无激活 tab 时禁用）。内容区的 `.chrome-body` / `.chrome-content` 始终作为单一全尺寸锚点，主进程 WebContentsView 按该矩形覆盖；DevTools 的页面分割、停靠方向和尺寸由 Chromium 在同一 WebContentsView 内原生管理，renderer 不再绘制重复的停靠占位。右侧控件的 :focus-visible 一律灰阶化（outline:none + 蒙版/描边加深），强调色不进右侧。
 
 ### 地址栏历史建议（Omnibox Suggest）— 地址栏历史补全专项新增
 
@@ -314,7 +315,7 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 ### 页内查找条（Find Bar）— 会话网页内查找专项新增
 
-Cmd/Ctrl+F 唤起的页内查找停靠条（Chrome find bar 对齐）。**停靠而非浮层**：内容区被主进程 WebContentsView 原生覆盖，DOM 无法浮于页面之上，而整页收起（overlayDepth 路线）与「查找时须看见页面」直接矛盾——查找条以 chrome-body 顶部停靠条呈现，挂载即压缩内容锚点、bounds 重报让位原生层（零新增布局机制），页面轻微 reflow 是该架构下的批复取舍。条：高 36px（与 Tab 栏同节奏）、chrome-toolbar 底 + 底缘 chrome-line 发丝线（无阴影规则）、内容右对齐（Chrome find bar 位感）、显隐瞬切无动效（停靠让位是结构性布局变化，离散跳变先例）。查找框：28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，Chrome find 框观感）、chrome-surface 底 + chrome-line 边框，聚焦（focus-within）边框灰阶加深至 chrome-ink-dim（右侧控件 focus 灰阶化惯例，琥珀不进右侧），输入 12px chrome-ink、占位「在网页中查找」。计数「n/m」：12px chrome-ink-dim + tabular-nums 对位不跳——**不用翻牌砖**（高频变化 + Chrome 原生形态的次要元数据，非「航班信息」级信号）；无匹配 0/0 转 chrome-error。关闭钮 20×20 灰阶蒙版阶梯（hover-veil → pressed-veil，:focus-visible 以 select-veil 加深代替琥珀外框）。页面内匹配高亮由 Chromium 原生绘制（普通匹配黄底、当前匹配橙底），应用零自绘。键盘 Enter/Shift+Enter 前后跳转、Esc 关栏（组件内吞冒泡不让位 close-devtools 快捷键，shell 侧查找栏聚焦豁免为第二道防线）、输入法组合态不触发（Toolbar 同款守卫）；切 Tab/切会话即关栏，旧 Tab 高亮由主进程摘 view 源头清理，计数 0 命中收尾的同 query 单次自动重搜兜底 Chromium find 的瞬时假阴性（重搜仍 0 如实显 0/0）。
+Cmd/Ctrl+F 唤起的页内查找停靠条（Chrome find bar 对齐）。**停靠而非浮层**：内容区被主进程 WebContentsView 原生覆盖，DOM 无法浮于页面之上，而整页收起（overlayDepth 路线）与「查找时须看见页面」直接矛盾——查找条以 chrome-body 顶部停靠条呈现，挂载即压缩内容锚点、bounds 重报让位原生层（零新增布局机制），页面轻微 reflow 是该架构下的批复取舍。条：高 36px（与 Tab 栏同节奏）、chrome-toolbar 底 + 底缘 chrome-line 发丝线（无阴影规则）、内容右对齐（Chrome find bar 位感）、显隐瞬切无动效（停靠让位是结构性布局变化，离散跳变先例）。查找框：28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，Chrome find 框观感）、chrome-surface 底 + chrome-line 边框，聚焦（focus-within）边框灰阶加深至 chrome-ink-dim（右侧控件 focus 灰阶化惯例，强调色不进右侧），输入 12px chrome-ink、占位「在网页中查找」。计数「n/m」：12px chrome-ink-dim + tabular-nums 对位不跳——**不用翻牌砖**（高频变化 + Chrome 原生形态的次要元数据，非「航班信息」级信号）；无匹配 0/0 转 chrome-error。关闭钮 20×20 灰阶蒙版阶梯（hover-veil → pressed-veil，:focus-visible 以 select-veil 加深代替强调色外框）。页面内匹配高亮由 Chromium 原生绘制（普通匹配黄底、当前匹配橙底），应用零自绘。键盘 Enter/Shift+Enter 前后跳转、Esc 关栏（组件内吞冒泡不让位 close-devtools 快捷键，shell 侧查找栏聚焦豁免为第二道防线）、输入法组合态不触发（Toolbar 同款守卫）；切 Tab/切会话即关栏，旧 Tab 高亮由主进程摘 view 源头清理，计数 0 命中收尾的同 query 单次自动重搜兜底 Chromium find 的瞬时假阴性（重搜仍 0 如实显 0/0）。
 
 ### 原生 DevTools（Managed DevTools）— 阶段 3 新增
 
@@ -340,21 +341,21 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 
 ### 批量模式（Batch Mode）— 阶段 5 新增
 
-板头的批量入口：计数标签左侧一枚 20×20 图标钮（CheckSquareOutlined，12px，board-ink-dim，hover 抬升），激活批量模式时琥珀底 amber-ink 字（点级信号）；空会话列表禁用（批量态中删光后保持可点以退出，防死锁）。批量态内：行首插入 antd Checkbox（暗色嵌套层，勾中琥珀）；整行单击/Enter = 勾选（不再激活）；勾选行背景常驻 board-bg-raised；**激活反白在此模式隐藏**（反白语义专属激活，当前会话由右侧浏览器表明）；行内「...」菜单隐藏（模式互斥）；状态点/标题/备注/状态字照常。板脚由「新建会话」让位给两行操作栏：第一行 =「已选 N」（11px label，tabular-nums）+「全选/取消全选」文字钮 + 右缘 danger 文字钮「关闭全部会话」（antd danger 供色，作用于全部、不依赖勾选）；第二行 = 全宽琥珀主钮「打开测试地址」（复用新建会话的度量，作用于勾选项，空选禁用）——板脚唯一大面积琥珀的惯例由批量主操作承接。退出 = 板头钮再点或 Esc（焦点在输入框或弹层开启时豁免），退出清空勾选。两个弹层（URL 输入 Modal、关闭全部 modal.confirm danger）均经 overlay 悬挂登记收起原生层。
+板头的批量入口：计数标签左侧一枚 20×20 图标钮（CheckSquareOutlined，12px，board-ink-dim，hover 抬升），激活批量模式时强调色实底 accent-ink 字（点级信号）；空会话列表禁用（批量态中删光后保持可点以退出，防死锁）。批量态内：行首插入 antd Checkbox（暗色嵌套层，勾中琥珀）；整行单击/Enter = 勾选（不再激活）；勾选行背景常驻 board-bg-raised；**激活反白在此模式隐藏**（反白语义专属激活，当前会话由右侧浏览器表明）；行内「...」菜单隐藏（模式互斥）；状态点/标题/备注/状态字照常。板脚由「新建会话」让位给两行操作栏：第一行 =「已选 N」（11px label，tabular-nums）+「全选/取消全选」文字钮 + 右缘 danger 文字钮「关闭全部会话」（antd danger 供色，作用于全部、不依赖勾选）；第二行 = 全宽琥珀主钮「打开测试地址」（复用新建会话的度量，作用于勾选项，空选禁用）——板脚唯一大面积琥珀的惯例由批量主操作承接。退出 = 板头钮再点或 Esc（焦点在输入框或弹层开启时豁免），退出清空勾选。两个弹层（URL 输入 Modal、关闭全部 modal.confirm danger）均经 overlay 悬挂登记收起原生层。
 
 ### antd 6 整合层
 
-根 `ConfigProvider`（zh_CN，colorPrimary #FFB000，系统栈字体）按 resolvedTheme 动态选择 `theme.defaultAlgorithm` / `theme.darkAlgorithm`；`SessionPanel` 内嵌套层使用同一 algorithm，并保留 colorPrimary/colorInfo #FFB000、borderRadius 6。`App.useApp()` 承载 Modal 等 portal 组件，确保继承当前主题。滚动条、`::selection`、`:focus-visible` 与错误/禁用态均按主题语义化，禁止覆盖 `.ant-*` 内部选择器。
+根 `ConfigProvider`（zh_CN，colorPrimary 动态取自主题配置单源 `THEME_SYSTEMS[themeColor][resolvedTheme].accent`，系统栈字体）按 resolvedTheme 动态选择 `theme.defaultAlgorithm` / `theme.darkAlgorithm`；`SessionPanel` 内嵌套层使用同一 algorithm，并保留 colorPrimary/colorInfo（同源动态）+ borderRadius 6。`App.useApp()` 承载 Modal 等 portal 组件，确保继承当前主题。滚动条、`::selection`、`:focus-visible` 与错误/禁用态均按主题语义化，禁止覆盖 `.ant-*` 内部选择器。
 
 ## Do's and Don'ts
 
 ### Do:
 
 - **Do** 新面板延续行式栅格 + 1px 发丝线（`--board-hairline` #232830）分层，行保持直角。
-- **Do** 选中态整行琥珀反白（`--amber` 底 / `--amber-ink` 字），次级信息降不透明度 0.72，控件同步换墨色。
+- **Do** 选中态整行强调色反白（`--accent` 底 / `--accent-ink` 字），次级信息降不透明度 0.72，控件同步换墨色。
 - **Do** 计数与序号一律用 `FlapCounter` 翻牌砖，mono + tabular-nums。
-- **Do** 焦点统一 `:focus-visible` 2px `--amber` 外框、offset 2px；滚动条与 selection 沿用既有主题化。
-- **Do** antd 交互件随 resolvedTheme 选择 default/dark algorithm，并保留 colorPrimary #FFB000 + borderRadius 6 的嵌套 ConfigProvider。
+- **Do** 焦点统一 `:focus-visible` 2px `--accent` 外框、offset 2px；滚动条与 selection 沿用既有主题化。
+- **Do** antd 交互件随 resolvedTheme 选择 default/dark algorithm，并保留 colorPrimary（主题配置动态）+ borderRadius 6 的嵌套 ConfigProvider。
 - **Do** light/dark 只替换语义 token 与 antd algorithm；保持布局尺寸、DOM 层级和 120ms 颜色反馈不变。
 - **Do** 状态反馈用 0.12s 背景色过渡；loading 用既有 `dot-pulse`（1.2s 透明度脉冲），不新造动画。
 - **Do** 右侧新增 Chrome 语系元素时对齐既有度量（tab 栏 36px / 工具栏 40px / 药丸地址栏 28px、占满工具栏剩余宽度）。
@@ -363,10 +364,10 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 
 - **Don't** 引入任何 box-shadow / 投影层级——深度只有发丝线、色阶、反白三种。
 - **Don't** 回到类目默认：深色竖栏 + 蓝色高亮 + 圆角卡片列表是方向契约明确拒绝的形态。
-- **Don't** 让琥珀进入右侧 Chrome 区域或作大面积装饰底色；琥珀是信号，不是主题色。
+- **Don't** 让强调色进入右侧 Chrome 区域或作大面积装饰底色；强调色是信号，主题色系统只作用左板（右区恒灰阶）。
 - **Don't** 把会话行卡片化、圆角化或加左缘色条；选中只有反白一种语言。
 - **Don't** 为数字使用非 mono 字体或裸文本计数。
-- **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/琥珀——两个色域不互通。
+- **Don't** 在板面使用 chrome-\* 灰阶，或在 Chrome 侧使用 board-\*/强调色——两个色域不互通。
 
 ## Not Yet In The World（尚未进入世界的边界，阶段 10 后有效）
 
@@ -379,5 +380,5 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 - **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
 - **会话元数据已持久化（schema v3，阶段 6）**：主进程 `userData/sessions.json`（version 3：id/name/note/pageTitle/lastUrl/tabs/activeTabIndex；v1/v2 读取时按容错规则迁移（v2 的 lastUrl 派生单元素 tabs），原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。Tab 列表按 URL 级持久化（顺序与激活位，PRD 3.6.4）：重启激活会话时多开恢复，页面运行态与 DevTools 开关态仍不持久化（URL 级恢复，与 lastUrl 恢复同口径）；恢复 URL 逐条过白名单，坏值跳过并告警。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
-- **`--amber-ink-dim`（#4a3a00）在 `:root` 定义但零引用**：源码里存在、体系里未启用，未收录进本记录的 token 表；启用前不要引用。
+- **`--accent-ink-dim`（缺省 #4a3a00）在 `:root` 定义但零引用，且未随主题系统配置**：琥珀系缺省值存在、体系里未启用，未收录进本记录的 token 表与 themeSystems 配置单源；启用前先入配置再引用，避免非琥珀主题下取到错值。
 - **无断点体系**：弹性由窗口最小尺寸（1080×680）与左栏 220–420px 拖拽承担；不要引入媒体查询断点。

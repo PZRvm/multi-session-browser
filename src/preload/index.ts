@@ -28,7 +28,11 @@ import type {
   OmniboxSuggestShowPayload
 } from '../shared/omniboxSuggest'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
-import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
+import type {
+  AppearanceSnapshot,
+  SetAppearanceModePayload,
+  SetThemeColorPayload
+} from '../shared/appearance'
 import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
   BatchDeleteSessionsPayload,
@@ -64,6 +68,9 @@ const api = {
     getState: (): Promise<AppearanceSnapshot> => ipcRenderer.invoke(APPEARANCE_CHANNELS.getState),
     setMode: (payload: SetAppearanceModePayload): Promise<AppearanceSnapshot> =>
       ipcRenderer.invoke(APPEARANCE_CHANNELS.setMode, payload),
+    // 主题色切换（设置专项阶段五）：载荷与返回快照经 appearance 域守卫，订阅复用 onChanged
+    setThemeColor: (payload: SetThemeColorPayload): Promise<AppearanceSnapshot> =>
+      ipcRenderer.invoke(APPEARANCE_CHANNELS.setThemeColor, payload),
     onChanged: (callback: (snapshot: AppearanceSnapshot) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, snapshot: AppearanceSnapshot): void => {
         callback(snapshot)

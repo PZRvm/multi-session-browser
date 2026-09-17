@@ -28,6 +28,7 @@ import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestShowPayload
 } from '../../shared/omniboxSuggest'
+import type { ThemeSystemId } from '../../shared/themeSystems'
 
 export interface OmniboxSuggestWindows {
   /** 开/更新面板（幂等全量）：懒创建子窗、重定位、data 推送、显窗（不夺焦） */
@@ -63,6 +64,8 @@ function computeBounds(
 export function createOmniboxSuggestWindows(deps: {
   /** 宿主窗口解析：'main' → 主窗口显式引用，独立窗口 → 登记表现取（index.ts 注入） */
   getWindow: (windowId: string) => BrowserWindow | null
+  /** 当前主题色（建窗 query sys 现取，统一注入不特判；index.ts 注入） */
+  getThemeColor: () => ThemeSystemId
 }): OmniboxSuggestWindows {
   interface ChildEntry {
     win: BrowserWindow
@@ -183,16 +186,19 @@ export function createOmniboxSuggestWindows(deps: {
     })
 
     // 同 renderer 入口 + query 子窗角色（windows.ts 独立窗同款双路径）；catch 静默
-    // dispose 销毁期在途加载的 ERR_ABORTED（与 loadLoadFailure 的静默口径一致）
+    // dispose 销毁期在途加载的 ERR_ABORTED（与 loadLoadFailure 的静默口径一致）。
+    // sys 统一注入不特判（面板为 chrome 侧配色不随主题变，但 renderer 求值期首帧
+    // bootstrap 全窗统一执行——契约见 shared/themeSystems.ts 头注）
+    const sys = deps.getThemeColor()
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: 'omnibox-suggest' })
+      const query = new URLSearchParams({ role: 'omnibox-suggest', sys })
       win
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
         .catch(() => undefined)
     } else {
       win
         .loadFile(join(__dirname, '../renderer/index.html'), {
-          query: { role: 'omnibox-suggest' }
+          query: { role: 'omnibox-suggest', sys }
         })
         .catch(() => undefined)
     }

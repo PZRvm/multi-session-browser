@@ -4,10 +4,13 @@
    ============================================================ */
 
 :root {
+  /* color-scheme：全局常量，不随主题系统 */
   color-scheme: light;
 
-  /* 信息板 · 亮色暖灰，翻牌砖白天呈浅色砖面 + 深琥珀数字（夜间才回到暗砖亮字） */
-  /* --board-bg 两值（亮/暗）与主进程窗口背景常量（src/main/appearance.ts）同源对账 */
+  /* 信息板板面族 + 信号族：缺省值 = 琥珀系，与 src/shared/themeSystems.ts 逐值对账，
+     运行时注入覆盖（改一处必改另一处）。亮色暖灰世界：翻牌砖白天呈浅色砖面 +
+     深琥珀数字（夜间才回到暗砖亮字） */
+  /* --board-bg 同时是主进程窗口背景色单源（themeSystems.ts themeBoardBackground 派生） */
   --board-bg: #f6f4ee;
   --board-bg-raised: #ede9df;
   --board-hairline: #d8d2c5;
@@ -26,25 +29,31 @@
   /* 工作区专项：板面表单控件描边（切换框/搜索框边界；与滚动条 hover 同值异义 token） */
   --board-control-line: #bcb4a6;
   --panel-divider: #c7c1b5;
-  --amber: #ffb000;
-  --amber-strong: #ffc133;
-  --amber-press: #e6a000;
-  --amber-ink: #221a00;
-  --amber-ink-dim: #4a3a00;
-  --amber-veil: rgba(34, 26, 0, 0.12);
+  /* 强调色族（由琥珀专名改为语义名的六个变量，语义 = 默认强调色而非琥珀专属） */
+  --accent: #ffb000;
+  --accent-strong: #ffc133;
+  --accent-press: #e6a000;
+  --accent-ink: #221a00;
+  /* 缺省值为琥珀系推导，未随主题系统配置（零引用，启用前需入配置单源） */
+  --accent-ink-dim: #4a3a00;
+  --accent-veil: rgba(34, 26, 0, 0.12);
+  /* 状态点灰：全局常量，不随主题系统 */
   --idle: #6b7280;
+  /* 加载信号：主题配置族（亮 = accentDeep / 暗 = accentBase，昼夜翻转） */
   --loading: #9a5f00;
-  /* 设置专项阶段二：危险色域（DESIGN「设置窗口」——危险区与两步确认弹层专用；
-     亮值对齐 antd danger 红阶 red-7、暗值 red-5，历久经 antd danger 供色先例；
-     veil 为危险钮 hover 蒙版（0.08 档，对齐板面 hover 蒙版惯例） */
+  /* 设置专项阶段二：危险色域——全局常量，不随主题系统（DESIGN「设置窗口」——
+     危险区与两步确认弹层专用；亮值对齐 antd danger 红阶 red-7、暗值 red-5，
+     历久经 antd danger 供色先例；veil 为危险钮 hover 蒙版（0.08 档，对齐板面
+     hover 蒙版惯例）） */
   --danger: #d4380d;
   --danger-veil: rgba(212, 56, 13, 0.08);
-  /* 弹层遮罩与两步确认卡片底（DESIGN 定稿：卡片底亮纯白 / 暗 raised 层同值，
-     antd 弹层 elevated 白同源） */
+  /* 弹层遮罩：全局常量，不随主题系统（暗态加重一档，见暗色块） */
   --mask: rgba(0, 0, 0, 0.45);
+  /* 两步确认弹层卡片底：主题配置族（DESIGN 定稿：亮纯白 = antd 弹层 elevated
+     白同源；暗 = raised 层同值） */
   --settings-confirm-card-bg: #ffffff;
 
-  /* Chrome 右侧 · 亮色 */
+  /* Chrome 右侧 · 亮色（chrome-* 全族：全局常量，不随主题系统——右区恒中性灰阶） */
   --chrome-tabbar: #dee1e6;
   --chrome-toolbar: #f1f3f4;
   --chrome-line: #c7cbd1;
@@ -60,19 +69,21 @@
   --chrome-select-veil: rgba(60, 64, 67, 0.14);
   --chrome-error: #d93025;
   /* 拖拽落点高亮（阶段 9，Tab 栏层）：tabbar 叠 16% ink 蒙版的合成色（比按压态
-     再深一档，落点信号须强于普通悬停），灰阶语义，琥珀不进右侧 */
+     再深一档，落点信号须强于普通悬停），灰阶语义，强调色不进右侧 */
   --chrome-tabbar-drag-target: #c4c7cc;
   /* 拖拽插入指示线（阶段 10，Tab 栏层）：墨级灰阶线，与 --chrome-ink 同值源但语义
-     分开命名（先例：--loading 与 --amber 同值异名）——须从常态 tabbar 与 drag-target
+     分开命名（先例：--loading 与 --accent 同值异名）——须从常态 tabbar 与 drag-target
      高亮底上双双立得住 */
   --chrome-tab-insert: #3c4043;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    /* color-scheme：全局常量，不随主题系统 */
     color-scheme: dark;
 
-    /* 信息板 · 既有近黑蓝 */
+    /* 信息板板面族 + 信号族暗态覆盖：缺省值 = 琥珀系，与 src/shared/themeSystems.ts
+       逐值对账，运行时注入覆盖（改一处必改另一处）。既有近黑蓝 */
     --board-bg: #101418;
     --board-bg-raised: #1a2026;
     --board-hairline: #232830;
@@ -90,15 +101,17 @@
     --board-scrollbar-hover: #3a434e;
     --board-control-line: #3a434e;
     --panel-divider: #0b0e11;
+    /* 加载信号：主题配置族（暗 = accentBase，昼夜翻转） */
     --loading: #ffb000;
-    /* 危险色域 · 暗（red-5 提亮保暗底可读；veil 提一档至 0.12） */
+    /* 危险色域 · 暗：全局常量，不随主题系统（red-5 提亮保暗底可读；veil 提一档至 0.12） */
     --danger: #ff7875;
     --danger-veil: rgba(255, 120, 117, 0.12);
-    /* 弹层遮罩 · 暗加重一档（近黑蓝底上保遮罩可辨）；卡片底 = raised 层同值 */
+    /* 弹层遮罩 · 暗：全局常量，不随主题系统（近黑蓝底上加重一档保遮罩可辨） */
     --mask: rgba(0, 0, 0, 0.6);
+    /* 两步确认卡片底 · 暗：主题配置族（= raised 层同值） */
     --settings-confirm-card-bg: #1a2026;
 
-    /* Chrome 右侧 · Chromium 深色灰阶 */
+    /* Chrome 右侧 · Chromium 深色灰阶（chrome-* 全族：全局常量，不随主题系统） */
     --chrome-tabbar: #202124;
     --chrome-toolbar: #292a2d;
     --chrome-line: #3c4043;
@@ -148,12 +161,12 @@ body {
 }
 
 ::selection {
-  background: var(--amber);
-  color: var(--amber-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -197,7 +210,7 @@ body {
 .panel-divider:hover::before,
 body.col-resizing .panel-divider::before {
   width: 2px;
-  background: var(--amber);
+  background: var(--accent);
 }
 
 body.col-resizing {
@@ -528,7 +541,7 @@ body.col-resizing {
 .session-row.selected .ws-tag {
   background: transparent;
   border-color: transparent;
-  color: var(--amber-ink);
+  color: var(--accent-ink);
   opacity: 0.72;
 }
 
@@ -583,7 +596,7 @@ body.col-resizing {
 
 /* 选中行：机场信息屏的高亮航班——琥珀反白 */
 .session-row.selected {
-  background: var(--amber);
+  background: var(--accent);
 }
 
 /* 会话列表拖拽排序（视觉定稿见 DESIGN.md「会话列表拖拽排序」条目）：全灰阶，
@@ -737,7 +750,7 @@ body.col-resizing {
 .session-row.selected .session-name,
 .session-row.selected .session-note,
 .session-row.selected .session-page {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 
 .session-row.selected .session-note,
@@ -746,23 +759,23 @@ body.col-resizing {
 }
 
 .session-row.selected .session-status {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 
 .session-row.selected .session-dot.idle {
-  background: var(--amber-ink);
+  background: var(--accent-ink);
 }
 
 .session-row.selected .session-menu {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 
 .session-row.selected .session-menu:hover {
-  background: var(--amber-veil);
+  background: var(--accent-veil);
 }
 
 .session-row.selected .ant-input {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 
 /* 空态 */
@@ -803,8 +816,8 @@ body.col-resizing {
   height: 34px;
   border: none;
   border-radius: 6px;
-  background: var(--amber);
-  color: var(--amber-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -812,11 +825,11 @@ body.col-resizing {
 }
 
 .new-session:hover {
-  background: var(--amber-strong);
+  background: var(--accent-strong);
 }
 
 .new-session:active {
-  background: var(--amber-press);
+  background: var(--accent-press);
 }
 
 /* ---------- 批量模式 ---------- */
@@ -853,8 +866,8 @@ body.col-resizing {
 }
 
 .batch-toggle.active {
-  background: var(--amber);
-  color: var(--amber-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* 外观保存中与零会话批量入口的禁用态 */
@@ -867,7 +880,7 @@ body.col-resizing {
 /* 板头设置齿轮（设置专项阶段一）：度量镜像上方两枚板头入口（20×20 / 4px 圆角 /
    12px 图标字阶），hover 走蒙版抬升 + 主墨（设置专项定稿态：次墨 → hover
    board-hover-veil + board-ink）；无禁用态——入口恒可用（单例开窗无失效场景，
-   亦不随左栏宽度降级），:focus-visible 走全局琥珀外框规则 */
+   亦不随左栏宽度降级），:focus-visible 走全局强调色外框规则 */
 .settings-toggle {
   flex: none;
   display: inline-flex;
@@ -1010,7 +1023,7 @@ body.col-resizing {
 }
 
 /* 分类行：34px、6px 圆角、15px 图标 + 13px 文字、9px 间隙、左内距 10px；
-   hover 走板面蒙版；选中 = 琥珀反白（--amber 底 + --amber-ink 字与图标 + 600 字重，
+   hover 走板面蒙版；选中 = 强调色反白（--accent 底 + --accent-ink 字与图标 + 600 字重，
    与会话行 Inversion Rule 同构——导航是位置信号，「设置窗零琥珀」的显式例外，
    裁决见 DESIGN）；选中态经 aria-current 属性选择器驱动（视觉态与无障碍态单源） */
 .settings-side-cat {
@@ -1046,13 +1059,13 @@ body.col-resizing {
 }
 
 .settings-side-cat[aria-current='page'] {
-  background: var(--amber);
-  color: var(--amber-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
 .settings-side-cat[aria-current='page'] .settings-side-cat-icon {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 
 /* 恢复出厂分类：沉底（margin-top: auto）恒 danger 色（字与图标），hover 走危险
@@ -1180,6 +1193,48 @@ body.col-resizing {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 主题色行色板（设置专项阶段五）：三枚砖形色样单选——26px 方砖、1px 控件线描边、
+   4px 圆角（语言展示态选择框同族度量）；色底 = 各主题系统 swatch、对勾色 = 各系统
+   自己的 accentInk，均经内联样式取自 shared/themeSystems.ts 配置单源（色样是内容
+   色，不违内容区零强调色；CSS 零硬编码色值）；hover 描边转次墨；选中 = 2px 板墨
+   outline 环（不推挤布局，demo 页 .on 描边语言同源）；radiogroup 语义 roving
+   tabindex（键盘 ↑↓←→ 循环，Tab 只达选中项） */
+.settings-theme-swatches {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-theme-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+
+.settings-theme-swatch:hover {
+  border-color: var(--board-ink-dim);
+}
+
+.settings-theme-swatch[aria-checked='true'] {
+  outline: 2px solid var(--board-ink);
+  outline-offset: 1px;
+}
+
+/* 键盘聚焦与选中恒同一元素（roving tabindex）：聚焦态以强调色环区别于选中墨环
+   （审查修复轮低 2——否则选中项聚焦时焦点环不可辨） */
+.settings-theme-swatch[aria-checked='true']:focus-visible {
+  outline-color: var(--accent);
 }
 
 /* 语言行展示态选择框（WorkspaceSwitcher 收起态同构）：26px 高、1px 控件线描边、
@@ -1359,7 +1414,7 @@ body.col-resizing {
 
 /* 危险区（恢复出厂版面，双栏契约）：版面标题与说明之下——独立版面后不再需要
    单列时代的顶部发丝线收边；danger 描边钮 + 11px 次墨后果说明；
-   :focus-visible 沿用全局琥珀外框规则 */
+   :focus-visible 沿用全局强调色外框规则 */
 .settings-danger-zone {
   display: flex;
   flex-direction: column;
@@ -1664,7 +1719,7 @@ img.chrome-tab-favicon {
 /* ---------- 拖拽手势视觉（阶段 9）---------- */
 
 /* 悬停落点高亮：同会话拖拽悬停到本窗时整条 Tab 栏抬升一档色阶，示意「松手并入
-   此处」；灰阶语义 token（--chrome-tabbar-drag-target），琥珀不进右侧 */
+   此处」；灰阶语义 token（--chrome-tabbar-drag-target），强调色不进右侧 */
 .chrome-tabs.drag-target {
   background: var(--chrome-tabbar-drag-target);
 }
@@ -1976,7 +2031,7 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
 /* 页内查找栏（会话网页内查找开发计划步骤 4，impeccable 定稿）：chrome-body 顶部停靠条
    ——toolbar 底 + 底缘发丝线（无阴影规则）、高 36px 与 Tab 栏同节奏、内容右对齐
    （Chrome find bar 位感）；查找框 28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，
-   Chrome find 框观感），聚焦边框灰阶加深（右侧控件 focus 灰阶化惯例，琥珀不进右侧）；
+   Chrome find 框观感），聚焦边框灰阶加深（右侧控件 focus 灰阶化惯例，强调色不进右侧）；
    计数 12px tabular-nums 对位不跳，无匹配转错误红；关闭钮 20×20 灰阶蒙版阶梯。
    显隐瞬切无动效——停靠让位是结构性布局变化（离散跳变先例） */
 .chrome-findbar {
@@ -2065,7 +2120,7 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   background: var(--chrome-pressed-veil);
 }
 
-/* 右侧控件 focus-visible 灰阶化（琥珀不进右侧）：选中蒙版加深代替琥珀外框 */
+/* 右侧控件 focus-visible 灰阶化（强调色不进右侧）：选中蒙版加深代替强调色外框 */
 .chrome-find-close:focus-visible {
   outline: none;
   background: var(--chrome-select-veil);

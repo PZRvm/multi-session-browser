@@ -6,10 +6,12 @@
 // 可交互），不是透明无框不夺焦面板。窗口度量（DESIGN.md「设置窗口」条目定稿）：
 // 初值 700×480、min 600×420、max 900×680、可拉伸（侧栏双栏重构定稿）；位置与尺寸记忆为留白
 //（不落盘，OS 默认落位）。
-// 外观背景色：建窗经 getAppearanceBackgroundColor（注入的 resolvedTheme 现取，主窗
-// index.ts 同款写法）；后续主题翻转无需本模块接线——appearance.ts 的 syncSnapshot
-// 已对 BrowserWindow.getAllWindows() 逐窗 setBackgroundColor，设置窗创建后自动纳入
-// 广播；renderer 壳体主题走 CSS 媒体查询（步骤四实现），零新增主题通道。
+// 外观背景色：建窗经 getAppearanceBackgroundColor（resolvedTheme + themeColor 现取
+// 注入，主窗 index.ts 同款写法）；建窗 query 追加 sys = 建窗时刻主题色（renderer 求
+// 值期首帧注入防闪色，契约见 shared/themeSystems.ts 头注）。后续主题翻转无需本模块
+// 接线——appearance.ts 的 syncSnapshot 已对 BrowserWindow.getAllWindows() 逐窗
+// setBackgroundColor，设置窗创建后自动纳入广播；renderer 壳体主题走 CSS 媒体查询
+//（步骤四实现），零新增主题通道。
 // macOS 裁决：主窗缺席（用户关掉主窗后经菜单 ⌘, 触发）时允许无 parent 建窗——
 // darwin 菜单栏常驻、应用菜单在无任何窗口时仍可触达，拒绝开窗会让「设置…」成
 // 死路；无 parent 的设置窗独立落位，主窗重开后的打开请求仍聚焦此窗（单例不双开）。
@@ -21,6 +23,7 @@ import icon from '../../resources/icon.png?asset'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
 import type { ResolvedTheme } from '../shared/appearance'
+import type { ThemeSystemId } from '../shared/themeSystems'
 import { SETTINGS_CHANNELS, SETTINGS_WINDOW_ROLE } from '../shared/settings'
 import type { OkResult, SettingsAppInfo } from '../shared/settings'
 
@@ -47,6 +50,8 @@ export function createSettingsWindowController(deps: {
   getMainWindow: () => BrowserWindow | null
   /** 当前解析主题（建窗背景色，主窗 index.ts 同款注入） */
   getResolvedTheme: () => ResolvedTheme
+  /** 当前主题色（建窗背景色与 query sys 现取，主窗 index.ts 同款注入） */
+  getThemeColor: () => ThemeSystemId
 }): SettingsWindowController {
   let win: BrowserWindow | null = null
 
@@ -57,6 +62,9 @@ export function createSettingsWindowController(deps: {
     }
 
     const owner = deps.getMainWindow()
+    // 建窗时刻现取外观（背景色与 query sys 同源快照语义，主窗 index.ts 同款）
+    const resolvedTheme = deps.getResolvedTheme()
+    const themeColor = deps.getThemeColor()
     const created = new BrowserWindow({
       title: '设置',
       width: DEFAULT_WIDTH,
@@ -67,7 +75,7 @@ export function createSettingsWindowController(deps: {
       maxHeight: MAX_HEIGHT,
       show: false,
       autoHideMenuBar: true,
-      backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme()),
+      backgroundColor: getAppearanceBackgroundColor(resolvedTheme, themeColor),
       ...(owner && !owner.isDestroyed() ? { parent: owner } : {}),
       ...(process.platform === 'linux' ? { icon } : {}),
       webPreferences: {
@@ -96,17 +104,18 @@ export function createSettingsWindowController(deps: {
       if (win === created) win = null
     })
 
-    // 同 renderer 入口 + query 设置窗角色（omniboxSuggest / windows.ts 双路径同款）；
-    // catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的竞态，不成年抛错）
+    // 同 renderer 入口 + query 设置窗角色 + sys 主题色（omniboxSuggest / windows.ts
+    // 双路径同款）；catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的
+    // 竞态，不成年抛错）
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: SETTINGS_WINDOW_ROLE })
+      const query = new URLSearchParams({ role: SETTINGS_WINDOW_ROLE, sys: themeColor })
       created
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
         .catch(() => undefined)
     } else {
       created
         .loadFile(join(__dirname, '../renderer/index.html'), {
-          query: { role: SETTINGS_WINDOW_ROLE }
+          query: { role: SETTINGS_WINDOW_ROLE, sys: themeColor }
         })
         .catch(() => undefined)
     }

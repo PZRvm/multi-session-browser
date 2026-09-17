@@ -127,6 +127,10 @@ function installChineseMenu(): void {
 }
 
 function createWindow(): void {
+  // 建窗外观现取一份快照：背景色与 query sys（renderer 求值期首帧主题注入，防非琥珀
+  // 主题开窗闪色，契约见 shared/themeSystems.ts 头注）同源；macOS 关窗重开
+  //（activate → createWindow）时取到的是当前偏好而非启动时旧值
+  const appearance = appearanceController.getSnapshot()
   // Create the browser window.
   const win = new BrowserWindow({
     width: 1280,
@@ -135,7 +139,7 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: getAppearanceBackgroundColor(appearanceController.getSnapshot().resolvedTheme),
+    backgroundColor: getAppearanceBackgroundColor(appearance.resolvedTheme, appearance.themeColor),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -161,10 +165,16 @@ function createWindow(): void {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
+  // query sys = 建窗时刻主题色（renderer 求值期消费作首帧初始值；运行期变更一律经
+  // appearance:changed 广播，query 不再被读取）
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    // dev 路径与其余三处建窗同为 URLSearchParams 形态（审查修复轮低 6，防御式一致）
+    const query = new URLSearchParams({ sys: appearance.themeColor })
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { sys: appearance.themeColor }
+    })
   }
 
   // 主窗口销毁（macOS 关窗）即置空显式引用：getWindow('main')/定向推送此后自然跳过；
@@ -217,8 +227,12 @@ app.whenReady().then(async () => {
   // null，回调只会在用户交互（tear-off 建窗）后触发）：ready-to-show 挂 view（防
   // 白屏）、closed 级联销毁该窗口作用域 Tab
   const independentWindows = createIndependentWindows({
-    getBackgroundColor: () =>
-      getAppearanceBackgroundColor(appearanceController.getSnapshot().resolvedTheme),
+    getBackgroundColor: () => {
+      const appearance = appearanceController.getSnapshot()
+      return getAppearanceBackgroundColor(appearance.resolvedTheme, appearance.themeColor)
+    },
+    // 建窗 query sys 现取（独立窗 renderer 首帧主题注入，主窗同款契约）
+    getThemeColor: () => appearanceController.getSnapshot().themeColor,
     onWindowReady: (sessionId: string, windowId: string): void => {
       registry?.onIndependentWindowReady(sessionId, windowId)
     },
@@ -232,16 +246,19 @@ app.whenReady().then(async () => {
   //（懒创建/隐藏复用/宿主 move-resize 跟随），宿主窗口解析与 registry 同源
   suggestWindows = createOmniboxSuggestWindows({
     getWindow: (windowId: string): BrowserWindow | null =>
-      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId)
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
+    // 建窗 query sys 现取（子窗统一注入不特判，主窗/独立窗同款契约）
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
   })
 
   // 设置窗控制器（设置专项阶段一）：单例设置子窗——应用菜单「设置… ⌘,」直连
-  // open()，板头齿轮经设置域 open IPC 通道（下方注册区接线）；建窗背景色随外观主题
-  // 现取（主窗同款注入），后续主题翻转由 appearance 广播链自动覆盖（getAllWindows
+  // open()，板头齿轮经设置域 open IPC 通道（下方注册区接线）；建窗背景色与 sys query
+  // 随外观主题现取（主窗同款注入），后续主题翻转由 appearance 广播链自动覆盖（getAllWindows
   // 逐窗 setBackgroundColor，设置窗创建后即纳入），无需本控制器额外接线
   settingsWindowController = createSettingsWindowController({
     getMainWindow: () => mainWindow,
-    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
   })
 
   // 会话浏览器注册表：每会话一个独立分区（persist:sess-<id>）的 TabManager，命令按

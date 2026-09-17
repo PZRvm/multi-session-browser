@@ -7,6 +7,7 @@ import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore, windowIdentity } from './stores/browser'
 import { useSessionsStore } from './stores/sessions'
 import { useSettingsStore } from './stores/settings'
+import { bootstrapThemeTokens } from './theme'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
@@ -16,6 +17,12 @@ const App = lazy(() => import('./App'))
 
 // 设置窗壳体同款惰性分流（设置专项阶段一）：阶段一只有三组分组标题骨架
 const SettingsWindow = lazy(() => import('./components/SettingsWindow'))
+
+// 主题 token 首帧注入（设置专项阶段五）：建窗 URL query 的 sys 是主进程建窗注入的
+// 首帧初始值契约（运行期主题变更不再读 query，一律经 appearance:changed 推送收敛）。
+// 求值期同步执行、先于 role 分流与 createRoot——设置窗 / 建议子窗 / 主窗与独立窗
+// 三分支全覆盖，首帧先于 React 提交，非琥珀主题开窗不闪琥珀缺省色
+bootstrapThemeTokens()
 
 const role = new URLSearchParams(window.location.search).get('role')
 

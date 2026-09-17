@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { App as AntdApp, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
+import { THEME_SYSTEMS } from '../../shared/themeSystems'
 import BrowserFrame from './components/BrowserFrame'
 import IndependentWindowFrame from './components/IndependentWindowFrame'
 import SessionPanel from './components/SessionPanel'
 import { useAppearanceStore } from './stores/appearance'
 import { windowIdentity } from './stores/browser'
+import { applyThemeTokens } from './theme'
 
 const PANEL_MIN = 220
 const PANEL_MAX = 420
@@ -72,6 +74,16 @@ function MainShell(): React.JSX.Element {
 // ConfigProvider/AntdApp 上下文——主题与 antd 弹层行为跨窗口一致
 function App(): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
+  const themeColor = useAppearanceStore((s) => s.themeColor)
+  const appearanceInitialized = useAppearanceStore((s) => s.initialized)
+
+  // 运行期主题 token 重注（首帧与 OS 翻转归 theme.ts bootstrap）：以 init 真值回填为
+  // 门控（审查修复轮中 1）——未初始化期间 store 的 'amber' 占位初值不得覆盖 bootstrap
+  // 按 sys 注入的首帧；themeColor 与 resolvedTheme 任一变化即重注
+  useEffect(() => {
+    if (!appearanceInitialized) return
+    applyThemeTokens(themeColor, resolvedTheme)
+  }, [appearanceInitialized, themeColor, resolvedTheme])
 
   return (
     <ConfigProvider
@@ -79,7 +91,9 @@ function App(): React.JSX.Element {
       theme={{
         algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#FFB000',
+          // 主色取主题配置单源（shared/themeSystems.ts），随主题色镜像动态切换；
+          // accent 落在昼夜两态 token 内（该层形状由冻结契约决定，非顶层字段）
+          colorPrimary: THEME_SYSTEMS[themeColor][resolvedTheme].accent,
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif'
         }

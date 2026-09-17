@@ -7,6 +7,7 @@ import FlapCounter from './FlapCounter'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
@@ -211,6 +212,7 @@ interface SessionPanelProps {
 
 function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
+  const themeColor = useAppearanceStore((s) => s.themeColor)
   const sessions = useSessionsStore((s) => s.sessions)
   const workspaces = useSessionsStore((s) => s.workspaces)
   const activeWorkspaceId = useSessionsStore((s) => s.activeWorkspaceId)
@@ -394,8 +396,10 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
       theme={{
         algorithm: resolvedTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#FFB000',
-          colorInfo: '#FFB000',
+          // 与 App 根 ConfigProvider 同源：主色经同一 store 镜像取主题配置单源
+          //（accent 落在昼夜两态 token 内，取当前 resolvedTheme 态）
+          colorPrimary: THEME_SYSTEMS[themeColor][resolvedTheme].accent,
+          colorInfo: THEME_SYSTEMS[themeColor][resolvedTheme].accent,
           borderRadius: 6,
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif'

@@ -12,6 +12,7 @@ import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
 import { installShellInputGuard } from '../inputGuard'
 import { clampRectIntoWorkArea } from './screen'
+import type { ThemeSystemId } from '../../shared/themeSystems'
 
 /** 默认/最小窗口尺寸（DIP）：Chrome 新窗口量级，可自由调整 */
 const DEFAULT_WIDTH = 1024
@@ -69,6 +70,8 @@ export interface IndependentWindows {
 export function createIndependentWindows(deps: {
   /** 窗口背景色（防首帧白闪，随外观主题；index.ts 注入外观控制器读数） */
   getBackgroundColor: () => string
+  /** 当前主题色（建窗 query sys 现取，renderer 首帧主题注入防闪色；index.ts 注入） */
+  getThemeColor: () => ThemeSystemId
   /** ready-to-show：窗口就绪（防白屏时点），registry 经此挂入该窗口作用域激活 Tab 的 view */
   onWindowReady: (sessionId: string, windowId: string) => void
   /** 窗口已销毁：registry 经此销毁该窗口作用域全部 Tab（含 webContents）并清槽位 */
@@ -179,13 +182,16 @@ export function createIndependentWindows(deps: {
     })
 
     // 同 renderer 入口 + query 独立窗口模式（契约点 1：URL 无 query = 主窗口；
-    // role=tab-window = 独立窗口，windowId/session 取自 query；dev 走 HMR 入口 + query）
+    // role=tab-window = 独立窗口，windowId/session 取自 query；dev 走 HMR 入口 + query）。
+    // sys = 建窗时刻主题色（renderer 求值期消费作首帧初始值防闪色；运行期变更一律经
+    // appearance:changed 广播，query 不再被读取——契约见 shared/themeSystems.ts 头注）
+    const sys = deps.getThemeColor()
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const query = new URLSearchParams({ role: 'tab-window', session: sessionId, windowId })
+      const query = new URLSearchParams({ role: 'tab-window', session: sessionId, windowId, sys })
       win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
     } else {
       win.loadFile(join(__dirname, '../renderer/index.html'), {
-        query: { role: 'tab-window', session: sessionId, windowId }
+        query: { role: 'tab-window', session: sessionId, windowId, sys }
       })
     }
     return { windowId, win }
