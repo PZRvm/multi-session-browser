@@ -42,6 +42,8 @@ import type {
   DeleteSessionPayload,
   DeleteWorkspacePayload,
   MoveSessionToWorkspacePayload,
+  MoveSessionsBatchResult,
+  MoveSessionsToWorkspacePayload,
   RenameSessionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
@@ -78,6 +80,9 @@ declare global {
         workspaceRename(payload: RenameWorkspacePayload): Promise<StoredWorkspace>
         workspaceDelete(payload: DeleteWorkspacePayload): Promise<OkResult>
         workspaceMoveSession(payload: MoveSessionToWorkspacePayload): Promise<OkResult>
+        workspaceMoveSessionsBatch(
+          payload: MoveSessionsToWorkspacePayload
+        ): Promise<MoveSessionsBatchResult>
         workspaceSetActive(payload: SetActiveWorkspacePayload): Promise<OkResult>
       }
       browser: {

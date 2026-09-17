@@ -962,7 +962,8 @@ body.col-resizing {
   font-variant-numeric: tabular-nums;
 }
 
-.batch-select-all {
+.batch-select-all,
+.batch-move-btn {
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -982,6 +983,85 @@ body.col-resizing {
 /* danger 文字钮配色由 antd 暗色层供色，仅作右缘对齐微调 */
 .batch-close-selected {
   margin-right: -7px;
+}
+
+/* 批量移动次级钮（2026-09-17 增量，形态契约见 DESIGN「批量模式」条目）：与
+   select-all 同族文字钮（12px board-ink、hover 抬升）；窄栏图标变体收 20×20
+   居中（响应式降级由 panelWidth 驱动切 class，非媒体查询） */
+.batch-move-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.batch-move-btn:hover:not(:disabled) {
+  background: var(--board-bg-raised);
+}
+
+.batch-move-btn:disabled {
+  color: var(--board-ink-dim);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.batch-move-btn.batch-move-icon {
+  width: 20px;
+  padding: 0;
+  font-size: 12px;
+}
+
+/* 批量移动反馈条（板脚操作栏底部一行）：成功次墨短暂显示（JS 2.4s 后移除）、
+   失败 danger 持续至下一次操作；min-height 防出现/消失时操作栏跳动 */
+.batch-feedback {
+  min-height: 16px;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+  padding: 0 2px;
+  transition: opacity 0.24s ease;
+}
+
+.batch-feedback-fading {
+  opacity: 0;
+}
+
+.batch-feedback-danger {
+  color: var(--danger);
+}
+
+/* 批量移动弹层（同一 Modal 器件的批量变体）：说明行 + 目标行右端计数徽标。
+   .ws-move-item 挂在 antd Button 根上（自有类名，不触 .ant-* 内部）——flex
+   两端对齐让名称与「n / N 在此」徽标分列左右 */
+.batch-move-sub {
+  margin: 0 0 12px;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+.ws-move-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* antd 以 .css-hash.ant-btn（0,2,0）注入按钮内容对齐——列表组合选择器（0,2,1）
+   压过它实现「名称左 / 计数右」两端对齐（审查修复轮中 2），不引用 .ant-* 类名 */
+.ws-move-list button.ws-move-item {
+  justify-content: space-between;
+}
+
+.ws-move-count {
+  font-size: 11px;
+  color: var(--board-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-move-error {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--danger);
 }
 
 /* 「打开测试地址」复用 .new-session 度量；勾选为空时禁用（灰化不换底色）。

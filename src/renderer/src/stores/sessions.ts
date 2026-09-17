@@ -38,6 +38,10 @@ interface SessionsState {
   renameWorkspace: (id: string, name: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
   moveSessionToWorkspace: (sessionId: string, workspaceId: string | null) => Promise<boolean>
+  moveSessionsToWorkspace: (
+    sessionIds: string[],
+    workspaceId: string | null
+  ) => Promise<{ moved: number; skipped: number } | null>
 }
 
 let initialized = false
@@ -450,6 +454,42 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } catch (error) {
       console.error('移动会话失败', error)
       return false
+    }
+  },
+
+  // 批量移动归属（批量模式板脚入口）：非乐观（主进程整单校验 + 幂等计数为真值源，
+  // moved/skipped 透传给反馈条不自算口径）；成功后逐会话镜像 workspaceId，并镜像
+  // 源工作区记忆清理——仅「确实被移出」的会话（prev != 目标）清其源工作区记忆，
+  // 已在目标的跳过项记忆不动（对齐单会话移动的镜像侧先例）。视野过滤随之自然变化
+  // （工作区视野内被移出的行消失、右侧不变）；失败返回 null，调用方 danger 呈现
+  moveSessionsToWorkspace: async (sessionIds, workspaceId) => {
+    try {
+      const result = await window.api.sessions.workspaceMoveSessionsBatch({
+        ids: sessionIds,
+        workspaceId
+      })
+      set((state) => {
+        const idSet = new Set(sessionIds)
+        const movedFrom = new Map<string, string | null>()
+        for (const s of state.sessions) {
+          if (idSet.has(s.id) && s.workspaceId !== workspaceId) {
+            movedFrom.set(s.id, s.workspaceId)
+          }
+        }
+        return {
+          sessions: state.sessions.map((s) => (idSet.has(s.id) ? { ...s, workspaceId } : s)),
+          workspaces: state.workspaces.map((w) => {
+            if (w.lastActiveSessionId != null && movedFrom.get(w.lastActiveSessionId) === w.id) {
+              return { ...w, lastActiveSessionId: null }
+            }
+            return w
+          })
+        }
+      })
+      return { moved: result.moved, skipped: result.skipped }
+    } catch (error) {
+      console.error('批量移动会话失败', error)
+      return null
     }
   }
 }))

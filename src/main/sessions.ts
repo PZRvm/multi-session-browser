@@ -1,11 +1,11 @@
-// 会话 IPC handlers：十五条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
-// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项五条 create/rename/delete/
-// move-session/set-active）的业务实现，读写一律经 store.ts 的快照接口；status-changed
+// 会话 IPC handlers：十六条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项六条 create/rename/delete/
+// move-session/move-sessions-batch/set-active）的业务实现，读写一律经 store.ts 的快照接口；status-changed
 // 推送不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
-// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区五通道纯元数据：唯一
+// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区六通道纯元数据：唯一
 // 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
 
 import { ipcMain } from 'electron'
@@ -18,6 +18,7 @@ import {
   WORKSPACE_NAME_MAX,
   WORKSPACE_VIEW_ALL,
   cloneTabs,
+  type MoveSessionsBatchResult,
   type OkResult,
   type SessionStatusesPayload,
   type SessionsSnapshot,
@@ -587,6 +588,53 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
+  // workspaces:move-sessions-batch：批量移动选中会话（2026-09-17 增量，批量模式板脚
+  // 入口）。语义二分：已在目标的会话幂等 no-op 计入 skipped（合法——批量勾选可含
+  // 混合归属，demo 裁决静默跳过）；ids 格式非法或任一会话/目标工作区不存在则整单
+  // 拒绝（零部分成功、磁盘不变，对齐 batch 家族先例；重复 id 去重容忍）。单
+  // mutateSnapshot 临界区逐会话赋值 + 源工作区记忆清理、一次落盘；moved/skipped
+  // 为真实计数返回（renderer 反馈条不自算口径）；不动 activeId、零编排回调
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceMoveSessionsBatch,
+    async (_event, payload: unknown): Promise<MoveSessionsBatchResult> =>
+      logFailure(SESSIONS_CHANNELS.workspaceMoveSessionsBatch, payload, async () => {
+        if (!isRecord(payload)) throw invalidParams()
+        if (payload.workspaceId !== null && typeof payload.workspaceId !== 'string') {
+          throw invalidParams()
+        }
+        const target = payload.workspaceId
+        if (target !== null) assertWorkspaceIdFormat(target)
+        const ids = [...new Set(parseNonEmptyStringIds(payload))]
+        assertSessionIdFormat(ids)
+        let moved = 0
+        let skipped = 0
+        await mutateSnapshot((snapshot) => {
+          if (target !== null && !snapshot.workspaces.some((w) => w.id === target)) {
+            throw new Error('工作区不存在')
+          }
+          for (const id of ids) {
+            const session = snapshot.sessions.find((item) => item.id === id)
+            if (!session) throw new Error('会话不存在')
+            if (session.workspaceId === target) {
+              skipped++
+              continue
+            }
+            const prevWorkspaceId = session.workspaceId
+            session.workspaceId = target
+            moved++
+            if (prevWorkspaceId !== null) {
+              const source = snapshot.workspaces.find((w) => w.id === prevWorkspaceId)
+              if (source && source.lastActiveSessionId === id) {
+                source.lastActiveSessionId = null
+              }
+            }
+          }
+          return { ok: true }
+        })
+        return { moved, skipped }
+      })
+  )
+
   // workspaces:set-active：切换工作区视野（主进程内原子副作用，setActive 同模式）。
   // 同一 mutateSnapshot 临界区内完成：落 activeWorkspaceId + 必要时级联 activeId——
   // 当前激活会话不属于目标工作区时，级联到该工作区 lastActiveSessionId（记忆悬空
@@ -636,6 +684,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 15 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 16 条
+  // 本文件注册 16 条 invoke 通道；status-changed 推送通道由 index.ts 接线（registry → renderer），合计 17 条
   console.log('[sessions] IPC handlers 已注册（16 条通道）')
 }
