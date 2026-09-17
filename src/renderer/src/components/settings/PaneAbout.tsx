@@ -6,12 +6,15 @@ import type { SettingsAppInfo } from '../../../../shared/settings'
 // 关于版面：居中签名（应用图标 64px + 产品名 + 版本三元组）+ 数据目录行（阶段三
 // 点亮）。版本三元组经 settings:get-app-info 拉取一次（运行期不变，无订阅）——
 // Chrome「关于」页先例：单一版本行 + 引擎信息次级呈现，完整 patch 号如实展示；
-// 数据目录「打开」经 settings:open-data-dir（主进程 sender 白名单 = 设置窗），
-// 失败如实呈现——描述副行临时替换为 danger 错误文案，下次操作成功后恢复
+// 拉取失败如实降级——版本行换「版本获取失败」次墨、引擎次行不渲染，切换分类
+// 重挂载即重试（本地同步 handler 几乎不失败，不设重试钮）；数据目录「打开」经
+// settings:open-data-dir（主进程 sender 白名单 = 设置窗），失败如实呈现——描述
+// 副行临时替换为 danger 错误文案，下次操作成功后恢复
 const DATA_DIR_DESC = '会话、分区数据与偏好的落盘位置'
 
 export function PaneAbout(): React.JSX.Element {
   const [appInfo, setAppInfo] = useState<SettingsAppInfo | null>(null)
+  const [failed, setFailed] = useState(false)
   const [openError, setOpenError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -23,6 +26,7 @@ export function PaneAbout(): React.JSX.Element {
       })
       .catch((error) => {
         console.error('获取应用信息失败', error)
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
@@ -41,7 +45,9 @@ export function PaneAbout(): React.JSX.Element {
       <div className="settings-about-hero">
         <img className="settings-about-icon" src={appIcon} alt="" aria-hidden="true" />
         <div className="settings-about-name">多会话测试浏览器</div>
-        <div className="settings-about-version">版本 {appInfo ? appInfo.appVersion : '…'}</div>
+        <div className="settings-about-version">
+          {appInfo ? `版本 ${appInfo.appVersion}` : failed ? '版本获取失败' : '版本 …'}
+        </div>
         {appInfo ? (
           <div className="settings-about-engines">
             Electron {appInfo.electronVersion} · Chromium {appInfo.chromiumVersion}

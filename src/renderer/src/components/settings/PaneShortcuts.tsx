@@ -68,6 +68,7 @@ function ShortcutKeys({ groups }: { groups: readonly string[][] }): React.JSX.El
 
 export function PaneShortcuts(): React.JSX.Element {
   const [platform, setPlatform] = useState<SettingsAppInfo['platform'] | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -78,14 +79,21 @@ export function PaneShortcuts(): React.JSX.Element {
       })
       .catch((error) => {
         console.error('获取应用信息失败', error)
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
     }
   }, [])
 
+  // 拉取失败如实降级：版面说明临时替换为失败说明、键位表不渲染（切换分类重挂载即
+  // 重试；平台修饰键派生依赖 get-app-info 单源，失败不 navigator 兜底造第二来源）
   return (
-    <SettingsPane id="shortcuts" title="快捷键" desc="应用与浏览器区的键位速查">
+    <SettingsPane
+      id="shortcuts"
+      title="快捷键"
+      desc={failed ? '应用信息获取失败' : '应用与浏览器区的键位速查'}
+    >
       {platform === null ? null : (
         <>
           {SHORTCUT_ROW_ORDER.map((id) => (

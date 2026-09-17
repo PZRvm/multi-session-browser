@@ -97,12 +97,19 @@ export function getHomepageUrl(): string {
   return cachedHomepageUrl
 }
 
-/** 值域键读取：缺键（v1 空骨架存量）静默补 ''；坏值（非字符串）中文告警回退 '' */
+/** 值域键读取：缺键（v1 空骨架存量）静默补 ''；坏值中文告警回退 ''。坏值判据与
+ * 写侧同一规范化契约——非字符串，或非空且超长 / normalizeInput 不回同值（手改盘值
+ * 缺 scheme、非白名单 scheme 等均不会回原值）——防手改 settings.json 的原值直达
+ * 设置窗回显与 newUserTab 的 loadURL（审查低 3 修复，读侧与写侧同规单源） */
 function readHomepageUrl(data: Record<string, unknown>): string {
   const value = data.homepageUrl
   if (value === undefined) return ''
   if (typeof value !== 'string') {
     console.warn('[settings] homepageUrl 非字符串，已回退空值')
+    return ''
+  }
+  if (value !== '' && (value.length > HOMEPAGE_URL_MAX || normalizeInput(value) !== value)) {
+    console.warn('[settings] homepageUrl 非法（超长或未过规范化校验），已回退空值')
     return ''
   }
   return value

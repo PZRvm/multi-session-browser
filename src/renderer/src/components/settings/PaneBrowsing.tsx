@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Input } from 'antd'
 import { SettingsPane, SettingsRow } from './SettingsParts'
 import { useSettingsStore } from '../../stores/settings'
@@ -16,21 +16,28 @@ export function PaneBrowsing(): React.JSX.Element {
   const setHomepage = useSettingsStore((s) => s.setHomepage)
   const [draft, setDraft] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const commitInFlight = useRef(false)
 
   const commit = (): void => {
     if (draft === null) return
+    // 在途提交期间忽略重复触发（Enter 后立即失焦等时序）——由首个 Promise 落定统一
+    // 收敛，避免二次 commit 经 store 串行守卫弹「正在保存主页设置」瞬态错误文案
+    if (commitInFlight.current) return
     const raw = draft
     if (raw === homepageUrl) {
       setDraft(null)
       return
     }
-    // 失败保留草稿（红显时用户能看到并继续修改错在哪），成功才清草稿——受控值
-    // 随 store 应用快照回填规范化结果；错误态随成功提交或重新聚焦清零（DESIGN 口径）
+    // 失败保留草稿（红显时用户能看到并继续修改错在哪），成功才清草稿——且仅在草稿
+    // 自提交起未被继续编辑时清（在途期间重新聚焦改值不回吞）；受控值随 store 应用
+    // 快照回填规范化结果；错误态随成功提交或重新聚焦清零（DESIGN 口径）
+    commitInFlight.current = true
     void setHomepage(raw).then((result) => {
+      commitInFlight.current = false
       if (result.error) {
         setError(result.error)
       } else {
-        setDraft(null)
+        setDraft((current) => (current === raw ? null : current))
         setError(null)
       }
     })
