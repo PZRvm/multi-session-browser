@@ -7,6 +7,7 @@ import {
   RightOutlined
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
+import { useSettingsStore } from '../../stores/settings'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -26,6 +27,7 @@ function Toolbar(): React.JSX.Element {
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
+  const homepageUrl = useSettingsStore((s) => s.homepageUrl)
   const goBack = useBrowserStore((s) => s.goBack)
   const goForward = useBrowserStore((s) => s.goForward)
   const reload = useBrowserStore((s) => s.reload)
@@ -224,7 +226,10 @@ function Toolbar(): React.JSX.Element {
           aria-label="主页"
           title="主页"
           disabled={!activeTab}
-          onClick={() => navigate('about:blank')}
+          // 主页按钮（阶段四对接）：跳设置窗自定义主页，留空维持既有默认起始页
+          // about:blank；值来自主进程快照的 settings 镜像（changed 推送即时跟随，
+          // 主窗与独立窗共用本组件，双窗同步）
+          onClick={() => navigate(homepageUrl || 'about:blank')}
         >
           <HomeOutlined />
         </button>

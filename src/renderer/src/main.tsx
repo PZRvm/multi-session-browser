@@ -6,6 +6,7 @@ import OmniboxSuggestWindow from './components/browser/OmniboxSuggestWindow'
 import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore, windowIdentity } from './stores/browser'
 import { useSessionsStore } from './stores/sessions'
+import { useSettingsStore } from './stores/settings'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
@@ -26,9 +27,11 @@ const role = new URLSearchParams(window.location.search).get('role')
 if (role === SETTINGS_WINDOW_ROLE) {
   document.body.dataset.role = SETTINGS_WINDOW_ROLE
   // 外观行只读镜像自阶段二初始化（兑现阶段一「阶段二再议」备注）：init 先订阅后拉取，
-  // 有 in-flight 防重入与失败容错——失败不阻塞壳体渲染，保留 CSS 媒体查询主题；设置窗
-  // 只读消费 mode/resolvedTheme，不调用 setMode（切换仍由板头/主进程承担）
+  // 有 in-flight 防重入与失败容错——失败不阻塞壳体渲染，保留 CSS 媒体查询主题；阶段三
+  // 起设置窗同时消费与写入（外观行 onChange 经 setMode）
   void useAppearanceStore.getState().init()
+  // 设置值域镜像自阶段四初始化（主页行受控值与写入）；失败不阻塞壳体渲染
+  void useSettingsStore.getState().init()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Suspense fallback={null}>
@@ -47,6 +50,9 @@ if (role === SETTINGS_WINDOW_ROLE) {
   // 外观镜像独立初始化：失败时保留首帧的系统 media query 结果，不阻塞会话与浏览器恢复。
   // 独立窗口同走此链路（各窗实例自拉取），与主窗口主题保持一致。
   void useAppearanceStore.getState().init()
+  // 设置值域镜像（阶段四，主页按钮消费）：与快照守卫无耦合，不进 sessions→browser
+  // 串行链，与 browser.init 并行即可
+  void useSettingsStore.getState().init()
 
   if (windowIdentity.mode === 'main') {
     // 首帧前从主进程加载状态；init 内部有防重入守卫，StrictMode 下安全。

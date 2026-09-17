@@ -28,17 +28,27 @@ export function SettingsPane({
 export function SettingsRow({
   label,
   desc,
+  descTone = 'default',
   control
 }: {
   label: string
   desc?: string
+  /** 描述副行语态：default 次墨；danger 用于行内错误如实呈现（数据目录打开失败、
+   * 主页地址无效等，随下一次成功操作恢复） */
+  descTone?: 'default' | 'danger'
   control?: React.ReactNode
 }): React.JSX.Element {
   return (
     <div className="settings-row">
       <div className="settings-row-main">
         <span className="settings-row-label">{label}</span>
-        {desc ? <span className="settings-row-desc">{desc}</span> : null}
+        {desc ? (
+          <span
+            className={`settings-row-desc${descTone === 'danger' ? ' settings-row-desc-danger' : ''}`}
+          >
+            {desc}
+          </span>
+        ) : null}
       </div>
       {control ? <div className="settings-row-control">{control}</div> : null}
     </div>

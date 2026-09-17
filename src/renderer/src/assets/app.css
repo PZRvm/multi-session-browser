@@ -1164,6 +1164,10 @@ body.col-resizing {
   align-items: center;
 }
 
+.settings-row-desc-danger {
+  color: var(--danger);
+}
+
 /* 外观行图标三段（2026-09-17 用户裁决改图标形态，与板头同款）：配色经
    ConfigProvider 组件 token 走信息板色阶（配方同板头 .appearance-segmented）；
    瓣内图标经内嵌 span 居中（label 槽位留空规避 antd 裸 span 包装陷阱） */
@@ -1206,17 +1210,42 @@ body.col-resizing {
   color: var(--board-ink-dim);
 }
 
-/* 关于版面静态值（数据目录行）：13px 次墨右对齐（由 .settings-row-control 收到
-   右端），纯展示 */
-.settings-static-value {
+/* 关于版面数据目录「打开」行动钮（阶段三点亮）：与语言展示态选择框同度量器件族
+   ——26px 高、1px 控件线、4px 圆角、13px 板墨；内容区零琥珀规则下的中性描边钮，
+   hover 走板面蒙版（危险区钮走 danger 蒙版，语态分流） */
+.settings-action-button {
   flex: none;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-family: inherit;
   font-size: 13px;
-  color: var(--board-ink-dim);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.settings-action-button:hover {
+  background: var(--board-hover-veil);
 }
 
 /* 快捷键键帽（双栏契约）：高 22px、min-width 26px、0 7px 内距、砖底 + 砖线 +
    3px 圆角、mono 11px——翻牌砖同源的板面砖语言；多键以 10px 次墨「+」相隔
    （kbd 元素承载键位语义，mono 栈对齐翻牌数字） */
+.settings-kbd-groups {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 同一动作的两个独立键位（如 ⌘R 与 F5）：两键组并排，6px 间隙无「+」——
+   「+」仅表组合键，间隙表二选一（DESIGN 定稿语义分流） */
+.settings-kbd-gap {
+  width: 6px;
+}
+
 .settings-kbd-group {
   display: inline-flex;
   align-items: center;
@@ -1244,7 +1273,8 @@ body.col-resizing {
 }
 
 /* 关于版面居中签名：产品名 15/600 + letter-spacing 0.02em（板头产品名同语言），
-   版本 11px 次墨（占位「—」）；留白 26px 0 18px（demo 方案一度量） */
+   版本三元组 11px 次墨（主行 + 引擎次行，阶段三实装）；留白 26px 0 18px
+   （demo 方案一度量） */
 .settings-about-hero {
   padding: 26px 0 18px;
   text-align: center;
@@ -1268,6 +1298,14 @@ body.col-resizing {
 
 .settings-about-version {
   margin-top: 4px;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+/* 引擎信息次行（阶段三版本三元组定稿）：紧随版本行、间隔号 · 分隔，
+   完整 patch 号如实展示（测试人员关注被测环境内核版本） */
+.settings-about-engines {
+  margin-top: 2px;
   font-size: 11px;
   color: var(--board-ink-dim);
 }
@@ -1308,6 +1346,15 @@ body.col-resizing {
 /* 主页行输入在行体系内的定宽覆写（220px，demo 方案一度量；行控件不换行） */
 .settings-row-control .settings-input.ant-input {
   width: 220px;
+}
+
+/* 主页行错误态（阶段四）：danger 描边且 hover/focus 不回落控件线（行内红显
+   不落盘，DESIGN 主页行交互口径）；两步确认第二步输入不挂此类，恒默认态 */
+.settings-input.ant-input.settings-input-invalid,
+.settings-input.ant-input.settings-input-invalid:hover,
+.settings-input.ant-input.settings-input-invalid:focus,
+.settings-input.ant-input.settings-input-invalid.settings-input-focused {
+  border-color: var(--danger);
 }
 
 /* 危险区（恢复出厂版面，双栏契约）：版面标题与说明之下——独立版面后不再需要

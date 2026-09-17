@@ -14,7 +14,7 @@
 // darwin 菜单栏常驻、应用菜单在无任何窗口时仍可触达，拒绝开窗会让「设置…」成
 // 死路；无 parent 的设置窗独立落位，主窗重开后的打开请求仍聚焦此窗（单例不双开）。
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -22,7 +22,7 @@ import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
 import type { ResolvedTheme } from '../shared/appearance'
 import { SETTINGS_CHANNELS, SETTINGS_WINDOW_ROLE } from '../shared/settings'
-import type { OkResult } from '../shared/settings'
+import type { OkResult, SettingsAppInfo } from '../shared/settings'
 
 /** 设置窗口度量（DIP，DESIGN.md「设置窗口」条目侧栏双栏重构定稿）：可拉伸，位置记忆为留白 */
 const DEFAULT_WIDTH = 700
@@ -37,6 +37,9 @@ export interface SettingsWindowController {
   open(): void
   /** 关闭设置窗（主窗 closed 级联用；窗口不存在时 no-op，引用由 closed 钩子自清） */
   dispose(): void
+  /** 设置窗引用现取（阶段三起 sender 白名单判据：get-app-info 等设置窗专属通道比对
+   * event.sender 用；closed 自清钩子之外可能短暂残留已销毁引用，isDestroyed 由调用方判） */
+  getSettingsWindow(): BrowserWindow | null
 }
 
 export function createSettingsWindowController(deps: {
@@ -115,7 +118,11 @@ export function createSettingsWindowController(deps: {
     win.close()
   }
 
-  return { open, dispose }
+  function getSettingsWindow(): BrowserWindow | null {
+    return win
+  }
+
+  return { open, dispose, getSettingsWindow }
 }
 
 export function registerSettingsIpc(
@@ -132,6 +139,38 @@ export function registerSettingsIpc(
       throw new Error('设置窗命令仅接受主窗口来源')
     }
     controller.open()
+    return { ok: true }
+  })
+
+  // 关于信息（阶段三）：版本三元组为 process.versions / app.getVersion() 真实值，
+  // dev 态 appVersion 即 package.json 版本，如实返回不伪造。无害信息通道不设
+  // sender 白名单（对齐 appearance.getState 先例，无入参无守卫需求）
+  ipcMain.handle(SETTINGS_CHANNELS.getAppInfo, (): SettingsAppInfo => ({
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    chromiumVersion: process.versions.chrome,
+    // Electron 官方仅发布 darwin/win32/linux 三平台，其余理论值按 linux 归一
+    platform:
+      process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
+  }))
+
+  // 打开数据目录：唯一触发 OS 级外部动作的设置通道，sender 白名单 = 设置窗
+  //（判据经 controller.getSettingsWindow 现取，macOS 关窗重建周期为 null 一律拒绝）。
+  // shell.openPath 失败返回非空错误串（不 reject），包中文前缀如实上抛由设置窗呈现
+  ipcMain.handle(SETTINGS_CHANNELS.openDataDir, async (event): Promise<OkResult> => {
+    const settingsWindow = controller.getSettingsWindow()
+    if (
+      !settingsWindow ||
+      settingsWindow.isDestroyed() ||
+      event.sender !== settingsWindow.webContents
+    ) {
+      console.warn('[settings] 拒绝非设置窗来源的数据目录打开请求')
+      throw new Error('数据目录命令仅接受设置窗口来源')
+    }
+    const errorMessage = await shell.openPath(app.getPath('userData'))
+    if (errorMessage) {
+      throw new Error(`打开数据目录失败：${errorMessage}`)
+    }
     return { ok: true }
   })
 }

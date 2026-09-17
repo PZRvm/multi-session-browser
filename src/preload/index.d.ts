@@ -23,7 +23,12 @@ import type {
   OmniboxSuggestShowPayload
 } from '../shared/omniboxSuggest'
 import type { AppearanceSnapshot, SetAppearanceModePayload } from '../shared/appearance'
-import type { OkResult as SettingsOkResult } from '../shared/settings'
+import type {
+  OkResult as SettingsOkResult,
+  SettingsAppInfo,
+  SetHomepagePayload,
+  SettingsSnapshot
+} from '../shared/settings'
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
@@ -107,6 +112,11 @@ declare global {
       }
       settings: {
         open(): Promise<SettingsOkResult>
+        getAppInfo(): Promise<SettingsAppInfo>
+        openDataDir(): Promise<SettingsOkResult>
+        getHomepage(): Promise<SettingsSnapshot>
+        setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
+        onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
     }
   }

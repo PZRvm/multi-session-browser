@@ -51,7 +51,12 @@ import type {
   StoredWorkspace
 } from '../shared/sessions'
 import { SETTINGS_CHANNELS } from '../shared/settings'
-import type { OkResult as SettingsOkResult } from '../shared/settings'
+import type {
+  OkResult as SettingsOkResult,
+  SettingsAppInfo,
+  SetHomepagePayload,
+  SettingsSnapshot
+} from '../shared/settings'
 
 // Custom APIs for renderer
 const api = {
@@ -251,9 +256,25 @@ const api = {
     }
   },
   // 设置域（契约见 shared/settings.ts）：板头齿轮请求主进程打开/聚焦单例设置窗口；
-  // 应用菜单路径在主进程内直连不经此通道。设置项读写通道随阶段二起扩展
+  // 应用菜单路径在主进程内直连不经此通道。阶段三并入关于信息两通道（get-app-info /
+  // open-data-dir），阶段四并入值域三通道（get / changed / set-homepage——订阅-推送
+  // 返回退订函数的形态对齐 appearance.onChanged 先例）
   settings: {
-    open: (): Promise<SettingsOkResult> => ipcRenderer.invoke(SETTINGS_CHANNELS.open)
+    open: (): Promise<SettingsOkResult> => ipcRenderer.invoke(SETTINGS_CHANNELS.open),
+    getAppInfo: (): Promise<SettingsAppInfo> => ipcRenderer.invoke(SETTINGS_CHANNELS.getAppInfo),
+    openDataDir: (): Promise<SettingsOkResult> => ipcRenderer.invoke(SETTINGS_CHANNELS.openDataDir),
+    getHomepage: (): Promise<SettingsSnapshot> => ipcRenderer.invoke(SETTINGS_CHANNELS.get),
+    setHomepage: (payload: SetHomepagePayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setHomepage, payload),
+    onChanged: (callback: (snapshot: SettingsSnapshot) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, snapshot: SettingsSnapshot): void => {
+        callback(snapshot)
+      }
+      ipcRenderer.on(SETTINGS_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(SETTINGS_CHANNELS.changed, listener)
+      }
+    }
   }
 }
 

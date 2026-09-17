@@ -22,6 +22,7 @@ import {
   registerSettingsIpc,
   type SettingsWindowController
 } from './settingsWindow'
+import { registerSettingsValueIpc } from './settings'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { WINDOW_ID_MAIN } from '../shared/browser'
 
@@ -287,6 +288,9 @@ app.whenReady().then(async () => {
   })
   registerAppearanceIpc(appearanceController)
   registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
+  // 设置值域三通道（阶段四）：get / changed / set-homepage——无 sender 白名单
+  //（对齐外观域先例，入参值守卫承担），changed 经 getAllWindows 全推
+  registerSettingsValueIpc()
   registerSessionIpc({
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)
