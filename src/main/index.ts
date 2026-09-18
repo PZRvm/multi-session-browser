@@ -4,6 +4,7 @@ import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
+import { registerDialogIpc } from './dialogs'
 import { registerBrowserIpc } from './browser/ipc'
 import { createTabDragController } from './browser/dragging'
 import { createDragPreview } from './browser/dragPreview'
@@ -402,6 +403,10 @@ app.whenReady().then(async () => {
     // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
     onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url)
   })
+  // 破坏性确认框（PRD 4.10）：删除会话/批量关闭/删除工作区的二次确认弹主进程原生
+  // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/
+  // workspaces 通道闭环（契约见 shared/dialog.ts）
+  registerDialogIpc()
 
   // 会话状态推送：注册表聚合的全量状态 map 直连主窗口（status-changed 通道不经
   // sessions.ts，对齐 browser 侧 stateChanged 由 ipc.ts 接线的分工；会话面板只在主

@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { App, Checkbox, Dropdown, Input, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { MoreOutlined } from '@ant-design/icons'
 import { useT } from '../i18n'
+import { confirmDestructive } from '../dialogs'
 import { SESSION_NOTE_MAX } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
 import type { SessionItem } from '../stores/sessions'
-import { useUiStore } from '../stores/ui'
 
 type RowEditMode = 'none' | 'name' | 'note'
 
@@ -16,7 +17,20 @@ type RowEditMode = 'none' | 'name' | 'note'
  * 提交经 store 的 renameSession/setSessionNote（boolean 反馈），失败行内 message
  * 不静默（审查低 2）；草稿在进入时以会话现值重置防上轮残留，cancelEdit 放回不提交。
  */
-function useRowEditMode(session: SessionItem) {
+interface RowEditModeApi {
+  mode: RowEditMode
+  nameDraft: string
+  noteDraft: string
+  setNameDraft: (value: string) => void
+  setNoteDraft: (value: string) => void
+  startNameEdit: () => void
+  startNoteEdit: () => void
+  cancelEdit: () => void
+  commitNameEdit: () => void
+  commitNoteEdit: () => void
+}
+
+function useRowEditMode(session: SessionItem): RowEditModeApi {
   const { message } = App.useApp()
   const t = useT()
   const renameSession = useSessionsStore((s) => s.renameSession)
@@ -71,7 +85,13 @@ function useRowEditMode(session: SessionItem) {
  * 「左缘对齐备注左缘、向右展开」，封顶须扣除备注左缘（面板宽 − 备注左缘 − 16px）
  * 才能保证右缘不出面板——出面板即被右区原生层遮挡。
  */
-function useNoteTip() {
+interface NoteTipApi {
+  noteRef: RefObject<HTMLSpanElement | null>
+  noteTip: { truncated: boolean; maxWidth?: number }
+  measureNoteTruncated: () => void
+}
+
+function useNoteTip(): NoteTipApi {
   const noteRef = useRef<HTMLSpanElement>(null)
   const [noteTip, setNoteTip] = useState<{ truncated: boolean; maxWidth?: number }>({
     truncated: false
@@ -126,9 +146,6 @@ function SessionRow({
 }: SessionRowProps): React.JSX.Element {
   const t = useT()
   const { activeId, removeSession, selectSession } = useSessionsStore()
-  const openOverlay = useUiStore((s) => s.openOverlay)
-  const closeOverlay = useUiStore((s) => s.closeOverlay)
-  const { modal } = App.useApp()
   const {
     mode,
     nameDraft,
@@ -185,25 +202,14 @@ function SessionRow({
     } else if (key === 'move') {
       onMove(session)
     } else if (key === 'delete') {
-      // WebContentsView 是 renderer DOM 之上的原生层；先登记弹层（ui store overlayDepth）
-      // 收起页面视图，确保确认框完整可见。约束见 stores/ui.ts：新增任何可能延伸到
-      // 右区的 portal 弹层都必须走同一登记，否则会被原生层遮挡。
-      openOverlay()
-      try {
-        modal.confirm({
-          title: t('sessions.sessionRow.deleteConfirm.title'),
-          content: t('sessions.sessionRow.deleteConfirm.content', { name: session.name }),
-          okText: t('sessions.shared.delete'),
-          okButtonProps: { danger: true },
-          cancelText: t('common.cancel'),
-          onOk: () => removeSession(session.id),
-          afterClose: () => closeOverlay()
-        })
-      } catch (error) {
-        // confirm 同步异常时回滚弹层登记，防页面视图永久隐藏
-        closeOverlay()
-        console.error('打开删除确认框失败', error)
-      }
+      // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，
+      // 弹框期间页面视图保持可见且内容原样——不经 overlay 悬挂登记收起右区
+      // （那是渲染层弹层换可见性的手段，原生框无遮挡问题）。只确认不执行：
+      // 确认后经既有 sessions:delete 链路删除；取消/Esc/关闭/调用失败零副作用
+      // （吞错按取消语义统一收敛在 renderer dialogs 薄封装）
+      void confirmDestructive({ kind: 'session-delete', name: session.name }).then((confirmed) => {
+        if (confirmed) void removeSession(session.id)
+      })
     }
   }
 

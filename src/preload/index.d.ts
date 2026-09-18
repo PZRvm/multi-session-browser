@@ -36,6 +36,7 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
+import type { ConfirmDestructivePayload } from '../shared/dialog'
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
@@ -137,6 +138,9 @@ declare global {
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
+      }
+      dialog: {
+        confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>
       }
     }
   }

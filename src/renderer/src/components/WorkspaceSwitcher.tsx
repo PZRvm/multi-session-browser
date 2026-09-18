@@ -5,6 +5,7 @@ import { CheckOutlined, DownOutlined, PlusOutlined, SearchOutlined } from '@ant-
 import { WORKSPACE_NAME_MAX, WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
+import { confirmDestructive } from '../dialogs'
 import { useT } from '../i18n'
 
 /** 下拉选项（全部会话 + 各工作区；新建行独立渲染不入 options） */
@@ -20,7 +21,8 @@ interface WsOption {
  * + 过滤无精确命中时的「新建工作区」尾行。右键工作区项在该行内展开「重命名/删除」
  * 操作条（行内渲染不越左栏，规避 antd 子菜单飞出分隔条被右区 WebContentsView
  * 原生层遮挡的风险——原生层约束下的形态裁定，与概念演示的悬停子菜单不同）；
- * 重命名/删除确认走 antd Modal 经 overlay 悬挂登记收起原生层。下拉面板自绘锚在
+ * 重命名确认走 antd Modal 经 overlay 悬挂登记收起原生层，删除确认走主进程原生
+ * 对话框（PRD 4.10，页面视图不收起）。下拉面板自绘锚在
  * .session-panel 内（宽随左栏、不越分隔条）；过滤/键盘/开关/操作条均为组件本地
  * 瞬态，不进 store、不进 IPC；持久动作经 store 工作区动作落盘
  */
@@ -35,7 +37,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const deleteWorkspace = useSessionsStore((s) => s.deleteWorkspace)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
-  const { modal, message } = App.useApp()
+  const { message } = App.useApp()
 
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
@@ -163,31 +165,17 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
 
   const confirmDelete = (id: string, name: string): void => {
     const count = sessions.filter((s) => s.workspaceId === id).length
-    openOverlay()
-    try {
-      modal.confirm({
-        title: t('sessions.workspaceSwitcher.deleteConfirm.title'),
-        content:
-          t('sessions.workspaceSwitcher.deleteConfirm.prefix', { name }) +
-          (count > 0
-            ? t('sessions.workspaceSwitcher.deleteConfirm.withSessions', { n: count })
-            : t('sessions.workspaceSwitcher.deleteConfirm.empty')),
-        okText: t('sessions.shared.delete'),
-        okButtonProps: { danger: true },
-        cancelText: t('common.cancel'),
-        onOk: () =>
-          deleteWorkspace(id).then((ok) => {
-            if (!ok) {
-              message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
-              throw new Error('删除工作区被拒绝')
-            }
-          }),
-        afterClose: () => closeOverlay()
+    // 删除确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，弹框
+    // 期间页面视图保持可见且内容原样，不经 overlay 悬挂登记收起右区（重命名弹层
+    // 仍为渲染层 Modal，登记保留）。只确认不执行：确认后经既有 workspaces:delete
+    // 链路删除（会话降级未分组）；取消/Esc/关闭/调用失败零副作用（吞错按取消
+    // 语义统一收敛在 renderer dialogs 薄封装）
+    void confirmDestructive({ kind: 'workspace-delete', name, count }).then((confirmed) => {
+      if (!confirmed) return
+      void deleteWorkspace(id).then((ok) => {
+        if (!ok) message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
       })
-    } catch (error) {
-      closeOverlay()
-      console.error('打开删除工作区确认框失败', error)
-    }
+    })
   }
 
   return (

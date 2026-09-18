@@ -67,6 +67,8 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
+import { DIALOG_CHANNELS } from '../shared/dialog'
+import type { ConfirmDestructivePayload } from '../shared/dialog'
 
 // Custom APIs for renderer
 const api = {
@@ -322,6 +324,14 @@ const api = {
         ipcRenderer.removeListener(SETTINGS_CHANNELS.changed, listener)
       }
     }
+  },
+  // 破坏性确认域（契约见 shared/dialog.ts）：删除类二次确认走主进程原生对话框
+  // （PRD 4.10），弹框期间页面视图保持可见、不经 overlay 登记收起右区。载荷只带
+  // 数据参数，文案由主进程经 main/i18n 语言态复用既有字典键组装；返回 true 仅当
+  // 用户按下确认按钮，取消/Esc/关闭一律 false
+  dialog: {
+    confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload)
   }
 }
 

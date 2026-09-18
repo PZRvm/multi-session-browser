@@ -12,6 +12,7 @@ import SessionRow from './SessionRow'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
+import { confirmDestructive } from '../dialogs'
 import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
@@ -39,10 +40,10 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const moveSessionsToWorkspace = useSessionsStore((s) => s.moveSessionsToWorkspace)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
-  const { modal, message } = App.useApp()
+  const { message } = App.useApp()
 
   // 批量模式与克隆反馈均为面板本地 UI 态（不进 store、不进主进程）：
-  // 模式开关、勾选集、URL 弹层 open 与草稿、确认框开关标记、克隆中的行 id、
+  // 模式开关、勾选集、URL 弹层 open 与草稿、克隆中的行 id、
   // 移动到工作区弹层的目标会话
   const [batchMode, setBatchMode] = useState(false)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -50,7 +51,6 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const [urlDraft, setUrlDraft] = useState('')
   // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
   const [urlInvalid, setUrlInvalid] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
   const [moveTarget, setMoveTarget] = useState<SessionItem | null>(null)
   // 批量移动弹层与板脚反馈条（2026-09-17 增量）：反馈为面板本地 UI 态——成功次墨
@@ -65,6 +65,8 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   // 批量移动在途守卫（审查修复轮低 6）：弹层目标按钮连点时忽略后续触发，防重复
   // IPC 与「已移动 0 个」的困惑反馈
   const batchMoveInFlight = useRef(false)
+  // 批量关闭原生确认框在途守卫：弹框期间连点按钮忽略后续触发，防重复弹框
+  const closeConfirmInFlight = useRef(false)
 
   // 工作区视野：'all' 全量，否则按归属过滤（store 仍持全量——拖拽全序、级联与
   // 批量「关闭选中」的集合判定都以全量为准，视野只是渲染过滤，PRD 4.8）
@@ -220,53 +222,43 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   }
 
   const confirmCloseSelected = (): void => {
-    openOverlay()
-    setConfirmOpen(true)
-    try {
-      modal.confirm({
-        title: t('sessions.batchBar.closeConfirm.title'),
-        content: t('sessions.batchBar.closeConfirm.content', { n: checkedCount }),
-        okText: t('sessions.shared.delete'),
-        okButtonProps: { danger: true },
-        cancelText: t('common.cancel'),
-        // 整单拒绝（选中集在窗口期内变化等）：message 提示原因 + onOk reject 保持
-        // 确认框开启（对齐打开测试地址弹层「整单拒绝不静默、保持开启」惯例）
-        onOk: async () => {
-          const ok = await deleteSessions(checkedIds)
-          if (!ok) {
-            message.error(t('sessions.batchBar.closeConfirm.failed'))
-            throw new Error('关闭选中会话被整单拒绝')
-          }
-        },
-        afterClose: () => {
-          setConfirmOpen(false)
-          closeOverlay()
-        }
+    if (closeConfirmInFlight.current) return
+    closeConfirmInFlight.current = true
+    // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，弹框
+    // 期间页面视图保持可见且内容原样，不经 overlay 悬挂登记收起右区（渲染层弹层
+    // 才需要）。只确认不执行：确认后经既有 sessions:delete-batch 链路删除；整单
+    // 拒绝（选中集在窗口期内变化）不再保持弹框——原生框一次性确认，行内反馈后
+    // 可从入口再次发起。守卫整链（确认+删除）落定才释放，对齐 batchMoveInFlight
+    // 先例——否则删除在途窗口内可再弹框对在途集合二次发起（审查中 1）
+    void confirmDestructive({ kind: 'sessions-batch-close', count: checkedCount })
+      .then((confirmed) => {
+        if (!confirmed) return undefined
+        return deleteSessions(checkedIds).then((ok) => {
+          if (!ok) message.error(t('sessions.batchBar.closeConfirm.failed'))
+        })
       })
-    } catch (error) {
-      // confirm 同步异常时回滚弹层标记与登记，防页面视图永久隐藏
-      setConfirmOpen(false)
-      closeOverlay()
-      console.error('打开关闭选中确认框失败', error)
-    }
+      .finally(() => {
+        closeConfirmInFlight.current = false
+      })
   }
 
-  // Esc 退出批量模式：仅模式激活、焦点不在输入控件、且三个弹层均未开启时生效
+  // Esc 退出批量模式：仅模式激活、焦点不在输入控件、且两个弹层均未开启时生效
   // （弹层开关用组件状态标记，不依赖 antd 内部类名；批量移动弹层豁免——审查修复轮
-  // 中 1：否则 Esc 关弹层的同时批量态连带退出、勾选被清空，违背「弹层开启时豁免」）
+  // 中 1：否则 Esc 关弹层的同时批量态连带退出、勾选被清空，违背「弹层开启时豁免」。
+  // 批量关闭的原生确认框不在此列：窗口模态吞键，Esc 不会抵达 renderer）
   useEffect(() => {
     if (!batchMode) return
     const onKeydown = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       const el = document.activeElement
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
-      if (urlOpen || confirmOpen || batchMoveOpen) return
+      if (urlOpen || batchMoveOpen) return
       setBatchMode(false)
       setChecked(new Set())
     }
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
-  }, [batchMode, urlOpen, confirmOpen, batchMoveOpen])
+  }, [batchMode, urlOpen, batchMoveOpen])
 
   // 视野切换清空勾选集：批量作用域随视野（PRD 3.1.3），跨视野残留的勾选不显示
   // 却仍占着 Set，与全选状态联动产生"已选数对不上所见"的困惑（审查低 5）。
