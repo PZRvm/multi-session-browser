@@ -19,6 +19,8 @@ interface BrowserState {
   tabs: BrowserTabState[]
   activeTabId: string | null
   devtoolsOpen: boolean
+  /** 该窗口 HTML 全屏态镜像（视频全屏等，窗口级）：壳层组件据此隐藏/显现 */
+  htmlFullscreen: boolean
   focusTick: number
   // 拖拽瞬态（阶段 9）：纯本地 UI 态，不进快照守卫链（守卫只裁 sessionId/windowId）、
   // 不落盘、不参与 BrowserSnapshot 契约——主进程持久化对此零感知
@@ -219,12 +221,13 @@ const applySnapshot = (
   // 历史镜像随会话漂移清空（含切到零会话）：旧会话数据即刻不可见，非空新会话
   // 随后经 refreshHistory 重拉（快速连续切换时晚到的回复按过期 token 丢弃）
   const sessionDrifted = get().sessionId !== snapshot.sessionId
-  const { sessionId, tabs, activeTabId, devtoolsOpen } = snapshot
+  const { sessionId, tabs, activeTabId, devtoolsOpen, htmlFullscreen } = snapshot
   set((state) => ({
     sessionId,
     tabs,
     activeTabId,
     devtoolsOpen,
+    htmlFullscreen,
     history: sessionDrifted ? [] : state.history,
     // 拖拽瞬态自愈（阶段 9）：快照已不含被拖 Tab（主进程在裁决/级联中先行移除、
     // 或会话切换重排）时清掉本地拖拽源态——dragend 可能因此在已卸载组件上不可达
@@ -280,6 +283,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   devtoolsOpen: false,
+  htmlFullscreen: false,
   focusTick: 0,
   draggingTabId: null,
   hoverWindowId: null,

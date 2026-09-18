@@ -263,6 +263,8 @@ export function createCameraPermissionBroker(
         // 剪贴板写入放行：网页复制按钮（navigator.clipboard）与复制前的 permissions.query
         // 探测都经此路径；Chromium 仅在安全上下文暴露该 API，无会话级询问必要。
         if (permission === 'clipboard-sanitized-write') return true
+        // HTML 全屏探测（permissions.query('fullscreen')）放行：与 request handler 同口径
+        if (permission === 'fullscreen') return true
         if (!isCurrent(binding) || permission !== 'media' || details.mediaType !== 'video') {
           return false
         }
@@ -292,6 +294,12 @@ export function createCameraPermissionBroker(
       // 剪贴板写入放行：用户点击复制按钮即意图写入，无需会话级询问；拒绝会令
       // navigator.clipboard.writeText 抛 NotAllowedError、复制按钮失效。
       if (permission === 'clipboard-sanitized-write') {
+        finish(true)
+        return
+      }
+      // HTML 全屏（视频全屏按钮等 Fullscreen API 路径）放行：浏览器语义权限、用户
+      // 手势驱动，无站点级询问必要；拒绝会让网页全屏请求静默失败（点按钮无反应）
+      if (permission === 'fullscreen') {
         finish(true)
         return
       }

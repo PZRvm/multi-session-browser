@@ -5,7 +5,7 @@ import BrowserFrame from './components/BrowserFrame'
 import IndependentWindowFrame from './components/IndependentWindowFrame'
 import SessionPanel from './components/SessionPanel'
 import { useAppearanceStore } from './stores/appearance'
-import { windowIdentity } from './stores/browser'
+import { useBrowserStore, windowIdentity } from './stores/browser'
 import { useI18nStore } from './stores/i18n'
 import { ANTD_LOCALES, useT } from './i18n'
 import { applyThemeTokens } from './theme'
@@ -15,11 +15,14 @@ const PANEL_MAX = 420
 const PANEL_DEFAULT = 280
 
 // 主窗口 shell：左会话面板 + 分隔条 + 右浏览器区；面板拖拽逻辑内聚于此——
-// 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接
+// 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接。
+// HTML 全屏（视频全屏等）期间左栏与分隔条不渲染（Chrome 对齐，快照 htmlFullscreen
+// 驱动）；panel-right flex:1 自然占满整宽，退出后随快照回落复原
 function MainShell(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
   const dragging = useRef(false)
   const t = useT()
+  const htmlFullscreen = useBrowserStore((s) => s.htmlFullscreen)
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
     if (!dragging.current) return
@@ -54,16 +57,20 @@ function MainShell(): React.JSX.Element {
 
   return (
     <div className="app-shell">
-      <div className="panel-left" style={{ width: panelWidth }}>
-        <SessionPanel panelWidth={panelWidth} />
-      </div>
-      <div
-        className="panel-divider"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('browser.divider.adjustWidth')}
-        onPointerDown={startDrag}
-      />
+      {!htmlFullscreen && (
+        <div className="panel-left" style={{ width: panelWidth }}>
+          <SessionPanel panelWidth={panelWidth} />
+        </div>
+      )}
+      {!htmlFullscreen && (
+        <div
+          className="panel-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('browser.divider.adjustWidth')}
+          onPointerDown={startDrag}
+        />
+      )}
       <div className="panel-right">
         <BrowserFrame />
       </div>

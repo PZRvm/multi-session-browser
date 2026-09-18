@@ -140,7 +140,9 @@ export function createSessionPersistence(deps: {
       sessionId: main.sessionId,
       tabs: merged,
       activeTabId: anchor !== null ? anchor.id : null,
-      devtoolsOpen: false
+      devtoolsOpen: false,
+      // 落盘视角不承载运行期全屏态（重启后无页面处于 HTML 全屏），恒 false
+      htmlFullscreen: false
     }
   }
 

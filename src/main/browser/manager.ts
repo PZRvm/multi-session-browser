@@ -165,11 +165,17 @@ export type TearOffTabManager = TabManager & {
   ) => BrowserSnapshot
   /**
    * 订阅页面侧导航事实（历史采集面，kind 语义见 history.ts 的 VisitFact），返回退订
-   * 函数。挂在 TearOffTabManager 扩展面而非 TabManager 基面：基面是 registry 对
-   * ipc 暴露的作用域命令兼容面，采集订阅是具体 manager 的能力（registry 持
+   * 函数。挂在 TearOffTabManager 扩展面而非 TabManager 基面：基面是 registry 对 ipc
+   * 暴露的作用域命令兼容面，采集订阅是具体 manager 的能力（registry 持
    * TearOffTabManager 实例，ensureManager 接线 history.recordVisit）
    */
   onVisit: (cb: VisitListener) => () => void
+  /**
+   * 该窗口是否处于 HTML 全屏态（槽位现读）。registry 切会话编排用：旧会话持有槽位
+   * 即窗口 OS 全屏源于 HTML 全屏（非用户自主全屏），摘 view 前主动退出窗口全屏态
+   * 消除「窗口钉在全屏 + 新会话壳层全显」的矛盾（review 20260918125417 中 1）
+   */
+  hasHtmlFullscreen: (windowId?: string) => boolean
 }
 
 export function createTabManager(
@@ -198,6 +204,13 @@ export function createTabManager(
   // 数个位数，无成本代价）：悬挂期间挂入该窗口的 view 一律按 HIDDEN_RECT 收起，布局
   // 缓存保留最后有效值，该窗口的非零矩形上报即解除悬挂并恢复
   const suspendedByWindow = new Set<string>()
+  // HTML 全屏态按窗口分槽（视频全屏按钮等 Fullscreen API 路径）：windowId → 触发全屏
+  // 的 Tab id。Chromium 全屏获批后 Electron 只把宿主窗口置为 OS 全屏，不动 view
+  // bounds（壳层也不隐藏）——接管与恢复均在本模块收口：全屏期间 currentRect 一律
+  // 整窗矩形、setBounds 上报只应用不写缓存（防整窗矩形污染布局缓存，退出后恢复进
+  // 入全屏前的最后正常布局）。值记 Tab id 是为关闭/迁移持有 Tab 时精准释放槽位
+  //（wc 销毁不保证补发 leave-html-full-screen）
+  const htmlFullscreenByWindow = new Map<string, string>()
   // 注销标志（注册表销毁会话前置位）：封死 newTab 创建路径，防垂死页面复生 webContents
   let disposed = false
   const listeners = new Set<SnapshotListener>()
@@ -272,7 +285,8 @@ export function createTabManager(
         canGoForward: tab.view.webContents.navigationHistory.canGoForward()
       })
     }
-    // devtoolsOpen 取该窗口激活 Tab 的真实开关态；无激活 Tab 时恒 false
+    // devtoolsOpen 取该窗口激活 Tab 的真实开关态；htmlFullscreen 取该窗口的 HTML 全屏
+    // 槽位（窗口级，切 Tab 保持——Chrome 语义）；无激活 Tab 时二者恒 false
     const activeId = activeByWindow.get(windowId) ?? null
     const active = activeId !== null ? tabs.get(activeId) : undefined
     // sessionId 由创建方（registry）注入：快照归属会话，registry/renderer 据此丢弃过期快照
@@ -281,7 +295,8 @@ export function createTabManager(
       sessionId: opts.sessionId,
       tabs: list,
       activeTabId: activeId,
-      devtoolsOpen: active?.devtoolsOpen ?? false
+      devtoolsOpen: active?.devtoolsOpen ?? false,
+      htmlFullscreen: htmlFullscreenByWindow.has(windowId)
     }
   }
 
@@ -296,11 +311,44 @@ export function createTabManager(
     }
   }
 
-  /** 挂入 view 时应应用的矩形（按窗口）：悬挂收起优先，其次该窗口最后缓存的有效布局，均无则零矩形 */
+  /** 该窗口内容区的整窗矩形（HTML 全屏态的覆盖矩形）：窗口引用现取不缓存，窗口缺失回退零矩形 */
+  function fullWindowRect(windowId: string): SetBoundsPayload {
+    const win = getWindow(windowId)
+    if (!win) return HIDDEN_RECT
+    const [width, height] = win.getContentSize()
+    return { x: 0, y: 0, width, height }
+  }
+
+  /** 挂入 view 时应应用的矩形（按窗口）：悬挂收起优先（弹层必须可见），其次 HTML 全屏整窗，再次该窗口最后缓存的有效布局，均无则零矩形 */
   function currentRect(windowId: string): SetBoundsPayload {
-    return suspendedByWindow.has(windowId)
-      ? HIDDEN_RECT
-      : (boundsByWindow.get(windowId) ?? HIDDEN_RECT)
+    if (suspendedByWindow.has(windowId)) return HIDDEN_RECT
+    if (htmlFullscreenByWindow.has(windowId)) return fullWindowRect(windowId)
+    return boundsByWindow.get(windowId) ?? HIDDEN_RECT
+  }
+
+  /** 对该窗口激活 view 应用矩形（解析激活槽 + destroyed 防御，无激活 Tab 时 no-op） */
+  function applyRect(windowId: string, rect: SetBoundsPayload): void {
+    const activeId = activeByWindow.get(windowId) ?? null
+    if (activeId === null) return
+    const tab = tabs.get(activeId)
+    if (!tab || tab.view.webContents.isDestroyed()) return
+    tab.view.setBounds(rect)
+  }
+
+  /** 对该窗口激活 view 应用 currentRect 现值（HTML 全屏进出的收口应用点） */
+  function applyRectToActive(windowId: string): void {
+    applyRect(windowId, currentRect(windowId))
+  }
+
+  /**
+   * 释放该 Tab 持有的 HTML 全屏槽位并恢复布局（关闭/ tear-off /跨窗迁移持有 Tab 的
+   * 收口）：wc 销毁不保证补发 leave-html-full-screen，槽位残留会让窗口卡在全屏布局
+   * （整窗矩形盖壳层）。须在改写 tab.windowId 前调用——槽位按归属窗口查
+   */
+  function releaseFullscreenSlot(tab: TabEntry): void {
+    if (htmlFullscreenByWindow.get(tab.windowId) !== tab.id) return
+    htmlFullscreenByWindow.delete(tab.windowId)
+    applyRectToActive(tab.windowId)
   }
 
   /** 挂摘一律解析 Tab 归属窗口：挂入窗口与 tab.windowId 恒同窗（步骤 3 tear-off 改写归属后重挂） */
@@ -424,6 +472,27 @@ export function createTabManager(
       })
     })
 
+    // HTML 全屏（视频全屏按钮等 Fullscreen API 路径）：Chromium 获批后 Electron 只把
+    // 宿主窗口置为/退出 OS 全屏，view bounds 与 renderer 壳层均无人动——本模块按窗口
+    // 槽位接管恢复（取舍见 htmlFullscreenByWindow 声明处），壳层显隐随快照字段下发
+    wc.on('enter-html-full-screen', () => {
+      // 防御：全屏请求需可见元素+用户手势，只有该窗口激活 Tab（挂入渲染中）可达此
+      // 事件；非激活来源忽略，防槽位被错误置位扩整窗
+      if (activeByWindow.get(tab.windowId) !== tab.id) return
+      htmlFullscreenByWindow.set(tab.windowId, tab.id)
+      // 立即扩整窗：不等 renderer 壳层隐藏后的锚点重报，防窗口全屏过渡期内容区外露
+      applyRectToActive(tab.windowId)
+      emitChange()
+    })
+    wc.on('leave-html-full-screen', () => {
+      // 只清自己置位的槽位：全屏 Tab 被切走后窗口保持全屏布局（Chrome 切 Tab 不退
+      // 全屏语义），其他 Tab 的进出事件不得误清
+      if (htmlFullscreenByWindow.get(tab.windowId) !== tab.id) return
+      htmlFullscreenByWindow.delete(tab.windowId)
+      applyRectToActive(tab.windowId)
+      emitChange()
+    })
+
     // 页面侧快捷键（Chrome 对齐最小集，键位表 shared/browserShortcuts 与 renderer shell 侧共用）：
     // 命中即吞掉按键防页面默认行为，未命中放行；close-devtools（ESC）仅该 Tab DevTools 已开时吞键
     wc.on('before-input-event', (event, input) => {
@@ -431,6 +500,8 @@ export function createTabManager(
       if (!action) return
       // 未开 DevTools 时 ESC 原样放行（不吞键，页面自留行为不受影响）
       if (action === 'close-devtools' && !tab.devtoolsOpen) return
+      // HTML 全屏期间查找栏不可达（PRD 3.7.3，Chrome 对齐）：不吞键不唤起，按键留给页面
+      if (action === 'find' && htmlFullscreenByWindow.has(tab.windowId)) return
       event.preventDefault()
       // 页面侧命令的作用域 = 触发页面所在 Tab 的宿主窗口（事件时现读 tab.windowId）
       switch (action) {
@@ -500,6 +571,8 @@ export function createTabManager(
     // 关闭前取创建序邻位（作用域内创建序）
     const index = order.indexOf(id)
     tabs.delete(id)
+    // 持有 HTML 全屏槽位时先释放（wc 销毁不保证补发 leave 事件，理由见 releaseFullscreenSlot）
+    releaseFullscreenSlot(target)
     detachView(target)
     // 原生受管 DevTools 与页面 webContents 同生命周期，关闭后再销毁页面。
     closeTabDevTools(target)
@@ -528,6 +601,7 @@ export function createTabManager(
     const index = order.indexOf(id)
     // 摘 view 保活（webContents 不销毁，页面滚动/输入/登录态/DevTools 原样）；重挂由
     // 建窗 ready-to-show 后的 attachToWindow 完成（windows.ts 回调链，防白屏）
+    releaseFullscreenSlot(target)
     detachView(target)
     target.windowId = targetWindowId
     // 源窗口激活位补位：被移出的是激活 Tab 时按 closeTab 邻位规则（右邻优先，退左邻）；
@@ -559,6 +633,7 @@ export function createTabManager(
     const order = scopedTabIds(sourceWindowId)
     const index = order.indexOf(id)
     // 摘 view 保活（webContents 不销毁，页面滚动/输入/登录态/DevTools 原样）
+    releaseFullscreenSlot(target)
     detachView(target)
     target.windowId = targetWindowId
     // 源窗口激活位补位：被移出的是激活 Tab 时按 closeTab 邻位规则（右邻优先，退左邻）
@@ -596,10 +671,11 @@ export function createTabManager(
     for (const tab of tabs.values()) {
       if (tab.windowId === windowId) doomed.push(tab)
     }
-    // 槽位清理无条件执行（0 Tab 窗口也有激活/布局/悬挂残留）
+    // 槽位清理无条件执行（0 Tab 窗口也有激活/布局/悬挂/全屏残留）
     activeByWindow.delete(windowId)
     boundsByWindow.delete(windowId)
     suspendedByWindow.delete(windowId)
+    htmlFullscreenByWindow.delete(windowId)
     if (doomed.length === 0) return
     for (const tab of doomed) {
       tabs.delete(tab.id)
@@ -631,14 +707,13 @@ export function createTabManager(
       suspendedByWindow.add(windowId)
     } else {
       suspendedByWindow.delete(windowId)
-      boundsByWindow.set(windowId, rect)
+      // HTML 全屏期间的非零上报只应用不写缓存：壳层隐藏后锚点扩满窗口，上报的整窗
+      // 矩形若入缓存，退出全屏会恢复成整窗布局盖住壳层；缓存保留进入全屏前最后正常
+      // 布局（窗口 resize 的实时跟随由本应用的 rect 承担，不依赖缓存）
+      if (!htmlFullscreenByWindow.has(windowId)) boundsByWindow.set(windowId, rect)
     }
     // 仅作用于该窗口激活 view；未激活 view 保持脱离状态，切回时由 activate 应用
-    const activeId = activeByWindow.get(windowId) ?? null
-    if (activeId === null) return
-    const tab = tabs.get(activeId)
-    if (!tab || tab.view.webContents.isDestroyed()) return
-    tab.view.setBounds(rect)
+    applyRect(windowId, rect)
   }
 
   /** 打开该 Tab 的原生受管 DevTools；停靠位置和设备模拟布局全部交由 Chromium 管理 */
@@ -730,6 +805,10 @@ export function createTabManager(
     return () => visitListeners.delete(cb)
   }
 
+  function hasHtmlFullscreen(windowId: string = WINDOW_ID_MAIN): boolean {
+    return htmlFullscreenByWindow.has(windowId)
+  }
+
   function dispose(): void {
     disposed = true
   }
@@ -753,6 +832,7 @@ export function createTabManager(
     onFocusAddressRequest,
     onFindRequest,
     onFindResult,
-    onVisit
+    onVisit,
+    hasHtmlFullscreen
   }
 }

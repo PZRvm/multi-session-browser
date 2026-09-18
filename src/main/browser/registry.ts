@@ -284,7 +284,8 @@ export function createSessionBrowserRegistry(deps: {
       sessionId: null,
       tabs: [],
       activeTabId: null,
-      devtoolsOpen: false
+      devtoolsOpen: false,
+      htmlFullscreen: false
     }
   }
 
@@ -509,9 +510,18 @@ export function createSessionBrowserRegistry(deps: {
     // （renderer 该行有「克隆中…」反馈；数秒窗口后 clone 收尾的 setActive 接管画面）
     if (id !== null && cloningIds.has(id)) return
     // ① 摘除旧激活 manager 的激活 view：webContents 全部保活（Tab、滚动、登录态原样保留），
-    //    切回时由 attachToWindow 按其缓存矩形重挂
+    //    切回时由 attachToWindow 按其缓存矩形重挂。摘除前先退出 HTML 全屏引发的窗口
+    //    OS 全屏态（槽位在 = 窗口全屏源于网页全屏而非用户自主全屏，退出不误伤）——
+    //    否则新会话壳层全显而窗口钉在全屏，矛盾态且无出路提示（review 20260918125417
+    //    中 1）。旧会话 Tab 的 DOM 全屏态保留：若 Chromium 将窗口退出视同全屏结束，
+    //    leave 链自清槽位；若保留，切回旧会话呈窗口内全屏（view 整窗 + 壳隐藏），Esc 即退
     const prev = activeManager()
-    if (prev) detachActiveView(prev)
+    if (prev) {
+      if (prev.hasHtmlFullscreen(WINDOW_ID_MAIN)) {
+        getWindow(WINDOW_ID_MAIN)?.setFullScreen(false)
+      }
+      detachActiveView(prev)
+    }
     activeSessionId = id
     // ② null = 摘除全部（零会话空态），快照同步广播空态
     if (id === null) {

@@ -81,8 +81,10 @@ export function useBrowserShortcuts(): void {
           break
         case 'find':
           // shell 聚焦态本地开栏：无激活 Tab 不开（零 Tab 空态无可查找页面）；
-          // 已开时重复触发幂等——tick 刷新令 FindBar 聚焦并全选（Chrome 同款）
-          if (store.activeTabId !== null) store.openFind()
+          // 已开时重复触发幂等——tick 刷新令 FindBar 聚焦并全选（Chrome 同款）；
+          // HTML 全屏期间查找栏不可达（PRD 3.7.3，Chrome 对齐），与主进程页面侧
+          // 吞键放行同口径
+          if (store.activeTabId !== null && !store.htmlFullscreen) store.openFind()
           break
         case 'toggle-devtools':
           void store.toggleDevTools()

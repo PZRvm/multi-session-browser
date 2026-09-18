@@ -20,6 +20,9 @@
 // 并入，退出/关窗时序语义见 browser/persistence.ts）。两口径冻结于上述计划第 3 节。
 // 2026-09-14 起增页内查找 4 通道（find-start/find-stop 命令 + find-request/find-result
 // 推送，契约冻结于会话网页内查找开发计划 2.4 节）。
+// 2026-09-18 起快照增 htmlFullscreen 字段（HTML 全屏态）与 TearOffTabManager 内部面
+// hasHtmlFullscreen 查询（无新通道）：契约冻结于会话网页视频全屏开发计划第 1 节
+//（notes/plans/20260918125946-会话网页视频全屏开发计划.md）。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -76,6 +79,13 @@ export interface BrowserSnapshot {
   activeTabId: string | null
   /** 激活 Tab 的 DevTools 是否开启（无激活 Tab 时恒 false）；停靠区显隐随此字段 */
   devtoolsOpen: boolean
+  /**
+   * 该窗口是否处于 HTML 全屏态（视频全屏按钮等 Fullscreen API 路径）：窗口级槽位
+   * （Chrome 语义：全屏挂窗口，切 Tab 保持）。renderer 壳层（Tab 栏/工具栏/主窗
+   * 左栏）据此隐藏，内容锚点自然扩满窗口、bounds 沿既有上报链路跟随；退出
+   * （ESC/网页按钮）后主进程恢复缓存布局，壳层随本字段回落显现
+   */
+  htmlFullscreen: boolean
 }
 
 export interface NewTabPayload {
