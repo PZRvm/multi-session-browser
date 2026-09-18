@@ -108,6 +108,9 @@ export const settings = {
     note: '删除全部会话、工作区与浏览数据，恢复默认设置，不可撤销'
   },
 
+  /** macOS 窗体 chrome：自绘关闭点 aria（2026-09-18 用户裁决去原生标题条只留关闭） */
+  closeWindow: '关闭设置',
+
   /** 两步确认弹层（ConfirmResetOverlay）：确认词随语言（PRD 26 本地化确认词口径，
    * 精确匹配语义不变）；第二步标题经 {word} 插值、输入框 aria 与匹配比对同用
    * confirmWord 一键；resetting = 执行中确认钮文案，resetFailed = 失败错误行

@@ -2,10 +2,15 @@
 //「设置… ⌘,」（主进程内直连 open()，不经 IPC）与主窗板头齿轮（settings:open IPC，
 // registerSettingsIpc 注册、sender 白名单 = 主窗 shell）双入口共用；重复触发聚焦
 // 既有窗而非新开；主窗 closed 级联 dispose 关闭。与建议子窗（omniboxSuggest.ts）的
-// 关键差异：设置窗是 focusable 的正常有框窗（系统标题栏 + 标题「设置」、要焦点、
-// 可交互），不是透明无框不夺焦面板。窗口度量（DESIGN.md「设置窗口」条目定稿）：
-// 初值 700×480、min 600×420、max 900×680、可拉伸（侧栏双栏重构定稿）；位置与尺寸记忆为留白
-//（不落盘，OS 默认落位）。
+// 关键差异：设置窗是 focusable 的正常有框窗（要焦点、可交互），不是透明无框不夺焦
+// 面板。窗口度量（DESIGN.md「设置窗口」条目定稿）：初值 700×480、min 600×420、
+// max 900×680、可拉伸（侧栏双栏重构定稿）；位置与尺寸记忆为留白（不落盘，OS 默认落位）。
+// macOS 窗体 chrome（2026-09-18 用户裁决：去掉原生标题条、只保留关闭）：darwin 用
+// titleBarStyle: 'hidden' 去掉标题条 + setWindowButtonVisibility(false) 隐藏原生三灯
+// （Electron 公开 API 无逐灯开关），renderer 自绘一枚 macOS 关闭点（建窗 query
+// chrome=custom-close 仅 darwin 携带——renderer 不经 navigator 推断平台，对齐
+// get-app-info platform 单源纪律）；窗口拖动经 renderer 顶部拖拽带（app-region:
+// drag）承担。Windows/Linux 不携带 query、保持系统框原形态（平台惯例沿用）。
 // 外观背景色：建窗经 getAppearanceBackgroundColor（resolvedTheme + themeColor 现取
 // 注入，主窗 index.ts 同款写法）；建窗 query 追加 sys = 建窗时刻主题色（renderer 求
 // 值期首帧注入防闪色，契约见 shared/themeSystems.ts 头注）。后续主题翻转无需本模块
@@ -73,8 +78,12 @@ export function createSettingsWindowController(deps: {
     // 建窗时刻现取外观（背景色与 query sys 同源快照语义，主窗 index.ts 同款）
     const resolvedTheme = deps.getResolvedTheme()
     const themeColor = deps.getThemeColor()
+    // macOS 窗体 chrome（头注用户裁决）：去标题条 + 隐藏原生三灯，关闭由 renderer
+    // 自绘点承担（chrome=custom-close query 仅 darwin 携带）；其余平台保持系统框
+    const darwin = process.platform === 'darwin'
     const created = new BrowserWindow({
       // 标题经字典取词（menu.settingsWindow）：建窗时语言 + 语言变更回调 setTitle
+      //（标题条隐藏后仍归窗口本体——Mission Control / ⌘Tab 语义，主进程照常管理）
       title: t('menu.settingsWindow'),
       width: DEFAULT_WIDTH,
       height: DEFAULT_HEIGHT,
@@ -84,6 +93,7 @@ export function createSettingsWindowController(deps: {
       maxHeight: MAX_HEIGHT,
       show: false,
       autoHideMenuBar: true,
+      ...(darwin ? { titleBarStyle: 'hidden' as const } : {}),
       backgroundColor: getAppearanceBackgroundColor(resolvedTheme, themeColor),
       ...(owner && !owner.isDestroyed() ? { parent: owner } : {}),
       ...(process.platform === 'linux' ? { icon } : {}),
@@ -93,6 +103,9 @@ export function createSettingsWindowController(deps: {
       }
     })
     win = created
+
+    // 隐藏原生三灯（darwin 专属 API；逐灯开关公开 API 不支持，关闭由 renderer 自绘点承担）
+    if (darwin) created.setWindowButtonVisibility(false)
 
     // 防误刷新守卫（主窗/独立窗同规则共用，实现与完整说明在 inputGuard.ts）
     installShellInputGuard(created.webContents)
@@ -115,21 +128,27 @@ export function createSettingsWindowController(deps: {
 
     // 同 renderer 入口 + query 设置窗角色 + sys 主题色 + lang 当前语言（omniboxSuggest
     // / windows.ts 双路径同款；lang 首帧语言注入防闪变，运行期变更经 settings:changed
-    // 广播）；catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的竞态，
-    // 不成年抛错）
+    // 广播）+ chrome=custom-close（仅 darwin，renderer 据此渲染自绘关闭点与拖拽带）；
+    // catch 静默关闭期在途加载的 ERR_ABORTED（close 触发 unload 的竞态，不成年抛错）
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
       const query = new URLSearchParams({
         role: SETTINGS_WINDOW_ROLE,
         sys: themeColor,
         lang: getCurrentLanguage()
       })
+      if (darwin) query.set('chrome', 'custom-close')
       created
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
         .catch(() => undefined)
     } else {
       created
         .loadFile(join(__dirname, '../renderer/index.html'), {
-          query: { role: SETTINGS_WINDOW_ROLE, sys: themeColor, lang: getCurrentLanguage() }
+          query: {
+            role: SETTINGS_WINDOW_ROLE,
+            sys: themeColor,
+            lang: getCurrentLanguage(),
+            ...(darwin ? { chrome: 'custom-close' } : {})
+          }
         })
         .catch(() => undefined)
     }

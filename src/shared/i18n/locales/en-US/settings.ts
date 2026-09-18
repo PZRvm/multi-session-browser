@@ -80,6 +80,9 @@ export const settings: Dictionary['settings'] = {
     action: 'Factory Reset…',
     note: 'Deletes all sessions, workspaces and browsing data, and restores default settings. This cannot be undone'
   },
+
+  // macOS window chrome: custom close dot aria (2026-09-18, hidden native title bar)
+  closeWindow: 'Close Settings',
   confirmReset: {
     dialogAria: 'Factory Reset',
     step1Title: 'Factory Reset',

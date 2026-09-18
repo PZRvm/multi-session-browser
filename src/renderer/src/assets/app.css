@@ -1083,6 +1083,68 @@ body.col-resizing {
   color: var(--board-ink);
 }
 
+/* macOS 窗体 chrome（2026-09-18 用户裁决：去原生标题条只留关闭；仅建窗 query
+   chrome=custom-close 时由根类生效，Windows/Linux 零差异）：顶部拖拽带承担窗口
+   拖动（原生标题条已去），高 28px 覆盖两栏顶部让位区（侧栏内距顶 38px / 详情区
+   顶 34px 见下方覆盖块）；app-region: drag 由拖拽带承担、关闭钮 no-drag 嵌入其上；
+   z 低于两步确认弹层（40）——弹层开启期间窗口不可拖、关闭钮被遮（瞬态可接受） */
+.settings-drag-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  height: 28px;
+  -webkit-app-region: drag;
+}
+
+/* 自绘关闭点：macOS 红灯位（left 20 / top 13，对齐原生 hiddenInset 灯位），
+   12px 圆 #ff5f57——平台窗口饰品原值，非主题语义（与 --danger 的「破坏动作」
+   语义不同源），平台 chrome 常量先例同 --settings-confirm-card-bg；内环 0.5px
+   描边模拟原生灯发丝环；hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言
+   可发现性） */
+.settings-window-close {
+  position: absolute;
+  top: 13px;
+  left: 20px;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.15);
+  font-family: inherit;
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+}
+
+.settings-window-close::after {
+  content: '×';
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: transparent;
+}
+
+.settings-window-close:hover::after {
+  color: rgba(70, 60, 55, 0.65);
+}
+
+/* chrome-custom 顶部让位：侧栏五分类起始位让出灯位区（原 10px → 38px，恢复出厂
+   沉底 margin-top: auto 不受影响）；详情区标题让出拖拽带（原 22px → 34px） */
+.settings-window-chrome-custom .settings-sidebar {
+  padding-top: 38px;
+}
+
+.settings-window-chrome-custom .settings-detail {
+  padding-top: 34px;
+}
+
 /* 侧栏（nav）：176px、抬升层底、右缘发丝线、内距 10px 8px；自身不滚动
    （五分类恒不满溢，超视口分类数为 DESIGN 留白再议）；
    分类行间 2px 间隙（2026-09-17 用户裁决）：密集导航行的呼吸位，不破坏 34px 行高 */
