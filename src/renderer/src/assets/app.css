@@ -765,6 +765,14 @@ body.col-resizing {
   color: var(--accent-ink);
 }
 
+/* 选中会话（琥珀反白行）内的选中文本：全局琥珀 ::selection 与行背景同色导致
+   选区不可辨（用户反馈 2026-09-18）——行级单独覆盖为浏览器默认蓝色高亮（亮暗
+   主题通吃：蓝底白字在琥珀反白底上对比恒定） */
+.session-row.selected ::selection {
+  background: #3390ff;
+  color: #fff;
+}
+
 .session-row.selected .session-dot.idle {
   background: var(--accent-ink);
 }
