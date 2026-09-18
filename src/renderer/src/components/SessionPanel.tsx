@@ -13,7 +13,7 @@ import FlapCounter from './FlapCounter'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
-import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import { SESSION_NOTE_MAX, WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
@@ -52,13 +52,40 @@ function SessionRow({
   onMove
 }: SessionRowProps): React.JSX.Element {
   const t = useT()
-  const { activeId, renameSession, removeSession, selectSession } = useSessionsStore()
+  const { activeId, renameSession, setSessionNote, removeSession, selectSession } =
+    useSessionsStore()
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
-  const { modal } = App.useApp()
+  const { modal, message } = App.useApp()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.name)
+  // 备注编辑态（2026-09-18 增量）：与名称编辑态互斥——进入一方即退出另一方，
+  // 防同一行出现两个 Input 的叠态
+  const [noteEditing, setNoteEditing] = useState(false)
+  const [noteDraft, setNoteDraft] = useState(session.note)
   const selected = activeId === session.id
+  // 备注 Tooltip 仅在文本实际溢出（单行省略号截断）时显示；悬停进入时现测，渲染期
+  // 不测（resize 后以再次悬停为准，瞬态无需跟随）。maxWidth 同时在此定格：弹层超宽
+  // 时 rc-align 会水平翻转为「左缘对齐备注左缘、向右展开」，封顶须扣除备注左缘
+  // （面板宽 − 备注左缘 − 16px）才能保证右缘不出面板——出面板即被右区原生层遮挡
+  const noteRef = useRef<HTMLSpanElement>(null)
+  const [noteTip, setNoteTip] = useState<{ truncated: boolean; maxWidth?: number }>({
+    truncated: false
+  })
+  const measureNoteTruncated = (): void => {
+    const el = noteRef.current
+    if (!el) return
+    const panel = el.closest<HTMLElement>('.session-panel')
+    const panelWidth = panel?.getBoundingClientRect().width
+    const spanLeft = el.getBoundingClientRect().left - (panel?.getBoundingClientRect().left ?? 0)
+    setNoteTip({
+      truncated: el.scrollWidth > el.clientWidth,
+      maxWidth:
+        typeof panelWidth === 'number'
+          ? Math.max(160, Math.round(panelWidth - spanLeft - 16))
+          : undefined
+    })
+  }
 
   // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
   const statusText: Record<SessionItem['status'], string> = {
@@ -66,15 +93,31 @@ function SessionRow({
     loading: t('sessions.sessionRow.status.loading')
   }
 
+  // 名称/备注提交：setEditing(false) 先行（Input 卸载即失焦，blur 不再二次提交）；
+  // 保存失败经 store 返回的 boolean 行内 message 反馈，不静默（审查低 2）
   const commitRename = (): void => {
     setEditing(false)
-    renameSession(session.id, draft)
+    void renameSession(session.id, draft).then((ok) => {
+      if (!ok) message.error(t('sessions.sessionRow.editFailed'))
+    })
+  }
+
+  // 备注提交：空串 = 清除（store/主进程同语义），行内恢复「未填写备注」占位
+  const commitNote = (): void => {
+    setNoteEditing(false)
+    void setSessionNote(session.id, noteDraft).then((ok) => {
+      if (!ok) message.error(t('sessions.sessionRow.editFailed'))
+    })
   }
 
   const menuItems: MenuProps['items'] = [
     {
       key: 'rename',
       label: t('sessions.sessionRow.menu.rename')
+    },
+    {
+      key: 'editNote',
+      label: t('sessions.sessionRow.menu.editNote')
     },
     {
       key: 'clone',
@@ -94,8 +137,15 @@ function SessionRow({
   const onMenuClick: MenuProps['onClick'] = ({ key, domEvent }) => {
     domEvent.stopPropagation()
     if (key === 'rename') {
+      // 编辑态互斥：进入名称编辑即退出备注编辑
+      setNoteEditing(false)
       setDraft(session.name)
       setEditing(true)
+    } else if (key === 'editNote') {
+      // 编辑态互斥：进入备注编辑即退出名称编辑；草稿以现值重置防上轮残留
+      setEditing(false)
+      setNoteDraft(session.note)
+      setNoteEditing(true)
     } else if (key === 'clone') {
       void onClone(session.id)
     } else if (key === 'move') {
@@ -136,7 +186,7 @@ function SessionRow({
       // 行只携带身份属性与瞬态视觉态（data-drop-pos 驱动伪元素插入线）
       data-session-id={session.id}
       data-drop-pos={dropPos ?? undefined}
-      draggable={dragEnabled && !editing}
+      draggable={dragEnabled && !editing && !noteEditing}
       tabIndex={0}
       // 批量态声明 checkbox 语义（aria-checked 才对辅助技术可达）；非批量态保持
       // 默认 listitem + aria-current 的激活语义
@@ -154,6 +204,9 @@ function SessionRow({
           }
           return
         }
+        // 编辑态/内部控件按键不归行级：Input 内 Enter/Space 会冒泡至此，无守卫会
+        // 吞空格字符并顺带切换会话（审查高 1）——镜像批量态分支的 target 守卫
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           selectSession(session.id)
@@ -190,7 +243,53 @@ function SessionRow({
       </div>
       <div className="session-row-sub">
         {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
-        <span className="session-note">{session.note || t('sessions.sessionRow.noteEmpty')}</span>
+        {noteEditing ? (
+          // 编辑态与重命名 Input 同构：borderless 小号、autoFocus、点击不冒泡防触
+          // 发行选中；Enter/失焦经 store 提交（trim 后空串 = 清除）、Esc 放回现值；
+          // maxLength 取 shared 单源，超限在输入端截断防主进程静默截断
+          <Input
+            className="session-note-edit"
+            size="small"
+            value={noteDraft}
+            autoFocus
+            variant="borderless"
+            maxLength={SESSION_NOTE_MAX}
+            aria-label={t('sessions.sessionRow.noteInputAria')}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onPressEnter={commitNote}
+            onBlur={commitNote}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNoteEditing(false)
+            }}
+          />
+        ) : session.note ? (
+          // 悬停看全文（2026-09-18 增量）：仅行内省略号截断时显示（未溢出不弹）；
+          // 占位「未填写备注」不挂 Tooltip（重复展示是零信息噪音，PRD 4.8）。
+          // getPopupContainer 锁挂 .session-panel（AppearanceEntry 惯例）+ maxWidth
+          // 悬停时按面板与备注左缘现算（见 measureNoteTruncated 注）——右区是
+          // WebContentsView 原生层，弹层不越面板即不被遮挡。
+          // placement bottomRight：弹层在备注下方、右上角对齐备注右下角向左展开
+          // （用户裁决 2026-09-18：上方会盖住会话名与上方行）。箭头保留（用户裁决
+          // 同日：tip 上缘要有箭头），底色经 .session-note-tip 覆盖为板面抬升层。
+          // 0.2s 延迟防鼠标扫过行间频闪（批量图标先例）
+          <Tooltip
+            title={noteTip.truncated ? session.note : undefined}
+            placement="bottomRight"
+            mouseEnterDelay={0.2}
+            overlayClassName="session-note-tip"
+            overlayStyle={noteTip.maxWidth ? { maxWidth: noteTip.maxWidth } : undefined}
+            getPopupContainer={(triggerNode) =>
+              triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
+            }
+          >
+            <span ref={noteRef} className="session-note" onMouseEnter={measureNoteTruncated}>
+              {session.note}
+            </span>
+          </Tooltip>
+        ) : (
+          <span className="session-note">{t('sessions.sessionRow.noteEmpty')}</span>
+        )}
         <span className={`session-status ${cloning ? 'loading' : session.status}`}>
           {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
         </span>

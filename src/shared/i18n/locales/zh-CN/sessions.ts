@@ -24,9 +24,14 @@ export const sessions = {
       cloning: '克隆中…'
     },
     noteEmpty: '未填写备注',
+    /** 备注编辑态输入框 aria（2026-09-18 增量） */
+    noteInputAria: '会话备注',
+    /** 名称/备注行内保存失败的行内反馈（2026-09-18 审查修复） */
+    editFailed: '保存失败，请重试',
     menuAria: '会话操作',
     menu: {
       rename: '重命名',
+      editNote: '编辑备注',
       clone: '克隆会话',
       move: '移动到工作区…',
       delete: '删除会话'

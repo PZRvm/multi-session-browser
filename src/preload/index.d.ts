@@ -54,6 +54,7 @@ import type {
   SessionsSnapshot,
   SetActiveSessionPayload,
   SetActiveWorkspacePayload,
+  SetNotePayload,
   StoredSession,
   StoredWorkspace
 } from '../shared/sessions'
@@ -71,6 +72,7 @@ declare global {
         list(): Promise<SessionsSnapshot>
         create(payload: CreateSessionPayload): Promise<StoredSession>
         rename(payload: RenameSessionPayload): Promise<StoredSession>
+        setNote(payload: SetNotePayload): Promise<StoredSession>
         delete(payload: DeleteSessionPayload): Promise<OkResult>
         setActive(payload: SetActiveSessionPayload): Promise<OkResult>
         getStatuses(): Promise<SessionStatusesPayload>

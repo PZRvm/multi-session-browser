@@ -26,7 +26,10 @@ interface SessionsState {
   removeSession: (id: string) => Promise<void>
   // 返回整单是否成功：整单拒绝制下失败即无任何删除，供调用方呈现失败反馈
   deleteSessions: (ids: string[]) => Promise<boolean>
-  renameSession: (id: string, name: string) => Promise<void>
+  // 返回是否成功（false = IPC 失败，供行内失败反馈；空名 no-op 算成功）
+  renameSession: (id: string, name: string) => Promise<boolean>
+  // 备注 trim 后空串 = 清除（合法提交非拒绝），与 renameSession 的拒空短路不同
+  setSessionNote: (id: string, note: string) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
   // 返回是否成功：整单拒绝或 IPC 失败返回 false，供调用方呈现中文失败反馈
@@ -274,14 +277,42 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   // 非乐观更新：IPC 成功后以返回值更新本地，失败保持原状态
   renameSession: async (id, name) => {
     const trimmed = name.trim()
-    if (!trimmed) return
+    // 空名 no-op（名称不可为空，沿用既有静默口径）与零变化短路：均不算失败
+    const current = get().sessions.find((s) => s.id === id)
+    if (!trimmed || !current) return !trimmed
+    if (current.name === trimmed) return true
     try {
       const updated: StoredSession = await window.api.sessions.rename({ id, name: trimmed })
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updated } : s))
       }))
+      return true
     } catch (error) {
       console.error('重命名会话失败', error)
+      return false
+    }
+  },
+
+  // 备注（2026-09-18 增量）：对齐 renameSession 的非乐观口径，但不拒空——空串
+  // 即清除备注，行内恢复「未填写备注」占位；trim 在此统一做，主进程再 clamp
+  setSessionNote: async (id, note) => {
+    const trimmed = note.trim()
+    // 零变化短路：与现值相同零 IPC（对齐 reorder 无位移短路惯例）
+    const current = get().sessions.find((s) => s.id === id)
+    if (!current) return false
+    if (current.note === trimmed) return true
+    try {
+      const updated: StoredSession = await window.api.sessions.setNote({
+        id,
+        note: trimmed
+      })
+      set((state) => ({
+        sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updated } : s))
+      }))
+      return true
+    } catch (error) {
+      console.error('编辑会话备注失败', error)
+      return false
     }
   },
 

@@ -1,6 +1,7 @@
-// 会话 IPC handlers：十六条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// 会话 IPC handlers：十七条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
 // batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项六条 create/rename/delete/
-// move-session/move-sessions-batch/set-active）的业务实现，读写一律经 store.ts 的快照接口；status-changed
+// move-session/move-sessions-batch/set-active + 备注编辑 set-note 一条，2026-09-18
+// 增量）的业务实现，读写一律经 store.ts 的快照接口；status-changed
 // 推送不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
@@ -13,6 +14,7 @@ import { isRecord } from '../shared/guards'
 import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
+  SESSION_NOTE_MAX,
   SESSIONS_CHANNELS,
   WORKSPACE_ID_RE,
   WORKSPACE_NAME_MAX,
@@ -58,9 +60,8 @@ interface SessionIpcDeps {
 /** id 自增序列（模块级，跨多次 create 递增） */
 let seq = 0
 
-/** IPC 入口字段长度上限（超出直接截断，不报错，防止 MB 级字符串写穿落盘）；pageTitle 上限取 shared 单源 */
+/** IPC 入口字段长度上限（超出直接截断，不报错，防止 MB 级字符串写穿落盘）；pageTitle/note 上限取 shared 单源 */
 const NAME_MAX = 50
-const NOTE_MAX = 200
 
 /** 守卫失败统一抛出的业务错误（文案经字典 errors 命名空间，报错语言 = 取词时语言） */
 function invalidParams(): Error {
@@ -210,7 +211,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           const session: StoredSession = {
             id,
             name: clampString(inputName || t('sessions.defaults.name', { n: seq }), NAME_MAX),
-            note: clampString(inputNote, NOTE_MAX),
+            note: clampString(inputNote, SESSION_NOTE_MAX),
             // 创建时标题为构造期本地化占位文案（i18n 种子语义：语言切换前的存量值
             // 不追溯），仍过一道截断以维持入口上限不变式
             pageTitle: clampString(t('sessions.defaults.noPageTitle'), PAGE_TITLE_MAX),
@@ -255,6 +256,31 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // 标题；取 clamp 后的实际落盘名——标题与会话名严格同源，不做乐观标题
         deps.onRenamed(id, renamed.name)
         return renamed
+      })
+  )
+
+  // set-note：会话备注编辑（2026-09-18 增量，PRD 3.1.2）。与 rename 的两处刻意
+  // 差异：① trim 后空串 = 清除备注，合法提交非拒绝（清空后行内恢复「未填写备注」
+  // 占位）；② 无 deps 编排回调——备注不联动窗口标题/激活位等任何浏览器编排。
+  // 其余对齐 rename：结构守卫 → id 存在性 → mutateSnapshot 临界区内 clamp 落盘，
+  // 返回 clamp 后的实际落盘值供 renderer 非乐观 merge
+  ipcMain.handle(
+    SESSIONS_CHANNELS.setNote,
+    async (_event, payload: unknown): Promise<StoredSession> =>
+      logFailure(SESSIONS_CHANNELS.setNote, payload, async () => {
+        // payload 必须含 string 类型的 id 与 note
+        if (!isRecord(payload)) throw invalidParams()
+        if (typeof payload.id !== 'string' || typeof payload.note !== 'string') {
+          throw invalidParams()
+        }
+        const id = payload.id
+        const note = payload.note.trim()
+        return mutateSnapshot((snapshot) => {
+          const target = snapshot.sessions.find((s) => s.id === id)
+          if (!target) throw new Error(t('errors.sessionNotFound'))
+          target.note = clampString(note, SESSION_NOTE_MAX)
+          return target
+        })
       })
   )
 
@@ -687,6 +713,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 16 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 18 条
+  // 本文件注册 17 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 19 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

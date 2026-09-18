@@ -21,9 +21,12 @@ export const sessions: Dictionary['sessions'] = {
       cloning: 'Cloning…'
     },
     noteEmpty: 'No note',
+    noteInputAria: 'Session note',
+    editFailed: 'Save failed, please try again',
     menuAria: 'Session actions',
     menu: {
       rename: 'Rename',
+      editNote: 'Edit note',
       clone: 'Clone session',
       move: 'Move to workspace…',
       delete: 'Delete session'

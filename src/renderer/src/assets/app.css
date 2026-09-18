@@ -543,7 +543,9 @@ body.col-resizing {
 
 .session-row.selected .ws-tag {
   background: transparent;
-  border-color: transparent;
+  /* 边框恢复可见（用户反馈 2026-09-18）：透明边在琥珀反白行上让标签失去形状；
+     取强调色上的墨（Inversion Rule 同色系），背景保持透明的次级降格不变 */
+  border-color: var(--accent-ink);
   color: var(--accent-ink);
   opacity: 0.72;
 }
@@ -703,6 +705,30 @@ body.col-resizing {
   text-overflow: ellipsis;
 }
 
+/* 备注悬停 Tooltip（2026-09-18 增量）：板面弹层语系（.ws-panel 同源）——抬升层底 +
+   发丝线 + 圆角 + 无阴影（Hairline Rule：全应用 0 box-shadow）；token 随主题系统
+   注入，暗色自动跟随。弹层经 getPopupContainer 锁挂 .session-panel 内（外观入口
+   惯例），不越左栏即不被右区 WebContentsView 原生层遮挡。
+   注意 antd 6 正文类名是 -container（-inner 是 v5 旧名，选择器落空即退回默认黑）。
+   箭头底色 = antd 6 的 --ant-tooltip-arrow-background-color（在 .ant-tooltip 根上
+   定义、箭头 ::before 消费）；此处三重特异性覆写为抬升层，与正文同色 */
+.session-note-tip.ant-tooltip {
+  box-shadow: none;
+  --ant-tooltip-arrow-background-color: var(--board-bg-raised);
+}
+
+.session-note-tip .ant-tooltip-container {
+  padding: 5px 10px;
+  background: var(--board-bg-raised);
+  border: 1px solid var(--board-hairline);
+  color: var(--board-ink);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: none;
+  /* 长无空格串（纯数字备注等）可换行，不撑破 maxWidth 封顶 */
+  overflow-wrap: anywhere;
+}
+
 .session-status {
   margin-left: auto;
   flex: none;
@@ -747,6 +773,13 @@ body.col-resizing {
   min-width: 0;
   flex: 1;
   font-weight: 600;
+}
+
+/* 备注编辑态（2026-09-18 增量）：与 .session-rename 同语系占满行内余宽；
+   无加粗——备注常态是次级弱色文字，编辑态保持同一字重 */
+.session-note-edit {
+  min-width: 0;
+  flex: 1;
 }
 
 /* 反白行内的文字与控件配色 */

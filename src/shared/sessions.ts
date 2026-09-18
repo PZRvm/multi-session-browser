@@ -37,11 +37,17 @@
 //   的会话事实变更通知：payload = 完整 SessionsSnapshot，主进程定向推送主窗口
 //   （会话面板只在主窗，接线对齐 statusChanged 先例），收方以快照权威接管
 //   （adoptSnapshot）；现触发源仅恢复出厂完成时，其他跨窗 mutation 未来复用
+// - 会话备注编辑增量（2026-09-18，计划 notes/plans/20260918155214-会话备注编辑
+//   开发计划.md 第 2.4 节）：set-note（18 → 19，invoke）——会话行菜单编辑账号
+//   备注（PRD 3.1.2）；trim 后空串 = 清除备注（合法提交非拒绝），语义与 rename
+//   拒空相反；纯元数据无编排回调（备注不联动窗口标题）；note 字段 v1 起在
+//   StoredSession，零 schema 变更
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
   create: 'sessions:create',
   rename: 'sessions:rename',
+  setNote: 'sessions:set-note',
   delete: 'sessions:delete',
   setActive: 'sessions:set-active',
   getStatuses: 'sessions:get-statuses',
@@ -90,6 +96,13 @@ export const WORKSPACE_VIEW_ALL = 'all'
  * 三处消费同一值，禁止各持字面量（防改一处漏两处）。
  */
 export const PAGE_TITLE_MAX = 200
+
+/**
+ * 会话备注的截断上限（按 UTF-16 码元切，中文不受影响）。
+ * 单一事实源：sessions IPC 入口 clamp 与 renderer 编辑框 maxLength 两处消费
+ * 同一值（renderer 限长防主进程静默截断，2026-09-18 备注编辑增量）
+ */
+export const SESSION_NOTE_MAX = 200
 
 /** 落盘的单个恢复用 Tab（仅 URL；页面运行态不持久化） */
 export interface StoredTab {
@@ -164,6 +177,15 @@ export interface CreateSessionPayload {
 export interface RenameSessionPayload {
   id: string
   name: string
+}
+
+/**
+ * 编辑会话备注（PRD 3.1.2）：与 RenameSessionPayload 同构但 trim 后空串合法，
+ * = 清除备注（行内恢复「未填写备注」占位），语义与 rename 拒空相反
+ */
+export interface SetNotePayload {
+  id: string
+  note: string
 }
 
 export interface DeleteSessionPayload {

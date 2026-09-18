@@ -55,6 +55,7 @@ import type {
   SessionsSnapshot,
   SetActiveSessionPayload,
   SetActiveWorkspacePayload,
+  SetNotePayload,
   StoredSession,
   StoredWorkspace
 } from '../shared/sessions'
@@ -92,6 +93,9 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.create, payload),
     rename: (payload: RenameSessionPayload): Promise<StoredSession> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.rename, payload),
+    // 会话备注编辑（2026-09-18 增量）：trim 后空串 = 清除备注，合法提交非拒绝
+    setNote: (payload: SetNotePayload): Promise<StoredSession> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.setNote, payload),
     delete: (payload: DeleteSessionPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.delete, payload),
     setActive: (payload: SetActiveSessionPayload): Promise<OkResult> =>
