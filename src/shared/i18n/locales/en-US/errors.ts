@@ -9,6 +9,7 @@ export const errors: Dictionary['errors'] = {
 
   noSessionSelected: 'No session selected',
   tabNotFound: 'Tab not found',
+  tabReorderInvalidOrder: 'Tab order does not match the current list, original order kept',
   invalidUrl: 'Invalid URL',
   unknownCommandSource: 'Unrecognized command source window',
 

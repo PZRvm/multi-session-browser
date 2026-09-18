@@ -4,138 +4,140 @@ description: 会话到发信息板——左侧航显信息板配可切换的强�
 theme-systems: 三套设计系统（琥珀/雾蓝/苔绿）的完整 token 单源在 src/shared/themeSystems.ts；本 colors 块仅默认琥珀系统（亮/暗两态）的缺省值快照，与 app.css 对账
 colors:
   # 信息板（左侧世界，默认亮色）
-  board-bg: "#f6f4ee"
-  board-bg-raised: "#ede9df"
-  board-hairline: "#d8d2c5"
-  board-tile: "#ede9df"
-  board-tile-line: "#d8d2c5"
-  board-tile-ink: "#9a5f00"
-  board-ink: "#1e2329"
-  board-ink-dim: "#616974"
-  board-bg-dark: "#101418"
-  board-bg-raised-dark: "#1a2026"
-  board-hairline-dark: "#232830"
-  board-tile-dark: "#1a2026"
-  board-tile-line-dark: "#2a313a"
-  board-tile-ink-dark: "#ffb000"
-  board-ink-dark: "#f5f0e8"
-  board-ink-dim-dark: "#9aa3ad"
-  accent: "#ffb000"
-  accent-strong: "#ffc133"
-  accent-press: "#e6a000"
-  accent-ink: "#221a00"
-  idle: "#6b7280"
-  loading: "#ffb000"
+  board-bg: '#f6f4ee'
+  board-bg-raised: '#ede9df'
+  board-hairline: '#d8d2c5'
+  board-tile: '#ede9df'
+  board-tile-line: '#d8d2c5'
+  board-tile-ink: '#9a5f00'
+  board-ink: '#1e2329'
+  board-ink-dim: '#616974'
+  board-bg-dark: '#101418'
+  board-bg-raised-dark: '#1a2026'
+  board-hairline-dark: '#232830'
+  board-tile-dark: '#1a2026'
+  board-tile-line-dark: '#2a313a'
+  board-tile-ink-dark: '#ffb000'
+  board-ink-dark: '#f5f0e8'
+  board-ink-dim-dark: '#9aa3ad'
+  accent: '#ffb000'
+  accent-strong: '#ffc133'
+  accent-press: '#e6a000'
+  accent-ink: '#221a00'
+  idle: '#6b7280'
+  loading: '#ffb000'
   # Chrome 右侧（列车本身，默认亮色）
-  chrome-tabbar: "#dee1e6"
-  chrome-toolbar: "#f1f3f4"
-  chrome-line: "#c7cbd1"
-  chrome-ink: "#3c4043"
-  chrome-ink-dim: "#5f6368"
-  chrome-disabled: "#b0b4b9"
-  chrome-surface: "#ffffff"
-  chrome-tab-active: "#ffffff"
-  chrome-omnibox-bg: "#ffffff"
-  chrome-tabbar-drag-target: "#c4c7cc"
-  chrome-tab-insert: "#3c4043"
-  chrome-tabbar-dark: "#202124"
-  chrome-toolbar-dark: "#292a2d"
-  chrome-line-dark: "#3c4043"
-  chrome-ink-dark: "#e8eaed"
-  chrome-ink-dim-dark: "#bdc1c6"
-  chrome-disabled-dark: "#5f6368"
-  chrome-surface-dark: "#202124"
-  chrome-tab-active-dark: "#292a2d"
-  chrome-omnibox-bg-dark: "#202124"
-  chrome-tabbar-drag-target-dark: "#444548"
-  chrome-tab-insert-dark: "#e8eaed"
+  chrome-tabbar: '#dee1e6'
+  chrome-toolbar: '#f1f3f4'
+  chrome-line: '#c7cbd1'
+  chrome-ink: '#3c4043'
+  chrome-ink-dim: '#5f6368'
+  chrome-disabled: '#b0b4b9'
+  chrome-surface: '#ffffff'
+  chrome-tab-active: '#ffffff'
+  chrome-omnibox-bg: '#ffffff'
+  chrome-tabbar-drag-target: '#c4c7cc'
+  chrome-tab-insert: '#3c4043'
+  chrome-tab-separator: '#b8bcc1'
+  chrome-tabbar-dark: '#202124'
+  chrome-toolbar-dark: '#292a2d'
+  chrome-line-dark: '#3c4043'
+  chrome-ink-dark: '#e8eaed'
+  chrome-ink-dim-dark: '#bdc1c6'
+  chrome-disabled-dark: '#5f6368'
+  chrome-surface-dark: '#202124'
+  chrome-tab-active-dark: '#292a2d'
+  chrome-omnibox-bg-dark: '#202124'
+  chrome-tabbar-drag-target-dark: '#444548'
+  chrome-tab-insert-dark: '#e8eaed'
+  chrome-tab-separator-dark: '#3c4043'
 typography:
   title:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
-    fontSize: "15px"
+    fontSize: '15px'
     fontWeight: 600
     lineHeight: 1.5
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
-    fontSize: "13px"
+    fontSize: '13px'
     fontWeight: 400
     lineHeight: 1.5
   body-secondary:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
-    fontSize: "12px"
+    fontSize: '12px'
     fontWeight: 400
     lineHeight: 1.5
   label:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
-    fontSize: "11px"
+    fontSize: '11px'
     fontWeight: 400
-    letterSpacing: "0.08em"
+    letterSpacing: '0.08em'
     lineHeight: 1.5
   micro:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif"
-    fontSize: "10px"
+    fontSize: '10px'
     fontWeight: 400
-    letterSpacing: "0.05em"
+    letterSpacing: '0.05em'
     lineHeight: 1.5
   flap-digit:
     fontFamily: "'SF Mono', ui-monospace, Menlo, Consolas, monospace"
-    fontSize: "16px"
+    fontSize: '16px'
     fontWeight: 600
     lineHeight: 1
-    fontFeature: "tnum"
+    fontFeature: 'tnum'
 rounded:
-  xs: "3px"
-  sm: "4px"
-  md: "6px"
-  tab: "8px 8px 0 0"
-  pill: "14px"
+  xs: '3px'
+  sm: '4px'
+  md: '6px'
+  tab: '8px 8px 0 0'
+  pill: '14px'
 spacing:
-  xs: "4px"
-  sm: "6px"
-  md: "8px"
-  lg: "12px"
-  xl: "14px"
+  xs: '4px'
+  sm: '6px'
+  md: '8px'
+  lg: '12px'
+  xl: '14px'
 components:
   button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
-    rounded: "{rounded.md}"
-    height: "34px"
+    backgroundColor: '{colors.accent}'
+    textColor: '{colors.accent-ink}'
+    rounded: '{rounded.md}'
+    height: '34px'
   button-primary-hover:
-    backgroundColor: "{colors.accent-strong}"
+    backgroundColor: '{colors.accent-strong}'
   button-primary-active:
-    backgroundColor: "{colors.accent-press}"
+    backgroundColor: '{colors.accent-press}'
   session-row:
-    backgroundColor: "{colors.board-bg}"
-    textColor: "{colors.board-ink}"
-    padding: "10px 12px 9px 14px"
+    backgroundColor: '{colors.board-bg}'
+    textColor: '{colors.board-ink}'
+    padding: '10px 12px 9px 14px'
   session-row-hover:
-    backgroundColor: "{colors.board-bg-raised}"
+    backgroundColor: '{colors.board-bg-raised}'
   session-row-selected:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: '{colors.accent}'
+    textColor: '{colors.accent-ink}'
   flap-tile:
-    backgroundColor: "{colors.board-tile}"
-    textColor: "{colors.board-tile-ink}"
-    rounded: "{rounded.sm}"
-    width: "22px"
-    height: "30px"
+    backgroundColor: '{colors.board-tile}'
+    textColor: '{colors.board-tile-ink}'
+    rounded: '{rounded.sm}'
+    width: '22px'
+    height: '30px'
   status-dot:
-    backgroundColor: "{colors.idle}"
-    size: "7px"
+    backgroundColor: '{colors.idle}'
+    size: '7px'
   status-dot-loading:
-    backgroundColor: "{colors.loading}"
+    backgroundColor: '{colors.loading}'
   chrome-omnibox:
-    backgroundColor: "{colors.chrome-omnibox-bg}"
-    textColor: "{colors.chrome-ink-dim}"
-    rounded: "{rounded.pill}"
-    height: "28px"
-    padding: "0 14px"
+    backgroundColor: '{colors.chrome-omnibox-bg}'
+    textColor: '{colors.chrome-ink-dim}'
+    rounded: '{rounded.pill}'
+    height: '28px'
+    padding: '0 14px'
   chrome-tab-active:
-    backgroundColor: "{colors.chrome-tab-active}"
-    textColor: "{colors.chrome-ink}"
-    rounded: "{rounded.tab}"
-    height: "30px"
+    backgroundColor: '{colors.chrome-tab-active}'
+    textColor: '{colors.chrome-ink}'
+    rounded: '{rounded.tab}'
+    height: '30px'
 ---
 
 # Design System: 多会话测试浏览器
@@ -334,6 +336,8 @@ Tab tear-off 的产物：完整浏览器窗口（Tab 栏 + 导航工具栏，同
 ### 拖拽手势（Tab Drag）— 阶段 9 新增
 
 Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自绘手势**（pointerdown 捕获 → 位移过 5px 阈值成拖拽 → pointerup 直接上报落点裁决；favicon 与关闭钮显式 `draggable={false}` 防原生拖拽劫持，chip 上 `user-select: none` + `touch-action: none`）。手势引擎弃用 HTML5 DnD（阶段 9 验收后修订，用户实测反馈）：原生拖放在窗外释放时，松手位置下方的窗口未「接受投放」，系统先播放拖影飞回原位动画、随后异步搬移才生效，叠加成「先回原位再跳走」的两段视觉；指针捕获自绘后没有 OS 拖影，松手即结果，跨窗事件送达由指针捕获保证（光标出窗仍收 move/up）。主进程拖拽控制器（dragging.ts）以 16ms 光标轮询驱动同会话窗口命中与悬停高亮推送（仅变化时广播，只达同会话窗口），释放按上报屏幕坐标（DIP）做四态裁决——空白处释放建新窗（落点水平居中、垂直 40% 处，工作区 clamp）/ 并入同会话既有窗口（按指示位插入并激活、无指示位时末位，含激活会话相符时的主窗与独立窗互转）/ 源窗上释放 stayed / 异会话窗口 rejected（源 Tab 原位回弹）。取消判定不读 dropEffect（合成路径 setter 无效、真实路径多形态同值无法区分，冒烟定案）——一律坐标裁决；多窗 bounds 重叠按「聚焦优先 → 最近聚焦序 → 主窗兜底最后」确定性 tiebreak；拖拽会话丢失有 60s 过期清态兜底。**Esc = 放回源窗**（capture 阶段吞键，拖拽中不让位 close-devtools 快捷键，落点取源窗内坐标保证 stayed）；拖拽结束的随尾 click 一律吞掉（pointerup 后浏览器仍派发 click，HTML5 原生拖拽会压制而自绘手势不会——不吞会把点击语义混入拖拽：Tab 拖走后对已移出作用域的 Tab 误报「标签页不存在」，源窗内小拖释放误激活被拖 Tab）。**跟随虚影**（用户实测反馈补齐，Chrome 同款手感）：主进程透明置顶小窗（`dragPreview.ts`，floating 层、不接鼠标、不抢焦点、不进任务栏）渲染与源 Tab 同尺寸的圆角卡片（chrome-tab-active 亮暗配色 + favicon + 标题，data URL 内联自包含样式），锚定按下点在卡内的偏移由 16ms 光标轮询逐帧 `setBounds` 跟随（与悬停高亮同源，零新增定时器），生命周期严格锁在拖拽窗口期（dragStart 建、释放/过期/接管即销毁）。视觉三态全灰阶：源 Tab `opacity: 0.45`（拖拽半透明 + grabbing 光标，不引入新色）、悬停落点整条 Tab 栏切 `--chrome-tabbar-drag-target`（亮 #c4c7cc / 暗 #444548，比按压态再深一档的落点信号，0.12s 背景过渡）、拒绝回弹 `chrome-tab-reject-return` 0.32s 两级水平回落（右侧唯一允许的位移动效，短于翻牌 0.4s 上限、同款指数缓出无过冲）。**插入位精确定位（阶段 10）**：悬停推送携带光标在悬停窗内容坐标系的位置（getContentBounds 起算 DIP，与 CSS px 同值；窗口切换广播 + 窗内位移超 2px 重发——指示器随光标实时更新而静止零流量）；目标窗 TabStrip 按各 Tab 中点判定算插入位，渲染插入指示竖线（`chrome-tab-insert` 亮 #3c4043 / 暗 #e8eaed 墨级灰阶，2px 全高 30px、绝对定位单元素位移不推挤 Tab、pointer-events 关闭、显隐瞬切无过渡——插入位本就离散跳变），插入位变化时经 `tab-drag-insert` 命令上报主进程缓存为 hint（尽力而为：结构守卫后 sender 窗 = 当前悬停窗且 tabId 匹配才存，不符静默 ok；悬停窗切换即清 hint，无 hint/陈旧一律回退末位，同窗重发保留 last-known hint 优于末位回退）。**Esc = 显式取消**（阶段 10 修订）：坐标假想点（源窗内偏移）在源窗与独立窗重叠时会同时命中他窗、坐标裁决无法区分取消与释放，dragEnd 增可选 `canceled` 显式携带、主进程一律 stayed 清场（与「不读 dropEffect」定案不冲突——那是推断不可靠，这是显式键盘信号）。**会话绑定漂移守卫**（阶段 10）：拖拽期间来源窗口的会话绑定已变（删会话级联切换/显式切会话）即 stayed——跨会话 tab id 按 manager 各自自增、切开后 isTabInScope 会按当前激活 manager 撞号别名命中。已知边界：他应用窗口遮挡时命中裁决不知晓遮挡（Electron 无 z 序 API）；Windows 的指针坐标形态待实测（(0,0) 陈旧上报已有轮询点兜底）。
+
+**Tab 分隔线与栏内重排（2026-09-18 增，tab栏分隔线与栏内拖动排序专项）**：非活动相邻 Tab 间呈现 1px × 16px 竖直分隔线（`chrome-tab-separator` 亮 #b8bcc1 / 暗 #3c4043——Chromium tabstrip separator 同值灰阶，垂直居中锚定栏内 4px 间隙几何中心）；相邻选择器 `:not(.active) + :not(.active)` 天然保证活动 Tab 两侧无线（Chrome 同款，选中项浮起即边界）。栏内重排复用拖拽半透明语系：拖动 Tab `opacity: 0.45` + `grabbing`（与 tear-off `.dragging` 同值，两态区分在行为不在透明度）+ JS 内联 `translateX` 跟手（零 transition 保零延迟）+ `z-index` 提层 + 关闭钮隐藏防误点；其余 Tab 按 DOM 序瞬切让位（无动画——与跟手零延迟对比干净，插入 FLIP 属计划外动效）。重排与拖出的意图升级：栏内水平拖动为重排、光标拖离 Tab 栏矩形自动升级 tear-off（升级前先提交已发生位移，源栏序与新窗起点一致）。
 
 ### 分隔条（Panel Divider）
 

@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：三十二条通道（浏览器域 25 条（19 命令 + 6 推送）+ 建议子窗域
+// 浏览器 IPC handlers：三十三条通道（浏览器域 26 条（20 命令 + 6 推送）+ 建议子窗域
 // 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
@@ -279,6 +279,26 @@ export function registerBrowserIpc(
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
       requireTabId(scope.windowId, payload.id)
       return manager.switchTab(payload.id, scope.windowId)
+    })
+  )
+
+  // reorderTabs：同窗口 Tab 重排（栏内拖拽排序）。结构守卫（ids 非空数组、每项
+  // string、量级按该窗快照防御封顶）后委托 manager 全序整单校验（不匹配抛中文
+  // 错误，对齐 sessions reorder 整单拒绝口径），成功返回该窗作用域新快照
+  ipcMain.handle(BROWSER_CHANNELS.reorderTabs, (event, payload: unknown): BrowserSnapshot =>
+    logFailure(BROWSER_CHANNELS.reorderTabs, payload, () => {
+      const scope = requireScope(event)
+      if (
+        !isRecord(payload) ||
+        !Array.isArray(payload.ids) ||
+        payload.ids.length === 0 ||
+        payload.ids.some((id) => typeof id !== 'string')
+      ) {
+        throw invalidParams()
+      }
+      const tabCount = manager.getSnapshot(scope.windowId).tabs.length
+      if (payload.ids.length > Math.max(tabCount, 1) * 2) throw invalidParams()
+      return manager.reorderTabs(payload.ids, scope.windowId)
     })
   )
 
@@ -579,6 +599,6 @@ export function registerBrowserIpc(
   )
 
   console.log(
-    '[browser] IPC handlers 已注册（32 条通道：浏览器域 25 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
+    '[browser] IPC handlers 已注册（33 条通道：浏览器域 26 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
   )
 }

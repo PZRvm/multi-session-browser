@@ -6,6 +6,7 @@ import type {
   NavigatePayload,
   NewTabPayload,
   OkResult,
+  ReorderTabsPayload,
   SetBoundsPayload,
   SwitchTabPayload,
   TabDragEndPayload,
@@ -93,6 +94,7 @@ declare global {
         newTab(payload?: NewTabPayload): Promise<BrowserSnapshot>
         closeTab(payload: CloseTabPayload): Promise<BrowserSnapshot>
         switchTab(payload: SwitchTabPayload): Promise<BrowserSnapshot>
+        reorderTabs(payload: ReorderTabsPayload): Promise<BrowserSnapshot>
         navigate(payload: NavigatePayload): Promise<BrowserSnapshot>
         back(): Promise<BrowserSnapshot>
         forward(): Promise<BrowserSnapshot>

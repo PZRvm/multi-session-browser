@@ -57,6 +57,8 @@
   --chrome-tabbar: #dee1e6;
   --chrome-toolbar: #f1f3f4;
   --chrome-line: #c7cbd1;
+  /* Tab 分隔线（Chromium tabstrip separator 同值）：仅相邻非活动 Tab 间呈现 */
+  --chrome-tab-separator: #b8bcc1;
   --chrome-ink: #3c4043;
   --chrome-ink-dim: #5f6368;
   --chrome-disabled: #b0b4b9;
@@ -115,6 +117,7 @@
     --chrome-tabbar: #202124;
     --chrome-toolbar: #292a2d;
     --chrome-line: #3c4043;
+    --chrome-tab-separator: #3c4043;
     --chrome-ink: #e8eaed;
     --chrome-ink-dim: #bdc1c6;
     --chrome-disabled: #5f6368;
@@ -1772,13 +1775,43 @@ body.col-resizing {
   /* 指针拖拽手势（无 HTML5 DnD）：禁文本选择与触控滚动默认行为，拖动不产生选区 */
   user-select: none;
   touch-action: none;
+  /* 分隔线伪元素（相邻非活动 Tab 间）与重排跟手位移的定位锚 */
+  position: relative;
   transition:
     background-color 0.12s ease,
     opacity 0.12s ease;
 }
 
+/* Tab 分隔线（Chrome 对齐，2026-09-18）：仅相邻两个 Tab 均为非活动态时呈现于其间
+   （相邻选择器天然保证活动 Tab 两侧无线——活动 Tab 是前缀则后邻无线、自身无线）；
+   1px × 16px 垂直居中，锚定 4px 栏内间隙的几何中心 */
+.chrome-tab:not(.active) + .chrome-tab:not(.active)::before {
+  content: '';
+  position: absolute;
+  left: -2.5px;
+  top: 50%;
+  width: 1px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: var(--chrome-tab-separator);
+}
+
 .chrome-tab.active {
   background: var(--chrome-tab-active);
+}
+
+/* 栏内重排拖动中：与 tear-off 拖出（.dragging）同款半透明跟手语系；跟手位移由
+   JS 内联 translateX 写入（零 transition 保零延迟），z-index 提层防邻 Tab 覆盖，
+   关闭钮隐藏防拖动中误点 */
+.chrome-tab.reordering {
+  opacity: 0.45;
+  cursor: grabbing;
+  z-index: 2;
+  transition: none;
+}
+
+.chrome-tab.reordering .chrome-tab-close {
+  opacity: 0;
 }
 
 /* 非激活 tab 悬停 / 键盘聚焦：半透明蒙版加深，不引入新色 */

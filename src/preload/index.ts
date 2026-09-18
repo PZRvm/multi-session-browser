@@ -10,6 +10,7 @@ import type {
   NavigatePayload,
   NewTabPayload,
   OkResult as BrowserOkResult,
+  ReorderTabsPayload,
   SetBoundsPayload,
   SwitchTabPayload,
   TabDragEndPayload,
@@ -154,6 +155,10 @@ const api = {
       ipcRenderer.invoke(BROWSER_CHANNELS.closeTab, payload),
     switchTab: (payload: SwitchTabPayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.switchTab, payload),
+    // 同窗口 Tab 重排（栏内拖拽排序）：ids 为该窗全部 Tab id 的无重复全序，整单校验
+    // 不匹配拒绝（renderer 据失败回滚本地预览序）
+    reorderTabs: (payload: ReorderTabsPayload): Promise<BrowserSnapshot> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.reorderTabs, payload),
     navigate: (payload: NavigatePayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.navigate, payload),
     back: (): Promise<BrowserSnapshot> => ipcRenderer.invoke(BROWSER_CHANNELS.back),

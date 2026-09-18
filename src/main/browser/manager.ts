@@ -98,6 +98,13 @@ export interface TabManager {
   closeTab: (id: string, windowId?: string) => BrowserSnapshot
   /** 切换指定窗口的激活 Tab；旧 view 脱离 contentView 但不销毁（页面状态保留） */
   switchTab: (id: string, windowId?: string) => BrowserSnapshot
+  /**
+   * 同窗口 Tab 重排（栏内拖拽排序，2026-09-18）：ids 须为该窗作用域全部 Tab id 的
+   * 无重复全序（纯重排不增删）——集合不符/含未知或越权 id/有重复整单拒绝抛中文
+   * 错误（对齐 sessions reorder 整单拒绝口径），通过即 applyTabOrder 全序覆盖并
+   * emitChange；视图挂摘与激活位零触碰（激活 Tab 重排后仍激活）
+   */
+  reorderTabs: (ids: string[], windowId?: string) => BrowserSnapshot
   /** 设置该窗口内容区矩形（窗口内容坐标系 DIP），仅作用于该窗口的激活 view */
   setBounds: (rect: SetBoundsPayload, windowId?: string) => void
   /** 切换该窗口激活 Tab 的原生受管 DevTools；无激活 Tab 时 no-op；返回该窗口作用域快照 */
@@ -618,6 +625,21 @@ export function createTabManager(
     return buildSnapshot(sourceWindowId)
   }
 
+  /**
+   * 作用域内 Tab 重排的 Map 迭代序应用原语（moveTabToWindow 按位插入与 reorderTabs
+   * 全序重排的单源）：tabs Map 对既有键直接 set 不移动位序，逐键 delete + set 使其
+   * 落到 Map 末尾——按 orderedIds 顺序全部应用后，迭代序即 orderedIds。ids 内不存
+   * 在的键跳过；作用域外的键不被触碰（其他窗口作用域的相对序不受扰动）
+   */
+  function applyTabOrder(orderedIds: string[]): void {
+    for (const tabId of orderedIds) {
+      const tab = tabs.get(tabId)
+      if (!tab) continue
+      tabs.delete(tabId)
+      tabs.set(tabId, tab)
+    }
+  }
+
   function moveTabToWindow(
     id: string,
     sourceWindowId: string,
@@ -644,21 +666,11 @@ export function createTabManager(
       if (nextId !== null) activate(nextId, sourceWindowId)
     }
     // 按位插入（阶段 10）：目标作用域期望序 = 现序摘出本 Tab 后在第 insertIndex 位放入
-    //（缺省 = 末位；负 → 0、超上界 → 末位钳制）。tabs Map 迭代序即创建序（快照顺序的
-    // 唯一次序源），对既有键直接 set 不移动位序——必须 delete 后重新 set 才落到 Map
-    // 末尾；故把「本 Tab + 期望序中排其后的目标作用域 Tab」逐个 delete + 重新 set 恢复
-    // 目标作用域相对序（重排键全部属目标窗，其他窗口作用域的相对序不受扰动）
+    //（缺省 = 末位；负 → 0、超上界 → 末位钳制）；Map 迭代序应用走 applyTabOrder 单源
     const rest = scopedTabIds(targetWindowId).filter((tabId) => tabId !== id)
     const insertAt =
       insertIndex === undefined ? rest.length : Math.min(Math.max(insertIndex, 0), rest.length)
-    tabs.delete(id)
-    tabs.set(id, target)
-    for (const tabId of rest.slice(insertAt)) {
-      const tab = tabs.get(tabId)
-      if (!tab) continue
-      tabs.delete(tabId)
-      tabs.set(tabId, tab)
-    }
+    applyTabOrder([...rest.slice(0, insertAt), id, ...rest.slice(insertAt)])
     // 目标窗已就绪，activate 收尾：摘目标窗旧激活 view + 即时挂入新 view——只置激活位
     // 会与目标窗旧激活 view 双挂叠加（tearOffTab 的只置位是新建窗的防白屏时序，不适用）
     activate(id, targetWindowId)
@@ -696,6 +708,20 @@ export function createTabManager(
       return buildSnapshot(windowId)
     }
     activate(id, windowId)
+    emitChange()
+    return buildSnapshot(windowId)
+  }
+
+  function reorderTabs(ids: string[], windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const current = scopedTabIds(windowId)
+    // 整单校验：长度一致 + 无重复 + 每项均为本作用域 Tab（覆盖未知 id 与越权 id），
+    // 三者成立则 ids 与现序集合必然一致；不匹配整单拒绝（renderer 回滚本地预览序）
+    const valid =
+      ids.length === current.length &&
+      new Set(ids).size === ids.length &&
+      ids.every((id) => tabs.get(id)?.windowId === windowId)
+    if (!valid) throw new Error(t('errors.tabReorderInvalidOrder'))
+    applyTabOrder(ids)
     emitChange()
     return buildSnapshot(windowId)
   }
@@ -821,6 +847,7 @@ export function createTabManager(
     moveTabToWindow,
     destroyTabsInWindow,
     switchTab,
+    reorderTabs,
     setBounds,
     toggleDevTools,
     closeDevTools,

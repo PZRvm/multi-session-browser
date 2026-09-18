@@ -796,6 +796,11 @@ export function createSessionBrowserRegistry(deps: {
     return manager ? manager.switchTab(id, windowId) : emptySnapshot()
   }
 
+  function reorderTabs(ids: string[], windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    const manager = scopedManager(windowId)
+    return manager ? manager.reorderTabs(ids, windowId) : emptySnapshot()
+  }
+
   function toggleDevTools(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
     return manager ? manager.toggleDevTools(windowId) : emptySnapshot()
@@ -987,6 +992,7 @@ export function createSessionBrowserRegistry(deps: {
     onIndependentWindowReady,
     onIndependentWindowClosed,
     switchTab,
+    reorderTabs,
     setBounds,
     toggleDevTools,
     closeDevTools,

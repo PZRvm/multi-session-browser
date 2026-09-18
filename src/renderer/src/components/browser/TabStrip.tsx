@@ -5,12 +5,19 @@ import { useAppearanceStore } from '../../stores/appearance'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useT } from '../../i18n'
 import { useRectObserver } from './useRectObserver'
+import { useTabReorder, type TabReorderApi } from './useTabReorder'
 
 interface TabItemProps {
   tab: BrowserTabState
   active: boolean
   /** 仅剩 1 个 tab 时关闭钮禁用（主窗口作用域规则，见下方 lastOne 注释） */
   lastOne: boolean
+  /** 栏内重排编排器（TabStrip 层单实例，TabItem 手势层调用） */
+  reorderApi: TabReorderApi
+  /** 本 Tab 是否处于栏内重排拖动中（.reordering 类 + 内联跟手位移的数据源） */
+  reordering: boolean
+  /** 重排跟手位移（px，内联 translateX；换位发生时由手势层重置归零） */
+  dragOffsetX: number
 }
 
 /** 指针拖拽进入阈值（px）：按下后位移超过此半径才认定为拖拽，防点击误判 */
@@ -23,9 +30,19 @@ const DRAG_ENGAGE_RADIUS_PX = 5
 // 捕获自绘后没有 OS 拖影，松手即裁决；跨窗命中本就由主进程光标轮询承担，不依赖
 // HTML5 拖放事件（dropEffect 裁决不采用的冒烟定案继续有效）。拖拽三态视觉
 // （源半透明 / 悬停高亮 / 拒绝回弹）挂 chrome-tab 类系，样式见 app.css。
-// 指针手势三态：idle → armed（已按下未过阈值，仍是点击候选）→ dragging（位移
-// 过阈值，已上报主进程开轮询）。
-function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
+// 指针手势四态（2026-09-18 重排专项由三态扩展）：idle → armed（已按下未过阈值，
+// 仍是点击候选）→ 过阈值按位移方向分流——水平主导且光标在栏矩形内 → reordering
+//（栏内重排，本地预览序 + 释放全序提交，拖离栏矩形升级 dragging）；垂直主导 →
+// dragging（既有 tear-off 拖出，主进程轮询裁决）。reordering 不回落 dragging、
+// dragging 不降级 reordering（升级前已提交位移，反向转换会破坏两段提交一致性）。
+function TabItem({
+  tab,
+  active,
+  lastOne,
+  reorderApi,
+  reordering,
+  dragOffsetX
+}: TabItemProps): React.JSX.Element {
   const t = useT()
   const switchTab = useBrowserStore((s) => s.switchTab)
   const closeTab = useBrowserStore((s) => s.closeTab)
@@ -38,7 +55,7 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
   // 卸载清理（下方 useEffect return）须能独立于事件流安全收尾；拖拽中卸载的
   // 清态由 store.applySnapshot 自愈与主进程 60s 过期兜底
   const gestureRef = useRef<{
-    mode: 'idle' | 'armed' | 'dragging'
+    mode: 'idle' | 'armed' | 'dragging' | 'reordering'
     pointerId: number
     originX: number
     originY: number
@@ -106,12 +123,16 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
 
   const title = tab.title || t('common.blankTabTitle')
 
-  /** 位移过阈值，正式进入拖拽：上报主进程开轮询（携带虚影描述）+ 挂 Esc 放回 */
-  const engageDrag = (e: React.PointerEvent<HTMLDivElement>): void => {
+  /**
+   * 位移过阈值，正式进入拖拽：上报主进程开轮询（携带虚影描述）+ 挂 Esc 放回。
+   * 参数取元素引用而非事件对象——重排升级拖出经异步提交 settle 后才进本函数，
+   * React 合成事件的 currentTarget 在异步段已置 null，元素引用仍有效
+   */
+  const engageDrag = (el: HTMLDivElement): void => {
     gestureRef.current.mode = 'dragging'
     // 虚影描述：卡片度量与按下点在卡内偏移（主进程预览窗按「光标 - 偏移」锚定跟随，
     // 与真实抓取手感一致）、标题/favicon、当前解析主题（亮暗与壳一致）
-    const rect = e.currentTarget.getBoundingClientRect()
+    const rect = el.getBoundingClientRect()
     const g = gestureRef.current
     dragStart(tab.id, {
       width: rect.width,
@@ -138,15 +159,89 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
     document.addEventListener('keydown', onEsc, true)
   }
 
+  /** 摘当前 Esc 监听（重排与拖出两态共用同一挂载位） */
+  const detachEsc = (): void => {
+    if (escCancelRef.current !== null) {
+      document.removeEventListener('keydown', escCancelRef.current, true)
+      escCancelRef.current = null
+    }
+  }
+
+  /** 栏内重排收尾（栏内释放）：复位手势态 + 吞随尾 click + 提交预览序（无位移短路） */
+  const finishReorder = (): void => {
+    const g = gestureRef.current
+    if (g.mode !== 'reordering') return
+    g.mode = 'idle'
+    suppressClickRef.current = true
+    detachEsc()
+    void reorderApi.commit()
+  }
+
+  /**
+   * 重排升级 tear-off（拖离 Tab 栏矩形）：先提交已发生位移（主进程序与新窗 tear-off
+   * 起点一致，契约见 useTabReorder 头注），提交 settle 后再走既有拖出链路（虚影/
+   * 轮询/四态裁决照旧）；拖出链接管后续手势，本函数不再回写 reordering 状态
+   */
+  const upgradeToDragOut = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const g = gestureRef.current
+    if (g.mode !== 'reordering') return
+    detachEsc()
+    const el = e.currentTarget
+    void reorderApi.commitIfMoved().then(() => {
+      if (gestureRef.current.mode !== 'reordering') return
+      engageDrag(el)
+    })
+  }
+
+  /**
+   * 意图分流判定为栏内重排后的进入动作（与 engageDrag 对称）：置第四态、初始化
+   * 编排器与跟手位移、挂 Esc 放回（capture 阶段吞键，重排中不让位 close-devtools）
+   */
+  const beginReorder = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const g = gestureRef.current
+    g.mode = 'reordering'
+    reorderApi.begin(tab.id)
+    reorderApi.setDragOffsetX(e.clientX - g.downClientX)
+    const onReorderEsc = (ev: KeyboardEvent): void => {
+      if (ev.key !== 'Escape') return
+      ev.preventDefault()
+      ev.stopPropagation()
+      // Esc 放回原位：清本地预览序零 IPC（快照未动即原序），吞随尾 click
+      if (gestureRef.current.mode !== 'reordering') return
+      gestureRef.current.mode = 'idle'
+      suppressClickRef.current = true
+      detachEsc()
+      reorderApi.cancel()
+    }
+    escCancelRef.current = onReorderEsc
+    document.addEventListener('keydown', onReorderEsc, true)
+  }
+
+  /** 重排拖动中：光标出栏矩形（±4px 容差防边缘抖动）升级拖出；栏内则换位判定 + 跟手 */
+  const handleReorderMove = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const bar = e.currentTarget.closest('.chrome-tabs')
+    const rect = bar?.getBoundingClientRect()
+    if (rect && (e.clientY < rect.top - 4 || e.clientY > rect.bottom + 4)) {
+      upgradeToDragOut(e)
+      return
+    }
+    const moved = reorderApi.move(tab.id, e.clientX)
+    // 换位发生即重置跟手基准（hook 契约：跨换位累积偏移会叠加错位，吸附新槽再跟手）
+    if (moved) gestureRef.current.downClientX = e.clientX
+    reorderApi.setDragOffsetX(e.clientX - gestureRef.current.downClientX)
+  }
+
   return (
     <div
       role="tab"
       tabIndex={0}
       aria-selected={active}
       title={title}
+      data-tab-id={tab.id}
       className={`chrome-tab${active ? ' active' : ''}${dragging ? ' dragging' : ''}${
-        rejected ? ' drag-rejected' : ''
-      }`}
+        reordering ? ' reordering' : ''
+      }${rejected ? ' drag-rejected' : ''}`}
+      style={reordering ? { transform: `translateX(${dragOffsetX}px)` } : undefined}
       onClick={() => {
         if (suppressClickRef.current) {
           suppressClickRef.current = false
@@ -189,16 +284,34 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
         if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
         g.lastX = e.screenX
         g.lastY = e.screenY
+        // 重排拖动中：栏矩形判定 + 中点换位 + 跟手位移（见 handleReorderMove）
+        if (g.mode === 'reordering') {
+          handleReorderMove(e)
+          return
+        }
         if (g.mode !== 'armed') return
         const dx = e.screenX - g.originX
         const dy = e.screenY - g.originY
         if (dx * dx + dy * dy < DRAG_ENGAGE_RADIUS_PX * DRAG_ENGAGE_RADIUS_PX) return
-        engageDrag(e)
+        // 意图分流（2026-09-18 重排专项）：过阈值瞬间水平主导且光标仍在 Tab 栏
+        // 矩形内 → 栏内重排（beginReorder 含 Esc 放回挂载）；否则进入既有 tear-off
+        // 拖出。此后两态各自单向升级/保持，不回落（升级契约见 handleReorderMove
+        // 与 hook 头注）
+        if (Math.abs(dx) > Math.abs(dy)) {
+          const bar = e.currentTarget.closest('.chrome-tabs')
+          const rect = bar?.getBoundingClientRect()
+          if (rect && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            beginReorder(e)
+            return
+          }
+        }
+        engageDrag(e.currentTarget)
       }}
       onPointerUp={(e) => {
         const g = gestureRef.current
         if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
         if (g.mode === 'dragging') finishDrag(e.screenX, e.screenY)
+        else if (g.mode === 'reordering') finishReorder()
         else g.mode = 'idle'
       }}
       onPointerCancel={(e) => {
@@ -206,13 +319,30 @@ function TabItem({ tab, active, lastOne }: TabItemProps): React.JSX.Element {
         const g = gestureRef.current
         if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
         if (g.mode === 'dragging') finishDrag(g.lastX, g.lastY)
+        else if (g.mode === 'reordering') finishReorder()
         else g.mode = 'idle'
       }}
       onLostPointerCapture={(e) => {
-        // 兜底：up/cancel 之外的异常失捕（如元素中途移出 DOM）按最后坐标收尾，
-        // 不悬挂半透明态；正常路径 up/cancel 已把 mode 复位为 idle，此处自然跳过
+        // 兜底：up/cancel 之外的异常失捕按最后坐标收尾，不悬挂半透明态；正常路径
+        // up/cancel 已把 mode 复位为 idle，此处自然跳过。
+        // 栏内重排的隐式失捕例外（2026-09-18 用户实测修复）：React 按预览序移动
+        // children 时，被拖 Tab 自身的 DOM 节点会被 remove + insert——往右移位时
+        // React 的最小移动策略（oldIndex 递增者不动、乱序者移动）恰好总命中被拖
+        // 节点，浏览器随之隐式释放指针捕获；这不是手势终止信号，对同一元素重新
+        // 捕获即恢复事件流（往左移位时移动的是其他 Tab 的节点，捕获不受影响，
+        // 故症状单向）。仅当重捕获抛错（指针已失效，如恰逢松开）才按释放收尾。
+        // 拖出态（dragging）无 DOM 重排不触发隐式失捕，维持原兜底语义
         const g = gestureRef.current
         if (e.pointerId !== g.pointerId) return
+        if (g.mode === 'reordering') {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId)
+            return
+          } catch {
+            finishReorder()
+            return
+          }
+        }
         if (g.mode === 'dragging') finishDrag(g.lastX, g.lastY)
         else if (g.mode === 'armed') g.mode = 'idle'
       }}
@@ -266,6 +396,11 @@ function TabStrip(): React.JSX.Element {
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const newTab = useBrowserStore((s) => s.newTab)
+  // 栏内重排编排（2026-09-18）：单实例挂本层，本地预览序存在时以预览序渲染
+  //（拖动 Tab 实时让位）；提交即全序覆盖回快照真相。悬停指示器与重排互斥
+  //（跨窗拖拽 vs 本地手势），共用容器 ref 无冲突
+  const reorder = useTabReorder(tabs)
+  const renderTabs = reorder.previewTabs ?? tabs
   // 同会话拖拽悬停落点（阶段 9；2026-09-25 修订后悬停判定收窄到本窗 Tab 栏矩形——
   // 主进程 hoverWindowAt 按 Tab 栏命中）：store 已把悬停推送归一化为「本窗口 id 或
   // null」，命中即整条 Tab 栏高亮——可落的是 Tab 栏本身（Chrome 对齐），栏是 app
@@ -273,6 +408,8 @@ function TabStrip(): React.JSX.Element {
   const dragTarget = useBrowserStore((s) => s.hoverWindowId === windowIdentity.windowId)
 
   // 拖拽插入指示器（阶段 10）：悬停落点本窗时按光标对各 Tab 中点判定插入位
+  //（中点判定与 useTabReorder.move 同源：彼为相邻单步换位、此为全量 index 定位——
+  // 形态差异是两手势语义使然，勿合并）
   // （0..tabs.length）。指示器是单元素绝对定位位移——不进列表流、不推挤 Tab、
   // pointer-events 关闭不参与手势命中；位置更新经 store 直订阅驱动，16ms 悬停
   // 推送不进 React 渲染通道；插入位变化才上报 dragInsert hint（尽力而为，失败
@@ -372,8 +509,16 @@ function TabStrip(): React.JSX.Element {
       role="tablist"
       aria-label={t('browser.tabs.listAria')}
     >
-      {tabs.map((tab) => (
-        <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} lastOne={lastOne} />
+      {renderTabs.map((tab) => (
+        <TabItem
+          key={tab.id}
+          tab={tab}
+          active={tab.id === activeTabId}
+          lastOne={lastOne}
+          reorderApi={reorder}
+          reordering={reorder.reorderTabId === tab.id}
+          dragOffsetX={reorder.reorderTabId === tab.id ? reorder.dragOffsetX : 0}
+        />
       ))}
       {/* 插入指示竖线：纯视觉元素（不进可达树），显隐与位置由上方 effect 写入 */}
       <div className="chrome-tab-insert" ref={insertElRef} hidden aria-hidden="true" />

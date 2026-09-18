@@ -56,6 +56,8 @@ interface BrowserState {
   newTab: (url?: string) => Promise<void>
   closeTab: (id: string) => Promise<void>
   switchTab: (id: string) => Promise<void>
+  /** 同窗口 Tab 重排（栏内拖拽排序）：全序提交，成功以返回快照更新，失败保持原状 */
+  reorderTabs: (ids: string[]) => Promise<void>
   navigate: (url: string) => Promise<boolean>
   goBack: () => Promise<void>
   goForward: () => Promise<void>
@@ -403,6 +405,16 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       applySnapshot(set, get, await window.api.browser.switchTab({ id }))
     } catch (error) {
       console.error('切换标签页失败', error)
+    }
+  },
+
+  // 重排与其他命令同规：不乐观更新（本地预览序由 useTabReorder 持有），IPC 成功以
+  // 返回快照更新（全序覆盖），失败保持原状——预览序已由手势层清空即自然回滚
+  reorderTabs: async (ids) => {
+    try {
+      applySnapshot(set, get, await window.api.browser.reorderTabs({ ids }))
+    } catch (error) {
+      console.error('标签页排序失败', error)
     }
   },
 

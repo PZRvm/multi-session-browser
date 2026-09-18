@@ -10,6 +10,7 @@ export const errors = {
   /** 浏览器域 handler（browser/ipc.ts） */
   noSessionSelected: '未选择会话',
   tabNotFound: '标签页不存在',
+  tabReorderInvalidOrder: '标签页顺序与当前列表不一致，已保持原顺序',
   invalidUrl: '无效的网址',
   unknownCommandSource: '无法识别命令来源窗口',
 

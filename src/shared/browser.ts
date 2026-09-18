@@ -26,6 +26,9 @@
 // 2026-09-25 起增拖出裁决修订：report-tabstrip-rect 命令通道（浏览器域 24→25）+ 四态
 // 裁决从「命中窗口 bounds」细化为「命中 Tab 栏矩形」（离开 Tab 栏的一切位置均建新
 // 窗，Chrome 对齐）——契约修订记录见 notes/plans/20260925085925-拖出裁决阈值修订.md。
+// 2026-09-18 起增 reorder-tabs 命令通道（浏览器域 25→26）：同窗口作用域内 Tab 拖拽
+// 重排的全序提交——契约冻结于 tab栏分隔线与栏内拖动排序开发计划 2.4 节
+//（notes/plans/20260918140903-tab栏分隔线与栏内拖动排序开发计划.md）。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -35,6 +38,7 @@ export const BROWSER_CHANNELS = {
   newTab: 'browser:new-tab',
   closeTab: 'browser:close-tab',
   switchTab: 'browser:switch-tab',
+  reorderTabs: 'browser:reorder-tabs',
   navigate: 'browser:navigate',
   back: 'browser:back',
   forward: 'browser:forward',
@@ -102,6 +106,16 @@ export interface CloseTabPayload {
 
 export interface SwitchTabPayload {
   id: string
+}
+
+/**
+ * 同窗口作用域内 Tab 重排（栏内拖拽排序，2026-09-18）：ids 须为该窗作用域全部
+ * Tab id 的**无重复全序**（纯重排，不增删）——与 sessions 域 reorder 同款整单校验
+ * 口径，集合不符/含未知 id/有重复一律整单拒绝（ipc 层抛错回传，renderer 回滚本地
+ * 预览序）。顺序即主进程 tabs Map 迭代序，成功返回该窗作用域新快照
+ */
+export interface ReorderTabsPayload {
+  ids: string[]
 }
 
 /**
