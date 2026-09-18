@@ -1101,11 +1101,12 @@ body.col-resizing {
 /* 自绘关闭点：12px 圆 #ff5f57——平台窗口饰品原值，非主题语义（与 --danger 的
    「破坏动作」语义不同源），平台 chrome 常量先例同 --settings-confirm-card-bg；
    左缘与下方分类行左缘对齐（2026-09-18 用户裁决——侧栏水平内距 8px 即行左缘，
-   不用原生灯位 20px）；top 13 沿原生灯位高度；内环 0.5px 描边模拟原生灯发丝环；
-   hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言可发现性） */
+   不用原生灯位 20px），上方间距同 8px（top，2026-09-18 用户裁决）；内环 0.5px
+   描边模拟原生灯发丝环；hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言
+   可发现性） */
 .settings-window-close {
   position: absolute;
-  top: 13px;
+  top: 8px;
   left: 8px;
   z-index: 11;
   display: flex;
@@ -1135,10 +1136,11 @@ body.col-resizing {
   color: rgba(70, 60, 55, 0.65);
 }
 
-/* chrome-custom 顶部让位：侧栏五分类起始位让出灯位区（原 10px → 38px，恢复出厂
-   沉底 margin-top: auto 不受影响）；详情区标题让出拖拽带（原 22px → 34px） */
+/* chrome-custom 顶部让位：侧栏五分类起始位 = 关闭点底（8 + 12）+ 用户裁决间距
+   12px → 32px（2026-09-18，恢复出厂沉底 margin-top: auto 不受影响）；
+   详情区标题让出拖拽带（原 22px → 34px） */
 .settings-window-chrome-custom .settings-sidebar {
-  padding-top: 38px;
+  padding-top: 32px;
 }
 
 .settings-window-chrome-custom .settings-detail {
