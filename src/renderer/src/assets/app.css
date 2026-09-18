@@ -1098,15 +1098,15 @@ body.col-resizing {
   -webkit-app-region: drag;
 }
 
-/* 自绘关闭点：macOS 红灯位（left 20 / top 13，对齐原生 hiddenInset 灯位），
-   12px 圆 #ff5f57——平台窗口饰品原值，非主题语义（与 --danger 的「破坏动作」
-   语义不同源），平台 chrome 常量先例同 --settings-confirm-card-bg；内环 0.5px
-   描边模拟原生灯发丝环；hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言
-   可发现性） */
+/* 自绘关闭点：12px 圆 #ff5f57——平台窗口饰品原值，非主题语义（与 --danger 的
+   「破坏动作」语义不同源），平台 chrome 常量先例同 --settings-confirm-card-bg；
+   左缘与下方分类行左缘对齐（2026-09-18 用户裁决——侧栏水平内距 8px 即行左缘，
+   不用原生灯位 20px）；top 13 沿原生灯位高度；内环 0.5px 描边模拟原生灯发丝环；
+   hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言可发现性） */
 .settings-window-close {
   position: absolute;
   top: 13px;
-  left: 20px;
+  left: 8px;
   z-index: 11;
   display: flex;
   align-items: center;
