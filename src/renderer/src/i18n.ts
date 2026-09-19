@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { Locale } from 'antd/es/locale'
 import enUS from 'antd/locale/en_US'
 import zhCN from 'antd/locale/zh_CN'
+import zhTW from 'antd/locale/zh_TW'
 import { createT, DICTIONARIES, type SupportedLanguage, type TFunc } from '../../shared/i18n'
 import { useI18nStore } from './stores/i18n'
 
@@ -13,6 +14,7 @@ import { useI18nStore } from './stores/i18n'
 /** antd 组件语言包映射：语言注册表 code → antd Locale（静态导入，无运行期加载） */
 export const ANTD_LOCALES: Record<SupportedLanguage, Locale> = {
   'zh-CN': zhCN,
+  'zh-TW': zhTW,
   'en-US': enUS
 }
 

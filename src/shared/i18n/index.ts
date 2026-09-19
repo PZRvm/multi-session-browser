@@ -22,9 +22,10 @@
 
 import { zhCN } from './locales/zh-CN'
 import { enUS } from './locales/en-US'
+import { zhTW } from './locales/zh-TW'
 
 /** 语言代码闭集（BCP-47）：settings.json 落盘值、建窗 query lang 值、字典目录名三处同源 */
-export type SupportedLanguage = 'zh-CN' | 'en-US'
+export type SupportedLanguage = 'zh-CN' | 'en-US' | 'zh-TW'
 
 /** 注册表条目：label 用该语言自名（中文（简体）/ English），语言选择框显示单源 */
 export interface LanguageEntry {
@@ -35,6 +36,7 @@ export interface LanguageEntry {
 /** 语言注册表单一事实源：新增语言在此加一条（扩展方法见头注），消费方全部由此派生 */
 export const SUPPORTED_LANGUAGES: LanguageEntry[] = [
   { code: 'zh-CN', label: '中文（简体）' },
+  { code: 'zh-TW', label: '繁體中文' },
   { code: 'en-US', label: 'English' }
 ]
 
@@ -51,6 +53,7 @@ export type Dictionary = typeof zhCN
 /** 全部语言字典（主进程 t() 与 renderer useT 共用；键受 SupportedLanguage 闭集约束） */
 export const DICTIONARIES: Record<SupportedLanguage, Dictionary> = {
   'zh-CN': zhCN,
+  'zh-TW': zhTW,
   'en-US': enUS
 }
 
