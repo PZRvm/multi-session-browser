@@ -32,6 +32,7 @@ import {
 import { registerFactoryResetIpc } from './factoryReset'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
+import { getAppDisplayNameForOS } from '../shared/appDisplay'
 import { WINDOW_ID_MAIN } from '../shared/browser'
 import type { TFunc } from '../shared/i18n'
 
@@ -142,6 +143,11 @@ function createWindow(): void {
   // 主题开窗闪色，契约见 shared/themeSystems.ts 头注）同源；macOS 关窗重开
   //（activate → createWindow）时取到的是当前偏好而非启动时旧值
   const appearance = appearanceController.getSnapshot()
+  // 主窗标题 = OS 展示名（2026-09-18 用户裁决：Dock/任务栏 hover 名随操作系统语言
+  // 取短名，契约见 shared/appDisplay.ts；Windows 任务栏 hover 显示的即窗口标题）。
+  // 拦截 page-title-updated 防 index.html <title>（应用内产品名）覆写——设置窗同款
+  //（settingsWindow.ts），独立窗口标题=会话名不受影响（PRD 验收 13）
+  const displayTitle = getAppDisplayNameForOS(app.getLocale())
   // Create the browser window.
   const win = new BrowserWindow({
     width: 1280,
@@ -150,6 +156,7 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
+    title: displayTitle,
     backgroundColor: getAppearanceBackgroundColor(appearance.resolvedTheme, appearance.themeColor),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -157,6 +164,7 @@ function createWindow(): void {
       sandbox: false
     }
   })
+  win.on('page-title-updated', (event) => event.preventDefault())
   // 回填主窗口显式引用（多窗口后此引用是 'main' 作用域的唯一身份判据）
   mainWindow = win
 
@@ -212,6 +220,11 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+  // OS 展示名（2026-09-18 用户裁决）：app.name 随操作系统语言取短名——Windows 任务
+  // 栏归属名/关于面板等系统面消费；macOS dev 态 Dock 名来自未打包二进制不可运行期
+  // 改（打包后由 electron-builder 元数据 + 本地化 InfoPlist.strings 生效），契约见
+  // shared/appDisplay.ts
+  app.setName(getAppDisplayNameForOS(app.getLocale()))
 
   // macOS dock 图标：dev 模式跑的是裸 Electron 二进制（bundle 内为默认图标，打包产物
   // 的 icns 不参与），运行时显式设置让 dev 与打包态一致；非 darwin 无此 API（窗口

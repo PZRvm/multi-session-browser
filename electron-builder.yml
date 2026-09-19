@@ -1,5 +1,10 @@
 appId: com.electron.app
-productName: multi-session-browser
+# OS 展示名兜底（无匹配系统语言的场景）：短名契约单源 src/shared/appDisplay.ts，
+# 三语言本地化名由 afterPack 钩子注入 .lproj/InfoPlist.strings（改名三处同步）
+productName: 多会话浏览器
+# 打包钩子：macOS 注入本地化显示名（zh_CN/zh_TW/en .lproj），系统按用户语言偏好
+# 自动挑选 Dock/菜单栏名；Windows/Linux 消费上方 productName 与运行期窗口标题
+afterPack: scripts/patch-mac-display-names.js
 directories:
   buildResources: build
 files:
@@ -24,6 +29,12 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
+    # 本地化展示名声明：与 afterPack 注入的 .lproj/InfoPlist.strings 配对
+    #（契约单源 src/shared/appDisplay.ts）
+    CFBundleLocalizations:
+      - zh-CN
+      - zh-TW
+      - en
     NSCameraUsageDescription: 用于被测网页的摄像头扫码与拍摄测试。
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
