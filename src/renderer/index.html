@@ -5,9 +5,10 @@
     <meta name="color-scheme" content="light dark" />
     <title>多会话测试浏览器</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- img-src 须放行 http:：Tab 栏 favicon 直接渲染页面上报的 http:// 图标地址（内部测试环境常见），收紧即回退空白图标 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:"
     />
   </head>
 
