@@ -17,7 +17,7 @@ import {
 } from '../../shared/sessions'
 import { loadSnapshot, mutateSnapshot } from '../store'
 import type { TabManager } from './manager'
-import { isOpenableUrl, logLoadFailure } from './url'
+import { isOpenableUrl } from './url'
 
 /** 页面侧上报去抖（trailing）：导航与标题事件密集，写盘前先静默一段时间 */
 const REPORT_DEBOUNCE_MS = 500
@@ -297,7 +297,8 @@ export function createSessionPersistence(deps: {
         const first = valid[0]
         const wc = manager.getActiveWebContents()
         if (wc && !wc.isDestroyed()) {
-          void wc.loadURL(first).catch((error: unknown) => logLoadFailure(first, error))
+          // 失败日志由 manager 挂的 did-fail-load 单点承担
+          void wc.loadURL(first).catch(() => {})
         }
         for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
       } else {

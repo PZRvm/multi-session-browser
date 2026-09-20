@@ -32,7 +32,6 @@ import {
 import { createCameraPermissionBroker } from './permissions'
 import { createSessionPersistence, type RestoreSet } from './persistence'
 import { createBrowserHistory, type BrowserHistory } from './history'
-import { logLoadFailure } from './url'
 import type { IndependentWindows } from './windows'
 
 /**
@@ -737,7 +736,8 @@ export function createSessionBrowserRegistry(deps: {
         } else if (activeTab && activeTab.url === BLANK_URL && restore) {
           const wc = manager.getActiveWebContents()
           if (wc && !wc.isDestroyed()) {
-            void wc.loadURL(url).catch((error: unknown) => logLoadFailure(url, error))
+            // 失败日志由 manager 挂的 did-fail-load 单点承担
+            void wc.loadURL(url).catch(() => {})
             if (id !== activeSessionId) detachActiveView(manager)
             continue
           }

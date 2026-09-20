@@ -19,10 +19,15 @@ import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/brows
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
 import type { VisitFact } from './history'
-import { isOpenableUrl, logLoadFailure } from './url'
+import { isOpenableUrl } from './url'
 
 const BLANK_URL = 'about:blank'
 export { BLANK_URL }
+
+// Chromium 网络层 net::ERR_ABORTED 的错误码（did-fail-load 的 errorCode）：停止加载/
+// 被新导航替换。Electron 39 对该失败的 code 字段是空串、描述不进 reject message，
+// 只能按此数值判定（2026-09-20 修复轮实测：用户终端 -3 失败的 code 为 ''）
+const NET_ERR_ABORTED = -3
 /** 悬挂（确认框等弹层）时的收起矩形 */
 const HIDDEN_RECT: SetBoundsPayload = { x: 0, y: 0, width: 0, height: 0 }
 
@@ -457,6 +462,14 @@ export function createTabManager(
       emitVisit('favicon', tab, { faviconUrl: tab.faviconUrl })
       emitChange()
     })
+    // 主 frame 失败导航的统一日志（单点）：覆盖地址栏/恢复/克隆等 loadURL 路径与页内
+    // 链点击路径（loadURL 的 reject 本就由此事件驱动，原 url.ts logLoadFailure 已退役，
+    // Electron C++ 对同一失败还有一条固定警告、已由 main/warnings.ts 接管吞掉）。
+    // ERR_ABORTED（停止加载/被新导航替换）属正常静默；用户侧失败呈现走 Chromium 内建错误页
+    wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame || errorCode === NET_ERR_ABORTED) return
+      console.warn(`[browser] 加载失败 ${validatedURL}: ${errorDescription} (${errorCode})`)
+    })
     // 页内查找计数回执：windowId 取 Tab 归属宿主窗口，ipc 层据此定向推送 find-result
     wc.on('found-in-page', (_event, result) => {
       for (const cb of findResultListeners) cb(tab.windowId, result)
@@ -554,8 +567,8 @@ export function createTabManager(
     // 先激活（挂入 contentView、应用当前 bounds），再发起加载——保证首条快照已带 activeTabId
     activate(id, windowId)
 
-    // 导航失败（坏域名等）由 Chromium 内建错误页呈现；reject 走统一日志（ERR_ABORTED 静默）
-    void wc.loadURL(target).catch((error: unknown) => logLoadFailure(target, error))
+    // 导航失败（坏域名等）由 Chromium 内建错误页呈现，日志由 did-fail-load 单点承担
+    void wc.loadURL(target).catch(() => {})
 
     emitChange()
     return buildSnapshot(windowId)

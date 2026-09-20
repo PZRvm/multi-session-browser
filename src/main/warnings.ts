@@ -8,8 +8,9 @@
 // 导航失败类，其余警告以近似默认格式补打。失效模式：Electron 未来若绕过 warning
 // 通道直写 stderr，过滤失效退回原噪音，无功能损害。
 //
-// 被吞的警告不丢信息：失败加载的日志面收敛在 browser/url.ts 的 logLoadFailure 单行
-//（ERR_ABORTED 按既有约定静默），本模块只负责消噪不承担记录。
+// 被吞的警告不丢信息：失败加载的日志面在 browser/manager.ts 挂的 did-fail-load 单点
+//（主 frame 且非 ERR_ABORTED 才记，覆盖 loadURL 与页内链点击两条路径），本模块只负责
+// 消噪不承担记录。
 
 const NAV_FAILURE_PREFIX = 'Failed to load URL:'
 

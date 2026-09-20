@@ -41,7 +41,7 @@ import type { TabDragController } from './dragging'
 import type { OmniboxSuggestWindows } from './omniboxSuggest'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
 import type { IndependentWindows } from './windows'
-import { logLoadFailure, normalizeInput } from './url'
+import { normalizeInput } from './url'
 
 // 守卫消息构造期经 t 取词（errors 命名空间）——语言 = 装配时语言（语言切换后新建的
 // 守卫消息不重译，风险口径见计划：报错语言 = 构造时语言，如实接受）
@@ -303,7 +303,7 @@ export function registerBrowserIpc(
   )
 
   // navigate：作用于来源窗口作用域的激活 Tab；规范化失败抛「无效的网址」；导航失败由
-  // Chromium 内建错误页如实呈现，loadURL 的 reject 走统一日志（ERR_ABORTED 静默）
+  // Chromium 内建错误页如实呈现，日志由 manager 的 did-fail-load 单点承担（ERR_ABORTED 静默）
   ipcMain.handle(BROWSER_CHANNELS.navigate, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.navigate, payload, () => {
       const scope = requireScope(event)
@@ -311,8 +311,7 @@ export function registerBrowserIpc(
       const normalized = normalizeInput(payload.url)
       if (!normalized) throw new Error(t('errors.invalidUrl'))
       const wc = manager.getActiveWebContents(scope.windowId)
-      if (wc)
-        void wc.loadURL(normalized).catch((error: unknown) => logLoadFailure(normalized, error))
+      if (wc) void wc.loadURL(normalized).catch(() => {})
       return manager.getSnapshot(scope.windowId)
     })
   )
