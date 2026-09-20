@@ -21,11 +21,10 @@
 // - scrollbarThumb ≈ hairline 与 controlLine 的逐通道中点；scrollbarHover ≡ controlLine
 //   （同值异义 token，琥珀既有关系）。
 // - hoverVeil 亮 = ink RGB @ 0.08；暗 = rgba(255,255,255,0.08)（琥珀暗态既有先例）。
-// - tileSeam 亮 = accentInk RGB @ 0.2；暗 = rgba(0,0,0,0.45)（常量）。
 // - accentVeil = accentInk RGB @ 0.12。
 // - panelDivider 亮 ≈ hairline × 0.92；暗 ≈ bg × 0.7（四舍五入）。
 // - confirmCardBg 亮恒 #ffffff（antd 弹层 elevated 白同源）；暗 ≡ raised。
-// - tileInk 与 loading 昼夜翻转：亮 = accentDeep、暗 = accentBase（翻牌昼夜语言）。
+// - tileInk 与 loading 昼夜翻转：亮 = accentDeep、暗 = accentBase（计数砖昼夜语言）。
 // - accentDeep 暗态值仅作结构补齐，暗态无消费方（对比度矩阵注 1）。
 
 export type ThemeSystemId = 'amber' | 'mist' | 'moss'
@@ -45,14 +44,12 @@ export interface ThemeModeTokens {
   raised: string
   /** 发丝线 --board-hairline */
   hairline: string
-  /** 翻牌砖面 --board-tile */
+  /** 计数砖面 --board-tile */
   tile: string
   /** 砖线 --board-tile-line */
   tileLine: string
   /** 砖上数字 --board-tile-ink（亮 = accentDeep / 暗 = accentBase，昼夜翻转） */
   tileInk: string
-  /** 翻牌砖中缝 --board-tile-seam */
-  tileSeam: string
   /** 滚动条 thumb --board-scrollbar-thumb */
   scrollbarThumb: string
   /** 滚动条 hover --board-scrollbar-hover（≡ controlLine） */
@@ -110,7 +107,6 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#ede9df',
       tileLine: '#d8d2c5',
       tileInk: '#9a5f00',
-      tileSeam: 'rgba(34, 26, 0, 0.2)',
       scrollbarThumb: '#c9c1b2',
       scrollbarHover: '#bcb4a6',
       ink: '#1e2329',
@@ -135,7 +131,6 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#1a2026',
       tileLine: '#2a313a',
       tileInk: '#ffb000',
-      tileSeam: 'rgba(0, 0, 0, 0.45)',
       scrollbarThumb: '#2a313a',
       scrollbarHover: '#3a434e',
       ink: '#f5f0e8',
@@ -165,7 +160,6 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#e3e7ea',
       tileLine: '#ccd2d9',
       tileInk: '#31536e',
-      tileSeam: 'rgba(16, 28, 41, 0.2)',
       scrollbarThumb: '#c0c8d0',
       scrollbarHover: '#b5bfc8',
       ink: '#1c242c',
@@ -190,7 +184,6 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#1b222b',
       tileLine: '#2c3745',
       tileInk: '#a4bcd1',
-      tileSeam: 'rgba(0, 0, 0, 0.45)',
       scrollbarThumb: '#303a46',
       scrollbarHover: '#3b4754',
       ink: '#edf0f3',
@@ -220,9 +213,8 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#e6ebdb',
       tileLine: '#ced6bd',
       // accentDeep 由 demo 概念值 #4c7a2f 压深至 #477329（对比度矩阵调值记录：
-      // 翻牌数字亮态 4.18 → 4.60 达 4.5:1）
+      // 计数砖数字亮态 4.18 → 4.60 达 4.5:1）
       tileInk: '#477329',
-      tileSeam: 'rgba(23, 34, 7, 0.2)',
       scrollbarThumb: '#c3ccb1',
       scrollbarHover: '#b9c2a5',
       ink: '#1f2519',
@@ -247,7 +239,6 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       tile: '#19221a',
       tileLine: '#2a3a2c',
       tileInk: '#a8cf8e',
-      tileSeam: 'rgba(0, 0, 0, 0.45)',
       scrollbarThumb: '#2e3a2c',
       scrollbarHover: '#3a4534',
       ink: '#eef2e6',
@@ -285,7 +276,6 @@ export function themeCssVariables(
     '--board-tile': t.tile,
     '--board-tile-line': t.tileLine,
     '--board-tile-ink': t.tileInk,
-    '--board-tile-seam': t.tileSeam,
     '--board-scrollbar-thumb': t.scrollbarThumb,
     '--board-scrollbar-hover': t.scrollbarHover,
     '--board-ink': t.ink,

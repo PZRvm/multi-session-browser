@@ -59,8 +59,8 @@ export const sessions: Dictionary['sessions'] = {
     reorderFailed: '會話排序失敗，列表順序已恢復',
     moveFailed: '移動會話失敗'
   },
-  /** 翻牌计数器（FlapCounter） */
-  flapCounter: {
+  /** 計數磚（CountTiles） */
+  countTiles: {
     aria: '{n} 個會話'
   },
   /** 批量操作栏（板脚） */

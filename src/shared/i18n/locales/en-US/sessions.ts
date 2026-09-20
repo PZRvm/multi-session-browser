@@ -53,7 +53,7 @@ export const sessions: Dictionary['sessions'] = {
     reorderFailed: 'Reorder failed; list order restored',
     moveFailed: 'Failed to move session'
   },
-  flapCounter: {
+  countTiles: {
     aria: '{n} sessions'
   },
   batchBar: {

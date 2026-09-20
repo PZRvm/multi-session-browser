@@ -17,7 +17,6 @@
   --board-tile: #ede9df;
   --board-tile-line: #d8d2c5;
   --board-tile-ink: #9a5f00;
-  --board-tile-seam: rgba(34, 26, 0, 0.2);
   --board-scrollbar-thumb: #c9c1b2;
   --board-ink: #1e2329;
   --board-ink-dim: #616974;
@@ -91,11 +90,10 @@
     --board-hairline: #232830;
     --board-ink: #f5f0e8;
     --board-ink-dim: #9aa3ad;
-    /* 翻牌砖黑夜维持暗砖 + 琥珀数字（与亮色浅砖互为昼夜两态） */
+    /* 计数砖黑夜维持暗砖 + 琥珀数字（与亮色浅砖互为昼夜两态） */
     --board-tile: #1a2026;
     --board-tile-line: #2a313a;
     --board-tile-ink: #ffb000;
-    --board-tile-seam: rgba(0, 0, 0, 0.45);
     --board-scrollbar-thumb: #2a313a;
     /* 暗色轨道已是砖面同值（raised），选中瓣需抬升一档才能从轨道中辨认 */
     --board-segment-selected-bg: #2a313a;
@@ -220,59 +218,24 @@ body.col-resizing {
   cursor: col-resize;
 }
 
-/* ---------- 翻牌计数砖 ---------- */
+/* ---------- 计数砖 ---------- */
 
-.flap-counter {
+.count-tiles {
   display: inline-flex;
-  gap: 3px;
+  gap: 1px;
 }
 
-.flap-tile {
-  position: relative;
+/* 静态计数数字（2026-09-20 用户二次裁决去砖形卡片）：裸数字与左侧「会话」label
+   同字号（11px，行高继承全局 1.5 → 高度一致）+ 700 加粗，信号色 tile-ink 保留，
+   mono 表格数字；变值即换字，无过渡 */
+.count-tile {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 30px;
-  background: var(--board-tile);
-  border: 1px solid var(--board-tile-line);
-  border-radius: 4px;
-  perspective: 120px;
-  overflow: hidden;
-}
-
-/* 翻牌中缝 */
-.flap-tile::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: var(--board-tile-seam);
-  z-index: 1;
-}
-
-.flap-digit {
   font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--board-tile-ink);
-  line-height: 1;
-}
-
-.flap-flip {
-  animation: flap-turn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes flap-turn {
-  0% {
-    transform: rotateX(-84deg);
-  }
-  100% {
-    transform: rotateX(0deg);
-  }
 }
 
 /* ---------- 左侧：会话信息板 ---------- */
@@ -292,6 +255,18 @@ body.col-resizing {
   gap: 8px;
   padding: 14px 14px 12px;
   border-bottom: 1px solid var(--board-hairline);
+  /* 主窗 macOS（winc=traffic 门控）：板头整行即窗口拖拽带（原生标题条已去，原生
+     三灯区域由系统接管）——行内按钮/计数等交互元素所在区不受拖拽影响。Windows/
+     独立窗（无 winc query）本规则冗余生效：原生标题栏并存下空白区拖窗为无害增益，
+     冻结现状不加门控（review 20260920161302 低-2 定案） */
+  -webkit-app-region: drag;
+}
+
+/* 原生三灯占位（主窗 macOS，winc=traffic 门控）：三灯由系统绘制浮于内容上方
+   （trafficLightPosition 定位到板头左端），页面内容避让即可，不参与交互 */
+.traffic-spacer {
+  flex: none;
+  width: 60px;
 }
 
 .board-title {
@@ -314,7 +289,9 @@ body.col-resizing {
 
 .board-count {
   display: inline-flex;
-  align-items: center;
+  /* 基线对齐（align-items center 下 mono 数字与中文字形重心不同，视觉高低错位
+     ——2026-09-20 用户反馈「数字与会话没对齐」）：两者文字沿同一基线共线 */
+  align-items: baseline;
   gap: 6px;
   flex: none;
 }
@@ -400,20 +377,23 @@ body.col-resizing {
   background: var(--board-bg-raised);
 }
 
+/* 过滤行（2026-09-20 用户裁决：原「边框盒 + 独立底色」像原生输入框落在菜单上，
+   与板面弹层语系相悖）：无框静默行融入抬升层——图标 + 输入即整行，行下一条发丝线
+   分隔过滤区与选项区（行式栅格语言）；聚焦态以图标升主墨 + 分隔线升控件线表达，
+   不再描框 */
 .ws-search-host {
   position: relative;
   flex: none;
   display: flex;
   align-items: center;
-  margin: 6px 6px 4px;
+  height: 28px;
+  margin: 2px 6px 0;
   padding: 0 8px 0 26px;
-  border: 1px solid var(--board-control-line);
-  border-radius: 4px;
-  background: var(--board-bg);
+  border-bottom: 1px solid var(--board-hairline);
 }
 
 .ws-search-host:focus-within {
-  border-color: var(--board-ink-dim);
+  border-bottom-color: var(--board-control-line);
 }
 
 .ws-search-icon {
@@ -423,6 +403,11 @@ body.col-resizing {
   font-size: 11px;
   color: var(--board-ink-dim);
   pointer-events: none;
+  transition: color 0.12s ease;
+}
+
+.ws-search-host:focus-within .ws-search-icon {
+  color: var(--board-ink);
 }
 
 .ws-panel .ant-input {
@@ -446,14 +431,14 @@ body.col-resizing {
 }
 
 .ws-panel .ant-input::placeholder {
+  /* 次墨原色不再叠 0.75 透明度：抬升层上混合后对比跌破 4.5:1（craft 底线） */
   color: var(--board-ink-dim);
-  opacity: 0.75;
 }
 
 .ws-options {
   max-height: 224px;
   overflow-y: auto;
-  padding: 0 4px 4px;
+  padding: 2px 4px 4px;
 }
 
 .ws-options::-webkit-scrollbar {
@@ -884,6 +869,9 @@ body.col-resizing {
   align-items: center;
   gap: 6px;
   flex: none;
+  /* 板头整行是拖拽带（主窗 macOS，.board-head）——本组按钮/分段控件不豁免会被
+     app-region: drag 吞掉点击（同 .chrome-tab 先例）；中部弹性空隙仍归板头承担拖拽 */
+  -webkit-app-region: no-drag;
 }
 
 /* 两枚板头入口共享 20×20 度量；批量激活态才使用琥珀点级信号 */
@@ -953,6 +941,53 @@ body.col-resizing {
 .appearance-segmented {
   flex: none;
   font-size: 12px;
+}
+
+/* 外观下拉菜单（类经 Dropdown menu.className 挂载，窄栏形态）：板面弹层语系
+   （ws-panel / 备注 Tooltip / 语言下拉同先例）——抬升层底 + 1px 发丝线 + 6px 圆角 +
+   无阴影，token 随主题系统注入昼夜自动翻转。antd 默认「colorPrimaryBg 底 + colorPrimary
+   字」选中态在琥珀系昼夜两态均不可读（用户反馈 2026-09-20）：选中压回板面蒙版 +
+   主墨 + 600 字重，选中信号由字重与常驻蒙版承担（ws-panel 当前视野行同语言）。
+   行度量对齐板面选项行：28px 高、12px 字、4px 圆角、容器 4px 内距 */
+.session-panel .appearance-menu.ant-dropdown-menu {
+  padding: 4px;
+  background: var(--board-bg-raised);
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+/* 特异性注记：以 .session-panel 前缀 + 双类挂点抬到 (0,4,0)，压过 antd 菜单项
+   基础字色规则（否则暗色算法下未选中项回落 antd colorText，板墨 token 失效） */
+.session-panel .appearance-menu.ant-dropdown-menu .ant-dropdown-menu-item.ant-dropdown-menu-item {
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: var(--board-ink);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.session-panel .appearance-menu.ant-dropdown-menu .ant-dropdown-menu-item .anticon {
+  font-size: 12px;
+}
+
+.session-panel
+  .appearance-menu.ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item:hover,
+.session-panel
+  .appearance-menu.ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item.ant-dropdown-menu-item-active,
+.session-panel
+  .appearance-menu.ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item.ant-dropdown-menu-item-selected {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+
+.session-panel
+  .appearance-menu.ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item.ant-dropdown-menu-item-selected {
+  font-weight: 600;
 }
 
 /* 纯图标控件的中文可访问名称（分段控件各瓣的实际朗读文本） */
@@ -1358,6 +1393,10 @@ body.col-resizing {
   flex: none;
   display: flex;
   align-items: center;
+  /* 控件底对齐描述副行底（2026-09-20 用户裁决：居中悬挂使各控件底部参差
+     4.7–6.7px 无共同基线——语言框/主页框尤明显）；flex-end 落到行内容盒底
+     = main 块底。无描述的单行行不受影响（控件本就是最高子元素，底缘一致） */
+  align-self: flex-end;
 }
 
 .settings-row-desc-danger {
@@ -1801,6 +1840,10 @@ body.col-resizing {
   position: relative;
   /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
   transition: background-color 0.12s ease;
+  /* 主窗 macOS（winc=traffic 门控）：栏空白区即窗口拖拽带（Chrome 同构——不另设
+     拖拽行不破版）；Tab/新建钮/窗口控制钮 no-drag 保持交互。drag 区吞鼠标事件，
+     子元素必须逐个 no-drag 才可点 */
+  -webkit-app-region: drag;
 }
 
 .chrome-tab {
@@ -1809,6 +1852,8 @@ body.col-resizing {
   gap: 8px;
   height: 30px;
   padding: 0 14px;
+  /* 拖拽带内保持交互（主窗 macOS）：Tab 手势与点击不被 app-region 吞掉 */
+  -webkit-app-region: no-drag;
   border-radius: 8px 8px 0 0;
   background: transparent;
   min-width: 0;
@@ -1949,6 +1994,8 @@ img.chrome-tab-favicon {
   width: 26px;
   height: 26px;
   margin-bottom: 3px;
+  /* 拖拽带内保持可点（主窗 macOS，同 .chrome-tab） */
+  -webkit-app-region: no-drag;
   border: none;
   border-radius: 50%;
   background: transparent;

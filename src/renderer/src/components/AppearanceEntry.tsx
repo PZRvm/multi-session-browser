@@ -92,12 +92,15 @@ function AppearanceEntry({ panelWidth }: AppearanceEntryProps): React.JSX.Elemen
         <Dropdown
           menu={{
             items: appearanceMenuItems,
+            // appearance-menu：板面弹层语系覆写（app.css）——antd 默认白底投影弹层 +
+            // 「浅强调底 + 强调字」选中态不进板面且昼夜对比不可读（用户反馈 2026-09-20）
+            className: 'appearance-menu',
             onClick: onAppearanceMenuClick,
             selectable: true,
             selectedKeys: [appearanceMode]
           }}
           trigger={['click']}
-          placement="bottomRight"
+          placement="bottom"
           getPopupContainer={(triggerNode) =>
             triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
           }

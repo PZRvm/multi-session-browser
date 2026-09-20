@@ -7,7 +7,8 @@ import {
   SettingOutlined
 } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
-import FlapCounter from './FlapCounter'
+import CountTiles from './CountTiles'
+import { windowTrafficControls } from '../stores/browser'
 import SessionRow from './SessionRow'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
@@ -286,9 +287,17 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     >
       <aside className="session-panel">
         <header className="board-head">
-          <span className="board-title">
-            <span className="board-title-text">{t('common.appName')}</span>
-          </span>
+          {/* macOS 主窗（winc=traffic 门控）：原生标题条已去，左上角为系统原生三灯
+              （trafficLightPosition 定位，主进程 index.ts），此处仅留占位防内容顶入
+              灯区，原标题文字随之移除（原生/页内双份展示一并收敛）；其余平台保持
+              页内标题现状（Windows 原生标题栏并存为既有设计） */}
+          {windowTrafficControls ? (
+            <span className="traffic-spacer" aria-hidden="true" />
+          ) : (
+            <span className="board-title">
+              <span className="board-title-text">{t('common.appName')}</span>
+            </span>
+          )}
           <span className="board-head-right">
             <AppearanceEntry panelWidth={panelWidth} />
             <button
@@ -319,7 +328,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             </button>
             <span className="board-count">
               <span className="board-count-label">{t('sessions.panel.countLabel')}</span>
-              <FlapCounter value={visibleSessions.length} />
+              <CountTiles value={visibleSessions.length} />
             </span>
           </span>
         </header>

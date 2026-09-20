@@ -114,6 +114,15 @@ const parseWindowIdentity = (): WindowIdentity => {
 
 export const windowIdentity = parseWindowIdentity()
 
+/**
+ * 主窗自绘窗口控制钮门控（2026-09-20 主窗去原生标题条专项）：建窗 query winc=traffic
+ * 仅 darwin 主窗携带（主进程 index.ts 单源注入，renderer 不经 navigator 推断平台，
+ * 对齐设置窗 chrome=custom-close 单源纪律）；独立窗/Windows/Linux 不携带 → 不渲染
+ * 自绘钮（独立窗当前保持原生标题栏，契约见 shared/window.ts 头注）
+ */
+export const windowTrafficControls =
+  new URLSearchParams(window.location.search).get('winc') === 'traffic'
+
 // 历史镜像重拉的过期判据（单调递增 token）：快速连续切换会话时，只有最新一次
 // 重拉的回填生效，晚到的旧回复整体丢弃（独立窗绑定恒定，token 同样防重入叠加）
 let historyPullToken = 0

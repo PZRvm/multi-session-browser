@@ -58,8 +58,8 @@ export const sessions = {
     reorderFailed: '会话排序失败，列表顺序已恢复',
     moveFailed: '移动会话失败'
   },
-  /** 翻牌计数器（FlapCounter） */
-  flapCounter: {
+  /** 计数砖（CountTiles） */
+  countTiles: {
     aria: '{n} 个会话'
   },
   /** 批量操作栏（板脚） */
