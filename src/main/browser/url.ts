@@ -33,10 +33,12 @@ export function isOpenableUrl(raw: string): boolean {
 }
 
 /**
- * loadURL reject 的统一日志：ERR_ABORTED（停止加载 / 被新导航替换）属正常静默，
- * 其余（坏域名等，页面自有 Chromium 错误页呈现）留 warn 便于主进程侧排查。
+ * loadURL reject 的统一日志：ERR_ABORTED（停止加载 / 被新导航替换）属正常静默；
+ * 其余失败页面侧由 Chromium 内建错误页呈现，主进程侧只留单行——Error.message 已含
+ * 错误码与目标地址，整包打印与 Electron C++ 固定警告重复且刷屏（后者已由
+ * main/warnings.ts 的通道接管吞掉，本行是失败加载的唯一日志面）。
  */
 export function logLoadFailure(url: string, error: unknown): void {
   if (error instanceof Error && error.message.includes('ERR_ABORTED')) return
-  console.warn(`[browser] 加载失败 ${url}:`, error)
+  console.warn(`[browser] 加载失败 ${url}:`, error instanceof Error ? error.message : error)
 }

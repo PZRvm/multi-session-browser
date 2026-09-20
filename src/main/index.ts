@@ -12,6 +12,7 @@ import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './bro
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import { installShellInputGuard } from './inputGuard'
+import { installWarningChannelFilter } from './warnings'
 import { loadSnapshot } from './store'
 import {
   createAppearanceController,
@@ -56,6 +57,10 @@ if (process.env['MSB_USER_DATA']) {
   }
   app.setPath('userData', override)
 }
+
+// warning 通道接管（须在任何窗口加载页面前安装——Electron 对失败主 frame 导航的
+// 固定警告经此通道打印，拦截见 ./warnings.ts 头注）
+installWarningChannelFilter()
 
 // 模块级持有：createWindow 在窗口（重）建时需调用 attachToWindow 重挂当前激活会话的 view，
 // 启动恢复亦经此引用（registry 在 app ready 内创建，此前为 null）
