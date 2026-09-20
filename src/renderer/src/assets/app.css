@@ -1162,11 +1162,12 @@ body.col-resizing {
   color: var(--board-ink);
 }
 
-/* macOS 窗体 chrome（2026-09-18 用户裁决：去原生标题条只留关闭；仅建窗 query
-   chrome=custom-close 时由根类生效，Windows/Linux 零差异）：顶部拖拽带承担窗口
-   拖动（原生标题条已去），高 28px 覆盖两栏顶部让位区（侧栏内距顶 38px / 详情区
-   顶 34px 见下方覆盖块）；app-region: drag 由拖拽带承担、关闭钮 no-drag 嵌入其上；
-   z 低于两步确认弹层（40）——弹层开启期间窗口不可拖、关闭钮被遮（瞬态可接受） */
+/* macOS 窗体 chrome（2026-09-20 二次裁决：原生标题条已去、窗口关闭用系统原生
+   红灯——自绘红点废弃；仅建窗 query chrome=hidden-titlebar 时由根类生效，Windows/
+   Linux 零差异）：顶部拖拽带承担窗口拖动，高 28px 覆盖两栏顶部让位区（侧栏内距
+   顶 38px / 详情区顶 34px 见下方覆盖块）；原生红灯由系统绘制在拖拽带左端
+   （trafficLightPosition {x:8,y:8} 对齐原自绘点裁决位），z 低于两步确认弹层（40）
+   ——弹层开启期间窗口不可拖（瞬态可接受） */
 .settings-drag-strip {
   position: absolute;
   top: 0;
@@ -1177,46 +1178,8 @@ body.col-resizing {
   -webkit-app-region: drag;
 }
 
-/* 自绘关闭点：12px 圆 #ff5f57——平台窗口饰品原值，非主题语义（与 --danger 的
-   「破坏动作」语义不同源），平台 chrome 常量先例同 --settings-confirm-card-bg；
-   左缘与下方分类行左缘对齐（2026-09-18 用户裁决——侧栏水平内距 8px 即行左缘，
-   不用原生灯位 20px），上方间距同 8px（top，2026-09-18 用户裁决）；内环 0.5px
-   描边模拟原生灯发丝环；hover 显深灰 ×（原生多灯的 affordance，单钮保留同语言
-   可发现性） */
-.settings-window-close {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 11;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: #ff5f57;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.15);
-  font-family: inherit;
-  -webkit-app-region: no-drag;
-  cursor: pointer;
-}
-
-.settings-window-close::after {
-  content: '×';
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-  color: transparent;
-}
-
-.settings-window-close:hover::after {
-  color: rgba(70, 60, 55, 0.65);
-}
-
-/* chrome-custom 顶部让位：侧栏五分类起始位 = 关闭点底（8 + 12）+ 用户裁决间距
-   12px → 32px（2026-09-18，恢复出厂沉底 margin-top: auto 不受影响）；
+/* chrome-custom 顶部让位：侧栏五分类起始位 = 原生红灯底（8 + 16）之下 8px → 32px
+   （沿用 2026-09-18 让位值，恢复出厂沉底 margin-top: auto 不受影响）；
    详情区标题让出拖拽带（原 22px → 34px） */
 .settings-window-chrome-custom .settings-sidebar {
   padding-top: 32px;

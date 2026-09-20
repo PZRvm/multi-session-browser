@@ -82,7 +82,6 @@ export const settings: Dictionary['settings'] = {
   },
 
   // macOS window chrome: custom close dot aria (2026-09-18, hidden native title bar)
-  closeWindow: 'Close Settings',
   confirmReset: {
     dialogAria: 'Factory Reset',
     step1Title: 'Factory Reset',

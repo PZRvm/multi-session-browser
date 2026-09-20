@@ -106,9 +106,6 @@ export const settings: Dictionary['settings'] = {
     note: '刪除全部會話、工作區與瀏覽資料，恢復預設設定，不可撤銷'
   },
 
-  /** macOS 窗体 chrome：自绘关闭点 aria */
-  closeWindow: '關閉設定',
-
   /** 两步确认弹层（ConfirmResetOverlay）：确认词随语言，精确匹配语义不变（PRD 26） */
   confirmReset: {
     dialogAria: '恢復出廠設定',

@@ -54,11 +54,13 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{
   }
 ]
 
-// macOS 窗体 chrome（2026-09-18 用户裁决：去原生标题条只留关闭；主进程 darwin 建
-// 窗才携带该 query）：renderer 不经 navigator 推断平台（get-app-info platform 单源
-// 纪律），窗口形态单源 = 建窗 query——非 darwin 无此 query，零渲染差异
-const CUSTOM_WINDOW_CHROME =
-  new URLSearchParams(window.location.search).get('chrome') === 'custom-close'
+// macOS 窗体 chrome（2026-09-20 二次裁决：原生标题条已去、窗口关闭用系统原生红灯
+// ——自绘红点废弃，主进程 darwin 建窗才携带该 query）：renderer 不经 navigator 推
+// 断平台（get-app-info platform 单源纪律），窗口形态单源 = 建窗 query——非 darwin
+// 无此 query，零渲染差异。query 门控 darwin 形态 = 顶部拖拽带与让位（原生红灯由
+// 系统绘制在拖拽带左端，页面只留占位）
+const HIDDEN_TITLEBAR_CHROME =
+  new URLSearchParams(window.location.search).get('chrome') === 'hidden-titlebar'
 
 export default function SettingsWindow(): React.JSX.Element {
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
@@ -166,22 +168,14 @@ export default function SettingsWindow(): React.JSX.Element {
       }}
     >
       <div
-        className={CUSTOM_WINDOW_CHROME ? 'settings-window settings-window-chrome-custom' : 'settings-window'}
+        className={HIDDEN_TITLEBAR_CHROME ? 'settings-window settings-window-chrome-custom' : 'settings-window'}
         data-role="settings"
       >
-        {CUSTOM_WINDOW_CHROME && (
+        {HIDDEN_TITLEBAR_CHROME && (
           <>
             {/* 顶部拖拽带：原生标题条移除后窗口拖动由其承担（纯饰品，aria-hidden） */}
             <div className="settings-drag-strip" aria-hidden="true" />
-            {/* 自绘关闭点（macOS 红灯位）：window.close() 直接关自身 BrowserWindow——
-                关窗是窗口本体操作而非业务命令，不经 IPC（settings:open 由主窗发起的
-                对称面是主进程 dispose 级联，已由 closed 钩子自清引用） */}
-            <button
-              type="button"
-              className="settings-window-close"
-              aria-label={t('settings.closeWindow')}
-              onClick={() => window.close()}
-            />
+            {/* 原生红灯由系统绘制在拖拽带左端（trafficLightPosition 定位），页面零元素 */}
           </>
         )}
         {/* 侧栏五分类导航：nav 语义；选中经 aria-current 驱动（视觉态与无障碍态单源）；
