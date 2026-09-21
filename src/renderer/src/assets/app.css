@@ -500,9 +500,9 @@ body.col-resizing {
 
 /* 工作区选择模态框（原生 sheet 专项 2026-09-21，?role=workspace-picker；同日用户
    反馈轮放大疏朗 + 焦点语言修正）：板面语系——抬升层底 + 发丝线 + 无阴影。尺寸由
-   shared/dialog.ts 度量常量单源（360 宽 / 40 行高 / 行间 6px / 头部 68·88）与主进程
-   建窗高度同源配对，本段不写宽度与总高字面量；列表区禁纵向内距，行间距只能取
-   PICKER_ROW_GAP（gap 值入高度公式，此处改值即失配）。
+   shared/dialog.ts 度量常量单源（360 宽 / 40 行高 / 行间 4px / 列表上内距 4px /
+   头部 68·88）与主进程建窗高度同源配对，本段不写宽度与总高字面量；列表区纵向
+   增量只允许 PICKER_ROW_GAP 与 PICKER_LIST_PAD_TOP（均入高度公式，改值即失配）。
    键盘焦点语言 = veil 底（与切换框键盘高亮同族）——全局琥珀 focus ring 被列表
    滚动容器裁剪后呈「底部一条线」，用户裁决弃用，行内 outline 显式归零。
    当前归属行 = 「当前所在」tile-ink 徽标 + 禁用态（位置指示，不参与点选/聚焦/hover）。
@@ -546,7 +546,8 @@ body[data-role='workspace-picker'] {
 .picker-list {
   display: flex;
   flex-direction: column;
-  gap: 6px; /* PICKER_ROW_GAP（入建窗高度公式，改值四处对账） */
+  gap: 4px; /* PICKER_ROW_GAP（入建窗高度公式，改值多处对账） */
+  padding-top: 4px; /* PICKER_LIST_PAD_TOP（首项与上方分隔线的间距，入高度公式） */
   overflow-y: auto;
   border-top: 1px solid var(--board-hairline);
 }
