@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   PICKER_MAX_VISIBLE_ROWS,
+  PICKER_ROW_GAP,
   PICKER_ROW_HEIGHT,
   type WorkspacePickerContext
 } from '../../../shared/dialog'
@@ -85,7 +86,11 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       </header>
       <div
         className="picker-list"
-        style={{ maxHeight: PICKER_MAX_VISIBLE_ROWS * PICKER_ROW_HEIGHT }}
+        style={{
+          maxHeight:
+            PICKER_MAX_VISIBLE_ROWS * PICKER_ROW_HEIGHT +
+            (PICKER_MAX_VISIBLE_ROWS - 1) * PICKER_ROW_GAP
+        }}
       >
         {context?.options.map((option, i) => (
           <button

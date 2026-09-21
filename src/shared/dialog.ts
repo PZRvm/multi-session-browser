@@ -118,15 +118,17 @@ export interface WorkspacePickerPickPayload {
 
 /**
  * 模态框窗口度量（DIP，与 WorkspacePickerWindow.tsx / app.css / 主进程建窗高度
- * 计算同源配对；改值多处对账；2026-09-21 用户反馈放大：360 宽 / 40 行高 / 头部
- * 疏朗化）：宽度恒定；高度 = 头部（单条/批量两档，按页面 CSS 实测推导：body 上
- * 内距 16 + 标题行 22 + 标题下距 12 +（批量副行 20）+ 列表分隔线 1 + body 下内距
- * 16）+ 列表区可见行数 × 行高（行数超 MAX_VISIBLE_ROWS 封顶内滚；零行时空态句
- * 定高）——主进程建窗 useContentSize 精确按此合成，sheet 随内容定高、不滚动窗口
- * 本体；CSS 端不得给列表区增加纵向内距或行间距，否则与本公式失配（多余空隙或内滚）
+ * 计算同源配对；改值多处对账；2026-09-21 用户反馈放大疏朗定稿：360 宽 / 40 行高
+ * / 行间 6px / 头部疏朗化）：宽度恒定；高度 = 头部（单条/批量两档，按页面 CSS
+ * 实测推导：body 上内距 16 + 标题行 22 + 标题下距 12 +（批量副行 20）+ 列表分隔
+ * 线 1 + body 下内距 16）+ 列表区可见行数 × 行高 +（可见行数 − 1）× 行间距（行数
+ * 超 MAX_VISIBLE_ROWS 封顶内滚；零行时空态句定高）——主进程建窗 useContentSize
+ * 精确按此合成，sheet 随内容定高、不滚动窗口本体；列表区禁纵向内距（含 border
+ * 顶部 1px 分隔线在公式头部档内），行间距只能经本常量表达，否则与公式失配
  */
 export const PICKER_WINDOW_WIDTH = 360
 export const PICKER_ROW_HEIGHT = 40
+export const PICKER_ROW_GAP = 6
 export const PICKER_MAX_VISIBLE_ROWS = 6
 export const PICKER_HEADER_HEIGHT_SINGLE = 68
 export const PICKER_HEADER_HEIGHT_BATCH = 88
@@ -143,7 +145,10 @@ export function pickerWindowHeight(context: {
       ? PICKER_HEADER_HEIGHT_BATCH
       : PICKER_HEADER_HEIGHT_SINGLE
   const rows = context.options.length + (context.showMoveOut ? 1 : 0)
-  const listHeight =
-    rows > 0 ? Math.min(rows, PICKER_MAX_VISIBLE_ROWS) * PICKER_ROW_HEIGHT : PICKER_EMPTY_HEIGHT
+  let listHeight = PICKER_EMPTY_HEIGHT
+  if (rows > 0) {
+    const visible = Math.min(rows, PICKER_MAX_VISIBLE_ROWS)
+    listHeight = visible * PICKER_ROW_HEIGHT + (visible - 1) * PICKER_ROW_GAP
+  }
   return headerHeight + listHeight
 }
