@@ -1,7 +1,12 @@
 import { useRef, useState } from 'react'
 import type { DragEvent, PointerEvent } from 'react'
 import type { StoredWorkspace } from '../../../shared/sessions'
-import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import { WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../../../shared/sessions'
+
+/** 视野哨兵行（全部会话固定首位 / 未分组固定末位）不属于排序集合 */
+function isSentinel(id: string): boolean {
+  return id === WORKSPACE_VIEW_ALL || id === WORKSPACE_VIEW_UNGROUPED
+}
 
 /** 拖拽瞬态：当前插入位（目标行 id + 上/下缘判定） */
 interface DropHint {
@@ -60,7 +65,7 @@ export function useWorkspaceDragReorder(
     const row = (e.target as HTMLElement).closest('[data-ws]') as HTMLElement | null
     const id = row?.dataset.ws
     // 哨兵行不属于排序集合（PRD 4.8）
-    if (!row || !id || id === WORKSPACE_VIEW_ALL) {
+    if (!row || !id || isSentinel(id)) {
       e.preventDefault()
       return
     }
@@ -81,7 +86,7 @@ export function useWorkspaceDragReorder(
   const hitRow = (e: DragEvent<HTMLDivElement>): { id: string; pos: 'before' | 'after' } | null => {
     const row = (e.target as HTMLElement).closest('[data-ws]') as HTMLElement | null
     const id = row?.dataset.ws
-    if (!row || !id || id === WORKSPACE_VIEW_ALL) return null
+    if (!row || !id || isSentinel(id)) return null
     const rect = row.getBoundingClientRect()
     return {
       id,
@@ -137,7 +142,7 @@ export function useWorkspaceDragReorder(
       onDragEnd: handlePanelDragEnd
     },
     rowProps: (id: string) => ({
-      isDraggable: enabled && id !== WORKSPACE_VIEW_ALL,
+      isDraggable: enabled && !isSentinel(id),
       isDragSource: dragId === id,
       dropPos: dropHint?.id === id ? dropHint.pos : null
     })

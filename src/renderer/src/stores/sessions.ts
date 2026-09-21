@@ -5,7 +5,7 @@ import type {
   StoredSession,
   StoredWorkspace
 } from '../../../shared/sessions'
-import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import { WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../../../shared/sessions'
 // browser ↔ sessions 互相引用均为函数体内惰性取用（无模块级执行依赖），循环安全：
 // browser 的快照守卫读 sessions.activeId，sessions 删除会话后经 browser.resync 对齐
 import { useBrowserStore } from './browser'
@@ -103,6 +103,11 @@ const cascadeActiveForView = (
   workspaces: StoredWorkspace[]
 ): string | null => {
   const current = sessions.find((s) => s.id === activeId)
+  // 未分组视野（2026-09-21 增量）：无激活记忆——级联取全序首个未分组，空则 null
+  if (viewId === WORKSPACE_VIEW_UNGROUPED) {
+    if (current && current.workspaceId === null) return activeId
+    return sessions.find((s) => s.workspaceId === null)?.id ?? null
+  }
   if (current && current.workspaceId === viewId) return activeId
   const ws = workspaces.find((w) => w.id === viewId)
   if (ws && ws.lastActiveSessionId !== null) {

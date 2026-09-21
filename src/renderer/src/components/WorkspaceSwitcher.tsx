@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { App, Button, Input, Modal } from 'antd'
 import type { InputRef } from 'antd'
 import { CheckOutlined, DownOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
-import { WORKSPACE_NAME_MAX, WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import {
+  WORKSPACE_NAME_MAX,
+  WORKSPACE_VIEW_ALL,
+  WORKSPACE_VIEW_UNGROUPED
+} from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
 import { confirmDestructive } from '../dialogs'
@@ -19,7 +23,8 @@ interface WsOption {
  * 工作区切换框（板头下唯一新表面，形态与视觉定稿见 DESIGN.md「工作区切换框」条目）：
  * 收起态 = 当前视野名 + 箭头 + 「+」新建钮；展开态 = 顶部过滤输入（键入即按名称
  * 子串过滤、↑↓ 导航、Enter 选中、Esc/外点关闭）+ 选项列表（当前视野加粗 + 对勾）
- * + 过滤无精确命中时的「新建工作区」尾行。右键工作区项在该行内展开「重命名/删除」
+ * + 过滤无精确命中时的「新建工作区」尾行；「未分组」固定末位哨兵行（零工作区不
+ * 渲染——零噪音基线）。右键工作区项在该行内展开「重命名/删除」
  * 操作条（行内渲染不越左栏，规避 antd 子菜单飞出分隔条被右区 WebContentsView
  * 原生层遮挡的风险——原生层约束下的形态裁定，与概念演示的悬停子菜单不同）；
  * 重命名确认走 antd Modal 经 overlay 悬挂登记收起原生层，删除确认走主进程原生
@@ -54,18 +59,25 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const optionsRef = useRef<HTMLDivElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
 
+  const ungroupedName = t('sessions.shared.ungrouped')
   const viewName =
     activeWorkspaceId === WORKSPACE_VIEW_ALL
       ? t('sessions.workspaceSwitcher.allSessions')
-      : (workspaces.find((w) => w.id === activeWorkspaceId)?.name ??
-        t('sessions.workspaceSwitcher.allSessions'))
+      : activeWorkspaceId === WORKSPACE_VIEW_UNGROUPED
+        ? ungroupedName
+        : (workspaces.find((w) => w.id === activeWorkspaceId)?.name ??
+          t('sessions.workspaceSwitcher.allSessions'))
 
+  // 视野哨兵：全部会话固定首位；未分组固定末位（2026-09-21 用户反馈增量——
+  // 仅存留未分组会话的视野）。零工作区时不渲染未分组行（全员未分组时它就是
+  // 全部列表，单独成行是零信息噪音——与归属标记的零噪音基线同规）
   const allOptions: WsOption[] = useMemo(
     () => [
       { id: WORKSPACE_VIEW_ALL, name: t('sessions.workspaceSwitcher.allSessions') },
-      ...workspaces
+      ...workspaces,
+      ...(workspaces.length > 0 ? [{ id: WORKSPACE_VIEW_UNGROUPED, name: ungroupedName }] : [])
     ],
-    [workspaces, t]
+    [workspaces, t, ungroupedName]
   )
   const keyword = filter.trim().toLowerCase()
   const filtered = useMemo(
@@ -260,7 +272,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                   data-drop-pos={dropPos ?? undefined}
                   draggable={isDraggable}
                   title={
-                    option.id === WORKSPACE_VIEW_ALL
+                    option.id === WORKSPACE_VIEW_ALL || option.id === WORKSPACE_VIEW_UNGROUPED
                       ? option.name
                       : t('sessions.workspaceSwitcher.optionHint', { name: option.name })
                   }
@@ -269,7 +281,9 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
                     pick(option)
                   }}
                   onContextMenu={(e) => {
-                    if (option.id === WORKSPACE_VIEW_ALL) return
+                    // 视野哨兵行非工作区实体，无重命名/删除
+                    if (option.id === WORKSPACE_VIEW_ALL || option.id === WORKSPACE_VIEW_UNGROUPED)
+                      return
                     e.preventDefault()
                     setCtxRow(isCtx ? null : option.id)
                   }}

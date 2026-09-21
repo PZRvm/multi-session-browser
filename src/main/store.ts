@@ -14,7 +14,7 @@ import type {
   StoredTab,
   StoredWorkspace
 } from '../shared/sessions'
-import { cloneTabs, WORKSPACE_VIEW_ALL } from '../shared/sessions'
+import { cloneTabs, WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../shared/sessions'
 import { atomicWriteJson } from './fs-utils'
 
 /** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex；v4 增工作区三件）；读到不认识的版本一律按坏数据回退，v1—v3 读取时迁移 */
@@ -200,7 +200,7 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
  * - workspaces 缺失/非数组/元素缺 id 或 name 硬字段：回退空工作区并告警（**不回退会话**——
  *   工作区数据损坏不得丢会话列表，PRD 4.8）；元素 lastActiveSessionId 非法或悬空（不指向
  *   任何会话/不属于该工作区）：置 null 并告警；重复 id：保留首个并告警
- * - activeWorkspaceId 非字符串、悬空（既非 'all' 也不指向任何工作区）：回退 'all' 并告警
+ * - activeWorkspaceId 非字符串、悬空（既非 'all'/'ungrouped' 也不指向任何工作区）：回退 'all' 并告警
  *   （v1—v3 无此字段，静默迁移 'all'）
  * - activeId 为数字等非 string/null：回退空快照；为空串或悬空 id：按悬空处理，置 null 保留列表
  */
@@ -384,12 +384,17 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     }
   }
 
-  // activeWorkspaceId 解析：'all' 或指向已知工作区；非法/悬空回退 'all' 并告警
-  // （v1—v3 无此字段，静默迁移 'all'；v4 缺字段告警）
+  // activeWorkspaceId 解析：'all'、'ungrouped'（未分组视野，2026-09-21 增量）或指向
+  // 已知工作区；非法/悬空回退 'all' 并告警（v1—v3 无此字段，静默迁移 'all'；v4 缺字段告警）
   let activeWorkspaceId = WORKSPACE_VIEW_ALL
   if (data.activeWorkspaceId !== undefined) {
     const rawView = data.activeWorkspaceId
-    if (typeof rawView === 'string' && (rawView === WORKSPACE_VIEW_ALL || seenWsIds.has(rawView))) {
+    if (
+      typeof rawView === 'string' &&
+      (rawView === WORKSPACE_VIEW_ALL ||
+        rawView === WORKSPACE_VIEW_UNGROUPED ||
+        seenWsIds.has(rawView))
+    ) {
       activeWorkspaceId = rawView
     } else {
       console.warn(`[store] activeWorkspaceId 非法或悬空（${summarize(rawView)}），已回退全部视野`)

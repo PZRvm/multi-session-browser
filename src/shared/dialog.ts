@@ -77,12 +77,14 @@ export interface ShowWorkspacePickerPayload {
 export type WorkspacePickerResult =
   { status: 'picked'; workspaceId: string | null } | { status: 'cancelled' }
 
-/** 选项行数据：single 场景已由主进程排除当前归属（hereCount 缺省）；batch 场景含全部工作区 */
+/** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点）；batch 场景含全部工作区 */
 export interface WorkspacePickerOption {
   id: string
   name: string
   /** batch 场景：「勾选中已在该工作区数」（{here} 插值），主进程从快照现取 */
   hereCount?: number
+  /** single 场景：该行是会话当前归属（目标不可再选，sheet 呈「当前所在」禁用态） */
+  current?: boolean
 }
 
 /** payload 通道返回的展示上下文：全部由主进程从权威快照现取组装，sheet 页面零事实 */
@@ -94,6 +96,11 @@ export interface WorkspacePickerContext {
   sessionName?: string
   /** 批量场景：勾选总数（title {n} 插值与徽标分母 {total}）；单条场景缺省 */
   count?: number
+  /**
+   * single：全部工作区（会话当前归属行带 current 标记——用户反馈 2026-09-21：
+   * 当前行不再隐藏，呈现「当前所在」禁用态作为位置指示）；batch：全部工作区 +
+   * hereCount 计数徽标
+   */
   options: WorkspacePickerOption[]
   /** 是否显示「移出（未分组）」行：single = 当前已分组；batch = 勾选中存在非未分组归属 */
   showMoveOut: boolean
@@ -111,19 +118,19 @@ export interface WorkspacePickerPickPayload {
 
 /**
  * 模态框窗口度量（DIP，与 WorkspacePickerWindow.tsx / app.css / 主进程建窗高度
- * 计算同源配对；改值多处对账）：宽度恒定；高度 = 头部（单条/批量两档，按页面
- * CSS 实测推导：body 上内距 12 + 标题行 20 + 标题下距 10 +（批量副行 20）+ 列表
- * 分隔线 1 + body 下内距 14）+ 列表区可见行数 × 行高（行数超 MAX_VISIBLE_ROWS
- * 封顶内滚；零行时空态句定高）——主进程建窗 useContentSize 精确按此合成，sheet
- * 随内容定高、不滚动窗口本体；CSS 端不得给列表区增加纵向内距或行间距，否则
- * 与本公式失配（多余空隙或内滚）
+ * 计算同源配对；改值多处对账；2026-09-21 用户反馈放大：360 宽 / 40 行高 / 头部
+ * 疏朗化）：宽度恒定；高度 = 头部（单条/批量两档，按页面 CSS 实测推导：body 上
+ * 内距 16 + 标题行 22 + 标题下距 12 +（批量副行 20）+ 列表分隔线 1 + body 下内距
+ * 16）+ 列表区可见行数 × 行高（行数超 MAX_VISIBLE_ROWS 封顶内滚；零行时空态句
+ * 定高）——主进程建窗 useContentSize 精确按此合成，sheet 随内容定高、不滚动窗口
+ * 本体；CSS 端不得给列表区增加纵向内距或行间距，否则与本公式失配（多余空隙或内滚）
  */
-export const PICKER_WINDOW_WIDTH = 300
-export const PICKER_ROW_HEIGHT = 32
+export const PICKER_WINDOW_WIDTH = 360
+export const PICKER_ROW_HEIGHT = 40
 export const PICKER_MAX_VISIBLE_ROWS = 6
-export const PICKER_HEADER_HEIGHT_SINGLE = 58
-export const PICKER_HEADER_HEIGHT_BATCH = 78
-export const PICKER_EMPTY_HEIGHT = 44
+export const PICKER_HEADER_HEIGHT_SINGLE = 68
+export const PICKER_HEADER_HEIGHT_BATCH = 88
+export const PICKER_EMPTY_HEIGHT = 48
 
 /** 由上下文合成窗口内容高度（主进程建窗用；与上述常量同源，公式变更只改此处） */
 export function pickerWindowHeight(context: {

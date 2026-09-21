@@ -92,10 +92,12 @@ export const WORKSPACE_ID_RE = /^ws-[a-z0-9-]+$/
 export const WORKSPACE_NAME_MAX = 20
 
 /**
- * 视野哨兵值：activeWorkspaceId 为 'all'（全部会话视野）或某工作区 id。
- * 单一事实源——主进程校验与 renderer 派生共用，禁止手写字面量 'all'
+ * 视野哨兵值：activeWorkspaceId 为 'all'（全部会话视野）、'ungrouped'（未分组
+ * 视野，2026-09-21 用户反馈增量——下拉固定末位行，仅存留未分组会话）或某工作区
+ * id。单一事实源——主进程校验与 renderer 派生共用，禁止手写字面量
  */
 export const WORKSPACE_VIEW_ALL = 'all'
+export const WORKSPACE_VIEW_UNGROUPED = 'ungrouped'
 
 /**
  * pageTitle / tab title 的截断上限（按 UTF-16 码元切，中文不受影响）。
@@ -298,9 +300,12 @@ export interface MoveSessionsBatchResult {
 }
 
 /**
- * 切换工作区视野：id 为 WORKSPACE_VIEW_ALL（'all'）或工作区 id。
+ * 切换工作区视野：id 为 WORKSPACE_VIEW_ALL（'all'）、WORKSPACE_VIEW_UNGROUPED
+ * （'ungrouped'，未分组视野——仅存留未分组会话，无激活记忆、级联取全序首个未
+ * 分组）或工作区 id。
  * 主进程同一临界区内原子完成：落 activeWorkspaceId + 必要时级联 activeId
- * （该工作区 lastActiveSessionId → 无记忆取全序首个 → 空工作区 null），
+ * （工作区视野：该工作区 lastActiveSessionId → 无记忆取全序首个 → 空工作区 null；
+ * 未分组视野：全序首个未分组 → 空则 null），
  * 仅激活位变化时回调 onActiveChanged 触发浏览器切换；'all' 与纯视野切换零编排
  */
 export interface SetActiveWorkspacePayload {

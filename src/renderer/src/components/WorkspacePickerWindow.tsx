@@ -8,14 +8,16 @@ import { useT } from '../i18n'
 
 /**
  * 工作区选择模态框渲染端（PRD 4.11，第五角色 ?role=workspace-picker，原生 sheet
- * 专项 2026-09-21）：纯受控零自治——展示上下文（工作区列表/计数徽标/移出行条件）
- * 由主进程从权威快照现取（WorkspacePickerContext），挂载即经 payload 通道拉取；
- * 点选行经 pick 通道回传 workspaceId（null = 移出未分组），Esc / 系统关闭钮直接
- * 关窗、由主进程 closed 钩子按取消收敛（取消 ≠ 点选「移出」，两条路径严格分离）。
- * 文案消费 sessions.moveModal.* 既有键（i18n 零新增）；亮暗随 CSS 媒体查询
- * （app.css 暗色 token 随 nativeTheme 翻转，设置窗壳体同规）；模态阻塞由窗口系统
- * 承担，本组件不参与 overlay 登记。列表区封顶高度由 shared 度量常量合成（与主进程
- * 建窗高度计算同源配对），超封顶内滚、窗口本体不滚动
+ * 专项 2026-09-21；同日用户反馈轮放大疏朗 + 当前行指示 + 焦点语言修正）：纯受控
+ * 零自治——展示上下文（工作区列表/计数徽标/当前归属标记/移出行条件）由主进程从
+ * 权威快照现取（WorkspacePickerContext），挂载即经 payload 通道拉取；点选行经
+ * pick 通道回传 workspaceId（null = 移出未分组），Esc / 系统关闭钮直接关窗、由
+ * 主进程 closed 钩子按取消收敛（取消 ≠ 点选「移出」，两条路径严格分离）。当前
+ * 归属行呈「当前所在」禁用态（tile-ink 徽标，不参与点选与聚焦——选择目标语义下
+ * 它是不可再选的位置指示）；键盘焦点语言 = veil 底（与切换框键盘高亮同族，取代
+ * 全局琥珀 focus ring——后者被列表滚动容器裁剪后呈「底部一条线」，用户裁决弃用）。
+ * 文案消费 sessions.moveModal.* 键（currentTag 为反馈轮唯一新增）；亮暗随 CSS
+ * 媒体查询；列表封顶高度由 shared 度量常量合成（与主进程建窗高度同源配对）
  */
 export default function WorkspacePickerWindow(): React.JSX.Element {
   const t = useT()
@@ -49,8 +51,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       .catch(() => undefined)
   }
 
-  // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）；挂载即聚焦首个选项行，
-  // 键盘 Enter 原生激活焦点按钮、Tab 可达各项（无 context 时空态同样可关窗）
+  // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -61,9 +62,6 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
   }, [])
-  useEffect(() => {
-    firstOptionRef.current?.focus()
-  }, [context])
 
   const title = context
     ? context.kind === 'workspace-move-single'
@@ -71,6 +69,11 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
     : t('sessions.moveModal.titleFallback')
   const hasAnyRow = (context?.options.length ?? 0) > 0 || (context?.showMoveOut ?? false)
+  // 聚焦首个可选项（当前归属行禁用不参与；全禁用时聚焦移出行，再无则不聚焦）
+  const firstEnabledIdx = context?.options.findIndex((o) => !o.current) ?? -1
+  useEffect(() => {
+    firstOptionRef.current?.focus()
+  }, [context])
 
   return (
     <div className="picker-body" role="dialog" aria-label={title}>
@@ -87,12 +90,17 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
         {context?.options.map((option, i) => (
           <button
             key={option.id}
-            ref={i === 0 ? firstOptionRef : undefined}
+            ref={i === firstEnabledIdx ? firstOptionRef : undefined}
             type="button"
-            className="picker-option"
+            className={`picker-option${option.current ? ' current' : ''}`}
+            disabled={option.current}
+            aria-current={option.current || undefined}
             onClick={() => pick(option.id)}
           >
             <span className="picker-option-name">{option.name}</span>
+            {option.current && (
+              <span className="picker-option-tag">{t('sessions.moveModal.currentTag')}</span>
+            )}
             {option.hereCount !== undefined && (
               <span className="picker-option-count">
                 {t('sessions.moveModal.inTargetCount', {
@@ -105,7 +113,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
         ))}
         {context?.showMoveOut && (
           <button
-            ref={context.options.length === 0 ? firstOptionRef : undefined}
+            ref={firstEnabledIdx === -1 ? firstOptionRef : undefined}
             type="button"
             className="picker-option"
             onClick={() => pick(null)}

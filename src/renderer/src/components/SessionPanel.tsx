@@ -14,7 +14,7 @@ import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
 import { confirmDestructive, showWorkspacePicker } from '../dialogs'
-import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
+import { WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../../../shared/sessions'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
@@ -68,15 +68,23 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   // 批量关闭原生确认框在途守卫：弹框期间连点按钮忽略后续触发，防重复弹框
   const closeConfirmInFlight = useRef(false)
 
-  // 工作区视野：'all' 全量，否则按归属过滤（store 仍持全量——拖拽全序、级联与
-  // 批量「关闭选中」的集合判定都以全量为准，视野只是渲染过滤，PRD 4.8）
+  // 工作区视野：'all' 全量，'ungrouped' 仅未分组（2026-09-21 增量），否则按归属
+  // 过滤（store 仍持全量——拖拽全序、级联与批量「关闭选中」的集合判定都以全量为
+  // 准，视野只是渲染过滤，PRD 4.8）
   const viewIsAll = activeWorkspaceId === WORKSPACE_VIEW_ALL
+  const viewIsUngrouped = activeWorkspaceId === WORKSPACE_VIEW_UNGROUPED
   const visibleSessions = useMemo(
-    () => (viewIsAll ? sessions : sessions.filter((s) => s.workspaceId === activeWorkspaceId)),
-    [sessions, viewIsAll, activeWorkspaceId]
+    () =>
+      viewIsAll
+        ? sessions
+        : viewIsUngrouped
+          ? sessions.filter((s) => s.workspaceId === null)
+          : sessions.filter((s) => s.workspaceId === activeWorkspaceId),
+    [sessions, viewIsAll, viewIsUngrouped, activeWorkspaceId]
   )
-  // 新建/克隆落点：当前视野对应的工作区（'all' 视野 = 未分组 null，PRD 3.1.5）
-  const membership = viewIsAll ? null : activeWorkspaceId
+  // 新建/克隆落点：当前视野对应的工作区（'all' 与 'ungrouped' 视野 = 未分组 null，
+  // PRD 3.1.5）
+  const membership = viewIsAll || viewIsUngrouped ? null : activeWorkspaceId
   const wsNameById = useMemo(() => new Map(workspaces.map((w) => [w.id, w.name])), [workspaces])
 
   // 拖拽排序手势整体在 useSessionDragReorder（瞬态本地持有，不进 store/IPC/落盘）。

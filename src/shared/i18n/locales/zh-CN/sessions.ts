@@ -89,6 +89,7 @@ export const sessions = {
     title: '移动「{name}」到工作区',
     titleFallback: '移动到工作区',
     moveOut: '移出（未分组）',
+    currentTag: '当前所在',
     emptyOther: '尚无其他工作区，先在工作区切换框新建一个',
     batchTitle: '移动 {n} 个会话到工作区',
     batchSub: '移动后归属更新，会话数据与登录态不受影响',

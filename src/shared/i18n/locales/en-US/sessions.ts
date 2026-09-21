@@ -82,6 +82,7 @@ export const sessions: Dictionary['sessions'] = {
     title: 'Move "{name}" to workspace',
     titleFallback: 'Move to workspace',
     moveOut: 'Move out (ungrouped)',
+    currentTag: 'Current',
     emptyOther: 'No other workspaces yet. Create one in the workspace switcher first.',
     batchTitle: 'Move {n} sessions to workspace',
     batchSub: 'Membership updates after the move; session data and login states are unaffected.',

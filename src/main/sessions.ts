@@ -19,6 +19,7 @@ import {
   WORKSPACE_ID_RE,
   WORKSPACE_NAME_MAX,
   WORKSPACE_VIEW_ALL,
+  WORKSPACE_VIEW_UNGROUPED,
   cloneTabs,
   type MoveSessionsBatchResult,
   type OkResult,
@@ -713,12 +714,24 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       logFailure(SESSIONS_CHANNELS.workspaceSetActive, payload, async () => {
         if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
         const viewId = payload.id
-        if (viewId !== WORKSPACE_VIEW_ALL) assertWorkspaceIdFormat(viewId)
+        if (viewId !== WORKSPACE_VIEW_ALL && viewId !== WORKSPACE_VIEW_UNGROUPED) {
+          assertWorkspaceIdFormat(viewId)
+        }
         const outcome = await mutateSnapshot((snapshot) => {
           const prevActive = snapshot.activeId
           if (viewId === WORKSPACE_VIEW_ALL) {
             // 全部视野：纯视野切换，activeId 不动，零编排
             snapshot.activeWorkspaceId = WORKSPACE_VIEW_ALL
+            return { prevActive, nextActive: snapshot.activeId }
+          }
+          if (viewId === WORKSPACE_VIEW_UNGROUPED) {
+            // 未分组视野（2026-09-21 用户反馈增量）：纯元数据切换，无激活记忆
+            //（记忆只存在于工作区）——级联取全序首个未分组，空则 null
+            snapshot.activeWorkspaceId = WORKSPACE_VIEW_UNGROUPED
+            const current = snapshot.sessions.find((s) => s.id === snapshot.activeId)
+            if (!current || current.workspaceId !== null) {
+              snapshot.activeId = snapshot.sessions.find((s) => s.workspaceId === null)?.id ?? null
+            }
             return { prevActive, nextActive: snapshot.activeId }
           }
           const ws = snapshot.workspaces.find((w) => w.id === viewId)

@@ -498,12 +498,14 @@ body.col-resizing {
   bottom: -1px;
 }
 
-/* 工作区选择模态框（原生 sheet 专项 2026-09-21，?role=workspace-picker）：板面语系
-   ——抬升层底 + 发丝线 + 无阴影，选项行对齐 ws-option 行语言（28→32px 行高来自
-   shared PICKER_ROW_HEIGHT 度量契约，主进程建窗高度与列表封顶同源配对）。亮暗随
-   CSS 媒体查询（暗色 token 随 nativeTheme 翻转，设置窗壳体同规）；模态由窗口系统
-   承担，本页不参与 overlay 登记。列表封顶 = MAX_VISIBLE_ROWS × ROW_HEIGHT + 内距
-   （WorkspacePickerWindow 内联 style 从 shared 常量合成，不在此重复字面量） */
+/* 工作区选择模态框（原生 sheet 专项 2026-09-21，?role=workspace-picker；同日用户
+   反馈轮放大疏朗 + 焦点语言修正）：板面语系——抬升层底 + 发丝线 + 无阴影。尺寸由
+   shared/dialog.ts 度量常量单源（360 宽 / 40 行高 / 头部 68·88）与主进程建窗高度
+   同源配对，本段不写宽度与总高字面量；列表区禁纵向内距与行间距（高度公式约束）。
+   键盘焦点语言 = veil 底（与切换框键盘高亮同族）——全局琥珀 focus ring 被列表
+   滚动容器裁剪后呈「底部一条线」，用户裁决弃用，行内 outline 显式归零。
+   当前归属行 = 「当前所在」tile-ink 徽标 + 禁用态（位置指示，不参与点选/聚焦/hover）。
+   亮暗随 CSS 媒体查询；模态由窗口系统承担，本页不参与 overlay 登记 */
 body[data-role='workspace-picker'] {
   overflow: hidden;
   background: var(--board-bg-raised);
@@ -513,21 +515,21 @@ body[data-role='workspace-picker'] {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  padding: 12px 14px 14px;
+  padding: 16px 18px;
   background: var(--board-bg-raised);
   color: var(--board-ink);
 }
 
 .picker-head {
   flex: none;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .picker-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 20px;
+  line-height: 22px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -547,16 +549,25 @@ body[data-role='workspace-picker'] {
   border-top: 1px solid var(--board-hairline);
 }
 
+.picker-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.picker-list::-webkit-scrollbar-thumb {
+  background: var(--board-scrollbar-thumb);
+  border-radius: 4px;
+}
+
 .picker-option {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: none;
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   background: transparent;
   color: var(--board-ink);
   font-size: 12px;
@@ -565,8 +576,18 @@ body[data-role='workspace-picker'] {
   white-space: nowrap;
 }
 
-.picker-option:hover {
+.picker-option:hover,
+.picker-option:focus-visible {
+  outline: none;
   background: var(--board-hover-veil);
+}
+
+.picker-option:disabled {
+  cursor: default;
+}
+
+.picker-option:disabled:hover {
+  background: transparent;
 }
 
 .picker-option-name {
@@ -574,6 +595,13 @@ body[data-role='workspace-picker'] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 「当前所在」徽标（信号色 tile-ink——状态指示属信号用法，与切换框对勾同源） */
+.picker-option-tag {
+  flex: none;
+  font-size: 11px;
+  color: var(--board-tile-ink);
 }
 
 .picker-option-count {
@@ -585,7 +613,7 @@ body[data-role='workspace-picker'] {
 
 .picker-empty {
   margin: 0;
-  padding: 12px 10px;
+  padding: 14px 12px;
   font-size: 12px;
   color: var(--board-ink-dim);
 }

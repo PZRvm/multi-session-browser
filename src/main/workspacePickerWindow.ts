@@ -91,8 +91,9 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
 
 /**
  * 从权威快照现取组装展示上下文（不经 IPC 传展示字符串，渲染层不持第二份事实）：
- * single 排除当前归属（列表即「可选目标」），showMoveOut = 当前已分组；batch 列
- * 全部工作区（混合归属不排除——移动是幂等赋值）并带 hereCount 计数徽标，
+ * single 列全部工作区、当前归属行带 current 标记（2026-09-21 用户反馈：当前行
+ * 不再隐藏，sheet 呈「当前所在」禁用态作位置指示），showMoveOut = 当前已分组；
+ * batch 列全部工作区（混合归属不排除——移动是幂等赋值）并带 hereCount 计数徽标，
  * showMoveOut = 勾选中存在非未分组归属。会话已不存在（弹层窗口期内被并发删除）
  * 时返回 null，调用方以 cancelled 收敛——选择类弹层对过期目标不做拒绝式报错
  */
@@ -107,9 +108,11 @@ async function buildContext(
       requestId: randomUUID(),
       kind: request.kind,
       sessionName: session.name,
-      options: snapshot.workspaces
-        .filter((w) => w.id !== session.workspaceId)
-        .map((w) => ({ id: w.id, name: w.name })),
+      options: snapshot.workspaces.map((w) => ({
+        id: w.id,
+        name: w.name,
+        ...(w.id === session.workspaceId ? { current: true } : {})
+      })),
       showMoveOut: session.workspaceId !== null
     }
   }
@@ -227,7 +230,9 @@ function openSheet(
 ): void {
   const sheet = new BrowserWindow({
     width: PICKER_WINDOW_WIDTH,
-    height: pickerWindowHeight(context),
+    // darwin 创建期补偿（实测 sheet 附加扣减 28px，见 ready-to-show 复核注释）——
+    // 首帧即正确尺寸，滑出动画不带二次形变
+    height: pickerWindowHeight(context) + (process.platform === 'darwin' ? 28 : 0),
     useContentSize: true,
     resizable: false,
     minimizable: false,
@@ -255,6 +260,13 @@ function openSheet(
   sheet.once('ready-to-show', () => {
     if (sheet.isDestroyed()) return
     sheet.show()
+    // macOS sheet 附加时系统扣减标准标题条高度（实测恒定 −28px，frame:false 亦然；
+    // Windows/Linux 理论不失配）——显窗后复核内容高度，失配即重申，flex 列布局
+    // 才不会被压缩出内滚
+    const targetHeight = pickerWindowHeight(context)
+    if (sheet.getContentSize()[1] !== targetHeight) {
+      sheet.setContentSize(PICKER_WINDOW_WIDTH, targetHeight)
+    }
   })
   // 任何路径（用户关窗 / 父窗级联 / 应用退出）关闭后：在途请求兜底以取消收敛
   sheet.once('closed', () => {

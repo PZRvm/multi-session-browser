@@ -90,6 +90,7 @@ export const sessions: Dictionary['sessions'] = {
     title: '移動「{name}」到工作區',
     titleFallback: '移動到工作區',
     moveOut: '移出（未分組）',
+    currentTag: '當前所在',
     emptyOther: '尚無其他工作區，先在工作區切換框新增一個',
     batchTitle: '移動 {n} 個會話到工作區',
     batchSub: '移動後歸屬更新，會話資料與登入狀態不受影響',
