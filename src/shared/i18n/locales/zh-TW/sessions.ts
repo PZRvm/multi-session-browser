@@ -55,6 +55,10 @@ export const sessions: Dictionary['sessions'] = {
       title: '該工作區尚無會話',
       desc: '新增會話將加入此工作區'
     },
+    emptyUngrouped: {
+      title: '未分組尚無會話',
+      desc: '新建會話將加入未分組'
+    },
     newSession: '新增會話',
     reorderFailed: '會話排序失敗，列表順序已恢復',
     moveFailed: '移動會話失敗'
@@ -91,7 +95,6 @@ export const sessions: Dictionary['sessions'] = {
     titleFallback: '移動到工作區',
     moveOut: '移出（未分組）',
     currentTag: '當前所在',
-    emptyOther: '尚無其他工作區，先在工作區切換框新增一個',
     batchTitle: '移動 {n} 個會話到工作區',
     batchSub: '移動後歸屬更新，會話資料與登入狀態不受影響',
     inTargetCount: '{here} / {total} 在此',

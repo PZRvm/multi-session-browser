@@ -37,6 +37,9 @@ import { logFailureAsync } from './ipc-utils'
 import type { ResolvedTheme } from '../shared/appearance'
 import type { ThemeSystemId } from '../shared/themeSystems'
 
+/** batch ids 长度上限（审查低 6：跨 IPC 载荷防御面，正常路径 ≤ 会话总数） */
+const PICKER_IDS_MAX = 100_000
+
 /** kind 白名单（对齐 CONFIRM_KINDS allowlist 先例），白名单外整单拒绝 */
 const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'workspace-move-single',
@@ -54,7 +57,8 @@ function isPickerKind(value: string): value is WorkspacePickerKind {
  */
 interface PendingPicker {
   requestId: string
-  context: WorkspacePickerContext
+  /** 槽位预留期为 null，上下文组装完成后回填（payload 通道对 null 按无上下文兜底） */
+  context: WorkspacePickerContext | null
   resolve: (result: WorkspacePickerResult) => void
   sheet: BrowserWindow | null
 }
@@ -82,6 +86,7 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
   if (
     !Array.isArray(raw) ||
     raw.length === 0 ||
+    raw.length > PICKER_IDS_MAX ||
     !raw.every((item): item is string => typeof item === 'string' && SESSION_ID_RE.test(item))
   ) {
     throw invalidParams()
@@ -98,14 +103,15 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
  * 时返回 null，调用方以 cancelled 收敛——选择类弹层对过期目标不做拒绝式报错
  */
 async function buildContext(
-  request: ShowWorkspacePickerPayload
+  request: ShowWorkspacePickerPayload,
+  requestId: string
 ): Promise<WorkspacePickerContext | null> {
   const snapshot = await loadSnapshot()
   if (request.kind === 'workspace-move-single') {
     const session = snapshot.sessions.find((s) => s.id === request.sessionId)
     if (!session) return null
     return {
-      requestId: randomUUID(),
+      requestId,
       kind: request.kind,
       sessionName: session.name,
       options: snapshot.workspaces.map((w) => ({
@@ -118,7 +124,7 @@ async function buildContext(
   }
   const checked = new Set(request.ids)
   return {
-    requestId: randomUUID(),
+    requestId,
     kind: request.kind,
     count: checked.size,
     options: snapshot.workspaces.map((w) => ({
@@ -150,8 +156,11 @@ export function registerWorkspacePickerIpc(deps: {
   getThemeColor: () => ThemeSystemId
 }): void {
   // show：主窗 shell 触发（sender 白名单 = 主窗，对齐 settings:open 先例）——守卫 →
-  // 快照现取组装上下文 → 建模态子窗 → 挂 pending，等 pick/closed 收敛后返回结论。
-  // 主窗缺失（macOS 关窗期间不可达入口）与重复请求（防御面）一律 cancelled，不抛错
+  // 同步预留 pending 槽位（取消上一请求 + 立即占位，检查与赋值之间不得插入 await，
+  // 否则并发二次 show 在模态生效前的窗口期互顶、首请求 resolve 丢失——审查中 1）→
+  // 槽位占位后异步组装上下文（快照现取）→ 建模态子窗，等 pick/closed 收敛后返回
+  // 结论。主窗缺失（macOS 关窗期间不可达入口）、会话已消失、组装失败一律
+  // cancelled，不抛错
   ipcMain.handle(
     DIALOG_CHANNELS.showWorkspacePicker,
     (event, payload: unknown): Promise<WorkspacePickerResult> =>
@@ -165,14 +174,33 @@ export function registerWorkspacePickerIpc(deps: {
             console.warn('[dialog] 拒绝非主窗来源的工作区选择框请求')
             return { status: 'cancelled' }
           }
-          if (pending) {
-            resolveCancelled('上一请求未收敛时的二次 show（模态期不可达，防御面）')
-          }
-          const context = await buildContext(request)
-          if (!context) return { status: 'cancelled' }
           return new Promise<WorkspacePickerResult>((resolve) => {
-            pending = { requestId: context.requestId, context, resolve, sheet: null }
-            openSheet(mainWindow, deps, context)
+            if (pending) {
+              resolveCancelled('二次 show（模态生效前的并发窗口，防御面）')
+            }
+            const requestId = randomUUID()
+            pending = { requestId, context: null, resolve, sheet: null }
+            void (async () => {
+              try {
+                const context = await buildContext(request, requestId)
+                // 槽位仍归属本请求且上下文就绪：回填并开 sheet；否则（会话已消失 /
+                // 组装失败 / 槽位已被防御路径接管）按取消收敛本请求
+                if (pending && pending.requestId === requestId && context) {
+                  pending.context = context
+                  openSheet(mainWindow, deps, context)
+                  return
+                }
+              } catch (error) {
+                console.warn(
+                  '[dialog] 工作区选择框上下文组装失败:',
+                  error instanceof Error ? error.message : String(error)
+                )
+              }
+              if (pending && pending.requestId === requestId) {
+                resolve({ status: 'cancelled' })
+                pending = null
+              }
+            })()
           })
         },
         'dialog'
@@ -182,7 +210,7 @@ export function registerWorkspacePickerIpc(deps: {
   // payload：sheet 页面拉取展示上下文（仅认在途 sheet 窗 webContents，其他来源返回
   // null——sheet 页面按空态兜底渲染并允许关闭）
   ipcMain.handle(DIALOG_CHANNELS.workspacePickerPayload, (event): WorkspacePickerContext | null => {
-    if (!pending || !pending.sheet || pending.sheet.isDestroyed()) return null
+    if (!pending || !pending.context || !pending.sheet || pending.sheet.isDestroyed()) return null
     if (event.sender !== pending.sheet.webContents) return null
     return pending.context
   })

@@ -54,6 +54,10 @@ export const sessions = {
       title: '该工作区尚无会话',
       desc: '新建会话将加入此工作区'
     },
+    emptyUngrouped: {
+      title: '未分组尚无会话',
+      desc: '新建会话将加入未分组'
+    },
     newSession: '新建会话',
     reorderFailed: '会话排序失败，列表顺序已恢复',
     moveFailed: '移动会话失败'
@@ -90,7 +94,6 @@ export const sessions = {
     titleFallback: '移动到工作区',
     moveOut: '移出（未分组）',
     currentTag: '当前所在',
-    emptyOther: '尚无其他工作区，先在工作区切换框新建一个',
     batchTitle: '移动 {n} 个会话到工作区',
     batchSub: '移动后归属更新，会话数据与登录态不受影响',
     inTargetCount: '{here} / {total} 在此',

@@ -70,14 +70,17 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
 
   // 视野哨兵：全部会话固定首位；未分组固定末位（2026-09-21 用户反馈增量——
   // 仅存留未分组会话的视野）。零工作区时不渲染未分组行（全员未分组时它就是
-  // 全部列表，单独成行是零信息噪音——与归属标记的零噪音基线同规）
+  // 全部列表，单独成行是零信息噪音——与归属标记的零噪音基线同规），例外：
+  // 当前视野即未分组时恒渲染（审查低 3——当前视野行不得从自己的列表里消失）
   const allOptions: WsOption[] = useMemo(
     () => [
       { id: WORKSPACE_VIEW_ALL, name: t('sessions.workspaceSwitcher.allSessions') },
       ...workspaces,
-      ...(workspaces.length > 0 ? [{ id: WORKSPACE_VIEW_UNGROUPED, name: ungroupedName }] : [])
+      ...(workspaces.length > 0 || activeWorkspaceId === WORKSPACE_VIEW_UNGROUPED
+        ? [{ id: WORKSPACE_VIEW_UNGROUPED, name: ungroupedName }]
+        : [])
     ],
-    [workspaces, t, ungroupedName]
+    [workspaces, activeWorkspaceId, t, ungroupedName]
   )
   const keyword = filter.trim().toLowerCase()
   const filtered = useMemo(

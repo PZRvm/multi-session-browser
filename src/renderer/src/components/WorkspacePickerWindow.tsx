@@ -128,12 +128,10 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
             <span className="picker-option-name">{t('sessions.moveModal.moveOut')}</span>
           </button>
         )}
+        {/* 单条场景当前归属行已并入列表（current 标记），options 为空即完全无工作区
+            ——空态统一用 emptyNone（审查低 5：emptyOther 的「其他」是旧排除语义残留） */}
         {context && !hasAnyRow && (
-          <p className="picker-empty">
-            {context.kind === 'workspace-move-single'
-              ? t('sessions.moveModal.emptyOther')
-              : t('sessions.moveModal.emptyNone')}
-          </p>
+          <p className="picker-empty">{t('sessions.moveModal.emptyNone')}</p>
         )}
         {!context && loadFailed && (
           <p className="picker-empty">{t('sessions.moveModal.emptyNone')}</p>

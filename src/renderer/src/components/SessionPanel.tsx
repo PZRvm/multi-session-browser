@@ -340,10 +340,19 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             <p className="session-empty-desc">{t('sessions.panel.emptyAll.desc')}</p>
           </div>
         ) : visibleSessions.length === 0 ? (
-          // 工作区视野空态：全局有会话但当前工作区没有（板脚新建仍可用，落本工作区）
+          // 工作区/未分组视野空态：全局有会话但当前视野没有（板脚新建仍可用，落本
+          // 视野——未分组视野的落点即未分组，审查低 4 文案分流）
           <div className="session-empty">
-            <p className="session-empty-title">{t('sessions.panel.emptyWorkspace.title')}</p>
-            <p className="session-empty-desc">{t('sessions.panel.emptyWorkspace.desc')}</p>
+            <p className="session-empty-title">
+              {viewIsUngrouped
+                ? t('sessions.panel.emptyUngrouped.title')
+                : t('sessions.panel.emptyWorkspace.title')}
+            </p>
+            <p className="session-empty-desc">
+              {viewIsUngrouped
+                ? t('sessions.panel.emptyUngrouped.desc')
+                : t('sessions.panel.emptyWorkspace.desc')}
+            </p>
           </div>
         ) : (
           <ul className="session-list" {...listHandlers}>

@@ -49,6 +49,10 @@ export const sessions: Dictionary['sessions'] = {
       title: 'No sessions in this workspace',
       desc: 'New sessions will join this workspace'
     },
+    emptyUngrouped: {
+      title: 'Nothing in Ungrouped yet',
+      desc: 'New sessions will join Ungrouped'
+    },
     newSession: 'New session',
     reorderFailed: 'Reorder failed; list order restored',
     moveFailed: 'Failed to move session'
@@ -83,7 +87,6 @@ export const sessions: Dictionary['sessions'] = {
     titleFallback: 'Move to workspace',
     moveOut: 'Move out (ungrouped)',
     currentTag: 'Current',
-    emptyOther: 'No other workspaces yet. Create one in the workspace switcher first.',
     batchTitle: 'Move {n} sessions to workspace',
     batchSub: 'Membership updates after the move; session data and login states are unaffected.',
     inTargetCount: '{here} / {total} here',
