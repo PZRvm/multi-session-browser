@@ -34,6 +34,8 @@ interface SessionsState {
   batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
   // 返回是否成功：整单拒绝或 IPC 失败返回 false，供调用方呈现中文失败反馈
   reorderSessions: (ids: string[]) => Promise<boolean>
+  // 工作区列表排序（拖动排序专项）：全序整单提交；返回是否成功（失败回主进程权威序）
+  reorderWorkspaces: (ids: string[]) => Promise<boolean>
   // 工作区动作（失败均返回 false/null 供中文反馈；成功后镜像与主进程权威状态一致）
   switchWorkspace: (id: string) => Promise<boolean>
   // 成功返回新建的 StoredWorkspace，失败返回 null
@@ -389,6 +391,36 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             activeId: get().activeId
           })
         }
+      }
+      return false
+    }
+  },
+
+  // 工作区列表排序（拖动排序专项 2026-09-21）：对齐 reorderSessions 范式——只接受
+  // 与当前镜像相同 ID 集合的全序（防陈旧顺序覆盖并发新建/删除）；无变化短路零 IPC；
+  // 有效变化乐观换序后提交一次全序 IPC；失败重拉主进程快照权威接管（workspaces/
+  // activeWorkspaceId 以快照为准，会话与激活位不动但一并校准，整次失败返回 false
+  // 供中文反馈）。重排纯元数据：不动 activeWorkspaceId、activeId、激活记忆与归属
+  reorderWorkspaces: async (ids) => {
+    const prev = get().workspaces
+    const prevIds = prev.map((w) => w.id)
+    const idSet = new Set(ids)
+    if (ids.length !== prevIds.length || prevIds.some((id) => !idSet.has(id))) {
+      console.error('排序入参与当前工作区列表不一致')
+      return false
+    }
+    if (ids.every((id, i) => id === prevIds[i])) return true
+    const byId = new Map(prev.map((w) => [w.id, w]))
+    set({ workspaces: ids.map((id) => byId.get(id) as StoredWorkspace) })
+    try {
+      await window.api.sessions.workspaceReorder({ ids })
+      return true
+    } catch (error) {
+      console.error('工作区排序失败', error)
+      try {
+        adoptSnapshot(set, await window.api.sessions.list(), get().sessions)
+      } catch (listError) {
+        console.error('重拉会话列表失败', listError)
       }
       return false
     }

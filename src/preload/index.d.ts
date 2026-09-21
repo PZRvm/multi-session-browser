@@ -36,7 +36,13 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
-import type { ConfirmDestructivePayload } from '../shared/dialog'
+import type {
+  ConfirmDestructivePayload,
+  ShowWorkspacePickerPayload,
+  WorkspacePickerContext,
+  WorkspacePickerPickPayload,
+  WorkspacePickerResult
+} from '../shared/dialog'
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
@@ -51,6 +57,7 @@ import type {
   RenameSessionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
+  ReorderWorkspacesPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
@@ -91,6 +98,7 @@ declare global {
           payload: MoveSessionsToWorkspacePayload
         ): Promise<MoveSessionsBatchResult>
         workspaceSetActive(payload: SetActiveWorkspacePayload): Promise<OkResult>
+        workspaceReorder(payload: ReorderWorkspacesPayload): Promise<OkResult>
       }
       browser: {
         getState(): Promise<BrowserSnapshot>
@@ -141,6 +149,9 @@ declare global {
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>
+        showWorkspacePicker(payload: ShowWorkspacePickerPayload): Promise<WorkspacePickerResult>
+        workspacePickerPayload(): Promise<WorkspacePickerContext | null>
+        workspacePickerPick(payload: WorkspacePickerPickPayload): Promise<OkResult>
       }
     }
   }

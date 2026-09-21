@@ -42,6 +42,12 @@
 //   备注（PRD 3.1.2）；trim 后空串 = 清除备注（合法提交非拒绝），语义与 rename
 //   拒空相反；纯元数据无编排回调（备注不联动窗口标题）；note 字段 v1 起在
 //   StoredSession，零 schema 变更
+// - 工作区排序增量（2026-09-21，计划 notes/plans/20260921135305-工作区体验双升级
+//   开发计划.md 第 2.4 节）：workspaceReorder（19 → 20，invoke）——下拉面板内拖动
+//   提交完整工作区 id 全序，整单校验拒绝制与 sessions:reorder 同口径（WORKSPACE_ID_RE
+//   格式非法/重复/缺项/多项/未知 id 任一整单拒绝、磁盘顺序不变）；纯重排 workspaces
+//   数组（元素对象原样引用），不动 activeWorkspaceId/activeId/lastActiveSessionId
+//   与会话归属，零编排回调；schema v4 零变更（数组顺序即唯一持久化顺序）
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -63,6 +69,7 @@ export const SESSIONS_CHANNELS = {
   workspaceDelete: 'workspaces:delete',
   workspaceMoveSession: 'workspaces:move-session',
   workspaceMoveSessionsBatch: 'workspaces:move-sessions-batch',
+  workspaceReorder: 'workspaces:reorder',
   workspaceSetActive: 'workspaces:set-active'
 } as const
 
@@ -139,7 +146,8 @@ export interface StoredSession {
 }
 
 /**
- * 落盘的工作区元数据。workspaces 数组顺序即下拉展示序（不做工作区排序）；
+ * 落盘的工作区元数据。workspaces 数组顺序即下拉展示序（唯一持久化顺序，可经
+ * workspaceReorder 全序重排——拖动排序专项 2026-09-21，整单校验拒绝制）；
  * lastActiveSessionId 为该工作区内上次激活的会话（恢复「视野 + 激活位」用，
  * 只随真实激活更新；null = 无记忆），不参与任何编排
  */
@@ -229,6 +237,17 @@ export interface BatchDeleteSessionsPayload {
  * 磁盘顺序不变；合法时纯重排 sessions 数组，activeId 与各会话字段不变
  */
 export interface ReorderSessionsPayload {
+  ids: string[]
+}
+
+/**
+ * 工作区列表排序（拖动排序专项 2026-09-21）：提交当前全部工作区 id 的完整排列
+ * （全序，非 from/to 增量）。整单校验拒绝制与 ReorderSessionsPayload 同口径——
+ * WORKSPACE_ID_RE 格式非法、重复、缺项、多项、未知 id 任一不满足整单拒绝，
+ * 磁盘顺序不变；合法时纯重排 workspaces 数组，activeWorkspaceId、activeId 与
+ * lastActiveSessionId 均不变（「全部会话」哨兵项不属于排序集合，天然不在 ids 内）
+ */
+export interface ReorderWorkspacesPayload {
   ids: string[]
 }
 

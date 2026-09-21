@@ -1,12 +1,12 @@
-// 会话 IPC handlers：十七条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
-// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项六条 create/rename/delete/
-// move-session/move-sessions-batch/set-active + 备注编辑 set-note 一条，2026-09-18
-// 增量）的业务实现，读写一律经 store.ts 的快照接口；status-changed
+// 会话 IPC handlers：十八条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项七条 create/rename/delete/
+// move-session/move-sessions-batch/reorder/set-active + 备注编辑 set-note 一条，含
+// 2026-09-21 工作区排序增量）的业务实现，读写一律经 store.ts 的快照接口；status-changed
 // 推送不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
-// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区六通道纯元数据：唯一
+// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区七通道纯元数据：唯一
 // 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
 
 import { ipcMain } from 'electron'
@@ -664,6 +664,44 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
+  // workspaces:reorder：工作区列表拖拽排序（拖动排序专项 2026-09-21）——只接受
+  // 当前全部工作区 id 的无重复全序（纯重排），与 sessions:reorder 同口径：格式
+  // 非法、重复、缺项、多项或未知 id 时整单拒绝且磁盘不变。集合相等校验与重排同在
+  // mutateSnapshot 互斥期内完成（无校验/执行竞态窗口）。合法时仅按入参顺序重排
+  // snapshot.workspaces（元素对象原样引用、内容零变更），activeWorkspaceId、
+  // activeId 与 lastActiveSessionId 均不动，零编排回调——排序是纯元数据操作，
+  // 「全部会话」哨兵项不属于排序集合，天然不在 ids 内
+  ipcMain.handle(
+    SESSIONS_CHANNELS.workspaceReorder,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.workspaceReorder, payload, async () => {
+        // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
+        if (!isRecord(payload)) throw invalidParams()
+        const ids = parseNonEmptyStringIds(payload)
+        // 工作区 id 格式预校验（整单拒绝）：被篡改的落盘 id 须在集合校验前拒绝
+        //（照 assertSessionIdFormat 的纵深防御先例，工作区命名空间同规）
+        if (!ids.every((id) => WORKSPACE_ID_RE.test(id))) {
+          throw new Error(t('errors.workspaceIdTampered'))
+        }
+        // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
+        if (new Set(ids).size !== ids.length) {
+          throw new Error(t('errors.reorderDuplicateIds'))
+        }
+        await mutateSnapshot((snapshot) => {
+          // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
+          // 缺项 / 多项 / 未知三类不一致
+          const known = new Set(snapshot.workspaces.map((w) => w.id))
+          if (known.size !== ids.length || !ids.every((id) => known.has(id))) {
+            throw new Error(t('errors.reorderMismatch'))
+          }
+          const byId = new Map(snapshot.workspaces.map((w) => [w.id, w]))
+          snapshot.workspaces = ids.map((id) => byId.get(id) as StoredWorkspace)
+          return { ok: true }
+        })
+        return { ok: true }
+      })
+  )
+
   // workspaces:set-active：切换工作区视野（主进程内原子副作用，setActive 同模式）。
   // 同一 mutateSnapshot 临界区内完成：落 activeWorkspaceId + 必要时级联 activeId——
   // 当前激活会话不属于目标工作区时，级联到该工作区 lastActiveSessionId（记忆悬空
@@ -713,6 +751,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 17 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 19 条
+  // 本文件注册 18 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 20 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

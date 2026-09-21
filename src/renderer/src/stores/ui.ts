@@ -12,8 +12,9 @@ import { create } from 'zustand'
 // 约束：新增任何可能延伸到右区的 portal 弹层（Dropdown/message/notification 等）都必须
 // 经 openOverlay/closeOverlay 显式登记，否则会重新引入遮挡与盲操作两类缺陷；
 // 计数而非布尔，为将来弹层嵌套留余地。
-// 例外：破坏性删除确认（删除会话/批量关闭/删除工作区，PRD 4.10）走主进程原生
-// 对话框——窗口模态自身阻塞输入、页面视图保持可见，不参与本登记。
+// 例外：主进程原生弹层不参与本登记——破坏性删除确认（删除会话/批量关闭/删除
+// 工作区，PRD 4.10）与工作区选择模态框（移动到工作区单条/批量，PRD 4.11）均为
+// 窗口模态自身阻塞输入、页面视图保持可见，无需也不应收起右区。
 interface UiState {
   overlayDepth: number
   openOverlay: () => void

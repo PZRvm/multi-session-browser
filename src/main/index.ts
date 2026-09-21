@@ -5,6 +5,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerDialogIpc } from './dialogs'
+import { registerWorkspacePickerIpc } from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
 import { createTabDragController } from './browser/dragging'
 import { createDragPreview } from './browser/dragPreview'
@@ -443,6 +444,15 @@ app.whenReady().then(async () => {
   // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/
   // workspaces 通道闭环（契约见 shared/dialog.ts）
   registerDialogIpc()
+  // 工作区选择模态框（PRD 4.11，2026-09-21）：「移动到工作区」（单条 + 批量）目标
+  // 选择弹主进程模态子窗口（macOS 原生 sheet，冒烟实证窗口模态阻塞 + 页面可见），
+  // 展示上下文由权威快照现取；只返回选择结果，移动仍由 workspaces 既有通道闭环。
+  // 建窗主题/语言注入与设置窗同源（appearanceController 现取）
+  registerWorkspacePickerIpc({
+    getMainWindow: () => mainWindow,
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
+  })
 
   // 会话状态推送：注册表聚合的全量状态 map 直连主窗口（status-changed 通道不经
   // sessions.ts，对齐 browser 侧 stateChanged 由 ipc.ts 接线的分工；会话面板只在主

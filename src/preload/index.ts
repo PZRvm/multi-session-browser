@@ -51,6 +51,7 @@ import type {
   RenameSessionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
+  ReorderWorkspacesPayload,
   SessionStatusesPayload,
   SessionsSnapshot,
   SetActiveSessionPayload,
@@ -68,7 +69,13 @@ import type {
   SettingsSnapshot
 } from '../shared/settings'
 import { DIALOG_CHANNELS } from '../shared/dialog'
-import type { ConfirmDestructivePayload } from '../shared/dialog'
+import type {
+  ConfirmDestructivePayload,
+  ShowWorkspacePickerPayload,
+  WorkspacePickerContext,
+  WorkspacePickerPickPayload,
+  WorkspacePickerResult
+} from '../shared/dialog'
 
 // Custom APIs for renderer
 const api = {
@@ -131,6 +138,10 @@ const api = {
     // 视野切换：id 为 'all'（WORKSPACE_VIEW_ALL 单源）或工作区 id；主进程原子级联
     workspaceSetActive: (payload: SetActiveWorkspacePayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceSetActive, payload),
+    // 工作区列表排序（拖动排序专项）：只接收当前全部工作区 id 的完整顺序（全序），
+    // 主进程整单校验拒绝制；纯重排不动视野/激活位/激活记忆
+    workspaceReorder: (payload: ReorderWorkspacesPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceReorder, payload),
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
     onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {
@@ -328,10 +339,19 @@ const api = {
   // 破坏性确认域（契约见 shared/dialog.ts）：删除类二次确认走主进程原生对话框
   // （PRD 4.10），弹框期间页面视图保持可见、不经 overlay 登记收起右区。载荷只带
   // 数据参数，文案由主进程经 main/i18n 语言态复用既有字典键组装；返回 true 仅当
-  // 用户按下确认按钮，取消/Esc/关闭一律 false
+  // 用户按下确认按钮，取消/Esc/关闭一律 false。
+  // 工作区选择模态框（PRD 4.11，2026-09-21 增量）：三通道三侧各取所需——show 归
+  // 主窗 shell（发起 + 等待最终结论），payload/pick 归 sheet 页面（拉展示上下文 /
+  // 提交选择）；主进程持单请求 pending 态，模态阻塞由窗口系统承担
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
-      ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload)
+      ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload),
+    showWorkspacePicker: (payload: ShowWorkspacePickerPayload): Promise<WorkspacePickerResult> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.showWorkspacePicker, payload),
+    workspacePickerPayload: (): Promise<WorkspacePickerContext | null> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPayload),
+    workspacePickerPick: (payload: WorkspacePickerPickPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPick, payload)
   }
 }
 

@@ -10,6 +10,7 @@ import { useSessionsStore } from './stores/sessions'
 import { useSettingsStore } from './stores/settings'
 import { bootstrapThemeTokens } from './theme'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
+import { WORKSPACE_PICKER_WINDOW_ROLE } from '../../shared/dialog'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
 // 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
@@ -18,6 +19,9 @@ const App = lazy(() => import('./App'))
 
 // 设置窗壳体同款惰性分流（设置专项阶段一）：阶段一只有三组分组标题骨架
 const SettingsWindow = lazy(() => import('./components/SettingsWindow'))
+
+// 工作区选择模态框渲染端（原生 sheet 专项，?role=workspace-picker）：同款惰性分流
+const WorkspacePickerWindow = lazy(() => import('./components/WorkspacePickerWindow'))
 
 // 主题 token 首帧注入（设置专项阶段五）：建窗 URL query 的 sys 是主进程建窗注入的
 // 首帧初始值契约（运行期主题变更不再读 query，一律经 appearance:changed 推送收敛）。
@@ -66,6 +70,19 @@ if (role === SETTINGS_WINDOW_ROLE) {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <OmniboxSuggestWindow />
+    </StrictMode>
+  )
+} else if (role === WORKSPACE_PICKER_WINDOW_ROLE) {
+  document.body.dataset.role = WORKSPACE_PICKER_WINDOW_ROLE
+  // 工作区选择模态框（原生 sheet 专项）：同建议子窗形态——仅 init i18n 镜像（一次性
+  // 窗口秒级存活，语言切换经订阅兜底），不初始化 sessions/browser/settings store
+  //（展示上下文由主进程经 payload 通道现取，页面零事实）
+  void useI18nStore.getState().init()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={null}>
+        <WorkspacePickerWindow />
+      </Suspense>
     </StrictMode>
   )
 } else {

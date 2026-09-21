@@ -7,6 +7,7 @@ import { useSessionsStore } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
 import { confirmDestructive } from '../dialogs'
 import { useT } from '../i18n'
+import { useWorkspaceDragReorder } from './useWorkspaceDragReorder'
 
 /** 下拉选项（全部会话 + 各工作区；新建行独立渲染不入 options） */
 interface WsOption {
@@ -35,6 +36,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const createWorkspace = useSessionsStore((s) => s.createWorkspace)
   const renameWorkspace = useSessionsStore((s) => s.renameWorkspace)
   const deleteWorkspace = useSessionsStore((s) => s.deleteWorkspace)
+  const reorderWorkspaces = useSessionsStore((s) => s.reorderWorkspaces)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
   const { message } = App.useApp()
@@ -74,6 +76,17 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const createCandidate =
     filter.trim() && !allOptions.some((o) => o.name === filter.trim()) ? filter.trim() : null
   const selectableCount = filtered.length + (createCandidate ? 1 : 0)
+
+  // 拖拽排序手势（拖动排序专项 2026-09-21）：仅面板展开且无过滤词时启用——过滤视图
+  // 是子集，子序重排语义含混，宁缺勿滥。入参恒为全量 workspaces（drop 全序合成即
+  // 持久化顺序）；失败走整单拒绝不静默惯例（文案复用会话列表排序失败键，i18n 零新增）
+  const dragEnabled = open && filter.trim() === ''
+  const { panelHandlers, rowProps } = useWorkspaceDragReorder(
+    workspaces,
+    dragEnabled,
+    reorderWorkspaces,
+    () => message.error(t('sessions.panel.reorderFailed'))
+  )
 
   const closePanel = (): void => {
     setOpen(false)
@@ -225,18 +238,27 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
               onKeyDown={onSearchKeydown}
             />
           </div>
-          <div className="ws-options" id="ws-listbox" ref={optionsRef}>
+          <div
+            className={`ws-options${dragEnabled ? ' drag-enabled' : ''}`}
+            id="ws-listbox"
+            ref={optionsRef}
+            {...panelHandlers}
+          >
             {filtered.map((option, i) => {
               const isCurrent = option.id === activeWorkspaceId
               const isCtx = ctxRow === option.id
+              // 拖拽视觉态（哨兵行恒不可拖——rowProps 对 WORKSPACE_VIEW_ALL 全否）
+              const { isDraggable, isDragSource, dropPos } = rowProps(option.id)
               return (
                 <div
                   key={option.id}
                   id={`ws-opt-${option.id}`}
-                  className={`ws-option${isCurrent ? ' current' : ''}${i === activeIdx ? ' active' : ''}`}
+                  className={`ws-option${isCurrent ? ' current' : ''}${i === activeIdx ? ' active' : ''}${isDragSource ? ' drag-source' : ''}`}
                   role="option"
                   aria-selected={isCurrent}
                   data-ws={option.id}
+                  data-drop-pos={dropPos ?? undefined}
+                  draggable={isDraggable}
                   title={
                     option.id === WORKSPACE_VIEW_ALL
                       ? option.name

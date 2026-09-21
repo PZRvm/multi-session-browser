@@ -13,7 +13,7 @@ import SessionRow from './SessionRow'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
-import { confirmDestructive } from '../dialogs'
+import { confirmDestructive, showWorkspacePicker } from '../dialogs'
 import { WORKSPACE_VIEW_ALL } from '../../../shared/sessions'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
@@ -44,8 +44,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   const { message } = App.useApp()
 
   // 批量模式与克隆反馈均为面板本地 UI 态（不进 store、不进主进程）：
-  // 模式开关、勾选集、URL 弹层 open 与草稿、克隆中的行 id、
-  // 移动到工作区弹层的目标会话
+  // 模式开关、勾选集、URL 弹层 open 与草稿、克隆中的行 id
   const [batchMode, setBatchMode] = useState(false)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [urlOpen, setUrlOpen] = useState(false)
@@ -53,18 +52,18 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
   const [urlInvalid, setUrlInvalid] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
-  const [moveTarget, setMoveTarget] = useState<SessionItem | null>(null)
-  // 批量移动弹层与板脚反馈条（2026-09-17 增量）：反馈为面板本地 UI 态——成功次墨
-  // ~2.4s 淡出、失败 danger 持续至下一次操作（对齐打开测试地址失败不静默惯例）
-  const [batchMoveOpen, setBatchMoveOpen] = useState(false)
+  // 批量移动板脚反馈条（2026-09-17 增量）：反馈为面板本地 UI 态——成功次墨
+  // ~2.4s 淡出、失败 danger 持续至下一次操作（对齐打开测试地址失败不静默惯例）。
+  // 弹层本体已于 2026-09-21 迁主进程模态子窗口（原生 sheet，PRD 4.11），不再有
+  // 渲染层移动弹层状态
   const [batchFeedback, setBatchFeedback] = useState<{
     tone: 'success' | 'danger'
     text: string
     fading?: boolean
   } | null>(null)
   const feedbackTimer = useRef<number | undefined>(undefined)
-  // 批量移动在途守卫（审查修复轮低 6）：弹层目标按钮连点时忽略后续触发，防重复
-  // IPC 与「已移动 0 个」的困惑反馈
+  // 批量移动在途守卫（审查修复轮低 6）：sheet 关闭后执行 IPC 在途窗口内忽略后续
+  // 触发，防重复 IPC 与「已移动 0 个」的困惑反馈
   const batchMoveInFlight = useRef(false)
   // 批量关闭原生确认框在途守卫：弹框期间连点按钮忽略后续触发，防重复弹框
   const closeConfirmInFlight = useRef(false)
@@ -143,31 +142,31 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
     }
   }
 
-  // 移动到工作区：行菜单入口 → 弹层列目标工作区（排除当前归属）+ 移出未分组。
-  // 弹层经 overlay 登记（portal 可能延伸到右区，与既有弹层同规）
+  // 移动到工作区（原生模态框，PRD 4.11，2026-09-21 迁移）：入口不再弹渲染层 Modal，
+  // 经 dialog 域 show 通道弹主进程模态子窗口（macOS 原生 sheet）——模态由窗口系统
+  // 承担、页面视图保持可见，不经 overlay 悬挂登记。只选择不执行：picked 后经既有
+  // workspaces:move-session 闭环；cancelled（Esc/关窗/建窗失败）零副作用；执行失败
+  // 行内反馈（一次性模态，可从入口再次发起）
   const openMoveModal = (session: SessionItem): void => {
-    openOverlay()
-    setMoveTarget(session)
-  }
-  const closeMoveModal = (): void => setMoveTarget(null)
-  const pickMoveTarget = (workspaceId: string | null): void => {
-    const target = moveTarget
-    if (!target) return
-    void moveSessionToWorkspace(target.id, workspaceId).then((ok) => {
-      if (!ok) message.error(t('sessions.panel.moveFailed'))
-      setMoveTarget(null)
-    })
+    void showWorkspacePicker({ kind: 'workspace-move-single', sessionId: session.id }).then(
+      async (result) => {
+        if (result.status !== 'picked') return
+        const ok = await moveSessionToWorkspace(session.id, result.workspaceId)
+        if (!ok) message.error(t('sessions.panel.moveFailed'))
+      }
+    )
   }
 
-  // 批量移动（2026-09-17 增量）：弹层经 overlay 登记；幂等语义由主进程承担——
-  // moved/skipped 为真实计数；成功清空勾选保持批量态并反馈（~2.4s 淡出），
-  // 失败反馈条 danger 持续、弹层保持开启供重试（对齐打开测试地址失败惯例）
+  // 批量移动（原生模态框同规）：幂等语义由主进程承担——moved/skipped 为真实计数；
+  // 成功清空勾选保持批量态并反馈（~2.4s 淡出），失败反馈条 danger 持续（一次性
+  // 模态不再保持弹层供重试——对齐删除确认框一次性口径，PRD 4.11），可从入口再次发起
   const openBatchMoveModal = (): void => {
-    openOverlay()
     setBatchFeedback(null)
-    setBatchMoveOpen(true)
+    void showWorkspacePicker({ kind: 'workspace-move-batch', ids: checkedIds }).then((result) => {
+      if (result.status !== 'picked') return
+      return pickBatchMoveTarget(result.workspaceId)
+    })
   }
-  const closeBatchMoveModal = (): void => setBatchMoveOpen(false)
   const pickBatchMoveTarget = async (workspaceId: string | null): Promise<void> => {
     if (checkedCount === 0 || batchMoveInFlight.current) return
     batchMoveInFlight.current = true
@@ -177,7 +176,6 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         setBatchFeedback({ tone: 'danger', text: t('sessions.batchFeedback.moveFailed') })
         return
       }
-      setBatchMoveOpen(false)
       setChecked(new Set())
       const targetName = workspaceId
         ? (wsNameById.get(workspaceId) ?? t('sessions.shared.workspaceFallback'))
@@ -196,10 +194,6 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
       batchMoveInFlight.current = false
     }
   }
-  // 弹层计数徽标：勾选中已在该工作区数 / 勾选总数（混合归属预览，demo 裁决）
-  const batchInTargetCount = (workspaceId: string): number =>
-    visibleSessions.filter((s) => checked.has(s.id) && s.workspaceId === workspaceId).length
-  const batchHasGrouped = visibleSessions.some((s) => checked.has(s.id) && s.workspaceId != null)
 
   const openUrlModal = (): void => {
     // portal 弹层可能延伸到右区，开关经 overlay 悬挂登记（声明式 Modal 无同步
@@ -243,23 +237,22 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
       })
   }
 
-  // Esc 退出批量模式：仅模式激活、焦点不在输入控件、且两个弹层均未开启时生效
-  // （弹层开关用组件状态标记，不依赖 antd 内部类名；批量移动弹层豁免——审查修复轮
-  // 中 1：否则 Esc 关弹层的同时批量态连带退出、勾选被清空，违背「弹层开启时豁免」。
-  // 批量关闭的原生确认框不在此列：窗口模态吞键，Esc 不会抵达 renderer）
+  // Esc 退出批量模式：仅模式激活、焦点不在输入控件、且 URL 弹层未开启时生效
+  // （弹层开关用组件状态标记，不依赖 antd 内部类名。批量移动的模态子窗口不在此
+  // 列：窗口模态吞键，Esc 不会抵达 renderer——sheet 自身消费 Esc 即取消）
   useEffect(() => {
     if (!batchMode) return
     const onKeydown = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       const el = document.activeElement
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
-      if (urlOpen || batchMoveOpen) return
+      if (urlOpen) return
       setBatchMode(false)
       setChecked(new Set())
     }
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
-  }, [batchMode, urlOpen, batchMoveOpen])
+  }, [batchMode, urlOpen])
 
   // 视野切换清空勾选集：批量作用域随视野（PRD 3.1.3），跨视野残留的勾选不显示
   // 却仍占着 Set，与全选状态联动产生"已选数对不上所见"的困惑（审查低 5）。
@@ -433,7 +426,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
               >
                 {t('sessions.batchBar.openTestUrl')}
               </button>
-              {batchFeedback && !batchMoveOpen && (
+              {batchFeedback && (
                 <div
                   className={`batch-feedback${batchFeedback.fading ? ' batch-feedback-fading' : ''}${batchFeedback.tone === 'danger' ? ' batch-feedback-danger' : ''}`}
                   role="status"
@@ -478,86 +471,6 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
           }}
         />
         {urlInvalid && <p className="batch-url-invalid">{t('sessions.urlModal.invalid')}</p>}
-      </Modal>
-
-      <Modal
-        title={
-          moveTarget
-            ? t('sessions.moveModal.title', { name: moveTarget.name })
-            : t('sessions.moveModal.titleFallback')
-        }
-        open={moveTarget !== null}
-        footer={null}
-        onCancel={closeMoveModal}
-        afterClose={closeOverlay}
-      >
-        <div className="ws-move-list">
-          {workspaces
-            .filter((w) => w.id !== moveTarget?.workspaceId)
-            .map((w) => (
-              <Button key={w.id} block onClick={() => pickMoveTarget(w.id)}>
-                {w.name}
-              </Button>
-            ))}
-          {moveTarget?.workspaceId != null && (
-            <Button block onClick={() => pickMoveTarget(null)}>
-              {t('sessions.moveModal.moveOut')}
-            </Button>
-          )}
-          {workspaces.filter((w) => w.id !== moveTarget?.workspaceId).length === 0 &&
-            moveTarget?.workspaceId == null && (
-              <p className="ws-move-empty">{t('sessions.moveModal.emptyOther')}</p>
-            )}
-        </div>
-      </Modal>
-
-      <Modal
-        title={t('sessions.moveModal.batchTitle', { n: checkedCount })}
-        open={batchMoveOpen}
-        footer={null}
-        onCancel={closeBatchMoveModal}
-        afterClose={closeOverlay}
-      >
-        <p className="batch-move-sub">{t('sessions.moveModal.batchSub')}</p>
-        <div className="ws-move-list">
-          {workspaces.map((w) => (
-            <Button
-              key={w.id}
-              block
-              className="ws-move-item"
-              onClick={() => {
-                void pickBatchMoveTarget(w.id)
-              }}
-            >
-              <span>{w.name}</span>
-              <span className="ws-move-count">
-                {t('sessions.moveModal.inTargetCount', {
-                  here: batchInTargetCount(w.id),
-                  total: checkedCount
-                })}
-              </span>
-            </Button>
-          ))}
-          {batchHasGrouped && (
-            <Button
-              block
-              className="ws-move-item"
-              onClick={() => {
-                void pickBatchMoveTarget(null)
-              }}
-            >
-              <span>{t('sessions.moveModal.moveOut')}</span>
-            </Button>
-          )}
-          {workspaces.length === 0 && !batchHasGrouped && (
-            <p className="ws-move-empty">{t('sessions.moveModal.emptyNone')}</p>
-          )}
-        </div>
-        {batchFeedback?.tone === 'danger' && (
-          <p className="batch-move-error" role="alert">
-            {batchFeedback.text}
-          </p>
-        )}
       </Modal>
     </ConfigProvider>
   )

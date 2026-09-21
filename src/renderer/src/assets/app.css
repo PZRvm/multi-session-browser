@@ -451,6 +451,7 @@ body.col-resizing {
 }
 
 .ws-option {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -462,6 +463,131 @@ body.col-resizing {
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* 工作区下拉拖拽排序（拖动排序专项 2026-09-21）：手势语言与会话列表同族——源行
+   opacity 0.45（drag-source）、插入指示线为目标行上/下缘 2px 墨级实线（板面自己的
+   墨，亮暗随 token 切换），全灰阶琥珀零参与（纯结构操作）。伪元素绝对定位不推挤行
+   （position: relative 锚在 .ws-option 上）、pointer-events 关闭、显隐瞬切（离散
+   跳变对齐插入指示器先例）；仅拖拽启用态（面板展开且无过滤词）设 user-select: none
+   防拖动选字。瞬态由 useWorkspaceDragReorder 本地持有，不进 store、不进 IPC */
+.ws-options.drag-enabled .ws-option {
+  user-select: none;
+}
+
+.ws-option.drag-source {
+  opacity: 0.45;
+}
+
+.ws-option[data-drop-pos='before']::before,
+.ws-option[data-drop-pos='after']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--board-ink);
+  pointer-events: none;
+}
+
+.ws-option[data-drop-pos='before']::before {
+  top: -1px;
+}
+
+.ws-option[data-drop-pos='after']::after {
+  bottom: -1px;
+}
+
+/* 工作区选择模态框（原生 sheet 专项 2026-09-21，?role=workspace-picker）：板面语系
+   ——抬升层底 + 发丝线 + 无阴影，选项行对齐 ws-option 行语言（28→32px 行高来自
+   shared PICKER_ROW_HEIGHT 度量契约，主进程建窗高度与列表封顶同源配对）。亮暗随
+   CSS 媒体查询（暗色 token 随 nativeTheme 翻转，设置窗壳体同规）；模态由窗口系统
+   承担，本页不参与 overlay 登记。列表封顶 = MAX_VISIBLE_ROWS × ROW_HEIGHT + 内距
+   （WorkspacePickerWindow 内联 style 从 shared 常量合成，不在此重复字面量） */
+body[data-role='workspace-picker'] {
+  overflow: hidden;
+  background: var(--board-bg-raised);
+}
+
+.picker-body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px 14px 14px;
+  background: var(--board-bg-raised);
+  color: var(--board-ink);
+}
+
+.picker-head {
+  flex: none;
+  margin-bottom: 10px;
+}
+
+.picker-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-sub {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--board-ink-dim);
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-top: 1px solid var(--board-hairline);
+}
+
+.picker-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.picker-option:hover {
+  background: var(--board-hover-veil);
+}
+
+.picker-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-option-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-empty {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--board-ink-dim);
 }
 
 .ws-option:hover,
