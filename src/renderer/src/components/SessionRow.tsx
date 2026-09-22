@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { App, Checkbox, Dropdown, Input, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
@@ -7,6 +7,8 @@ import { useT } from '../i18n'
 import { confirmDestructive } from '../dialogs'
 import { SESSION_NOTE_MAX } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
+import { useDeferredMenuAction } from './useDeferredMenuAction'
+import { useUiStore } from '../stores/ui'
 import type { SessionItem } from '../stores/sessions'
 
 type RowEditMode = 'none' | 'name' | 'note'
@@ -160,6 +162,13 @@ function SessionRow({
   } = useRowEditMode(session)
   const { noteRef, noteTip, measureNoteTruncated } = useNoteTip()
   const selected = activeId === session.id
+  // 右键菜单受控开关（antd contextMenu 触发不随菜单项点击自动关闭——受控 open
+  // 在 onClick 内显式收敛；外点/Esc 仍由 onOpenChange 收敛）
+  const [ctxOpen, setCtxOpen] = useState(false)
+  // ⋮ 菜单受控开关（与右键菜单互斥协调 + overlay 登记同步）
+  const [dotsOpen, setDotsOpen] = useState(false)
+  const openOverlay = useUiStore((s) => s.openOverlay)
+  const closeOverlay = useUiStore((s) => s.closeOverlay)
 
   // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
   const statusText: Record<SessionItem['status'], string> = {
@@ -191,6 +200,22 @@ function SessionRow({
     }
   ]
 
+  // 行菜单开启期间登记 overlay（ui.ts 约束）：右区是 WebContentsView 原生层，
+  // 页面视图挂载时其点击事件永远进不了 shell 文档，rc-trigger 的「外部点击关闭」
+  // 对页面区点击不生效、菜单会残留——登记后页面视图收起、点击落进 shell 文档，
+  // 外点关闭才全区域生效；菜单关闭即恢复页面视图。ctx/dots 互斥不并存，计数式
+  // 登记对称加减，卸载走 effect cleanup 兜底
+  useEffect(() => {
+    if (!ctxOpen && !dotsOpen) return
+    openOverlay()
+    return () => closeOverlay()
+  }, [ctxOpen, dotsOpen, openOverlay, closeOverlay])
+
+  // 挂窗口模态弹层的菜单动作（移动 sheet / 删除确认框）统一经共享 hook 延迟：
+  // 先让菜单关闭动画走完再挂弹层（防窗口模态遮挡冻结动画致菜单卡显），宿主卸载
+  // 时取消未触发动作（机制与单源见 useDeferredMenuAction）
+  const deferWhileMenuCloses = useDeferredMenuAction()
+
   const onMenuClick: MenuProps['onClick'] = ({ key, domEvent }) => {
     domEvent.stopPropagation()
     if (key === 'rename') {
@@ -200,15 +225,19 @@ function SessionRow({
     } else if (key === 'clone') {
       void onClone(session.id)
     } else if (key === 'move') {
-      onMove(session)
+      deferWhileMenuCloses(() => onMove(session))
     } else if (key === 'delete') {
       // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，
       // 弹框期间页面视图保持可见且内容原样——不经 overlay 悬挂登记收起右区
       // （那是渲染层弹层换可见性的手段，原生框无遮挡问题）。只确认不执行：
       // 确认后经既有 sessions:delete 链路删除；取消/Esc/关闭/调用失败零副作用
       // （吞错按取消语义统一收敛在 renderer dialogs 薄封装）
-      void confirmDestructive({ kind: 'session-delete', name: session.name }).then((confirmed) => {
-        if (confirmed) void removeSession(session.id)
+      deferWhileMenuCloses(() => {
+        void confirmDestructive({ kind: 'session-delete', name: session.name }).then(
+          (confirmed) => {
+            if (confirmed) void removeSession(session.id)
+          }
+        )
       })
     }
   }
@@ -219,138 +248,172 @@ function SessionRow({
     ? `session-row${checked ? ' batch-checked' : ''}`
     : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
 
+  // 右键唤起与 ⋮ 钮同款菜单（2026-09-21 反馈轮）：整行包 contextMenu Dropdown
+  // 复用同一份 menuItems；批量态（无行菜单入口）与行内编辑态触发器置空——菜单
+  // 语义随模式休眠，不与勾选/输入争交互。portal 至 body 与 ⋮ 钮菜单同规
   return (
-    <li
-      className={rowClass}
-      // 拖拽排序：面板级 dragstart/dragover/drop/dragend 经事件委托挂在 ul 上，
-      // 行只携带身份属性与瞬态视觉态（data-drop-pos 驱动伪元素插入线）
-      data-session-id={session.id}
-      data-drop-pos={dropPos ?? undefined}
-      draggable={dragEnabled && mode === 'none'}
-      tabIndex={0}
-      // 批量态声明 checkbox 语义（aria-checked 才对辅助技术可达）；非批量态保持
-      // 默认 listitem + aria-current 的激活语义
-      role={batchMode ? 'checkbox' : undefined}
-      aria-current={!batchMode && selected ? 'true' : undefined}
-      aria-checked={batchMode ? checked : undefined}
-      onClick={() => (batchMode ? onToggleCheck(session.id) : selectSession(session.id))}
-      onKeyDown={(e) => {
-        if (batchMode) {
-          // 复选框等内部控件自带键盘语义，行级不再处理，避免双切抵消
+    <Dropdown
+      open={!batchMode && mode === 'none' && ctxOpen}
+      onOpenChange={setCtxOpen}
+      menu={{
+        items: menuItems,
+        onClick: (info) => {
+          setCtxOpen(false)
+          onMenuClick(info)
+        }
+      }}
+      trigger={!batchMode && mode === 'none' ? ['contextMenu'] : []}
+      placement="bottomRight"
+    >
+      <li
+        className={rowClass}
+        // 拖拽排序：面板级 dragstart/dragover/drop/dragend 经事件委托挂在 ul 上，
+        // 行只携带身份属性与瞬态视觉态（data-drop-pos 驱动伪元素插入线）
+        data-session-id={session.id}
+        data-drop-pos={dropPos ?? undefined}
+        draggable={dragEnabled && mode === 'none'}
+        tabIndex={0}
+        // 批量态声明 checkbox 语义（aria-checked 才对辅助技术可达）；非批量态保持
+        // 默认 listitem + aria-current 的激活语义
+        role={batchMode ? 'checkbox' : undefined}
+        aria-current={!batchMode && selected ? 'true' : undefined}
+        aria-checked={batchMode ? checked : undefined}
+        onClick={() => {
+          // 行体在右键菜单的触发域内：左键点行不构成「外部点击」不会自动收菜单，
+          // 选会话/勾选前显式收起，防菜单残留（2026-09-21 反馈轮）
+          setCtxOpen(false)
+          if (batchMode) onToggleCheck(session.id)
+          else selectSession(session.id)
+        }}
+        onKeyDown={(e) => {
+          if (batchMode) {
+            // 复选框等内部控件自带键盘语义，行级不再处理，避免双切抵消
+            if (e.target !== e.currentTarget) return
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onToggleCheck(session.id)
+            }
+            return
+          }
+          // 编辑态/内部控件按键不归行级：Input 内 Enter/Space 会冒泡至此，无守卫会
+          // 吞空格字符并顺带切换会话（审查高 1）——镜像批量态分支的 target 守卫
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onToggleCheck(session.id)
+            selectSession(session.id)
           }
-          return
-        }
-        // 编辑态/内部控件按键不归行级：Input 内 Enter/Space 会冒泡至此，无守卫会
-        // 吞空格字符并顺带切换会话（审查高 1）——镜像批量态分支的 target 守卫
-        if (e.target !== e.currentTarget) return
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          selectSession(session.id)
-        }
-      }}
-    >
-      <div className="session-row-main">
-        {batchMode && (
-          // 复选框自身点击/空格即切勾选，阻止冒泡防止行级再切一次
-          <span className="session-check" onClick={(e) => e.stopPropagation()}>
-            <Checkbox checked={checked} onChange={() => onToggleCheck(session.id)} />
-          </span>
-        )}
-        <span className={`session-dot ${session.status}`} />
-        {mode === 'name' ? (
-          <Input
-            className="session-rename"
-            size="small"
-            value={nameDraft}
-            autoFocus
-            variant="borderless"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onPressEnter={commitNameEdit}
-            onBlur={commitNameEdit}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') cancelEdit()
-            }}
-          />
-        ) : (
-          <span className="session-name">{session.name}</span>
-        )}
-        <span className="session-page">{session.pageTitle}</span>
-      </div>
-      <div className="session-row-sub">
-        {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
-        {mode === 'note' ? (
-          // 编辑态与重命名 Input 同构：borderless 小号、autoFocus、点击不冒泡防触
-          // 发行选中；Enter/失焦经 store 提交（trim 后空串 = 清除）、Esc 放回现值；
-          // maxLength 取 shared 单源，超限在输入端截断防主进程静默截断
-          <Input
-            className="session-note-edit"
-            size="small"
-            value={noteDraft}
-            autoFocus
-            variant="borderless"
-            maxLength={SESSION_NOTE_MAX}
-            aria-label={t('sessions.sessionRow.noteInputAria')}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setNoteDraft(e.target.value)}
-            onPressEnter={commitNoteEdit}
-            onBlur={commitNoteEdit}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') cancelEdit()
-            }}
-          />
-        ) : session.note ? (
-          // 悬停看全文（2026-09-18 增量）：仅行内省略号截断时显示（未溢出不弹）；
-          // 占位「未填写备注」不挂 Tooltip（重复展示是零信息噪音，PRD 4.8）。
-          // getPopupContainer 锁挂 .session-panel（AppearanceEntry 惯例）+ maxWidth
-          // 悬停时按面板与备注左缘现算（见 useNoteTip 注）——右区是
-          // WebContentsView 原生层，弹层不越面板即不被遮挡。
-          // placement bottomRight：弹层在备注下方、右上角对齐备注右下角向左展开
-          // （用户裁决 2026-09-18：上方会盖住会话名与上方行）。箭头保留（用户裁决
-          // 同日：tip 上缘要有箭头），底色经 .session-note-tip 覆盖为板面抬升层。
-          // 0.2s 延迟防鼠标扫过行间频闪（批量图标先例）
-          <Tooltip
-            title={noteTip.truncated ? session.note : undefined}
-            placement="bottomRight"
-            mouseEnterDelay={0.2}
-            overlayClassName="session-note-tip"
-            overlayStyle={noteTip.maxWidth ? { maxWidth: noteTip.maxWidth } : undefined}
-            getPopupContainer={(triggerNode) =>
-              triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
-            }
-          >
-            <span ref={noteRef} className="session-note" onMouseEnter={measureNoteTruncated}>
-              {session.note}
+        }}
+      >
+        <div className="session-row-main">
+          {batchMode && (
+            // 复选框自身点击/空格即切勾选，阻止冒泡防止行级再切一次
+            <span className="session-check" onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={checked} onChange={() => onToggleCheck(session.id)} />
             </span>
-          </Tooltip>
-        ) : (
-          <span className="session-note">{t('sessions.sessionRow.noteEmpty')}</span>
-        )}
-        <span className={`session-status ${cloning ? 'loading' : session.status}`}>
-          {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
-        </span>
-        {!batchMode && (
-          <Dropdown
-            menu={{ items: menuItems, onClick: onMenuClick }}
-            trigger={['click']}
-            placement="bottomRight"
-          >
-            <button
-              type="button"
-              className="session-menu"
-              aria-label={t('sessions.sessionRow.menuAria')}
+          )}
+          <span className={`session-dot ${session.status}`} />
+          {mode === 'name' ? (
+            <Input
+              className="session-rename"
+              size="small"
+              value={nameDraft}
+              autoFocus
+              variant="borderless"
               onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onPressEnter={commitNameEdit}
+              onBlur={commitNameEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancelEdit()
+              }}
+            />
+          ) : (
+            <span className="session-name">{session.name}</span>
+          )}
+          <span className="session-page">{session.pageTitle}</span>
+        </div>
+        <div className="session-row-sub">
+          {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
+          {mode === 'note' ? (
+            // 编辑态与重命名 Input 同构：borderless 小号、autoFocus、点击不冒泡防触
+            // 发行选中；Enter/失焦经 store 提交（trim 后空串 = 清除）、Esc 放回现值；
+            // maxLength 取 shared 单源，超限在输入端截断防主进程静默截断
+            <Input
+              className="session-note-edit"
+              size="small"
+              value={noteDraft}
+              autoFocus
+              variant="borderless"
+              maxLength={SESSION_NOTE_MAX}
+              aria-label={t('sessions.sessionRow.noteInputAria')}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              onPressEnter={commitNoteEdit}
+              onBlur={commitNoteEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancelEdit()
+              }}
+            />
+          ) : session.note ? (
+            // 悬停看全文（2026-09-18 增量）：仅行内省略号截断时显示（未溢出不弹）；
+            // 占位「未填写备注」不挂 Tooltip（重复展示是零信息噪音，PRD 4.8）。
+            // getPopupContainer 锁挂 .session-panel（AppearanceEntry 惯例）+ maxWidth
+            // 悬停时按面板与备注左缘现算（见 useNoteTip 注）——右区是
+            // WebContentsView 原生层，弹层不越面板即不被遮挡。
+            // placement bottomRight：弹层在备注下方、右上角对齐备注右下角向左展开
+            // （用户裁决 2026-09-18：上方会盖住会话名与上方行）。箭头保留（用户裁决
+            // 同日：tip 上缘要有箭头），底色经 .session-note-tip 覆盖为板面抬升层。
+            // 0.2s 延迟防鼠标扫过行间频闪（批量图标先例）
+            <Tooltip
+              title={noteTip.truncated ? session.note : undefined}
+              placement="bottomRight"
+              mouseEnterDelay={0.2}
+              overlayClassName="session-note-tip"
+              overlayStyle={noteTip.maxWidth ? { maxWidth: noteTip.maxWidth } : undefined}
+              getPopupContainer={(triggerNode) =>
+                triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
+              }
             >
-              <MoreOutlined />
-            </button>
-          </Dropdown>
-        )}
-      </div>
-    </li>
+              <span ref={noteRef} className="session-note" onMouseEnter={measureNoteTruncated}>
+                {session.note}
+              </span>
+            </Tooltip>
+          ) : (
+            <span className="session-note">{t('sessions.sessionRow.noteEmpty')}</span>
+          )}
+          <span className={`session-status ${cloning ? 'loading' : session.status}`}>
+            {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
+          </span>
+          {!batchMode && (
+            <Dropdown
+              open={!batchMode && dotsOpen}
+              onOpenChange={setDotsOpen}
+              menu={{
+                items: menuItems,
+                onClick: (info) => {
+                  setDotsOpen(false)
+                  onMenuClick(info)
+                }
+              }}
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <button
+                type="button"
+                className="session-menu"
+                aria-label={t('sessions.sessionRow.menuAria')}
+                // ⋮ 在右键菜单的触发域（整行）内：其按下不构成「外部点击」，rc-trigger
+                // 不会收右键菜单——显式关闭防两菜单并存（2026-09-21 反馈轮）
+                onMouseDown={() => setCtxOpen(false)}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreOutlined />
+              </button>
+            </Dropdown>
+          )}
+        </div>
+      </li>
+    </Dropdown>
   )
 }
 

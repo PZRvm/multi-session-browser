@@ -1,5 +1,7 @@
-// 工作区选择模态框（原生 sheet）装配（PRD 4.11，契约见 shared/dialog.ts）：
-// 「移动到工作区」（单条 + 批量）的目标选择弹主进程模态子窗口——macOS 呈原生
+// 工作区模态框（原生 sheet）装配（PRD 4.11，契约见 shared/dialog.ts）：选择类
+// 「移动到工作区」与输入类「工作区重命名」（2026-09-21 二次增量，同机制第三 kind
+// workspace-rename——sheet 页面按上下文 kind 分支渲染，预填现名由主进程快照现取）
+// 弹主进程模态子窗口——macOS 呈原生
 // sheet（窗口模态，冒烟实证 parent sheet-begin 触发、父窗 isEnabled()=false 被阻塞；
 // Windows/Linux 呈系统框模态对话框），模态存续期间页面视图保持可见且内容原样，
 // 不经 overlay 悬挂登记收起右区（浏览器区变白即事故）。展示数据（工作区列表/当前
@@ -27,7 +29,7 @@ import {
   type WorkspacePickerKind,
   type WorkspacePickerResult
 } from '../shared/dialog'
-import { SESSION_ID_RE } from '../shared/sessions'
+import { SESSION_ID_RE, WORKSPACE_ID_RE, WORKSPACE_NAME_MAX } from '../shared/sessions'
 import { isRecord } from '../shared/guards'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
@@ -43,7 +45,8 @@ const PICKER_IDS_MAX = 100_000
 /** kind 白名单（对齐 CONFIRM_KINDS allowlist 先例），白名单外整单拒绝 */
 const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'workspace-move-single',
-  'workspace-move-batch'
+  'workspace-move-batch',
+  'workspace-rename'
 ]
 
 function isPickerKind(value: string): value is WorkspacePickerKind {
@@ -70,7 +73,7 @@ function invalidParams(): Error {
   return new Error(t('errors.invalidSessionParams'))
 }
 
-/** 入参守卫：kind 白名单 + 按 kind 校验必填数据参数（缺传/类型非法抛业务错误） */
+/** 入参守卫：kind 白名单 + 按 kind 校验必填数据参数（缺传/类型非法/彼此禁传字段出现，整单拒绝抛业务错误） */
 function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
   if (!isRecord(payload)) throw invalidParams()
   const kind = payload.kind
@@ -78,35 +81,56 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     throw invalidParams()
   }
   if (kind === 'workspace-move-single') {
+    if (payload.ids !== undefined || payload.workspaceId !== undefined) throw invalidParams()
     const sessionId = payload.sessionId
     if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
     return { kind, sessionId }
   }
-  const raw = payload.ids
-  if (
-    !Array.isArray(raw) ||
-    raw.length === 0 ||
-    raw.length > PICKER_IDS_MAX ||
-    !raw.every((item): item is string => typeof item === 'string' && SESSION_ID_RE.test(item))
-  ) {
-    throw invalidParams()
+  if (kind === 'workspace-move-batch') {
+    if (payload.sessionId !== undefined || payload.workspaceId !== undefined) throw invalidParams()
+    const raw = payload.ids
+    if (
+      !Array.isArray(raw) ||
+      raw.length === 0 ||
+      raw.length > PICKER_IDS_MAX ||
+      !raw.every((item): item is string => typeof item === 'string' && SESSION_ID_RE.test(item))
+    ) {
+      throw invalidParams()
+    }
+    return { kind, ids: raw }
   }
-  return { kind, ids: raw }
+  // workspace-rename：workspaceId 必填过 WORKSPACE_ID_RE；现名由主进程快照现取（渲染层不传名）
+  if (payload.sessionId !== undefined || payload.ids !== undefined) throw invalidParams()
+  const workspaceId = payload.workspaceId
+  if (typeof workspaceId !== 'string' || !WORKSPACE_ID_RE.test(workspaceId)) throw invalidParams()
+  return { kind, workspaceId }
 }
 
 /**
  * 从权威快照现取组装展示上下文（不经 IPC 传展示字符串，渲染层不持第二份事实）：
- * single 列全部工作区、当前归属行带 current 标记（2026-09-21 用户反馈：当前行
- * 不再隐藏，sheet 呈「当前所在」禁用态作位置指示），showMoveOut = 当前已分组；
- * batch 列全部工作区（混合归属不排除——移动是幂等赋值）并带 hereCount 计数徽标，
- * showMoveOut = 勾选中存在非未分组归属。会话已不存在（弹层窗口期内被并发删除）
- * 时返回 null，调用方以 cancelled 收敛——选择类弹层对过期目标不做拒绝式报错
+ * rename 按目标工作区回填预填现名（currentName），工作区已不存在（弹层窗口期内被
+ * 并发删除）返回 null 交由调用方按取消收敛——过期目标不做拒绝式报错；single 列全部
+ * 工作区、当前归属行带 current 标记（2026-09-21 用户反馈：当前行不再隐藏，sheet 呈
+ * 「当前所在」禁用态作位置指示），showMoveOut = 当前已分组；batch 列全部工作区
+ * （混合归属不排除——移动是幂等赋值）并带 hereCount 计数徽标，showMoveOut = 勾选中
+ * 存在非未分组归属
  */
 async function buildContext(
   request: ShowWorkspacePickerPayload,
   requestId: string
 ): Promise<WorkspacePickerContext | null> {
   const snapshot = await loadSnapshot()
+  if (request.kind === 'workspace-rename') {
+    const workspace = snapshot.workspaces.find((w) => w.id === request.workspaceId)
+    if (!workspace) return null
+    return {
+      requestId,
+      kind: request.kind,
+      currentName: workspace.name,
+      options: [],
+      showMoveOut: false
+    }
+  }
   if (request.kind === 'workspace-move-single') {
     const session = snapshot.sessions.find((s) => s.id === request.sessionId)
     if (!session) return null
@@ -215,13 +239,13 @@ export function registerWorkspacePickerIpc(deps: {
     return pending.context
   })
 
-  // pick：sheet 页面提交选择（仅认 sheet 窗；requestId 不匹配即拒绝——陈旧窗口的
-  // 迟到提交不命中；命中即 resolve picked 并关窗，closed 钩子见 pending 已清零 no-op）
+  // pick：sheet 页面提交（仅认 sheet 窗；requestId 不匹配即拒绝——陈旧窗口的
+  // 迟到提交不命中）；按 pending kind 分流校验与收敛：选择场景 workspaceId 必填
+  // （null = 移出未分组），重命名场景只带 name（主进程守卫 trim 非空 + 长度上限，
+  // 拒绝时 sheet 保持开启可再编辑——正常路径保存钮空禁用不可达，防御面）；命中即
+  // resolve 结论并关窗，closed 钩子见 pending 已清零 no-op
   ipcMain.handle(DIALOG_CHANNELS.workspacePickerPick, (event, payload: unknown): { ok: true } => {
     if (!isRecord(payload) || typeof payload.requestId !== 'string') {
-      throw invalidParams()
-    }
-    if (payload.workspaceId !== null && typeof payload.workspaceId !== 'string') {
       throw invalidParams()
     }
     if (!pending || !pending.sheet || pending.sheet.isDestroyed()) return { ok: true }
@@ -230,10 +254,24 @@ export function registerWorkspacePickerIpc(deps: {
       console.warn('[dialog] 工作区选择框收到 requestId 不匹配的迟到提交，已忽略')
       return { ok: true }
     }
+    let result: WorkspacePickerResult
+    if (pending.context?.kind === 'workspace-rename') {
+      if (payload.workspaceId !== undefined) throw invalidParams()
+      const name = typeof payload.name === 'string' ? payload.name.trim() : ''
+      if (!name || name.length > WORKSPACE_NAME_MAX) {
+        console.warn('[dialog] 工作区重命名提交被守卫拒绝（空名或超长），sheet 保持开启')
+        return { ok: true }
+      }
+      result = { status: 'submitted', name }
+    } else {
+      const wid = payload.workspaceId
+      if (wid === undefined || (wid !== null && typeof wid !== 'string')) throw invalidParams()
+      result = { status: 'picked', workspaceId: wid }
+    }
     const { resolve } = pending
     const sheet = pending.sheet
     pending = null
-    resolve({ status: 'picked', workspaceId: payload.workspaceId })
+    resolve(result)
     // 窗口关闭走 closed 钩子自清引用；此处 pending 已前置清零，钩子 no-op
     sheet.close()
     return { ok: true }
@@ -268,7 +306,10 @@ function openSheet(
     fullscreenable: false,
     show: false,
     // win/linux 系统框需要标题；darwin 无框不展示（title 仍归窗口本体语义）
-    title: t('sessions.batchBar.moveToWorkspace'),
+    title:
+      context.kind === 'workspace-rename'
+        ? t('sessions.workspaceSwitcher.renameModalTitle')
+        : t('sessions.batchBar.moveToWorkspace'),
     autoHideMenuBar: true,
     ...(process.platform === 'darwin' ? { frame: false as const } : {}),
     backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme(), deps.getThemeColor()),

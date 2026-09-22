@@ -621,6 +621,79 @@ body[data-role='workspace-picker'] {
   color: var(--board-ink-dim);
 }
 
+/* 重命名形态（2026-09-21 增量，workspace-rename kind）：头部沿用 picker-head，
+   表单区 = 发丝线分隔（与 picker-list 上缘同语言）+ 输入行 + 按钮行；纵向度量与
+   shared/dialog.ts RENAME_* 常量同源配对（建窗高度公式 = 68 + 12 + 36 + 12 + 32，
+   改值多处对账；内容栈实和 159 + body 底内距 16 内 1px 松弛，与选择场景同口径）。
+   输入行 focus 语言 = 边框升墨级（veil 焦点同族，琥珀不参与——sheet 无反白语境）；
+   主钮 = 主题色砖面（accent-strong/press、accent-ink 字——板脚主钮位同款供色），
+   禁用态降透明 */
+.picker-form {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* RENAME_FORM_GAP（入建窗高度公式，改值多处对账） */
+  padding-top: 12px; /* RENAME_FORM_GAP（发丝线后输入行的间距，入高度公式） */
+  border-top: 1px solid var(--board-hairline);
+}
+
+.picker-input {
+  flex: none;
+  height: 36px; /* RENAME_INPUT_HEIGHT（入建窗高度公式，改值多处对账） */
+  padding: 0 10px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+  color: var(--board-ink);
+  font-size: 13px;
+  outline: none;
+}
+
+.picker-input:focus {
+  border-color: var(--board-ink);
+}
+
+.picker-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 32px; /* RENAME_FOOT_HEIGHT（入建窗高度公式，改值多处对账） */
+}
+
+.picker-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--board-ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.picker-btn:hover {
+  background: var(--board-hover-veil);
+}
+
+.picker-btn-primary {
+  border-color: transparent;
+  background: var(--accent-strong);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.picker-btn-primary:hover {
+  background: var(--accent-press);
+}
+
+.picker-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: var(--accent-strong);
+}
+
 .ws-option:hover,
 .ws-option.active {
   background: var(--board-hover-veil);
@@ -655,15 +728,6 @@ body[data-role='workspace-picker'] {
   display: inline-flex;
   font-size: 10px;
   color: var(--board-tile-ink);
-}
-
-/* 右键操作条：选项行内展开「重命名/删除」（antd 文字钮供色；行内渲染不越左栏，
-   规避 antd 子菜单飞出分隔条被右区原生层遮挡） */
-.ws-row-actions {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* 会话行归属标记：「全部会话」视野第二行行首的小方 tag（工作区名或「未分组」）；
