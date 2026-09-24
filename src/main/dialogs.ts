@@ -9,7 +9,7 @@
 // workspaces:delete 两通道，见该 handler 注释）。
 
 import { BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
-import type { MessageBoxOptions } from 'electron'
+import type { MessageBoxOptions, NativeImage } from 'electron'
 import dialogIcon from '../../resources/icon.png?asset'
 import {
   DIALOG_CHANNELS,
@@ -46,7 +46,7 @@ function clampDisplayCount(count: number): number {
  * 分支）；仅 darwin 生效，Windows 保留 warning 盾形原生语义。读取失败
  * （createFromPath 得空图）时 Electron 判 isNull 走回默认合成图标，安全退化
  */
-function dialogIconForDarwin() {
+function dialogIconForDarwin(): NativeImage | undefined {
   return process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
 }
 
