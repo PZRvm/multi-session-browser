@@ -115,15 +115,19 @@ export const sessions: Dictionary['sessions'] = {
       title: 'Delete workspace',
       // 句尾留空格与后句拼接（zh 无空格直连）
       prefix: 'Workspace "{name}" will be deleted. ',
-      withSessions:
-        'Its {n} sessions will move to "Ungrouped"; sessions and their data are unaffected.',
+      withSessionsAsk:
+        'Delete its {n} sessions as well? Choose "Keep sessions" to move them to "Ungrouped"; session data is unaffected.',
+      deleteAll: 'Delete All Sessions',
+      keepSessions: 'Keep Sessions',
       empty: 'This workspace has no sessions.'
     },
     errors: {
       switchFailed: 'Failed to switch workspace; view restored',
       createFailed: 'Failed to create workspace',
       renameFailed: 'Failed to rename workspace',
-      deleteFailed: 'Failed to delete workspace'
+      deleteFailed: 'Failed to delete workspace',
+      deleteSessionsFailed:
+        'Failed to delete the workspace sessions: the session list has changed. Please retry.'
     }
   },
   appearanceGroup: {

@@ -123,14 +123,18 @@ export const sessions = {
     deleteConfirm: {
       title: '删除工作区',
       prefix: '将删除工作区「{name}」。',
-      withSessions: '其中 {n} 个会话将移入「未分组」，会话与其数据不受影响。',
+      withSessionsAsk:
+        '是否同时删除其中 {n} 个会话？选择「保留会话」则会话移入「未分组」，会话数据不受影响。',
+      deleteAll: '删除全部会话',
+      keepSessions: '保留会话',
       empty: '该工作区没有会话。'
     },
     errors: {
       switchFailed: '切换工作区失败，已恢复',
       createFailed: '新建工作区失败',
       renameFailed: '重命名工作区失败',
-      deleteFailed: '删除工作区失败'
+      deleteFailed: '删除工作区失败',
+      deleteSessionsFailed: '删除工作区会话失败：会话列表已发生变化，请重试'
     }
   },
   /** 外观三态入口（AppearanceEntry；设置窗外观行按同键路径消费——簇间契约） */

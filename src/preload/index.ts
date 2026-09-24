@@ -71,7 +71,9 @@ import type {
 import { DIALOG_CHANNELS } from '../shared/dialog'
 import type {
   ConfirmDestructivePayload,
+  ConfirmWorkspaceDeletePayload,
   ShowWorkspacePickerPayload,
+  WorkspaceDeleteChoice,
   WorkspacePickerContext,
   WorkspacePickerPickPayload,
   WorkspacePickerResult
@@ -346,6 +348,13 @@ const api = {
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload),
+    // 删除工作区会话处置三选（PRD 4.10，2026-09-24 增量）：结论三态返回，
+    // cancel 覆盖全部未确认路径；执行由既有 sessions:delete-batch /
+    // workspaces:delete 通道在 renderer 侧编排
+    confirmWorkspaceDelete: (
+      payload: ConfirmWorkspaceDeletePayload
+    ): Promise<WorkspaceDeleteChoice> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.confirmWorkspaceDelete, payload),
     showWorkspacePicker: (payload: ShowWorkspacePickerPayload): Promise<WorkspacePickerResult> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.showWorkspacePicker, payload),
     workspacePickerPayload: (): Promise<WorkspacePickerContext | null> =>

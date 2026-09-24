@@ -124,14 +124,18 @@ export const sessions: Dictionary['sessions'] = {
     deleteConfirm: {
       title: '刪除工作區',
       prefix: '將刪除工作區「{name}」。',
-      withSessions: '其中 {n} 個會話將移入「未分組」，會話與其資料不受影響。',
+      withSessionsAsk:
+        '是否同時刪除其中 {n} 個會話？選擇「保留會話」則會話移入「未分組」，會話資料不受影響。',
+      deleteAll: '刪除全部會話',
+      keepSessions: '保留會話',
       empty: '該工作區沒有會話。'
     },
     errors: {
       switchFailed: '切換工作區失敗，已恢復',
       createFailed: '新增工作區失敗',
       renameFailed: '重新命名工作區失敗',
-      deleteFailed: '刪除工作區失敗'
+      deleteFailed: '刪除工作區失敗',
+      deleteSessionsFailed: '刪除工作區會話失敗：會話清單已發生變化，請重試'
     }
   },
   /** 外观三态入口（AppearanceEntry；设置窗外观行按同键路径消费——簇间契约） */

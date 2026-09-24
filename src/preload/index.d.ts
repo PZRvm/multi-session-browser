@@ -38,7 +38,9 @@ import type {
 } from '../shared/settings'
 import type {
   ConfirmDestructivePayload,
+  ConfirmWorkspaceDeletePayload,
   ShowWorkspacePickerPayload,
+  WorkspaceDeleteChoice,
   WorkspacePickerContext,
   WorkspacePickerPickPayload,
   WorkspacePickerResult
@@ -149,6 +151,9 @@ declare global {
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>
+        confirmWorkspaceDelete(
+          payload: ConfirmWorkspaceDeletePayload
+        ): Promise<WorkspaceDeleteChoice>
         showWorkspacePicker(payload: ShowWorkspacePickerPayload): Promise<WorkspacePickerResult>
         workspacePickerPayload(): Promise<WorkspacePickerContext | null>
         workspacePickerPick(payload: WorkspacePickerPickPayload): Promise<OkResult>

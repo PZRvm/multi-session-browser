@@ -4,22 +4,26 @@
 // main/i18n 语言态复用既有字典键（与 main/browser/permissions.ts 摄像头对话框
 // 同构——那边是主进程内部直调，本模块触发源在 renderer，经 invoke 通道带数据
 // 参数过来）。本模块只确认不执行：不落盘、不触碰会话快照与分区，删除由
-// sessions:delete / sessions:delete-batch / workspaces:delete 既有通道闭环。
+// sessions:delete / sessions:delete-batch / workspaces:delete 既有通道闭环
+// （confirmWorkspaceDelete 的 delete-all 结论由 renderer 编排 delete-batch →
+// workspaces:delete 两通道，见该 handler 注释）。
 
 import { BrowserWindow, dialog, ipcMain, nativeImage } from 'electron'
 import type { MessageBoxOptions } from 'electron'
 import dialogIcon from '../../resources/icon.png?asset'
-import { DIALOG_CHANNELS, type ConfirmDestructivePayload, type ConfirmKind } from '../shared/dialog'
+import {
+  DIALOG_CHANNELS,
+  type ConfirmDestructivePayload,
+  type ConfirmKind,
+  type ConfirmWorkspaceDeletePayload,
+  type WorkspaceDeleteChoice
+} from '../shared/dialog'
 import { isRecord } from '../shared/guards'
 import { t } from './i18n'
 import { logFailureAsync } from './ipc-utils'
 
 /** kind 白名单（对齐 isAppearanceMode allowlist 先例），白名单外整单拒绝 */
-const CONFIRM_KINDS: readonly ConfirmKind[] = [
-  'session-delete',
-  'sessions-batch-close',
-  'workspace-delete'
-]
+const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete', 'sessions-batch-close']
 
 /**
  * 显示用上限：弹框文本非落盘面，防异常载荷生成巨型弹框（审查低 2）——正常路径
@@ -42,18 +46,24 @@ function parseConfirmPayload(payload: unknown): ConfirmDestructivePayload {
     return { kind: 'session-delete', name: name.slice(0, DISPLAY_NAME_MAX) }
   }
   if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalid()
-  if (kind === 'sessions-batch-close') {
-    return { kind: 'sessions-batch-close', count: Math.min(Math.floor(count), DISPLAY_COUNT_MAX) }
-  }
+  return { kind: 'sessions-batch-close', count: Math.min(Math.floor(count), DISPLAY_COUNT_MAX) }
+}
+
+/** confirmWorkspaceDelete 入参守卫：name 非空 + count 有限数 ≥0（显示面 clamp 兜底，惯例同 parseConfirmPayload） */
+function parseWorkspaceDeletePayload(payload: unknown): ConfirmWorkspaceDeletePayload {
+  const invalid = (): Error => new Error(t('errors.invalidSessionParams'))
+  if (!isRecord(payload)) throw invalid()
+  const name = payload.name
   if (typeof name !== 'string' || name.length === 0) throw invalid()
+  const count = payload.count
+  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalid()
   return {
-    kind: 'workspace-delete',
     name: name.slice(0, DISPLAY_NAME_MAX),
     count: Math.min(Math.floor(count), DISPLAY_COUNT_MAX)
   }
 }
 
-/** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案，i18n 零新增） */
+/** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案；workspace-delete 分支已随 2026-09-24 三态通道退役删除） */
 function composeText(payload: ConfirmDestructivePayload): { title: string; detail: string } {
   if (payload.kind === 'session-delete') {
     return {
@@ -61,20 +71,10 @@ function composeText(payload: ConfirmDestructivePayload): { title: string; detai
       detail: t('sessions.sessionRow.deleteConfirm.content', { name: payload.name ?? '' })
     }
   }
-  if (payload.kind === 'sessions-batch-close') {
-    return {
-      title: t('sessions.batchBar.closeConfirm.title'),
-      detail: t('sessions.batchBar.closeConfirm.content', { n: payload.count ?? 0 })
-    }
+  return {
+    title: t('sessions.batchBar.closeConfirm.title'),
+    detail: t('sessions.batchBar.closeConfirm.content', { n: payload.count ?? 0 })
   }
-  // workspace-delete：正文 = 前缀 + 会话数条件分支（等价搬 WorkspaceSwitcher 原
-  // 渲染层拼装，>0 有会话走 withSessions 否则空态句）
-  const prefix = t('sessions.workspaceSwitcher.deleteConfirm.prefix', { name: payload.name ?? '' })
-  const suffix =
-    (payload.count ?? 0) > 0
-      ? t('sessions.workspaceSwitcher.deleteConfirm.withSessions', { n: payload.count ?? 0 })
-      : t('sessions.workspaceSwitcher.deleteConfirm.empty')
-  return { title: t('sessions.workspaceSwitcher.deleteConfirm.title'), detail: prefix + suffix }
 }
 
 export function registerDialogIpc(): void {
@@ -111,6 +111,61 @@ export function registerDialogIpc(): void {
         }
         const { response } = await dialog.showMessageBox(win, options)
         return response === 1
+      },
+      'dialog'
+    )
+  )
+  // confirmWorkspaceDelete（2026-09-24 增量，PRD 4.10 三键处置 / 验收 34）：删除
+  // 工作区的会话处置选择——含会话呈「取消 / 保留会话 / 删除全部会话」三键，空工作
+  // 区维持「取消 / 删除」两键；结论三态返回，cancel 覆盖全部未确认路径（取消钮/
+  // Esc/关框/宿主窗缺失/守卫拒绝）。只确认不执行：delete-all 由 renderer 编排既有
+  // sessions:delete-batch → workspaces:delete 闭环（整单拒绝则工作区不删），
+  // keep-sessions 由 workspaces:delete 闭环（会话降级未分组），确认与执行两段解耦
+  ipcMain.handle(DIALOG_CHANNELS.confirmWorkspaceDelete, (event, payload: unknown) =>
+    logFailureAsync(
+      DIALOG_CHANNELS.confirmWorkspaceDelete,
+      payload,
+      async (): Promise<WorkspaceDeleteChoice> => {
+        const parsed = parseWorkspaceDeletePayload(payload)
+        const win = BrowserWindow.fromWebContents(event.sender)
+        if (!win) return 'cancel'
+        // 同 confirmDestructive 的 darwin 图标处理（注释详见上处）：darwin 传项目
+        // 图标整体替换 dev 态 Electron 包角标，createFromPath 失败得空图时走回默认
+        const icon =
+          process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
+        const title = t('sessions.workspaceSwitcher.deleteConfirm.title')
+        const prefix = t('sessions.workspaceSwitcher.deleteConfirm.prefix', { name: parsed.name })
+        // 「取消」为安全默认按钮（用户裁决 2026-09-18）；buttons[0]=取消（defaultId/
+        // cancelId 同指）；三键的屏幕视觉次序存在平台差异，语义以 response 值为准绳
+        const base: MessageBoxOptions = {
+          type: 'warning',
+          message: title,
+          icon,
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        }
+        if (parsed.count > 0) {
+          const { response } = await dialog.showMessageBox(win, {
+            ...base,
+            detail:
+              prefix +
+              t('sessions.workspaceSwitcher.deleteConfirm.withSessionsAsk', { n: parsed.count }),
+            buttons: [
+              t('common.cancel'),
+              t('sessions.workspaceSwitcher.deleteConfirm.keepSessions'),
+              t('sessions.workspaceSwitcher.deleteConfirm.deleteAll')
+            ]
+          })
+          if (response === 2) return 'delete-all'
+          return response === 1 ? 'keep-sessions' : 'cancel'
+        }
+        const { response } = await dialog.showMessageBox(win, {
+          ...base,
+          detail: prefix + t('sessions.workspaceSwitcher.deleteConfirm.empty'),
+          buttons: [t('common.cancel'), t('sessions.shared.delete')]
+        })
+        return response === 1 ? 'delete-all' : 'cancel'
       },
       'dialog'
     )

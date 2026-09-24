@@ -10,7 +10,7 @@ import {
 import { useSessionsStore } from '../stores/sessions'
 import { useUiStore } from '../stores/ui'
 import { useDeferredMenuAction } from './useDeferredMenuAction'
-import { confirmDestructive, showWorkspacePicker } from '../dialogs'
+import { confirmWorkspaceDelete, showWorkspacePicker } from '../dialogs'
 import { useT } from '../i18n'
 import { useWorkspaceDragReorder } from './useWorkspaceDragReorder'
 
@@ -43,6 +43,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const createWorkspace = useSessionsStore((s) => s.createWorkspace)
   const renameWorkspace = useSessionsStore((s) => s.renameWorkspace)
   const deleteWorkspace = useSessionsStore((s) => s.deleteWorkspace)
+  const deleteSessions = useSessionsStore((s) => s.deleteSessions)
   const reorderWorkspaces = useSessionsStore((s) => s.reorderWorkspaces)
   const { message } = App.useApp()
 
@@ -212,17 +213,42 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
     })
   }
 
+  // 删除工作区走主进程原生对话框会话处置三选（PRD 4.10 / 验收 34，2026-09-24）：
+  // 含会话呈「取消 / 保留会话 / 删除全部会话」，空工作区维持两键确认；window-modal
+  // 模态阻塞输入，弹框期间页面视图保持可见且内容原样，不经 overlay 悬挂登记收起
+  // 右区（菜单触发经 deferWhileMenuCloses 延迟挂出，见下方菜单接线）。只确认不
+  // 执行：delete-all 由本处编排既有 sessions:delete-batch → workspaces:delete
+  // （id 集在结论后从 store 现取防闭包旧值；delete-batch 整单拒绝则工作区不删、
+  // 行内反馈可从入口再次发起），keep-sessions 经既有 workspaces:delete 降级未分组；
+  // 取消/Esc/关闭/调用失败零副作用（吞错按 cancel 语义统一收敛在 renderer dialogs
+  // 薄封装）
   const confirmDelete = (id: string, name: string): void => {
     const count = sessions.filter((s) => s.workspaceId === id).length
-    // 删除确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，弹框
-    // 期间页面视图保持可见且内容原样，不经 overlay 悬挂登记收起右区（重命名弹层
-    // 仍为渲染层 Modal，登记保留）。只确认不执行：确认后经既有 workspaces:delete
-    // 链路删除（会话降级未分组）；取消/Esc/关闭/调用失败零副作用（吞错按取消
-    // 语义统一收敛在 renderer dialogs 薄封装）
-    void confirmDestructive({ kind: 'workspace-delete', name, count }).then((confirmed) => {
-      if (!confirmed) return
-      void deleteWorkspace(id).then((ok) => {
-        if (!ok) message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
+    void confirmWorkspaceDelete({ name, count }).then((choice) => {
+      if (choice === 'cancel') return
+      const finishDelete = (): void => {
+        void deleteWorkspace(id).then((ok) => {
+          if (!ok) message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
+        })
+      }
+      if (choice !== 'delete-all') {
+        finishDelete()
+        return
+      }
+      const ids = useSessionsStore
+        .getState()
+        .sessions.filter((s) => s.workspaceId === id)
+        .map((s) => s.id)
+      if (ids.length === 0) {
+        finishDelete()
+        return
+      }
+      void deleteSessions(ids).then((ok) => {
+        if (!ok) {
+          message.error(t('sessions.workspaceSwitcher.errors.deleteSessionsFailed'))
+          return
+        }
+        finishDelete()
       })
     })
   }

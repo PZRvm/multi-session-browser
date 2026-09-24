@@ -20,6 +20,17 @@
 //   分区；删除执行仍由 sessions:delete / sessions:delete-batch / workspaces:delete
 //   既有通道闭环，确认与执行两段解耦
 //
+// 契约要点（confirmWorkspaceDelete，2026-09-24 增量，计划
+// notes/plans/20260924222050-删除工作区会话处置弹窗开发计划.md 第 2.4 节）：
+// - 删除工作区确认由两键升级为会话处置三选（PRD 4.10 / 验收 34）：含会话工作区
+//   呈「取消 / 保留会话 / 删除全部会话」三键、结论按 WorkspaceDeleteChoice 三态
+//   返回；空工作区维持两键、确认亦返回 delete-all（无会话可删，与既有行为等价）
+// - 载荷只带数据参数（name + count），文案由主进程经 main/i18n 语言态组装；
+//   「取消」安全默认沿用用户裁决 2026-09-18；delete-all 由 renderer 编排既有
+//   sessions:delete-batch → workspaces:delete 闭环、keep-sessions 由
+//   workspaces:delete 闭环（确认与执行两段解耦）；同日 ConfirmKind 的
+//   workspace-delete 值退役迁本通道（消费面唯一 = WorkspaceSwitcher）
+//
 // 契约要点（workspacePicker 三通道，模态子窗口承载「移动到工作区」目标选择与
 // 「工作区重命名」输入（2026-09-21 二次增量，计划 notes/plans/20260921155828-
 // 工作区菜单右对齐与重命名原生化开发计划.md 第 2.4 节））：
@@ -40,25 +51,46 @@
 
 export const DIALOG_CHANNELS = {
   confirmDestructive: 'dialog:confirm-destructive',
+  confirmWorkspaceDelete: 'dialog:confirm-workspace-delete',
   showWorkspacePicker: 'dialog:show-workspace-picker',
   workspacePickerPayload: 'dialog:workspace-picker-payload',
   workspacePickerPick: 'dialog:workspace-picker-pick'
 } as const
 
-/** 破坏性确认的三种场景（kind 白名单，主进程 switch 分支组文案） */
-export type ConfirmKind = 'session-delete' | 'sessions-batch-close' | 'workspace-delete'
+/**
+ * 破坏性确认的场景白名单（kind，主进程 switch 分支组文案）；workspace-delete 已于
+ * 2026-09-24 退役迁 confirmWorkspaceDelete 三态通道（其结论非二值，不复用本类型）
+ */
+export type ConfirmKind = 'session-delete' | 'sessions-batch-close'
 
 export interface ConfirmDestructivePayload {
   /** 确认场景；白名单外的 kind 守卫整单拒绝 */
   kind: ConfirmKind
-  /** 会话名/工作区名：session-delete、workspace-delete 必填（正文 {name} 插值），仅展示用不落盘 */
+  /** 会话名：session-delete 必填（正文 {name} 插值），仅展示用不落盘 */
   name?: string
-  /**
-   * 会话计数：sessions-batch-close 必填（正文 {n} 插值）；workspace-delete 必填
-   * （其内会话数，>0 走 withSessions 分支否则 empty）；session-delete 忽略
-   */
+  /** 会话计数：sessions-batch-close 必填（正文 {n} 插值）；session-delete 忽略 */
   count?: number
 }
+
+/**
+ * 删除工作区会话处置选择载荷（2026-09-24 增量）：单场景无 kind 白名单——name
+ * 非空供正文 {name} 插值、count 决定三键（>0）/两键（=0）形态；显示面由主进程
+ * 按显示上限 clamp 兜底（跨 IPC 载荷不可信任口径，与 confirmDestructive 同惯例）
+ */
+export interface ConfirmWorkspaceDeletePayload {
+  /** 工作区名：正文 {name} 插值，仅展示用不落盘 */
+  name: string
+  /** 工作区内会话数：>0 呈三键处置选择；=0 呈两键删除确认 */
+  count: number
+}
+
+/**
+ * 删除工作区会话处置结论（三态）：delete-all = 用户按下「删除全部会话」（空工作区
+ * 两键框按下「删除」亦返回此值，此时无会话可删与既有行为等价）；keep-sessions =
+ * 用户按下「保留会话」（会话移入未分组）；cancel 覆盖 取消钮/Esc/关框/宿主窗缺失/
+ * 入参守卫失败/invoke 异常（renderer 薄封装吞错）等全部未确认路径
+ */
+export type WorkspaceDeleteChoice = 'delete-all' | 'keep-sessions' | 'cancel'
 
 /** 建窗 query role 值与 main.tsx 角色分流单源（SETTINGS_WINDOW_ROLE 同款先例） */
 export const WORKSPACE_PICKER_WINDOW_ROLE = 'workspace-picker'
