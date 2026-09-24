@@ -35,7 +35,7 @@ import { registerFactoryResetIpc } from './factoryReset'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
-import { WINDOW_ID_MAIN } from '../shared/browser'
+import { WINDOW_ID_MAIN, browserViewFallbackBackground } from '../shared/browser'
 import type { TFunc } from '../shared/i18n'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
@@ -78,7 +78,13 @@ let suggestWindows: OmniboxSuggestWindows | null = null
 // 用户交互时、控制器已就绪），板头齿轮经设置域 open IPC 通道；主窗 closed 钩子经
 // 此引用级联关闭设置窗（whenReady 内创建，此前为 null）
 let settingsWindowController: SettingsWindowController | null = null
-const appearanceController = createAppearanceController()
+const appearanceController = createAppearanceController({
+  // WebContentsView 兜底底色随主题（2026-09-25 专项）：亮暗翻转即同步全部存量会话
+  // 视图；registry 晚于外观控制器初始化（whenReady 内创建），启动窗口期空值静默跳过
+  onResolvedThemeChanged: (resolved) => {
+    registry?.applyFallbackBackground(browserViewFallbackBackground(resolved))
+  }
+})
 
 /**
  * 安装应用菜单（替代 Electron 默认英文菜单；阶段六参数化为 installAppMenu(t)——文案
@@ -325,7 +331,10 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     windows: independentWindows,
-    getHomepageUrl
+    getHomepageUrl,
+    // WebContentsView 兜底底色现取（外观快照派生 chrome surface 族，单源 shared/browser.ts）
+    getFallbackBackground: () =>
+      browserViewFallbackBackground(appearanceController.getSnapshot().resolvedTheme)
   })
   registry = created
 

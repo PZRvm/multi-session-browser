@@ -127,10 +127,18 @@ class NativeAppearanceController implements AppearanceController {
   private mode: AppearanceMode = 'system'
   private themeColor: ThemeSystemId = 'amber'
   private lastPublishedSnapshot: AppearanceSnapshot | null = null
+  /** resolvedTheme 翻转主进程侧出口（2026-09-25）：index.ts 桥接 registry 同步存量 WebContentsView 兜底底色 */
+  private readonly onResolvedThemeChanged?: (resolved: ResolvedTheme) => void
+  /** 上次已通知的亮暗（去重：init 首发一次，其后仅真翻转时发；themeColor 变化不改亮暗不触发） */
+  private lastNotifiedResolvedTheme: ResolvedTheme | null = null
   // setMode 与 setThemeColor 共用的持久化串行队列：并发写偏好依序落盘，落盘恒写全
   // 两键（无部分键覆盖路径），队列吞错只保序不吞调用方结果
   private writeQueue: Promise<unknown> = Promise.resolve()
   private isListening = false
+
+  constructor(onResolvedThemeChanged?: (resolved: ResolvedTheme) => void) {
+    this.onResolvedThemeChanged = onResolvedThemeChanged
+  }
 
   async init(): Promise<void> {
     try {
@@ -265,11 +273,19 @@ class NativeAppearanceController implements AppearanceController {
     }
 
     this.lastPublishedSnapshot = snapshot
+
+    if (this.onResolvedThemeChanged && snapshot.resolvedTheme !== this.lastNotifiedResolvedTheme) {
+      this.lastNotifiedResolvedTheme = snapshot.resolvedTheme
+      this.onResolvedThemeChanged(snapshot.resolvedTheme)
+    }
   }
 }
 
-export function createAppearanceController(): AppearanceController {
-  return new NativeAppearanceController()
+export function createAppearanceController(deps?: {
+  /** resolvedTheme 翻转回调（含 init 首次，去重在控制器内）：主进程侧出口——index.ts 桥接 registry.applyFallbackBackground 同步存量 WebContentsView 兜底底色 */
+  onResolvedThemeChanged?: (resolved: ResolvedTheme) => void
+}): AppearanceController {
+  return new NativeAppearanceController(deps?.onResolvedThemeChanged)
 }
 
 export function getAppearanceBackgroundColor(

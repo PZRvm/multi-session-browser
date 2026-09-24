@@ -200,6 +200,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 - **亮色 Chrome：** tabbar #dee1e6、toolbar #f1f3f4、line #c7cbd1、surface/tab-active/omnibox #ffffff、ink #3c4043、dim #5f6368、disabled #b0b4b9。
 - **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368。
+- **兜底底色（主进程建视图）：** WebContentsView 页面首帧前兜底底色取 surface 族色（亮 #ffffff / 暗 #202124），常量单源在 `src/shared/browser.ts`（`BROWSER_VIEW_FALLBACK_BACKGROUND`）——主进程不读 CSS，与 app.css `--chrome-surface` token 及本节色板三处字面量对账，改一处须同步其余两处。
 - **语义状态：** hover/pressed 蒙版、建议列表选中蒙版（--chrome-select-veil 亮 rgba(60,64,67,0.14) / 暗 rgba(232,234,237,0.20)——白底上的键盘选中须一眼可辨）、地址错误红、分隔条与滚动条悬停都必须各有亮暗 token；组件只能引用语义 token，不直接假设底色为白或黑。
 
 半透明蒙版（veil）全部按主题提升为语义 token；反白行内菜单仍使用强调色上的墨色 veil（`--accent-veil`）。（原翻牌砖中缝 token `--board-tile-seam` 随 2026-09-20 翻牌动画退役一并移除——中缝只为翻转铰链服务。）

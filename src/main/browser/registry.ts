@@ -153,6 +153,12 @@ export interface SessionBrowserRegistry extends TabManager {
   /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot/recordVisit no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
   flushPendingReports(): Promise<void>
   /**
+   * WebContentsView 页面首帧前兜底底色随主题（2026-09-25）：迭代注册表内全部会话
+   * manager 透传（含后台/零视图会话，空 Map no-op）；index.ts 经 appearance
+   * onResolvedThemeChanged 回调驱动，建视图侧现取走 deps.getFallbackBackground
+   */
+  applyFallbackBackground(color: string): void
+  /**
    * 会话浏览历史模块（地址栏补全的数据层）：ipc 装配层经此取 getEntries 与
    * onEntryChanged（推送桥接）；recordVisit/dropHistory/cloneHistory 的编排接线
    * 在本注册表内完成（ensureManager 采集、destroySession 清史、clonePartition 携带）
@@ -171,8 +177,10 @@ export function createSessionBrowserRegistry(deps: {
   windows: IndependentWindows
   /** 当前主页（空串 = 未设置）现取：index.ts 注入 settings 域同步缓存——newUserTab 的默认地址源（PRD 3.8.2 修订） */
   getHomepageUrl: () => string
+  /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：index.ts 注入外观快照派生——ensureManager 透传 createTabManager */
+  getFallbackBackground: () => string
 }): SessionBrowserRegistry {
-  const { getWindow, windows, getHomepageUrl } = deps
+  const { getWindow, windows, getHomepageUrl, getFallbackBackground } = deps
 
   const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
@@ -411,7 +419,8 @@ export function createSessionBrowserRegistry(deps: {
       sessionId: id,
       partition,
       initialBounds: globalBounds ?? undefined,
-      getHomepageUrl
+      getHomepageUrl,
+      getFallbackBackground
     })
     managers.set(id, manager)
 
@@ -980,6 +989,11 @@ export function createSessionBrowserRegistry(deps: {
     for (const manager of managers.values()) manager.dispose()
   }
 
+  /** 兜底底色聚合：迭代全部会话 manager 透传（空 Map no-op；后台/零视图 manager 同样覆盖） */
+  function applyFallbackBackground(color: string): void {
+    for (const manager of managers.values()) manager.applyFallbackBackground(color)
+  }
+
   return {
     newTab,
     newUserTab,
@@ -999,6 +1013,7 @@ export function createSessionBrowserRegistry(deps: {
     getActiveWebContents,
     attachToWindow,
     destroyTabsInWindow,
+    applyFallbackBackground,
     dispose,
     getSnapshot,
     onSnapshotChanged,

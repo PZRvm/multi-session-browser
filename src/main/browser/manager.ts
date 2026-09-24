@@ -127,6 +127,12 @@ export interface TabManager {
    */
   destroyTabsInWindow: (windowId: string) => void
   /**
+   * WebContentsView 页面首帧前兜底底色随主题（2026-09-25）：遍历本 manager 全部 Tab
+   * 的视图（含未挂载/悬挂态——防切换激活时以旧色兜底首帧）逐个 setBackgroundColor。
+   * 对 webContents 已销毁的视图调用安全无副作用；只设合成器底色，不触碰页面渲染。
+   */
+  applyFallbackBackground: (color: string) => void
+  /**
    * 注销本 manager：此后 newTab 一律 no-op。注册表销毁会话时于关闭 webContents 前
    * 调用——销毁等待期内垂死页面仍可能经 window.open 触发 newTab，若放行会在同分区
    * 复生 webContents（清除后数据覆写回盘 + 泄漏），dispose 后一切创建路径封死
@@ -198,6 +204,8 @@ export function createTabManager(
     initialBounds?: SetBoundsPayload
     /** 当前主页（空串 = 未设置）现取：registry 注入 settings 域同步缓存——newTab 为同步函数，主页须经内存缓存同步可取 */
     getHomepageUrl: () => string
+    /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：registry 注入外观快照派生——newTab 同步函数同上不容 await */
+    getFallbackBackground: () => string
   }
 ): TearOffTabManager {
   // Map 迭代序即创建序，快照 tabs 顺序直接按此输出（作用域过滤不改变窗口内创建序）
@@ -414,8 +422,8 @@ export function createTabManager(
       // 只设分区，不设 preload/nodeIntegration/contextIsolation（网页内容不可信）
       webPreferences: { partition: opts.partition }
     })
-    // 页面加载前兜底白底，防透明闪烁
-    view.setBackgroundColor('#ffffff')
+    // 页面加载前兜底底色（随当前亮暗取 chrome surface 族，单源 shared/browser.ts），防透明闪烁
+    view.setBackgroundColor(opts.getFallbackBackground())
     const target = url ?? BLANK_URL
     const tab: TabEntry = {
       id,
@@ -852,6 +860,10 @@ export function createTabManager(
     disposed = true
   }
 
+  function applyFallbackBackground(color: string): void {
+    for (const tab of tabs.values()) tab.view.setBackgroundColor(color)
+  }
+
   return {
     newTab,
     newUserTab,
@@ -859,6 +871,7 @@ export function createTabManager(
     tearOffTab,
     moveTabToWindow,
     destroyTabsInWindow,
+    applyFallbackBackground,
     switchTab,
     reorderTabs,
     setBounds,

@@ -29,6 +29,9 @@
 // 2026-09-18 起增 reorder-tabs 命令通道（浏览器域 25→26）：同窗口作用域内 Tab 拖拽
 // 重排的全序提交——契约冻结于 tab栏分隔线与栏内拖动排序开发计划 2.4 节
 //（notes/plans/20260918140903-tab栏分隔线与栏内拖动排序开发计划.md）。
+// 2026-09-25 起增 WebContentsView 页面首帧前兜底底色单源（无新通道，纯主进程消费）
+// ——契约冻结于浏览器区兜底底色随主题开发计划 2.4 节
+//（notes/plans/20260925003358-浏览器区兜底底色随主题开发计划.md）。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -260,4 +263,20 @@ export interface SetBoundsPayload {
 
 export interface OkResult {
   ok: true
+}
+
+/**
+ * WebContentsView 页面首帧前兜底底色（chrome surface 族，亮暗成对）：主进程建视图时
+ * 现取防透明闪烁，主题翻转经 appearance 广播链同步存量视图（只随亮暗两态，主题色不
+ * 入右区）。主进程不读 CSS——本常量与 app.css `--chrome-surface` token、DESIGN.md
+ * 「Chrome 侧」色板三处字面量对账，改一处须同步其余两处。
+ */
+export const BROWSER_VIEW_FALLBACK_BACKGROUND = {
+  light: '#ffffff',
+  dark: '#202124'
+} as const
+
+/** 兜底底色取值：resolved 亮暗与 shared/appearance 的 ResolvedTheme 同构（'light' | 'dark'） */
+export function browserViewFallbackBackground(resolved: 'light' | 'dark'): string {
+  return BROWSER_VIEW_FALLBACK_BACKGROUND[resolved]
 }
