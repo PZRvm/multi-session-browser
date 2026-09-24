@@ -222,35 +222,49 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   // 行内反馈可从入口再次发起），keep-sessions 经既有 workspaces:delete 降级未分组；
   // 取消/Esc/关闭/调用失败零副作用（吞错按 cancel 语义统一收敛在 renderer dialogs
   // 薄封装）
+  // 在途守卫（对齐 SessionPanel closeConfirmInFlight 先例）：弹窗为窗口模态天然
+  // 防重入，但结论返回后的编排链（delete-batch → workspaces:delete 两次 IPC 往返）
+  // 飞行期主窗输入已恢复，此窗口内重入直接忽略，防双弹窗连发与交错反馈；守卫整链
+  // （确认+删除）落定才释放（.finally 覆盖 取消/失败/成功 全部路径）
+  const confirmInFlight = useRef(false)
   const confirmDelete = (id: string, name: string): void => {
+    if (confirmInFlight.current) return
     const count = sessions.filter((s) => s.workspaceId === id).length
-    void confirmWorkspaceDelete({ name, count }).then((choice) => {
-      if (choice === 'cancel') return
-      const finishDelete = (): void => {
-        void deleteWorkspace(id).then((ok) => {
-          if (!ok) message.error(t('sessions.workspaceSwitcher.errors.deleteFailed'))
+    confirmInFlight.current = true
+    void confirmWorkspaceDelete({ name, count })
+      .then((choice) => {
+        if (choice === 'cancel') return undefined
+        // afterSessionsDeleted 区分终态反馈：delete-all 链上工作区删除失败时会话
+        // 已实际删除，复用 deleteFailed 会让用户误以为零变化（审查低 3）
+        const finishDelete = (afterSessionsDeleted: boolean): Promise<void> =>
+          deleteWorkspace(id).then((ok) => {
+            if (!ok) {
+              message.error(
+                t(
+                  afterSessionsDeleted
+                    ? 'sessions.workspaceSwitcher.errors.deleteWorkspaceAfterSessionsFailed'
+                    : 'sessions.workspaceSwitcher.errors.deleteFailed'
+                )
+              )
+            }
+          })
+        if (choice !== 'delete-all') return finishDelete(false)
+        const ids = useSessionsStore
+          .getState()
+          .sessions.filter((s) => s.workspaceId === id)
+          .map((s) => s.id)
+        if (ids.length === 0) return finishDelete(false)
+        return deleteSessions(ids).then((ok) => {
+          if (!ok) {
+            message.error(t('sessions.workspaceSwitcher.errors.deleteSessionsFailed'))
+            return
+          }
+          return finishDelete(true)
         })
-      }
-      if (choice !== 'delete-all') {
-        finishDelete()
-        return
-      }
-      const ids = useSessionsStore
-        .getState()
-        .sessions.filter((s) => s.workspaceId === id)
-        .map((s) => s.id)
-      if (ids.length === 0) {
-        finishDelete()
-        return
-      }
-      void deleteSessions(ids).then((ok) => {
-        if (!ok) {
-          message.error(t('sessions.workspaceSwitcher.errors.deleteSessionsFailed'))
-          return
-        }
-        finishDelete()
       })
-    })
+      .finally(() => {
+        confirmInFlight.current = false
+      })
   }
 
   return (

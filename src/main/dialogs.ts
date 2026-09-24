@@ -25,6 +25,31 @@ import { logFailureAsync } from './ipc-utils'
 /** kind 白名单（对齐 isAppearanceMode allowlist 先例），白名单外整单拒绝 */
 const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete', 'sessions-batch-close']
 
+/** 守卫失败业务错误工厂（ipc-utils 惯例键，两 parse 共用） */
+const invalidError = (): Error => new Error(t('errors.invalidSessionParams'))
+
+/** 显示面 clamp：name 截断（弹框文本非落盘面，防异常载荷生成巨型弹框） */
+function clampDisplayName(name: string): string {
+  return name.slice(0, DISPLAY_NAME_MAX)
+}
+
+/** 显示面 clamp：count 取整封顶（正常路径不超会话总数，跨 IPC 载荷不可信任口径兜底） */
+function clampDisplayCount(count: number): number {
+  return Math.min(Math.floor(count), DISPLAY_COUNT_MAX)
+}
+
+/**
+ * 弹框图标（用户裁决 2026-09-18：Electron 图标换项目图标）：warning 类型的
+ * NSAlertStyleCritical 渲染「警告图标 + 应用包角标」——dev 态包未打包，角标
+ * 即 Electron 原子图标（打包后才来自 build/ icns）。传 icon 即被 NSAlert
+ * setIcon: 整体替换为项目图标（源码 message_box_mac.mm settings.icon 非空
+ * 分支）；仅 darwin 生效，Windows 保留 warning 盾形原生语义。读取失败
+ * （createFromPath 得空图）时 Electron 判 isNull 走回默认合成图标，安全退化
+ */
+function dialogIconForDarwin() {
+  return process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
+}
+
 /**
  * 显示用上限：弹框文本非落盘面，防异常载荷生成巨型弹框（审查低 2）——正常路径
  * name 已被 NAME_MAX=50 clamp、count 不超会话总数，此处是跨 IPC 载荷不可信任
@@ -35,32 +60,27 @@ const DISPLAY_COUNT_MAX = 1_000_000
 
 /** 入参守卫：kind 白名单 + 按 kind 校验必填数据参数（缺传/类型非法抛业务错误） */
 function parseConfirmPayload(payload: unknown): ConfirmDestructivePayload {
-  const invalid = (): Error => new Error(t('errors.invalidSessionParams'))
-  if (!isRecord(payload)) throw invalid()
+  if (!isRecord(payload)) throw invalidError()
   const kind = payload.kind
-  if (typeof kind !== 'string' || !CONFIRM_KINDS.includes(kind as ConfirmKind)) throw invalid()
+  if (typeof kind !== 'string' || !CONFIRM_KINDS.includes(kind as ConfirmKind)) throw invalidError()
   const name = payload.name
   const count = payload.count
   if (kind === 'session-delete') {
-    if (typeof name !== 'string' || name.length === 0) throw invalid()
-    return { kind: 'session-delete', name: name.slice(0, DISPLAY_NAME_MAX) }
+    if (typeof name !== 'string' || name.length === 0) throw invalidError()
+    return { kind: 'session-delete', name: clampDisplayName(name) }
   }
-  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalid()
-  return { kind: 'sessions-batch-close', count: Math.min(Math.floor(count), DISPLAY_COUNT_MAX) }
+  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalidError()
+  return { kind: 'sessions-batch-close', count: clampDisplayCount(count) }
 }
 
 /** confirmWorkspaceDelete 入参守卫：name 非空 + count 有限数 ≥0（显示面 clamp 兜底，惯例同 parseConfirmPayload） */
 function parseWorkspaceDeletePayload(payload: unknown): ConfirmWorkspaceDeletePayload {
-  const invalid = (): Error => new Error(t('errors.invalidSessionParams'))
-  if (!isRecord(payload)) throw invalid()
+  if (!isRecord(payload)) throw invalidError()
   const name = payload.name
-  if (typeof name !== 'string' || name.length === 0) throw invalid()
+  if (typeof name !== 'string' || name.length === 0) throw invalidError()
   const count = payload.count
-  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalid()
-  return {
-    name: name.slice(0, DISPLAY_NAME_MAX),
-    count: Math.min(Math.floor(count), DISPLAY_COUNT_MAX)
-  }
+  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalidError()
+  return { name: clampDisplayName(name), count: clampDisplayCount(count) }
 }
 
 /** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案；workspace-delete 分支已随 2026-09-24 三态通道退役删除） */
@@ -87,14 +107,7 @@ export function registerDialogIpc(): void {
         const win = BrowserWindow.fromWebContents(event.sender)
         if (!win) return false
         const { title, detail } = composeText(confirmed)
-        // 弹框图标（用户裁决 2026-09-18：Electron 图标换项目图标）：warning 类型的
-        // NSAlertStyleCritical 渲染「警告图标 + 应用包角标」——dev 态包未打包，角标
-        // 即 Electron 原子图标（打包后才来自 build/ icns）。传 icon 即被 NSAlert
-        // setIcon: 整体替换为项目图标（源码 message_box_mac.mm settings.icon 非空
-        // 分支）；仅 darwin 生效，Windows 保留 warning 盾形原生语义。读取失败
-        // （createFromPath 得空图）时 Electron 判 isNull 走回默认合成图标，安全退化
-        const icon =
-          process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
+        const icon = dialogIconForDarwin()
         // 「取消」为安全默认按钮（用户裁决 2026-09-18：Enter/Esc 均等同取消，
         // 防误触不可逆删除——与原渲染层版 Enter=删除的行为差异）；buttons[0]=取消
         // （defaultId/cancelId 同指）、[1]=删除；noLink 强制横向按钮排布。按钮的
@@ -129,10 +142,7 @@ export function registerDialogIpc(): void {
         const parsed = parseWorkspaceDeletePayload(payload)
         const win = BrowserWindow.fromWebContents(event.sender)
         if (!win) return 'cancel'
-        // 同 confirmDestructive 的 darwin 图标处理（注释详见上处）：darwin 传项目
-        // 图标整体替换 dev 态 Electron 包角标，createFromPath 失败得空图时走回默认
-        const icon =
-          process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
+        const icon = dialogIconForDarwin()
         const title = t('sessions.workspaceSwitcher.deleteConfirm.title')
         const prefix = t('sessions.workspaceSwitcher.deleteConfirm.prefix', { name: parsed.name })
         // 「取消」为安全默认按钮（用户裁决 2026-09-18）；buttons[0]=取消（defaultId/

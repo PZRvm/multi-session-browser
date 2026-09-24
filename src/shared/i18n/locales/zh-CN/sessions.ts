@@ -134,7 +134,9 @@ export const sessions = {
       createFailed: '新建工作区失败',
       renameFailed: '重命名工作区失败',
       deleteFailed: '删除工作区失败',
-      deleteSessionsFailed: '删除工作区会话失败：会话列表已发生变化，请重试'
+      deleteSessionsFailed: '删除工作区会话失败：会话列表已发生变化，请重试',
+      deleteWorkspaceAfterSessionsFailed:
+        '会话已删除，但删除工作区失败：工作区列表已发生变化，请重试'
     }
   },
   /** 外观三态入口（AppearanceEntry；设置窗外观行按同键路径消费——簇间契约） */

@@ -135,7 +135,9 @@ export const sessions: Dictionary['sessions'] = {
       createFailed: '新增工作區失敗',
       renameFailed: '重新命名工作區失敗',
       deleteFailed: '刪除工作區失敗',
-      deleteSessionsFailed: '刪除工作區會話失敗：會話清單已發生變化，請重試'
+      deleteSessionsFailed: '刪除工作區會話失敗：會話清單已發生變化，請重試',
+      deleteWorkspaceAfterSessionsFailed:
+        '會話已刪除，但刪除工作區失敗：工作區清單已發生變化，請重試'
     }
   },
   /** 外观三态入口（AppearanceEntry；设置窗外观行按同键路径消费——簇间契约） */

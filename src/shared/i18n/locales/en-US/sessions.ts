@@ -127,7 +127,9 @@ export const sessions: Dictionary['sessions'] = {
       renameFailed: 'Failed to rename workspace',
       deleteFailed: 'Failed to delete workspace',
       deleteSessionsFailed:
-        'Failed to delete the workspace sessions: the session list has changed. Please retry.'
+        'Failed to delete the workspace sessions: the session list has changed. Please retry.',
+      deleteWorkspaceAfterSessionsFailed:
+        'Sessions were deleted, but the workspace could not be deleted: the workspace list has changed. Please retry.'
     }
   },
   appearanceGroup: {
