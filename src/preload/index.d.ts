@@ -12,7 +12,8 @@ import type {
   TabDragHoverPayload,
   TabDragInsertPayload,
   TabDragOutcome,
-  TabDragStartPayload
+  TabDragStartPayload,
+  TabstripRectPayload
 } from '../shared/browser'
 import type { BrowserSnapshot } from '../shared/browser'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
@@ -103,6 +104,7 @@ declare global {
         dragStart(payload: TabDragStartPayload): Promise<OkResult>
         dragEnd(payload: TabDragEndPayload): Promise<TabDragOutcome>
         dragInsert(payload: TabDragInsertPayload): Promise<OkResult>
+        reportTabstripRect(payload: TabstripRectPayload): Promise<OkResult>
         findStart(payload: FindStartPayload): Promise<OkResult>
         findStop(payload?: FindStopPayload): Promise<OkResult>
         getHistory(): Promise<HistoryEntry[]>

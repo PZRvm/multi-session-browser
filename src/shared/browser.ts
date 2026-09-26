@@ -23,6 +23,9 @@
 // 2026-09-18 起快照增 htmlFullscreen 字段（HTML 全屏态）与 TearOffTabManager 内部面
 // hasHtmlFullscreen 查询（无新通道）：契约冻结于会话网页视频全屏开发计划第 1 节
 //（notes/plans/20260918125946-会话网页视频全屏开发计划.md）。
+// 2026-09-25 起增拖出裁决修订：report-tabstrip-rect 命令通道（浏览器域 24→25）+ 四态
+// 裁决从「命中窗口 bounds」细化为「命中 Tab 栏矩形」（离开 Tab 栏的一切位置均建新
+// 窗，Chrome 对齐）——契约修订记录见 notes/plans/20260925085925-拖出裁决阈值修订.md。
 
 /** 主窗口浏览区的宿主窗口标识：常量跨 macOS 关窗重建稳定；独立窗口用其 BrowserWindow.id 字符串化（创建时由登记表分配） */
 export const WINDOW_ID_MAIN = 'main'
@@ -43,6 +46,7 @@ export const BROWSER_CHANNELS = {
   dragStart: 'browser:tab-drag-start',
   dragEnd: 'browser:tab-drag-end',
   dragInsert: 'browser:tab-drag-insert',
+  reportTabstripRect: 'browser:report-tabstrip-rect',
   findStart: 'browser:find-start',
   findStop: 'browser:find-stop',
   stateChanged: 'browser:state-changed',
@@ -169,6 +173,21 @@ export interface TabDragHoverPayload {
 export interface TabDragInsertPayload {
   tabId: string
   index: number
+}
+
+/**
+ * Tab 栏矩形上报（拖出裁决修订，窗口 → 主进程的尽力而为布局通道）：TabStrip 根
+ * 容器的视口矩形（窗口内容坐标系 DIP，与 CSS px 同值——结构复用 SetBoundsPayload）。
+ * TabStrip 挂载/尺寸变化时上报；卸载（HTML 全屏壳层隐藏等）上报零矩形即清除，主
+ * 进程据此缓存「窗口 → Tab 栏视口矩形」，裁决时叠加窗口 contentBounds 原点换算
+ * 屏幕矩形。fire-and-forget：丢失/陈旧上报的后果是该窗 Tab 栏不可被命中（释放即
+ * 走建窗），TabStrip 重挂载/resize 即自愈，不阻断拖拽
+ */
+export interface TabstripRectPayload {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 /**

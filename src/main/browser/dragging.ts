@@ -5,6 +5,12 @@
 // 阶段 10：悬停推送携带悬停窗内容坐标（cursorX/cursorY）；目标窗经 dragInsert 命令
 // 上报插入位 hint（setInsertHint 只存不验，匹配守卫在 ipc 层），moved-window 裁决按
 // hint 插入、无 hint / hint 异窗回退末位（契约点 1/3，阶段 10 计划第 3 节）。
+// 2026-09-25 拖出裁决阈值修订（Chrome 对齐）：命中测试从「窗口 bounds」细化为
+// 「Tab 栏矩形」（各窗 renderer 经 report-tabstrip-rect 上报关栏视口矩形，本控制器
+// 叠加 contentBounds 原点换算屏幕矩形）——释放点落在某窗口 Tab 栏内才走三态裁决
+//（源栏 stayed / 同会话栏 moved-window / 异会话栏 rejected），离开 Tab 栏的一切
+// 位置（源窗内容区、他窗内容区、软件外空白）一律建新窗。修订记录见
+// notes/plans/20260925085925-拖出裁决阈值修订.md 第 1 节。
 // 分层约束：不拼分区串（persist:sess-<id> 单源在 registry）、不碰持久化、不直接持有
 // WebContentsView——迁移一律经注入的 registry 原语（moveTabToWindow / tearOffAt）；
 // 悬停推送不在此发 IPC，经 onHoverChanged 回调交 ipc.ts 定向发送（同会话窗口全集，
@@ -16,6 +22,7 @@ import { screen } from 'electron'
 import type { BrowserWindow } from 'electron'
 import {
   WINDOW_ID_MAIN,
+  type SetBoundsPayload,
   type TabDragHoverPayload,
   type TabDragOutcome,
   type TabDragPreviewPayload
@@ -90,6 +97,13 @@ export interface TabDragController {
   getDragHoverState(): { tabId: string; hoverWindowId: string | null } | null
   /** 存储目标窗上报的插入位 hint（只存不验——守卫在 ipc 层；无活动会话时 no-op） */
   setInsertHint(hint: { windowId: string; index: number } | null): void
+  /**
+   * 存储某窗口 TabStrip 视口矩形（窗口内容坐标 DIP；ipc 层经 sender 归属该窗口，
+   * 结构守卫后透传）。零/负尺寸 = TabStrip 已卸载（HTML 全屏壳层隐藏等），清条目。
+   * 尽力而为缓存：丢失上报的后果是该窗 Tab 栏不被命中（释放走建窗），TabStrip
+   * 重挂载/resize 即自愈
+   */
+  setTabstripRect(windowId: string, rect: SetBoundsPayload | null): void
 }
 
 export function createTabDragController(deps: {
@@ -127,6 +141,10 @@ export function createTabDragController(deps: {
   // 轮询/过期定时器与 session 同生命周期成对出现（见文件头注释的结构性保证）
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let expireTimer: ReturnType<typeof setTimeout> | null = null
+  // 各窗口 TabStrip 视口矩形缓存（窗口内容坐标）：命中测试的唯一布局事实源。条目
+  // 不随窗口销毁清理——已销毁窗口不进候选集、其矩形自然不被查询；Electron 窗口 id
+  // 单调不复用，残留条目无别名风险（量级 = 历史窗口数，个位数）
+  const tabstripRects = new Map<string, SetBoundsPayload>()
 
   /**
    * 悬停推送：hoverWindowId 非 null 时对当前悬停窗计算光标内容坐标（getContentBounds
@@ -215,10 +233,28 @@ export function createTabDragController(deps: {
     return candidates
   }
 
-  /** 点是否命中窗口 bounds（getBounds 与 getCursorScreenPoint 同为 DIP 屏幕系，含边界） */
-  function hitTest(candidate: HitCandidate, point: { x: number; y: number }): boolean {
-    const b = candidate.win.getBounds()
-    return point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height
+  /**
+   * 点是否命中该窗口的 Tab 栏（2026-09-25 修订：Tab 栏矩形取代窗口 bounds——Chrome
+   * 对齐，Tab 级语义只在 Tab 栏上成立）。屏幕矩形 = 窗口 contentBounds 原点（现取，
+   * 窗口移动自动跟随）+ renderer 上报的视口矩形；未上报（新窗首帧未落/上报丢失）或
+   * 窗口已销毁视为不命中——矩形缺失走建窗属自愈路径（TabStrip 重挂载/resize 重报）
+   */
+  function tabstripHit(candidate: HitCandidate, point: { x: number; y: number }): boolean {
+    const rect = tabstripRects.get(candidate.windowId)
+    if (!rect || rect.width <= 0 || rect.height <= 0) return false
+    if (candidate.win.isDestroyed()) return false
+    let origin: { x: number; y: number }
+    try {
+      const bounds = candidate.win.getContentBounds()
+      origin = { x: bounds.x, y: bounds.y }
+    } catch {
+      return false
+    }
+    const sx = origin.x + rect.x
+    const sy = origin.y + rect.y
+    return (
+      point.x >= sx && point.x <= sx + rect.width && point.y >= sy && point.y <= sy + rect.height
+    )
   }
 
   /**
@@ -249,17 +285,21 @@ export function createTabDragController(deps: {
     return best
   }
 
-  /** 当前悬停窗：同会话命中集减源窗口后命中测试（源窗上方无高亮——释放即 stayed） */
+  /**
+   * 当前悬停窗：同会话命中集减源窗口后按 Tab 栏矩形命中（修订后悬停反馈只在目标窗
+   * Tab 栏上呈现——可落的是 Tab 栏而非整窗，Chrome 对齐；源窗栏上方无高亮，释放即
+   * stayed）
+   */
   function hoverWindowAt(target: DragSession, point: { x: number; y: number }): string | null {
     const hits = sameSessionCandidates(target)
       .filter((candidate) => candidate.windowId !== target.sourceWindowId)
-      .filter((candidate) => hitTest(candidate, point))
+      .filter((candidate) => tabstripHit(candidate, point))
     return pickHit(hits)?.windowId ?? null
   }
 
-  /** 上报点在全应用窗口集的命中（四态裁决入口；无命中返回 null） */
-  function hitAnyWindowAt(point: { x: number; y: number }): HitCandidate | null {
-    return pickHit(allAppCandidates().filter((candidate) => hitTest(candidate, point)))
+  /** 上报点在全应用窗口集的 Tab 栏命中（四态裁决入口；无命中返回 null → 建新窗） */
+  function hitAnyTabstripAt(point: { x: number; y: number }): HitCandidate | null {
+    return pickHit(allAppCandidates().filter((candidate) => tabstripHit(candidate, point)))
   }
 
   /** 上报坐标陈旧形态判定（常量注释见 STALE_REPORT_RADIUS_PX） */
@@ -275,11 +315,11 @@ export function createTabDragController(deps: {
   }
 
   /**
-   * 命中窗口的裁决：源窗 → stayed（零副作用）；同会话窗（非源，含激活会话相符时的
-   * 主窗）→ moveTabToWindow 按 hint 插入（hint 的 windowId 匹配命中窗才透传——悬停已
-   * 切走 / 无上报时 undefined = 末位）；异会话窗（含主窗激活会话不符）→ rejected
-   * （零副作用，源 Tab 原位不丢）。迁移原语失败（与预判间的极端竞态）按 stayed 收场
-   * 并如实告警——dragEnd 是收尾语义，不抛错
+   * 命中 Tab 栏的裁决：源窗栏 → stayed（零副作用）；同会话窗栏（非源，含激活会话
+   * 相符时的主窗）→ moveTabToWindow 按 hint 插入（hint 的 windowId 匹配命中窗才透传
+   * ——悬停已切走 / 无上报时 undefined = 末位）；异会话窗栏（含主窗激活会话不符）→
+   * rejected（零副作用，源 Tab 原位不丢）。迁移原语失败（与预判间的极端竞态）按
+   * stayed 收场并如实告警——dragEnd 是收尾语义，不抛错
    */
   function adjudicateHit(active: DragSession, hit: HitCandidate): TabDragOutcome {
     if (hit.windowId === active.sourceWindowId) return 'stayed'
@@ -429,12 +469,14 @@ export function createTabDragController(deps: {
     // 裁决点：上报坐标；(0,0) 陈旧形态（Windows 窗外释放坐标缺失的已知取值，与最后
     // 轮询点联合判定）径用轮询点
     const primary = stale && polled ? polled : reported
-    const primaryHit = hitAnyWindowAt(primary)
+    const primaryHit = hitAnyTabstripAt(primary)
     if (primaryHit) return adjudicateHit(active, primaryHit)
-    // 裁决点零命中 → 空白释放，落点即裁决点。刻意不做"零命中改用轮询点复检"：
-    // 轮询点滞后最多一帧（16ms），快速甩出窗缘释放时轮询点仍可能落在源窗内，会把
-    // 合法的空白拖出误裁成 stayed；非 (0,0) 的平台坐标缺陷形态留 Windows 实测裁决
-    //（计划第 3 节契约点 3，波次 3 检查点定案），不为投机兜底牺牲正常路径
+    // 裁决点未命中任何 Tab 栏 → 离开 Tab 栏的一切位置（源窗/他窗内容区、软件外空白）
+    // 均建新窗（2026-09-25 修订，Chrome 对齐——「拖离 Tab 栏即可拖出」），落点即裁决
+    // 点。刻意不做"零命中改用轮询点复检"：轮询点滞后最多一帧（16ms），快速甩出栏外
+    // 释放时轮询点仍可能落在源窗 Tab 栏内，会把合法的拖出误裁成 stayed；非 (0,0) 的
+    // 平台坐标缺陷形态留 Windows 实测裁决（计划第 3 节契约点 3，波次 3 检查点定案），
+    // 不为投机兜底牺牲正常路径
     return tearOffAtPoint(active, primary)
   }
 
@@ -453,5 +495,20 @@ export function createTabDragController(deps: {
     session.insertHint = hint
   }
 
-  return { dragStart, dragEnd, onHoverChanged, getDragHoverState, setInsertHint }
+  function setTabstripRect(windowId: string, rect: SetBoundsPayload | null): void {
+    if (rect === null || rect.width <= 0 || rect.height <= 0) {
+      tabstripRects.delete(windowId)
+      return
+    }
+    tabstripRects.set(windowId, rect)
+  }
+
+  return {
+    dragStart,
+    dragEnd,
+    onHoverChanged,
+    getDragHoverState,
+    setInsertHint,
+    setTabstripRect
+  }
 }

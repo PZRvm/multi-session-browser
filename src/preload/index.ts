@@ -16,7 +16,8 @@ import type {
   TabDragHoverPayload,
   TabDragInsertPayload,
   TabDragOutcome,
-  TabDragStartPayload
+  TabDragStartPayload,
+  TabstripRectPayload
 } from '../shared/browser'
 import { HISTORY_CHANNELS } from '../shared/history'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
@@ -174,6 +175,10 @@ const api = {
     // 拖入插入位上报（阶段 10）：尽力而为 hint——主进程无 hint/陈旧时回退末位追加
     dragInsert: (payload: TabDragInsertPayload): Promise<BrowserOkResult> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.dragInsert, payload),
+    // Tab 栏矩形上报（拖出裁决修订）：fire-and-forget 布局通道——TabStrip 挂载/resize
+    // 上报视口矩形、卸载上报零矩形清除；主进程据此做 Tab 栏命中裁决
+    reportTabstripRect: (payload: TabstripRectPayload): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(BROWSER_CHANNELS.reportTabstripRect, payload),
     // 页内查找（Chrome find-in-page 对齐）：findStart 对激活 Tab 发起/步进查找，
     // findStop 结束会话（缺省清除高亮）且主进程随即归还页面焦点；计数经 onFindResult 推送
     findStart: (payload: FindStartPayload): Promise<BrowserOkResult> =>

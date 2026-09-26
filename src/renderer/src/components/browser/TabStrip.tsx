@@ -4,6 +4,7 @@ import type { BrowserTabState } from '../../../../shared/browser'
 import { useAppearanceStore } from '../../stores/appearance'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useT } from '../../i18n'
+import { useRectObserver } from './useRectObserver'
 
 interface TabItemProps {
   tab: BrowserTabState
@@ -265,8 +266,10 @@ function TabStrip(): React.JSX.Element {
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const newTab = useBrowserStore((s) => s.newTab)
-  // 同会话拖拽悬停落点（阶段 9）：store 已把悬停推送归一化为「本窗口 id 或 null」，
-  // 命中即整条 Tab 栏高亮——可落的是整窗，Tab 栏是 app 在窗顶的自有可视面
+  // 同会话拖拽悬停落点（阶段 9；2026-09-25 修订后悬停判定收窄到本窗 Tab 栏矩形——
+  // 主进程 hoverWindowAt 按 Tab 栏命中）：store 已把悬停推送归一化为「本窗口 id 或
+  // null」，命中即整条 Tab 栏高亮——可落的是 Tab 栏本身（Chrome 对齐），栏是 app
+  // 在窗顶的自有可视面
   const dragTarget = useBrowserStore((s) => s.hoverWindowId === windowIdentity.windowId)
 
   // 拖拽插入指示器（阶段 10）：悬停落点本窗时按光标对各 Tab 中点判定插入位
@@ -276,6 +279,22 @@ function TabStrip(): React.JSX.Element {
   // 静默丢弃，主进程末位回退兜底）
   const tabsElRef = useRef<HTMLDivElement | null>(null)
   const insertElRef = useRef<HTMLDivElement | null>(null)
+  // Tab 栏矩形上报（拖出裁决修订）：ResizeObserver + rAF 节流（useRectObserver 骨架，
+  // 与内容锚点上报同款），主进程据此缓存本窗 Tab 栏视口矩形做「Tab 栏命中」裁决。
+  // 卸载（HTML 全屏壳层隐藏等）上报零矩形清除——栏不在则栏上不命中，防陈旧矩形
+  // 让不可见栏参与裁决。fire-and-forget，失败静默（尽力而为布局通道）
+  useRectObserver(tabsElRef, true, (rect) => {
+    window.api.browser
+      .reportTabstripRect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height })
+      .catch(() => {})
+  })
+  useEffect(() => {
+    return () => {
+      // 卸载清条目：主进程按零尺寸删除缓存（上报失败静默——窗口销毁路径主进程自会
+      // 因候选集排除该窗而不查询）
+      window.api.browser.reportTabstripRect({ x: 0, y: 0, width: 0, height: 0 }).catch(() => {})
+    }
+  }, [])
   useEffect(() => {
     const container = tabsElRef.current
     const indicator = insertElRef.current

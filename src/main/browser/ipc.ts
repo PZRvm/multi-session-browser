@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：三十一条通道（浏览器域 24 条（18 命令 + 6 推送）+ 建议子窗域
+// 浏览器 IPC handlers：三十二条通道（浏览器域 25 条（19 命令 + 6 推送）+ 建议子窗域
 // 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
@@ -431,6 +431,38 @@ export function registerBrowserIpc(
     })
   )
 
+  // reportTabstripRect：Tab 栏矩形上报（2026-09-25 拖出裁决阈值修订）。尽力而为
+  // 布局通道（同 dragInsert 口径）：结构垃圾按命令口径拒绝（四有限 number，零/负尺寸
+  // = TabStrip 卸载清条目），通过后按 sender 归属窗口存入控制器缓存——丢失/陈旧
+  // 上报的后果是该窗 Tab 栏不被命中（释放走建窗），TabStrip 重挂载/resize 即自愈。
+  // 作用域解析用 resolveScope（不要求激活会话）：主窗零会话空态 Tab 栏仍在，矩形
+  // 须可上报
+  ipcMain.handle(BROWSER_CHANNELS.reportTabstripRect, (event, payload: unknown): OkResult =>
+    logFailure(BROWSER_CHANNELS.reportTabstripRect, payload, () => {
+      const scope = resolveScope(event)
+      if (
+        !isRecord(payload) ||
+        typeof payload.x !== 'number' ||
+        typeof payload.y !== 'number' ||
+        typeof payload.width !== 'number' ||
+        typeof payload.height !== 'number' ||
+        !Number.isFinite(payload.x) ||
+        !Number.isFinite(payload.y) ||
+        !Number.isFinite(payload.width) ||
+        !Number.isFinite(payload.height)
+      ) {
+        throw invalidParams()
+      }
+      dragController.setTabstripRect(scope.windowId, {
+        x: payload.x,
+        y: payload.y,
+        width: payload.width,
+        height: payload.height
+      })
+      return { ok: true }
+    })
+  )
+
   // findStart：页内查找发起/步进，作用于来源窗口作用域激活 Tab 的 webContents。
   // text 非空且 ≤ FIND_TEXT_MAX（结构守卫，命令口径拒绝）；forward/findNext 布尔归一
   // （初搜 findNext=true 自顶部起新会话，Enter/Shift+Enter 步进 findNext=false 换向）
@@ -547,6 +579,6 @@ export function registerBrowserIpc(
   )
 
   console.log(
-    '[browser] IPC handlers 已注册（31 条通道：浏览器域 24 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
+    '[browser] IPC handlers 已注册（32 条通道：浏览器域 25 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
   )
 }
