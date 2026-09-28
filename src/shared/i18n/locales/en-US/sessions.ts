@@ -57,6 +57,7 @@ export const sessions: Dictionary['sessions'] = {
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
     closeWindow: 'Close window',
+    shellToggleFailed: 'Failed to update window controls',
     reorderFailed: 'Reorder failed; list order restored',
     moveFailed: 'Failed to move session'
   },

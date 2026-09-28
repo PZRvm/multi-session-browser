@@ -6,10 +6,13 @@ import { SHELL_CHANNELS } from '../shared/shell'
 // 收起态隐藏原生三灯（左上角仅剩 renderer 自绘关闭点，window.close() 直关自身
 // 不经本域），展开恢复——本模块只做守卫与投递，不持有可见性状态。
 
-export function registerShellIpc(win: BrowserWindow): void {
+export function registerShellIpc(deps: { getMainWindow: () => BrowserWindow | null }): void {
   ipcMain.handle(SHELL_CHANNELS.setNativeWindowButtonsVisible, (event, payload: unknown): void => {
-    // sender 白名单 = 主窗 shell（对齐 settings:open 先例——窗口级动作收紧暴露面）
-    if (event.sender !== win.webContents) {
+    // sender 白名单 = 主窗 shell，窗口引用调用时现取——注册在 whenReady 一次性块、
+    // 独立于 createWindow 重入（macOS 关窗重开会重建窗口，固定 win 引用既会二次
+    // 注册抛错也会命中已销毁对象，审查 20260928165442 高 1）
+    const win = deps.getMainWindow()
+    if (!win || event.sender !== win.webContents) {
       throw new Error('shell:set-native-window-buttons-visible 仅限主窗 shell 调用')
     }
     if (!isRecord(payload) || typeof payload.visible !== 'boolean') {

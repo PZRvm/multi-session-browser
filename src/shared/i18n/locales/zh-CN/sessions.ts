@@ -62,6 +62,7 @@ export const sessions = {
     collapseSidebar: '收起侧边栏',
     expandSidebar: '展开侧边栏',
     closeWindow: '关闭窗口',
+    shellToggleFailed: '窗口控制按钮状态切换失败',
     reorderFailed: '会话排序失败，列表顺序已恢复',
     moveFailed: '移动会话失败'
   },

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { App, Checkbox, Dropdown, Input, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
@@ -8,7 +8,7 @@ import { confirmDestructive } from '../dialogs'
 import { SESSION_NOTE_MAX } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
 import { useDeferredMenuAction } from './useDeferredMenuAction'
-import { useUiStore } from '../stores/ui'
+import { useOverlayWhenOpen } from './useOverlayWhenOpen'
 import type { SessionItem } from '../stores/sessions'
 
 type RowEditMode = 'none' | 'name' | 'note'
@@ -172,12 +172,9 @@ function SessionRow({
   const [ctxOpen, setCtxOpen] = useState(false)
   // ⋮ 菜单受控开关（与右键菜单互斥协调 + overlay 登记同步）
   const [dotsOpen, setDotsOpen] = useState(false)
-  // 收起态会话名 Tooltip 开关（反馈轮四：popover 改右侧弹——跨入右区原生层，按
-  // ui.ts 约束登记 overlay 收起页面视图，否则弹层被页面整块遮挡；state + effect
-  // cleanup 与 ctx/dots 同款，行卸载（展开切换）必然释放）
+  // 收起态会话名 Tooltip 开关（反馈轮四：popover 改右侧弹——跨入右区原生层，经
+  // useOverlayWhenOpen 登记 overlay 收起页面视图，否则弹层被页面整块遮挡）
   const [tipOpen, setTipOpen] = useState(false)
-  const openOverlay = useUiStore((s) => s.openOverlay)
-  const closeOverlay = useUiStore((s) => s.closeOverlay)
 
   // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
   const statusText: Record<SessionItem['status'], string> = {
@@ -209,16 +206,13 @@ function SessionRow({
     }
   ]
 
-  // 行菜单开启期间登记 overlay（ui.ts 约束）：右区是 WebContentsView 原生层，
-  // 页面视图挂载时其点击事件永远进不了 shell 文档，rc-trigger 的「外部点击关闭」
-  // 对页面区点击不生效、菜单会残留——登记后页面视图收起、点击落进 shell 文档，
-  // 外点关闭才全区域生效；菜单关闭即恢复页面视图。ctx/dots 互斥不并存，计数式
-  // 登记对称加减，卸载走 effect cleanup 兜底
-  useEffect(() => {
-    if (!ctxOpen && !dotsOpen && !tipOpen) return
-    openOverlay()
-    return () => closeOverlay()
-  }, [ctxOpen, dotsOpen, tipOpen, openOverlay, closeOverlay])
+  // 行菜单/收起态会话名 Tooltip 开启期间登记 overlay（ui.ts 约束）：右区是
+  // WebContentsView 原生层，页面视图挂载时其点击事件永远进不了 shell 文档，
+  // rc-trigger 的「外部点击关闭」对页面区点击不生效、菜单会残留——登记后页面视图
+  // 收起、点击落进 shell 文档，外点关闭才全区域生效；关闭即恢复页面视图。
+  // ctx/dots 互斥不并存，计数式登记对称加减，卸载走 effect cleanup 兜底
+  // （登记/释放样板经 useOverlayWhenOpen 单源，审查 20260928165442 低 4）
+  useOverlayWhenOpen(ctxOpen || dotsOpen || tipOpen)
 
   // 挂窗口模态弹层的菜单动作（移动 sheet / 删除确认框）统一经共享 hook 延迟：
   // 先让菜单关闭动画走完再挂弹层（防窗口模态遮挡冻结动画致菜单卡显），宿主卸载
@@ -256,6 +250,14 @@ function SessionRow({
   const rowClass = batchMode
     ? `session-row${checked ? ' batch-checked' : ''}`
     : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
+
+  // 展开态翻转时复位 tooltip 开关（审查 20260928165442 中 3）：Tooltip 随 collapsed
+  // 分支切换卸载时 antd 不回调 onOpenChange(false)，tipOpen 滞留 true 会让 overlay
+  // 计数滞留、页面视图持续收起——渲染期就地复位（React「随 props 调整 state」认可
+  // 模式，立即以复位值重渲染，overlay effect 随之释放）
+  if (!collapsed && tipOpen) {
+    setTipOpen(false)
+  }
 
   // 收起态轨道行（分支置于全部 hooks 之后，hook 序不受短路影响）：只渲染状态点
   // （idle/loading 语义色与展开态同源），激活行沿用琥珀反白；hover Tooltip 出

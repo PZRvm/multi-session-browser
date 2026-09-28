@@ -3,12 +3,12 @@ import { App, Button, ConfigProvider, Input, Modal, Tooltip, theme } from 'antd'
 import {
   CheckSquareOutlined,
   DoubleLeftOutlined,
-  DoubleRightOutlined,
   FolderOpenOutlined,
   PlusOutlined,
   SettingOutlined
 } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
+import CollapsedRail from './CollapsedRail'
 import CountTiles from './CountTiles'
 import { windowTrafficControls } from '../stores/browser'
 import SessionRow from './SessionRow'
@@ -157,15 +157,6 @@ function SessionPanel({
     onToggleCollapse()
   }
 
-  // 收起态新建钮 popover 开关（反馈轮四：右侧弹跨入右区原生层，按 ui.ts 约束登记
-  // overlay 收起页面视图；state + effect cleanup，foot 卸载必然释放）
-  const [plusTipOpen, setPlusTipOpen] = useState(false)
-  useEffect(() => {
-    if (!plusTipOpen) return
-    openOverlay()
-    return () => closeOverlay()
-  }, [plusTipOpen, openOverlay, closeOverlay])
-
   // 克隆含分区复制可能数秒：以 store.cloneSession 的函数体为耗时边界，
   // 前后置位/复位 cloningIds（Set 支持并发克隆互不覆盖指示），该行状态字临时显示「克隆中…」
   const handleClone = async (id: string): Promise<void> => {
@@ -302,6 +293,33 @@ function SessionPanel({
     setChecked(new Set())
   }
 
+  // 会话行映射（审查 20260928165442 低 5）：收起/展开两形态共用一份 props 组装，
+  // 行级差异在收起形态结构性置空（拖拽态/归属标记/批量勾选由 CollapsedRail 承载
+  // 后仅服务展开分支，collapsed 传 false 保持单一代码路径）
+  const renderRows = (rowCollapsed: boolean): React.JSX.Element[] =>
+    visibleSessions.map((session) => (
+      <SessionRow
+        key={session.id}
+        session={session}
+        collapsed={rowCollapsed}
+        batchMode={rowCollapsed ? false : batchMode}
+        checked={rowCollapsed ? false : checked.has(session.id)}
+        cloning={cloningIds.has(session.id)}
+        dragEnabled={rowCollapsed ? false : !batchMode}
+        wsTag={
+          !rowCollapsed && viewIsAll && workspaces.length > 0
+            ? session.workspaceId !== null
+              ? (wsNameById.get(session.workspaceId) ?? t('sessions.shared.ungrouped'))
+              : t('sessions.shared.ungrouped')
+            : null
+        }
+        {...rowProps(session)}
+        onToggleCheck={toggleChecked}
+        onClone={handleClone}
+        onMove={openMoveModal}
+      />
+    ))
+
   return (
     <ConfigProvider
       theme={{
@@ -409,210 +427,136 @@ function SessionPanel({
             )}
           </span>
         </header>
-        {/* 收起态展开行（反馈轮三：占原工作区条槽位——板头下方 40px 行、底部发丝线
-            收边与工作区条同节奏；双平台一致，48px 轨道内板头只承载关闭点） */}
-        {collapsed && (
-          <div className="collapse-row">
-            <Tooltip
-              title={t('sessions.panel.expandSidebar')}
-              placement="right"
-              mouseEnterDelay={0.2}
-            >
-              <button
-                type="button"
-                className="collapse-toggle"
-                aria-label={t('sessions.panel.expandSidebar')}
-                aria-expanded={false}
-                onClick={handleToggleCollapse}
-              >
-                <DoubleRightOutlined />
-              </button>
-            </Tooltip>
-          </div>
-        )}
-        {!collapsed && <WorkspaceSwitcher />}
         {collapsed ? (
-          // 收起态轨道（2026-09-28 专项）：只渲染当前视野会话的状态点行（收起前
-          // 所选组 = activeWorkspaceId 既有视野过滤，零新逻辑）；空视野轨道区空白，
-          // 不渲染空态文案（收起态零文案原则，计划 2.3）
-          <ul className="session-list">
-            {visibleSessions.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                collapsed
-                batchMode={false}
-                checked={false}
-                cloning={cloningIds.has(session.id)}
-                dragEnabled={false}
-                isDragSource={false}
-                dropPos={null}
-                wsTag={null}
-                onToggleCheck={toggleChecked}
-                onClone={handleClone}
-                onMove={openMoveModal}
-              />
-            ))}
-          </ul>
-        ) : sessions.length === 0 ? (
-          <div className="session-empty">
-            <p className="session-empty-title">{t('sessions.panel.emptyAll.title')}</p>
-            <p className="session-empty-desc">{t('sessions.panel.emptyAll.desc')}</p>
-          </div>
-        ) : visibleSessions.length === 0 ? (
-          // 工作区/未分组视野空态：全局有会话但当前视野没有（板脚新建仍可用，落本
-          // 视野——未分组视野的落点即未分组，审查低 4 文案分流）
-          <div className="session-empty">
-            <p className="session-empty-title">
-              {viewIsUngrouped
-                ? t('sessions.panel.emptyUngrouped.title')
-                : t('sessions.panel.emptyWorkspace.title')}
-            </p>
-            <p className="session-empty-desc">
-              {viewIsUngrouped
-                ? t('sessions.panel.emptyUngrouped.desc')
-                : t('sessions.panel.emptyWorkspace.desc')}
-            </p>
-          </div>
+          // 收起态轨道整体交由 CollapsedRail（修复轮审查 20260928165442 低 7 抽取）：
+          // 展开钮占工作区条槽位行 + 状态点列表 + 板脚撑满新建钮三段内聚；空视野
+          // 轨道区空白（收起态零文案原则）。所选组 = activeWorkspaceId 既有视野过滤，
+          // 零新逻辑
+          <CollapsedRail
+            sessions={visibleSessions}
+            cloningIds={cloningIds}
+            onToggleCollapse={handleToggleCollapse}
+            onAddSession={() => {
+              void addSession(membership)
+            }}
+            onToggleCheck={toggleChecked}
+            onClone={handleClone}
+            onMove={openMoveModal}
+          />
         ) : (
-          <ul className="session-list" {...listHandlers}>
-            {visibleSessions.map((session) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                batchMode={batchMode}
-                checked={checked.has(session.id)}
-                cloning={cloningIds.has(session.id)}
-                dragEnabled={!batchMode}
-                wsTag={
-                  // 归属标记仅在有工作区存在时的「全部会话」视野渲染——零工作区时
-                  // 每行挂「未分组」是零信息噪音，违反 PRD 4.8 零噪音基线
-                  viewIsAll && workspaces.length > 0
-                    ? session.workspaceId !== null
-                      ? (wsNameById.get(session.workspaceId) ?? t('sessions.shared.ungrouped'))
-                      : t('sessions.shared.ungrouped')
-                    : null
-                }
-                {...rowProps(session)}
-                onToggleCheck={toggleChecked}
-                onClone={handleClone}
-                onMove={openMoveModal}
-              />
-            ))}
-          </ul>
-        )}
-        <footer className="board-foot">
-          {collapsed ? (
-            // 收起态板脚（2026-09-28 用户裁决「新建会话只留小图标」；反馈轮二「宽度
-            // 撑满」、反馈轮三「父容器内距归零」、反馈轮四「直角 + popover 右侧弹」）：
-            // 图标形态全宽直角钮——.new-session 琥珀底/字/三态与 34px 高全量继承，
-            // 板脚唯一大面积琥珀惯例原样保持；文案复用既有 newSession 键。popover
-            // 右侧弹跨入右区原生层，经 plusTipOpen 登记 overlay 收起页面视图后完整
-            // 可见（0.1s 进 / 0.2s 出延迟差 = 与会话行 Tooltip 交接期计数不归零）。
-            // 落点 = 当前视野归属（membership 现逻辑不变）；批量操作栏在收起态结构性
-            // 不可达（收起即退出批量态）
-            <Tooltip
-              title={t('sessions.panel.newSession')}
-              placement="right"
-              mouseEnterDelay={0.1}
-              mouseLeaveDelay={0.2}
-              overlayStyle={{ pointerEvents: 'none' }}
-              onOpenChange={setPlusTipOpen}
-            >
-              <button
-                type="button"
-                className="new-session new-session-icon"
-                aria-label={t('sessions.panel.newSession')}
-                onClick={() => {
-                  void addSession(membership)
-                }}
-              >
-                <PlusOutlined />
-              </button>
-            </Tooltip>
-          ) : batchMode ? (
-            <div className="batch-bar">
-              <div className="batch-bar-row">
-                <div className="batch-bar-left">
-                  <span className="batch-count">
-                    {t('sessions.batchBar.selectedCount', { n: checkedCount })}
-                  </span>
-                  <button type="button" className="batch-select-all" onClick={toggleAll}>
-                    {allChecked
-                      ? t('sessions.batchBar.selectNone')
-                      : t('sessions.batchBar.selectAll')}
-                  </button>
-                  {panelWidth >= 340 ? (
-                    <button
-                      type="button"
-                      className="batch-move-btn"
-                      disabled={checkedCount === 0}
-                      onClick={openBatchMoveModal}
-                    >
-                      {t('sessions.batchBar.moveToWorkspace')}
-                    </button>
-                  ) : (
-                    <Tooltip
-                      title={t('sessions.batchBar.moveToWorkspaceIcon')}
-                      mouseEnterDelay={0.2}
-                    >
-                      {/* 禁用态原生 button 不派发鼠标事件——外层 span 承接 hover
-                          让 Tooltip 在禁用时仍可解释图标用途（审查修复轮低 5） */}
-                      <span className="batch-move-icon-wrap">
+          <>
+            {!collapsed && <WorkspaceSwitcher />}
+            {sessions.length === 0 ? (
+              <div className="session-empty">
+                <p className="session-empty-title">{t('sessions.panel.emptyAll.title')}</p>
+                <p className="session-empty-desc">{t('sessions.panel.emptyAll.desc')}</p>
+              </div>
+            ) : visibleSessions.length === 0 ? (
+              // 工作区/未分组视野空态：全局有会话但当前视野没有（板脚新建仍可用，落本
+              // 视野——未分组视野的落点即未分组，审查低 4 文案分流）
+              <div className="session-empty">
+                <p className="session-empty-title">
+                  {viewIsUngrouped
+                    ? t('sessions.panel.emptyUngrouped.title')
+                    : t('sessions.panel.emptyWorkspace.title')}
+                </p>
+                <p className="session-empty-desc">
+                  {viewIsUngrouped
+                    ? t('sessions.panel.emptyUngrouped.desc')
+                    : t('sessions.panel.emptyWorkspace.desc')}
+                </p>
+              </div>
+            ) : (
+              <ul className="session-list" {...listHandlers}>
+                {renderRows(false)}
+              </ul>
+            )}
+            <footer className="board-foot">
+              {batchMode ? (
+                <div className="batch-bar">
+                  <div className="batch-bar-row">
+                    <div className="batch-bar-left">
+                      <span className="batch-count">
+                        {t('sessions.batchBar.selectedCount', { n: checkedCount })}
+                      </span>
+                      <button type="button" className="batch-select-all" onClick={toggleAll}>
+                        {allChecked
+                          ? t('sessions.batchBar.selectNone')
+                          : t('sessions.batchBar.selectAll')}
+                      </button>
+                      {panelWidth >= 340 ? (
                         <button
                           type="button"
-                          className="batch-move-btn batch-move-icon"
+                          className="batch-move-btn"
                           disabled={checkedCount === 0}
-                          aria-label={t('sessions.batchBar.moveToWorkspaceIcon')}
                           onClick={openBatchMoveModal}
                         >
-                          <FolderOpenOutlined />
+                          {t('sessions.batchBar.moveToWorkspace')}
                         </button>
-                      </span>
-                    </Tooltip>
+                      ) : (
+                        <Tooltip
+                          title={t('sessions.batchBar.moveToWorkspaceIcon')}
+                          mouseEnterDelay={0.2}
+                        >
+                          {/* 禁用态原生 button 不派发鼠标事件——外层 span 承接 hover
+                          让 Tooltip 在禁用时仍可解释图标用途（审查修复轮低 5） */}
+                          <span className="batch-move-icon-wrap">
+                            <button
+                              type="button"
+                              className="batch-move-btn batch-move-icon"
+                              disabled={checkedCount === 0}
+                              aria-label={t('sessions.batchBar.moveToWorkspaceIcon')}
+                              onClick={openBatchMoveModal}
+                            >
+                              <FolderOpenOutlined />
+                            </button>
+                          </span>
+                        </Tooltip>
+                      )}
+                    </div>
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      className="batch-close-selected"
+                      disabled={checkedCount === 0}
+                      onClick={confirmCloseSelected}
+                    >
+                      {t('sessions.batchBar.closeSelected')}
+                    </Button>
+                  </div>
+                  <button
+                    type="button"
+                    className="new-session"
+                    disabled={checkedCount === 0}
+                    onClick={openUrlModal}
+                  >
+                    {t('sessions.batchBar.openTestUrl')}
+                  </button>
+                  {batchFeedback && (
+                    <div
+                      className={`batch-feedback${batchFeedback.fading ? ' batch-feedback-fading' : ''}${batchFeedback.tone === 'danger' ? ' batch-feedback-danger' : ''}`}
+                      role="status"
+                    >
+                      {batchFeedback.text}
+                    </div>
                   )}
                 </div>
-                <Button
-                  type="text"
-                  danger
-                  size="small"
-                  className="batch-close-selected"
-                  disabled={checkedCount === 0}
-                  onClick={confirmCloseSelected}
+              ) : (
+                <button
+                  type="button"
+                  className="new-session"
+                  onClick={() => {
+                    void addSession(membership)
+                  }}
                 >
-                  {t('sessions.batchBar.closeSelected')}
-                </Button>
-              </div>
-              <button
-                type="button"
-                className="new-session"
-                disabled={checkedCount === 0}
-                onClick={openUrlModal}
-              >
-                {t('sessions.batchBar.openTestUrl')}
-              </button>
-              {batchFeedback && (
-                <div
-                  className={`batch-feedback${batchFeedback.fading ? ' batch-feedback-fading' : ''}${batchFeedback.tone === 'danger' ? ' batch-feedback-danger' : ''}`}
-                  role="status"
-                >
-                  {batchFeedback.text}
-                </div>
+                  <PlusOutlined />
+                  {t('sessions.panel.newSession')}
+                </button>
               )}
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="new-session"
-              onClick={() => {
-                void addSession(membership)
-              }}
-            >
-              <PlusOutlined />
-              {t('sessions.panel.newSession')}
-            </button>
-          )}
-        </footer>
+            </footer>
+          </>
+        )}
       </aside>
       <Modal
         title={t('sessions.urlModal.title')}

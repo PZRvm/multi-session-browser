@@ -31,7 +31,21 @@ function MainShell(): React.JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const dragging = useRef(false)
   const t = useT()
+  const { message } = AntdApp.useApp()
   const htmlFullscreen = useBrowserStore((s) => s.htmlFullscreen)
+
+  // 收起/展开切换：先以当前渲染闭包的 collapsed 定序再提交——IPC 副作用不进
+  // setState updater（updater 须纯，StrictMode dev 双调用会重复发 IPC——审查
+  // 20260928165442 中 2）；失败经 message.warning 反馈（审查低 6，原 console.warn
+  // 为不可感知的静默）
+  const toggleCollapsed = (): void => {
+    const next = !collapsed
+    setCollapsed(next)
+    window.api.shell.setNativeWindowButtonsVisible({ visible: !next }).catch(() => {
+      console.warn('收起态原生三灯显隐切换失败:', next)
+      message.warning(t('sessions.panel.shellToggleFailed'))
+    })
+  }
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
     if (!dragging.current) return
@@ -74,19 +88,7 @@ function MainShell(): React.JSX.Element {
           <SessionPanel
             panelWidth={panelWidth}
             collapsed={collapsed}
-            onToggleCollapse={() => {
-              setCollapsed((prev) => {
-                const next = !prev
-                // 原生三灯随收起隐藏/展开恢复（shared/shell.ts 契约；非 darwin 主进程
-                // 空转）。失败仅告警不回滚布局态——灯组显隐是观感缺陷非功能损坏
-                window.api.shell
-                  .setNativeWindowButtonsVisible({ visible: !next })
-                  .catch((error: unknown) => {
-                    console.warn('收起态原生三灯显隐切换失败:', error)
-                  })
-                return next
-              })
-            }}
+            onToggleCollapse={toggleCollapsed}
           />
         </div>
       )}

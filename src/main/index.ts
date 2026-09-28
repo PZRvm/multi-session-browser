@@ -192,8 +192,6 @@ function createWindow(): void {
   win.on('page-title-updated', (event) => event.preventDefault())
   // 回填主窗口显式引用（多窗口后此引用是 'main' 作用域的唯一身份判据）
   mainWindow = win
-  // 窗口壳域（侧边栏收起态专项）：sender 白名单 = 本窗，收起态隐藏/展开恢复原生三灯
-  registerShellIpc(win)
 
   win.on('ready-to-show', () => {
     win.show()
@@ -380,6 +378,10 @@ app.whenReady().then(async () => {
   })
   registerAppearanceIpc(appearanceController)
   registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
+  // 窗口壳域（侧边栏收起态专项）：whenReady 一次性注册、独立于 createWindow 重入
+  // （macOS 关窗重开时 createWindow 会再跑，固定 win 引用二次注册即抛）；sender
+  // 白名单 = 现取主窗，收起态隐藏/展开恢复原生三灯
+  registerShellIpc({ getMainWindow: () => mainWindow })
   // 设置值域四通道（阶段四 get/changed/set-homepage + 阶段六 set-language）：无 sender
   // 白名单（对齐外观域先例，入参值守卫承担），changed 经 getAllWindows 全推；
   // set-language 成功链在 settings.ts 内闭环（落盘 + 语言缓存 + 主进程语言态——菜单
