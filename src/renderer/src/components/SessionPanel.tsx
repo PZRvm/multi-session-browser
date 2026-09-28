@@ -157,6 +157,15 @@ function SessionPanel({
     onToggleCollapse()
   }
 
+  // 收起态新建钮 popover 开关（反馈轮四：右侧弹跨入右区原生层，按 ui.ts 约束登记
+  // overlay 收起页面视图；state + effect cleanup，foot 卸载必然释放）
+  const [plusTipOpen, setPlusTipOpen] = useState(false)
+  useEffect(() => {
+    if (!plusTipOpen) return
+    openOverlay()
+    return () => closeOverlay()
+  }, [plusTipOpen, openOverlay, closeOverlay])
+
   // 克隆含分区复制可能数秒：以 store.cloneSession 的函数体为耗时边界，
   // 前后置位/复位 cloningIds（Set 支持并发克隆互不覆盖指示），该行状态字临时显示「克隆中…」
   const handleClone = async (id: string): Promise<void> => {
@@ -495,16 +504,20 @@ function SessionPanel({
         <footer className="board-foot">
           {collapsed ? (
             // 收起态板脚（2026-09-28 用户裁决「新建会话只留小图标」；反馈轮二「宽度
-            // 撑满」）：图标形态全宽钮——.new-session 琥珀底/字/三态与 34px 高全量
-            // 继承，板脚唯一大面积琥珀惯例原样保持；文案复用既有 newSession 键，
-            // 悬停提示走 antd Tooltip（收起/展开钮同批裁决）。落点 = 当前视野归属
-            // （membership 现逻辑不变）；批量操作栏在收起态结构性不可达（收起即退出
-            // 批量态）
+            // 撑满」、反馈轮三「父容器内距归零」、反馈轮四「直角 + popover 右侧弹」）：
+            // 图标形态全宽直角钮——.new-session 琥珀底/字/三态与 34px 高全量继承，
+            // 板脚唯一大面积琥珀惯例原样保持；文案复用既有 newSession 键。popover
+            // 右侧弹跨入右区原生层，经 plusTipOpen 登记 overlay 收起页面视图后完整
+            // 可见（0.1s 进 / 0.2s 出延迟差 = 与会话行 Tooltip 交接期计数不归零）。
+            // 落点 = 当前视野归属（membership 现逻辑不变）；批量操作栏在收起态结构性
+            // 不可达（收起即退出批量态）
             <Tooltip
               title={t('sessions.panel.newSession')}
-              placement="top"
-              mouseEnterDelay={0.2}
-              overlayStyle={{ maxWidth: 44 }}
+              placement="right"
+              mouseEnterDelay={0.1}
+              mouseLeaveDelay={0.2}
+              overlayStyle={{ pointerEvents: 'none' }}
+              onOpenChange={setPlusTipOpen}
             >
               <button
                 type="button"

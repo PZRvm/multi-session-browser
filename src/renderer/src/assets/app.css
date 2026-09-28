@@ -2748,13 +2748,20 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
 }
 
 /* 收起态展开钮所在行（反馈轮三：占原工作区条槽位——板头下方 40px 行、底部发丝线
-   收边与工作区条同节奏；下拉框隐藏后展开钮占其位，双平台一致） */
+   收边与工作区条同节奏；下拉框隐藏后展开钮占其位，双平台一致）。反馈轮四：钮撑满
+   行容器（父容器无内距，48×40 整格热区，直角——与板脚撑满新建钮同语言） */
 .collapse-row {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 40px;
   border-bottom: 1px solid var(--board-hairline);
+}
+
+.collapse-row .collapse-toggle {
+  width: 100%;
+  height: 40px;
+  border-radius: 0;
 }
 
 /* 状态点行：40px 方热区、点居中；行间发丝线在窄轨上是逐行噪音（hover 蒙版
@@ -2776,14 +2783,15 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   background: var(--accent-ink);
 }
 
-/* 板脚小图标新建钮（反馈轮二「宽度撑满」+ 反馈轮三「父容器 padding 归零」）：
-   .new-session 的全宽 34px 琥珀与三态 hover 全量继承（板脚唯一大面积琥珀惯例
-   原样），仅图标形态去文字间距、字阶微升；foot 内距归零后钮即撑满 48px 轨道 */
+/* 板脚小图标新建钮（反馈轮二「宽度撑满」+ 反馈轮三「父容器 padding 归零」+
+   反馈轮四「弧度去掉」）：.new-session 的全宽 34px 琥珀与三态 hover 全量继承
+   （板脚唯一大面积琥珀惯例原样），仅图标形态去文字间距、字阶微升、直角贴边 */
 .session-panel.collapsed .board-foot {
   padding: 0;
 }
 
 .new-session.new-session-icon {
   gap: 0;
+  border-radius: 0;
   font-size: 15px;
 }

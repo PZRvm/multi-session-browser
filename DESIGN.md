@@ -278,7 +278,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 ### 新建会话按钮（Primary Button）
 
-左栏板脚唯一按钮，全宽、34px 高、6px 圆角、13px/600。琥珀底（默认系统）+ accent-ink 字 + PlusOutlined 图标，hover #ffc133，active #e6a000（均为 0.12s 背景过渡）。它是屏幕上唯一的大面积琥珀。**侧边栏收起态为图标形态但同样撑满轨道宽**（34px 高不变、去文字间距、字阶微升 15px，`.new-session-icon`——「板脚唯一大面积琥珀」惯例原样，title 由 antd Tooltip 承担，2026-09-28 收起态专项反馈轮二）。
+左栏板脚唯一按钮，全宽、34px 高、6px 圆角、13px/600。琥珀底（默认系统）+ accent-ink 字 + PlusOutlined 图标，hover #ffc133，active #e6a000（均为 0.12s 背景过渡）。它是屏幕上唯一的大面积琥珀。**侧边栏收起态为图标形态、同样撑满轨道宽且直角**（34px 高不变、去文字间距、字阶微升 15px、border-radius 归零——反馈轮四「弧度去掉」，`.new-session-icon`；「板脚唯一大面积琥珀」惯例原样，Tooltip 右侧弹 + overlay 联动，2026-09-28 收起态专项反馈轮二/四）。
 
 ### 板头（Board Head）
 
@@ -288,11 +288,11 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 **形态**：主窗左栏 48px 窄轨（`PANEL_COLLAPSED_WIDTH`，反馈轮二定稿——收起态原生三灯整组隐藏后灯组宽度不再构成轨道下限，初版 48 被灯组推出的教训由隐藏方案根治）；布局态为 MainShell 渲染层瞬态 state，**不持久化**（重启恢复展开态，与 panelWidth 不落盘同口径），展开恢复收起前宽度；收起期间分隔条不渲染（轨道恒宽不可拖）；瞬切无过渡（离散跳变先例）。
 
-**顶部（2026-09-28 反馈轮二裁决「左上角只保留关闭按钮」）**：功能按钮（外观/批量/设置/计数）整组隐藏；macOS 原生三灯**整组隐藏**（`shell:set-native-window-buttons-visible` 窗口壳域通道联动——Electron 无逐灯隐藏公开 API，2026-09-20 三次裁决实测留痕；「黄/绿无效按钮」观感裁决仅针对展开态，收起态例外），左上角仅剩**自绘关闭点**（12px 圆、macOS 关闭灯同值 #ff5f57 平台常量非主题 token，hover 显 ×，点击 `window.close()` 直关自身不经 IPC——a49bcae 先例按收起态 scoped 复活；2026-09-20 自绘废弃裁决同样仅针对展开态常态）；Windows 无灯无关闭点（原生标题栏在其上方）。**展开钮位于原工作区条槽位行**（反馈轮三：板头下方 40px `.collapse-row`、底部发丝线收边与工作区条同节奏——下拉框隐藏后展开钮占其位，双平台一致；展开态收起钮仍在板头控件带末位，双箭头对偶、度量镜像 settings-toggle 族），悬停弹 antd Tooltip 文字提示（「收起侧边栏」/「展开侧边栏」——反馈轮二要求，0.2s 延迟批量移动图标钮先例；板头钮弹层落 Tab 条/工具栏壳层高度带、槽位行钮 right 弹落同带，均不越右区 WebContentsView 原生层）。
+**顶部（2026-09-28 反馈轮二裁决「左上角只保留关闭按钮」）**：功能按钮（外观/批量/设置/计数）整组隐藏；macOS 原生三灯**整组隐藏**（`shell:set-native-window-buttons-visible` 窗口壳域通道联动——Electron 无逐灯隐藏公开 API，2026-09-20 三次裁决实测留痕；「黄/绿无效按钮」观感裁决仅针对展开态，收起态例外），左上角仅剩**自绘关闭点**（12px 圆、macOS 关闭灯同值 #ff5f57 平台常量非主题 token，hover 显 ×，点击 `window.close()` 直关自身不经 IPC——a49bcae 先例按收起态 scoped 复活；2026-09-20 自绘废弃裁决同样仅针对展开态常态）；Windows 无灯无关闭点（原生标题栏在其上方）。**展开钮位于原工作区条槽位行**（反馈轮三：板头下方 40px `.collapse-row`、底部发丝线收边与工作区条同节奏——下拉框隐藏后展开钮占其位，双平台一致；反馈轮四：**钮撑满行容器**（48×40 整格热区、直角，与板脚撑满新建钮同语言）；展开态收起钮仍在板头控件带末位，双箭头对偶、度量镜像 settings-toggle 族），悬停弹 antd Tooltip 文字提示（「收起侧边栏」/「展开侧边栏」——反馈轮二要求；板头钮 bottom 弹落 Tab 条/工具栏壳层高度带、槽位行钮 right 弹落同带，均不越右区 WebContentsView 原生层）。
 
-**列表**：只渲染收起前当前视野的会话（`activeWorkspaceId` 既有视野过滤零新逻辑）；行退化为 40px 状态点行（`.session-row-collapsed`，7px 语义色点居中，行间发丝线摘除——窄轨上逐行线是噪音，hover 蒙版与反白已足以划行）；激活行沿用「选中 = 强调色反白」整条反白，反白底上 idle 点与 loading 点均转 accent-ink（loading 信号色与琥珀底同族对比不足，脉冲动画保留）；hover 弹会话全名 Tooltip（备注 Tooltip 同款惯例系：placement **bottom** + maxWidth 44 收进轨内 + **pointerEvents none**——反馈轮三定稿：right 弹越右区原生层整块遮挡、bottom 弹层罩住下方行需指针穿透方能逐行悬停；mouseEnterDelay 0.2、getPopupContainer 锁挂 `.session-panel`，纯 hover 不登记 overlay）；点击行 = 切换激活会话，键盘 Enter/Space 同。拖拽排序/右键/⋮ 菜单/行内编辑/批量结构性不可达（收起即退出批量态并清空勾选——收起钮点击处理器内联，react-hooks/set-state-in-effect 禁 effect 内直接 setState）。空视野轨道区空白，不渲染空态文案（收起态零文案原则）。
+**列表**：只渲染收起前当前视野的会话（`activeWorkspaceId` 既有视野过滤零新逻辑）；行退化为 40px 状态点行（`.session-row-collapsed`，7px 语义色点居中，行间发丝线摘除——窄轨上逐行线是噪音，hover 蒙版与反白已足以划行）；激活行沿用「选中 = 强调色反白」整条反白，反白底上 idle 点与 loading 点均转 accent-ink（loading 信号色与琥珀底同族对比不足，脉冲动画保留）；hover 弹会话全名 Tooltip（**反馈轮四定稿：placement right 在侧边栏右侧弹出、与展开钮提示同位**——弹层跨入右区原生层，经 tipOpen 状态登记 overlay 收起页面视图保证完整可见（ui.ts「跨入右区的弹层必须登记」约束）；mouseEnterDelay 0.1 / mouseLeaveDelay 0.2 的延迟差让相邻行交接期 overlay 计数不归零、页面不闪抖；pointerEvents none 保持指针穿透；getPopupContainer 锁挂 `.session-panel`）；点击行 = 切换激活会话，键盘 Enter/Space 同。拖拽排序/右键/⋮ 菜单/行内编辑/批量结构性不可达（收起即退出批量态并清空勾选——收起钮点击处理器内联，react-hooks/set-state-in-effect 禁 effect 内直接 setState）。空视野轨道区空白，不渲染空态文案（收起态零文案原则）。
 
-**板脚**：撑满轨道宽的图标新建钮（**foot 内距归零**——反馈轮三，钮即轨道全宽 48px；见「新建会话按钮」条目）。会话数据/归属/激活位/视野值零变化；新增窗口壳域一条通道（shared/shell.ts 单源，主进程 sender 白名单 = 主窗 + darwin 门控 + 布尔值守卫；HTML 全屏期间左栏本就不渲染、灯组显隐态随收起态保持，退出全屏即随展开态归位）。
+**板脚**：撑满轨道宽的**直角**图标新建钮（foot 内距归零、直角贴边——反馈轮三/四；popover 同在侧边栏右侧、overlay 联动同会话行；见「新建会话按钮」条目）。会话数据/归属/激活位/视野值零变化；新增窗口壳域一条通道（shared/shell.ts 单源，主进程 sender 白名单 = 主窗 + darwin 门控 + 布尔值守卫；HTML 全屏期间左栏本就不渲染、灯组显隐态随收起态保持，退出全屏即随展开态归位）。
 
 ### 工作区切换框（Workspace Switcher）— 工作区专项新增
 

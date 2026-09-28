@@ -172,6 +172,10 @@ function SessionRow({
   const [ctxOpen, setCtxOpen] = useState(false)
   // ⋮ 菜单受控开关（与右键菜单互斥协调 + overlay 登记同步）
   const [dotsOpen, setDotsOpen] = useState(false)
+  // 收起态会话名 Tooltip 开关（反馈轮四：popover 改右侧弹——跨入右区原生层，按
+  // ui.ts 约束登记 overlay 收起页面视图，否则弹层被页面整块遮挡；state + effect
+  // cleanup 与 ctx/dots 同款，行卸载（展开切换）必然释放）
+  const [tipOpen, setTipOpen] = useState(false)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
 
@@ -211,10 +215,10 @@ function SessionRow({
   // 外点关闭才全区域生效；菜单关闭即恢复页面视图。ctx/dots 互斥不并存，计数式
   // 登记对称加减，卸载走 effect cleanup 兜底
   useEffect(() => {
-    if (!ctxOpen && !dotsOpen) return
+    if (!ctxOpen && !dotsOpen && !tipOpen) return
     openOverlay()
     return () => closeOverlay()
-  }, [ctxOpen, dotsOpen, openOverlay, closeOverlay])
+  }, [ctxOpen, dotsOpen, tipOpen, openOverlay, closeOverlay])
 
   // 挂窗口模态弹层的菜单动作（移动 sheet / 删除确认框）统一经共享 hook 延迟：
   // 先让菜单关闭动画走完再挂弹层（防窗口模态遮挡冻结动画致菜单卡显），宿主卸载
@@ -255,19 +259,20 @@ function SessionRow({
 
   // 收起态轨道行（分支置于全部 hooks 之后，hook 序不受短路影响）：只渲染状态点
   // （idle/loading 语义色与展开态同源），激活行沿用琥珀反白；hover Tooltip 出
-  // 会话全名——placement bottom + maxWidth 44 + pointerEvents none（反馈轮三：
-  // 48px 轨道内 right 弹层越右区原生层被整块遮挡；bottom 弹层宽 44 收进轨内，
-  // 但弹层高度会罩住下方行——pointer-events none 让指针穿透弹层，下方行 hover
-  // 照常触发、弹层随悬停行切换），0.2s 延迟防扫过频闪，getPopupContainer 锁挂
-  // .session-panel（备注 Tooltip 同款惯例），纯 hover 不登记 overlay。无拖拽/
-  // 右键/⋮ 菜单/行内编辑/勾选
+  // 会话全名（反馈轮四定稿：placement right 与展开钮 popover 同位——弹层跨入右区
+  // 原生层，经 tipOpen 登记 overlay 收起页面视图后完整可见；0.1s 进 / 0.2s 出的
+  // 延迟差让相邻行交接期 overlay 计数不归零，页面不闪抖；pointerEvents none 保持
+  // 指针穿透；getPopupContainer 锁挂 .session-panel）。无拖拽/右键/⋮ 菜单/行内
+  // 编辑/勾选
   if (collapsed) {
     return (
       <Tooltip
         title={session.name}
-        placement="bottom"
-        mouseEnterDelay={0.2}
-        overlayStyle={{ maxWidth: 44, pointerEvents: 'none' }}
+        placement="right"
+        mouseEnterDelay={0.1}
+        mouseLeaveDelay={0.2}
+        overlayStyle={{ pointerEvents: 'none' }}
+        onOpenChange={setTipOpen}
         getPopupContainer={(triggerNode) =>
           triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
         }
