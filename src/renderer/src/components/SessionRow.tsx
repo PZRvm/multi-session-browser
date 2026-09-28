@@ -255,15 +255,19 @@ function SessionRow({
 
   // 收起态轨道行（分支置于全部 hooks 之后，hook 序不受短路影响）：只渲染状态点
   // （idle/loading 语义色与展开态同源），激活行沿用琥珀反白；hover Tooltip 出
-  // 会话全名——备注 Tooltip 同款惯例（right 侧弹 + 0.2s 延迟防扫过频闪 +
-  // getPopupContainer 锁挂 .session-panel，弹层不越左栏即不被右区原生层遮挡；
-  // 纯 hover 无需 overlay 登记）。无拖拽/右键/⋮ 菜单/行内编辑/勾选
+  // 会话全名——placement bottom + maxWidth 44 + pointerEvents none（反馈轮三：
+  // 48px 轨道内 right 弹层越右区原生层被整块遮挡；bottom 弹层宽 44 收进轨内，
+  // 但弹层高度会罩住下方行——pointer-events none 让指针穿透弹层，下方行 hover
+  // 照常触发、弹层随悬停行切换），0.2s 延迟防扫过频闪，getPopupContainer 锁挂
+  // .session-panel（备注 Tooltip 同款惯例），纯 hover 不登记 overlay。无拖拽/
+  // 右键/⋮ 菜单/行内编辑/勾选
   if (collapsed) {
     return (
       <Tooltip
         title={session.name}
-        placement="right"
+        placement="bottom"
         mouseEnterDelay={0.2}
+        overlayStyle={{ maxWidth: 44, pointerEvents: 'none' }}
         getPopupContainer={(triggerNode) =>
           triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
         }

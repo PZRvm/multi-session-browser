@@ -375,36 +375,52 @@ function SessionPanel({
                 <CountTiles value={visibleSessions.length} />
               </span>
             )}
-            {/* 收起/展开钮（侧边栏收起态专项 2026-09-28）：板头右侧控件带末位（紧贴
-                分隔条，「往左收」的空间隐喻）；双箭头对偶——展开态 DoubleLeft 收起、
-                收起态 DoubleRight 展开；20×20 度量镜像 settings-toggle 族。反馈轮二：
-                收起态原生三灯隐藏后 48px 轨道内板头右侧足以容纳，双平台同位不再分支。
-                悬停提示按反馈轮要求走 antd Tooltip（批量移动图标钮先例——0.2s 延迟防
-                扫过频闪；钮在板头 40px 高度带内，弹层落在 Tab 条/工具栏壳层高度带，
-                不越右区 WebContentsView 原生层） */}
+            {/* 收起钮（展开态）：板头右侧控件带末位（紧贴分隔条，「往左收」的空间
+                隐喻）；双箭头对偶——展开态 DoubleLeft 收起。悬停提示走 antd Tooltip
+                （批量移动图标钮先例——0.2s 延迟防扫过频闪；弹层在板头下方、面板
+                220px+ 内充分容纳）。收起态的展开钮不在此处——移到板头下方原工作区
+                条槽位的 .collapse-row（反馈轮三：下拉框隐藏后板头行只剩关闭点，
+                展开钮占下拉框位置更稳） */}
+            {!collapsed && (
+              <Tooltip
+                title={t('sessions.panel.collapseSidebar')}
+                placement="bottom"
+                mouseEnterDelay={0.2}
+              >
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  aria-label={t('sessions.panel.collapseSidebar')}
+                  aria-expanded={!collapsed}
+                  onClick={handleToggleCollapse}
+                >
+                  <DoubleLeftOutlined />
+                </button>
+              </Tooltip>
+            )}
+          </span>
+        </header>
+        {/* 收起态展开行（反馈轮三：占原工作区条槽位——板头下方 40px 行、底部发丝线
+            收边与工作区条同节奏；双平台一致，48px 轨道内板头只承载关闭点） */}
+        {collapsed && (
+          <div className="collapse-row">
             <Tooltip
-              title={
-                collapsed ? t('sessions.panel.expandSidebar') : t('sessions.panel.collapseSidebar')
-              }
-              placement="bottom"
+              title={t('sessions.panel.expandSidebar')}
+              placement="right"
               mouseEnterDelay={0.2}
             >
               <button
                 type="button"
                 className="collapse-toggle"
-                aria-label={
-                  collapsed
-                    ? t('sessions.panel.expandSidebar')
-                    : t('sessions.panel.collapseSidebar')
-                }
-                aria-expanded={!collapsed}
+                aria-label={t('sessions.panel.expandSidebar')}
+                aria-expanded={false}
                 onClick={handleToggleCollapse}
               >
-                {collapsed ? <DoubleRightOutlined /> : <DoubleLeftOutlined />}
+                <DoubleRightOutlined />
               </button>
             </Tooltip>
-          </span>
-        </header>
+          </div>
+        )}
         {!collapsed && <WorkspaceSwitcher />}
         {collapsed ? (
           // 收起态轨道（2026-09-28 专项）：只渲染当前视野会话的状态点行（收起前
@@ -484,7 +500,12 @@ function SessionPanel({
             // 悬停提示走 antd Tooltip（收起/展开钮同批裁决）。落点 = 当前视野归属
             // （membership 现逻辑不变）；批量操作栏在收起态结构性不可达（收起即退出
             // 批量态）
-            <Tooltip title={t('sessions.panel.newSession')} placement="top" mouseEnterDelay={0.2}>
+            <Tooltip
+              title={t('sessions.panel.newSession')}
+              placement="top"
+              mouseEnterDelay={0.2}
+              overlayStyle={{ maxWidth: 44 }}
+            >
               <button
                 type="button"
                 className="new-session new-session-icon"
