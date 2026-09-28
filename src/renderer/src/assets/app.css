@@ -1120,6 +1120,9 @@ body[data-role='workspace-picker'] {
   color: var(--board-ink-dim);
   font-size: 12px;
   cursor: pointer;
+  /* 拖拽带板头内的交互钮自带 no-drag（仅靠 .board-head-right 豁免不改变光标命中——
+     拖拽区命中判定吞 cursor 更新，反馈轮六用户实测三钮 hover 非手型） */
+  -webkit-app-region: no-drag;
   transition: background-color 0.12s ease;
 }
 
@@ -1157,6 +1160,8 @@ body[data-role='workspace-picker'] {
   color: var(--board-ink-dim);
   font-size: 12px;
   cursor: pointer;
+  /* 拖拽带板头内的交互钮自带 no-drag（同 .batch-toggle 注） */
+  -webkit-app-region: no-drag;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
@@ -2707,6 +2712,8 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   color: var(--board-ink-dim);
   font-size: 12px;
   cursor: pointer;
+  /* 板头内使用处自带 no-drag（同 .batch-toggle 注）；.collapse-row 使用处不在拖拽带，声明冗余无害 */
+  -webkit-app-region: no-drag;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
@@ -2742,8 +2749,20 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   inset: 3px;
   opacity: 0;
   background:
-    linear-gradient(45deg, transparent 44%, rgba(77, 0, 0, 0.6) 44%, rgba(77, 0, 0, 0.6) 56%, transparent 56%),
-    linear-gradient(-45deg, transparent 44%, rgba(77, 0, 0, 0.6) 44%, rgba(77, 0, 0, 0.6) 56%, transparent 56%);
+    linear-gradient(
+      45deg,
+      transparent 44%,
+      rgba(77, 0, 0, 0.6) 44%,
+      rgba(77, 0, 0, 0.6) 56%,
+      transparent 56%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 44%,
+      rgba(77, 0, 0, 0.6) 44%,
+      rgba(77, 0, 0, 0.6) 56%,
+      transparent 56%
+    );
   transition: opacity 0.12s ease;
 }
 
