@@ -164,8 +164,9 @@ function createWindow(): void {
   // macOS 窗体 chrome（2026-09-20 用户二次裁决：去原生标题条与页内标题，但窗口控制
   // 调用 mac 原生三灯——自绘圆点方案废弃）：darwin 用 titleBarStyle hidden 去标题条，
   // 保留原生三灯并经 trafficLightPosition 定位到左侧板头行左端（x 与板头内边距对齐，
-  // y 居中于板头行：板头实测高 47px、灯高 16px，(47-16)/2≈15——魔法数与板头高度强
-  // 耦合，板头内容高度变化时须连本校准复核，review 20260920161302 低-3 留痕）；
+  // y 居中于板头行：板头契约高 40px、灯高 16px，(40-16)/2=12——魔法数与板头高度强
+  // 耦合（app.css .board-head 头注登记对账），板头内容高度变化时须连本校准复核，
+  // review 20260920161302 低-3 留痕）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）。
   // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担。Windows/Linux 不携带
   // query、保持系统框原形态（平台惯例沿用）
@@ -179,7 +180,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     title: displayTitle,
     backgroundColor: getAppearanceBackgroundColor(appearance.resolvedTheme, appearance.themeColor),
-    ...(darwin ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 14, y: 15 } } : {}),
+    ...(darwin ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 14, y: 12 } } : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

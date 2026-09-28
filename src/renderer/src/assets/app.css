@@ -253,7 +253,13 @@ body.col-resizing {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 14px 12px;
+  /* 顶区对齐契约（2026-09-28 用户三裁决：两线全对齐/压左栏/跨平台统一；同日二次
+     裁决：板头与 Tab 条各加高 4px → 40px）：高 40px 与右区 Tab 条（.chrome-tabs
+     40px）同高——板头底线 = Tab 条底线；顶区总高 40+40=80 两栏一致由
+     .workspace-bar 40px 封口对齐工具栏底线；红绿灯 trafficLightPosition y=12 与
+     本值强耦（main/index.ts，(40-16)/2），改值须连校 */
+  height: 40px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--board-hairline);
   /* 主窗 macOS（winc=traffic 门控）：板头整行即窗口拖拽带（原生标题条已去，原生
      三灯区域由系统接管）——行内按钮/计数等交互元素所在区不受拖拽影响。Windows/
@@ -310,7 +316,11 @@ body.col-resizing {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  /* 顶区对齐契约：高 40px 与右区工具栏（.chrome-toolbar 40px，border-box 含 1px
+     底线）同高——条底线 = 工具栏底线，两栏顶区总高 36+40=76 封口；26px 切换框随
+     align-items 居中（上下留白 6.5px，原 8px 内距的紧凑化，板头 36px 同批裁决） */
+  height: 40px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--board-hairline);
 }
 
@@ -2017,7 +2027,9 @@ body[data-role='workspace-picker'] {
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  height: 36px;
+  /* 顶区对齐契约（2026-09-28）：高 40px 与左栏板头（.board-head 40px）同高——
+     栏底 = 板头底线；tab 30px 底部对齐不变，加高全部让给栏顶呼吸位 */
+  height: 40px;
   padding: 6px 10px 0;
   background: var(--chrome-tabbar);
   /* 插入指示竖线（阶段 10）的绝对定位锚；不影响弹层锚——那由 .browser-frame 承担 */
