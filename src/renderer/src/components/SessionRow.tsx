@@ -128,10 +128,6 @@ interface SessionRowProps {
   // 「全部会话」视野下在第二行行首显示归属标记（工作区名或「未分组」）；
   // 工作区视野内全员同归属，不渲染标记
   wsTag: string | null
-  // 收起态轨道行（2026-09-28 侧边栏收起专项）：只渲染状态点，hover 出会话名，
-  // 点击切换激活会话；拖拽/菜单/编辑/批量在轨道上结构性不可达（面板层已保证
-  // batchMode=false 传入，本组件再按 collapsed 短路整条渲染分支）
-  collapsed?: boolean
   onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
   onMove: (session: SessionItem) => void
@@ -146,7 +142,6 @@ function SessionRow({
   isDragSource,
   dropPos,
   wsTag,
-  collapsed = false,
   onToggleCheck,
   onClone,
   onMove
@@ -172,9 +167,6 @@ function SessionRow({
   const [ctxOpen, setCtxOpen] = useState(false)
   // ⋮ 菜单受控开关（与右键菜单互斥协调 + overlay 登记同步）
   const [dotsOpen, setDotsOpen] = useState(false)
-  // 收起态会话名 Tooltip 开关（反馈轮四：popover 改右侧弹——跨入右区原生层，经
-  // useOverlayWhenOpen 登记 overlay 收起页面视图，否则弹层被页面整块遮挡）
-  const [tipOpen, setTipOpen] = useState(false)
 
   // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
   const statusText: Record<SessionItem['status'], string> = {
@@ -212,7 +204,7 @@ function SessionRow({
   // 收起、点击落进 shell 文档，外点关闭才全区域生效；关闭即恢复页面视图。
   // ctx/dots 互斥不并存，计数式登记对称加减，卸载走 effect cleanup 兜底
   // （登记/释放样板经 useOverlayWhenOpen 单源，审查 20260928165442 低 4）
-  useOverlayWhenOpen(ctxOpen || dotsOpen || tipOpen)
+  useOverlayWhenOpen(ctxOpen || dotsOpen)
 
   // 挂窗口模态弹层的菜单动作（移动 sheet / 删除确认框）统一经共享 hook 延迟：
   // 先让菜单关闭动画走完再挂弹层（防窗口模态遮挡冻结动画致菜单卡显），宿主卸载
@@ -251,56 +243,6 @@ function SessionRow({
     ? `session-row${checked ? ' batch-checked' : ''}`
     : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
 
-  // 展开态翻转时复位 tooltip 开关（审查 20260928165442 中 3）：Tooltip 随 collapsed
-  // 分支切换卸载时 antd 不回调 onOpenChange(false)，tipOpen 滞留 true 会让 overlay
-  // 计数滞留、页面视图持续收起——渲染期就地复位（React「随 props 调整 state」认可
-  // 模式，立即以复位值重渲染，overlay effect 随之释放）
-  if (!collapsed && tipOpen) {
-    setTipOpen(false)
-  }
-
-  // 收起态轨道行（分支置于全部 hooks 之后，hook 序不受短路影响）：只渲染状态点
-  // （idle/loading 语义色与展开态同源），激活行沿用琥珀反白；hover Tooltip 出
-  // 会话全名（反馈轮四定稿：placement right 与展开钮 popover 同位——弹层跨入右区
-  // 原生层，经 tipOpen 登记 overlay 收起页面视图后完整可见；0.1s 进 / 0.2s 出的
-  // 延迟差让相邻行交接期 overlay 计数不归零，页面不闪抖；pointerEvents none 保持
-  // 指针穿透；getPopupContainer 锁挂 .session-panel）。无拖拽/右键/⋮ 菜单/行内
-  // 编辑/勾选
-  if (collapsed) {
-    return (
-      <Tooltip
-        title={session.name}
-        placement="right"
-        mouseEnterDelay={0.1}
-        mouseLeaveDelay={0.2}
-        overlayStyle={{ pointerEvents: 'none' }}
-        onOpenChange={setTipOpen}
-        getPopupContainer={(triggerNode) =>
-          triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
-        }
-      >
-        <li
-          className={`session-row session-row-collapsed${selected ? ' selected' : ''}`}
-          data-session-id={session.id}
-          tabIndex={0}
-          aria-current={selected ? 'true' : undefined}
-          onClick={() => selectSession(session.id)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              selectSession(session.id)
-            }
-          }}
-        >
-          <span className={`session-dot ${cloning ? 'loading' : session.status}`} />
-        </li>
-      </Tooltip>
-    )
-  }
-
-  // 右键唤起与 ⋮ 钮同款菜单（2026-09-21 反馈轮）：整行包 contextMenu Dropdown
-  // 复用同一份 menuItems；批量态（无行菜单入口）与行内编辑态触发器置空——菜单
-  // 语义随模式休眠，不与勾选/输入争交互。portal 至 body 与 ⋮ 钮菜单同规
   return (
     <Dropdown
       open={!batchMode && mode === 'none' && ctxOpen}

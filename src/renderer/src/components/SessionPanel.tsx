@@ -293,21 +293,19 @@ function SessionPanel({
     setChecked(new Set())
   }
 
-  // 会话行映射（审查 20260928165442 低 5）：收起/展开两形态共用一份 props 组装，
-  // 行级差异在收起形态结构性置空（拖拽态/归属标记/批量勾选由 CollapsedRail 承载
-  // 后仅服务展开分支，collapsed 传 false 保持单一代码路径）
-  const renderRows = (rowCollapsed: boolean): React.JSX.Element[] =>
+  // 会话行映射（审查 20260928165442 低 5 单源）：收起态行已由 CollapsedRail 承载
+  // （CollapsedSessionRow），本映射恒为展开形态
+  const renderRows = (): React.JSX.Element[] =>
     visibleSessions.map((session) => (
       <SessionRow
         key={session.id}
         session={session}
-        collapsed={rowCollapsed}
-        batchMode={rowCollapsed ? false : batchMode}
-        checked={rowCollapsed ? false : checked.has(session.id)}
+        batchMode={batchMode}
+        checked={checked.has(session.id)}
         cloning={cloningIds.has(session.id)}
-        dragEnabled={rowCollapsed ? false : !batchMode}
+        dragEnabled={!batchMode}
         wsTag={
-          !rowCollapsed && viewIsAll && workspaces.length > 0
+          viewIsAll && workspaces.length > 0
             ? session.workspaceId !== null
               ? (wsNameById.get(session.workspaceId) ?? t('sessions.shared.ungrouped'))
               : t('sessions.shared.ungrouped')
@@ -439,9 +437,6 @@ function SessionPanel({
             onAddSession={() => {
               void addSession(membership)
             }}
-            onToggleCheck={toggleChecked}
-            onClone={handleClone}
-            onMove={openMoveModal}
           />
         ) : (
           <>
@@ -468,7 +463,7 @@ function SessionPanel({
               </div>
             ) : (
               <ul className="session-list" {...listHandlers}>
-                {renderRows(false)}
+                {renderRows()}
               </ul>
             )}
             <footer className="board-foot">

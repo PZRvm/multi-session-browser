@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Tooltip } from 'antd'
 import { DoubleRightOutlined, PlusOutlined } from '@ant-design/icons'
-import SessionRow from './SessionRow'
+import CollapsedSessionRow from './CollapsedSessionRow'
 import { useOverlayWhenOpen } from './useOverlayWhenOpen'
 import { useT } from '../i18n'
 import type { SessionItem } from '../stores/sessions'
@@ -13,10 +13,6 @@ interface CollapsedRailProps {
   cloningIds: Set<string>
   onToggleCollapse: () => void
   onAddSession: () => void
-  // SessionRow 展开分支的必填回调在收起分支结构性不可达，仅作类型透传
-  onToggleCheck: (id: string) => void
-  onClone: (id: string) => Promise<void>
-  onMove: (session: SessionItem) => void
 }
 
 /**
@@ -31,10 +27,7 @@ function CollapsedRail({
   sessions,
   cloningIds,
   onToggleCollapse,
-  onAddSession,
-  onToggleCheck,
-  onClone,
-  onMove
+  onAddSession
 }: CollapsedRailProps): React.JSX.Element {
   const t = useT()
   const [plusTipOpen, setPlusTipOpen] = useState(false)
@@ -60,20 +53,10 @@ function CollapsedRail({
       </div>
       <ul className="session-list">
         {sessions.map((session) => (
-          <SessionRow
+          <CollapsedSessionRow
             key={session.id}
             session={session}
-            collapsed
-            batchMode={false}
-            checked={false}
             cloning={cloningIds.has(session.id)}
-            dragEnabled={false}
-            isDragSource={false}
-            dropPos={null}
-            wsTag={null}
-            onToggleCheck={onToggleCheck}
-            onClone={onClone}
-            onMove={onMove}
           />
         ))}
       </ul>
