@@ -14,10 +14,10 @@ const PANEL_MIN = 220
 const PANEL_MAX = 420
 const PANEL_DEFAULT = 280
 /* 收起态轨道宽（2026-09-28 侧边栏收起专项，契约冻结于
-   notes/plans/20260928143655 2.4 节）：下限由 macOS 原生灯组实测宽决定——
-   trafficLightPosition x=14 时灯组绘占窗口相对 x 37–69px，48px 初版实测把展开钮
-   推出轨道，76 = 灯组右缘 + 7px 边距；跨平台统一值（Windows 无灯但同宽无害） */
-const PANEL_COLLAPSED_WIDTH = 76
+   notes/plans/20260928143655 2.4 节；反馈轮二定稿 48px——收起态原生三灯整组隐藏
+   （shell:set-native-window-buttons-visible，左上角仅剩自绘关闭点），灯组宽度不再
+   是轨道下限） */
+const PANEL_COLLAPSED_WIDTH = 48
 
 // 主窗口 shell：左会话面板 + 分隔条 + 右浏览器区；面板拖拽逻辑内聚于此——
 // 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接。
@@ -75,7 +75,17 @@ function MainShell(): React.JSX.Element {
             panelWidth={panelWidth}
             collapsed={collapsed}
             onToggleCollapse={() => {
-              setCollapsed((prev) => !prev)
+              setCollapsed((prev) => {
+                const next = !prev
+                // 原生三灯随收起隐藏/展开恢复（shared/shell.ts 契约；非 darwin 主进程
+                // 空转）。失败仅告警不回滚布局态——灯组显隐是观感缺陷非功能损坏
+                window.api.shell
+                  .setNativeWindowButtonsVisible({ visible: !next })
+                  .catch((error: unknown) => {
+                    console.warn('收起态原生三灯显隐切换失败:', error)
+                  })
+                return next
+              })
             }}
           />
         </div>

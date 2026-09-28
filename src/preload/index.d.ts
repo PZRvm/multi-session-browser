@@ -36,6 +36,7 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
+import type { NativeWindowButtonsVisiblePayload } from '../shared/shell'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -148,6 +149,9 @@ declare global {
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
+      }
+      shell: {
+        setNativeWindowButtonsVisible(payload: NativeWindowButtonsVisiblePayload): Promise<void>
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>

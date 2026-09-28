@@ -68,6 +68,8 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
+import { SHELL_CHANNELS } from '../shared/shell'
+import type { NativeWindowButtonsVisiblePayload } from '../shared/shell'
 import { DIALOG_CHANNELS } from '../shared/dialog'
 import type {
   ConfirmDestructivePayload,
@@ -337,6 +339,13 @@ const api = {
         ipcRenderer.removeListener(SETTINGS_CHANNELS.changed, listener)
       }
     }
+  },
+  // 窗口壳域（契约见 shared/shell.ts）：主窗窗体 chrome 的 renderer 请求口——
+  // 收起态隐藏/展开恢复 macOS 原生三灯（自绘关闭点在 renderer，window.close()
+  // 直关自身不经此桥）
+  shell: {
+    setNativeWindowButtonsVisible: (payload: NativeWindowButtonsVisiblePayload): Promise<void> =>
+      ipcRenderer.invoke(SHELL_CHANNELS.setNativeWindowButtonsVisible, payload)
   },
   // 破坏性确认域（契约见 shared/dialog.ts）：删除类二次确认走主进程原生对话框
   // （PRD 4.10），弹框期间页面视图保持可见、不经 overlay 登记收起右区。载荷只带

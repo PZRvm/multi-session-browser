@@ -32,6 +32,7 @@ import {
   getBootLanguage
 } from './settings'
 import { registerFactoryResetIpc } from './factoryReset'
+import { registerShellIpc } from './shell'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
@@ -166,7 +167,8 @@ function createWindow(): void {
   // 保留原生三灯并经 trafficLightPosition 定位到左侧板头行左端（x 与板头内边距对齐，
   // y 居中于板头行：板头契约高 40px、灯高 16px，(40-16)/2=12——魔法数与板头高度强
   // 耦合（app.css .board-head 头注登记对账），板头内容高度变化时须连本校准复核，
-  // review 20260920161302 低-3 留痕）；
+  // review 20260920161302 低-3 留痕；侧边栏收起态经 shell:set-native-window-buttons-
+  // visible 整组隐藏、展开恢复，见 shared/shell.ts）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）。
   // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担。Windows/Linux 不携带
   // query、保持系统框原形态（平台惯例沿用）
@@ -190,6 +192,8 @@ function createWindow(): void {
   win.on('page-title-updated', (event) => event.preventDefault())
   // 回填主窗口显式引用（多窗口后此引用是 'main' 作用域的唯一身份判据）
   mainWindow = win
+  // 窗口壳域（侧边栏收起态专项）：sender 白名单 = 本窗，收起态隐藏/展开恢复原生三灯
+  registerShellIpc(win)
 
   win.on('ready-to-show', () => {
     win.show()

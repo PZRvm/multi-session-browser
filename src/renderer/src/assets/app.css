@@ -2680,10 +2680,10 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
 }
 
 /* ---------- 侧边栏收起态（2026-09-28 专项，契约冻结于
-   notes/plans/20260928143655 2.4 节）：48px 窄轨——板头只留红绿灯避让位与
-   展开/收起钮，工作区条整条不渲染（JSX 层），列表退化为状态点行，板脚缩为
-   小图标新建钮。布局态（collapsed）由 App.tsx MainShell 持有，本节只管轨道
-   内的视觉；瞬切无过渡（离散跳变先例） */
+   notes/plans/20260928143655 2.4 节；反馈轮二定稿）：48px 窄轨——收起态原生三灯
+   整组隐藏、左上角仅剩自绘关闭点，板头右侧留展开/收起钮，工作区条整条不渲染
+   （JSX 层），列表退化为状态点行，板脚为撑满的小图标新建钮。布局态（collapsed）
+   由 App.tsx MainShell 持有，本节只管轨道内的视觉；瞬切无过渡（离散跳变先例） */
 
 /* 收起态解除可拖宽的 220/420 钳制：内联宽度即轨道宽 48px（App.tsx
    PANEL_COLLAPSED_WIDTH），min-width 不放开则内联值被钳到 220 */
@@ -2717,21 +2717,41 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   color: var(--board-ink);
 }
 
-/* Windows 收起态：板头左孩子（占位/标题）不渲染，space-between 会把只剩钮的
-   控件带推到左缘——margin-left:auto 归位右缘（macOS 收起态不渲染板头右侧，
-   本规则空转） */
-.session-panel.collapsed .board-head-right {
-  margin-left: auto;
+/* 自绘关闭点（收起态 macOS 专属，2026-09-28 反馈轮二「左上角只保留关闭按钮」）：
+   原生三灯整组隐藏（shell:set-native-window-buttons-visible）后的窗口关闭口——
+   12px 圆点复刻 macOS 关闭灯（#ff5f57 为平台常量非主题 token，昼夜同值），
+   hover 显 ×（双 45° 渐变细线），点击 window.close() 直关自身（a49bcae 先例） */
+.self-close {
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: #ff5f57;
+  cursor: pointer;
 }
 
-/* macOS 收起态专用展开行：原生灯组占满板头行，钮下移一行；40px 行高与工作区条
-   同节奏，底部发丝线收边对齐工作区条惯例 */
-.collapse-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  border-bottom: 1px solid var(--board-hairline);
+.self-close::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  opacity: 0;
+  background:
+    linear-gradient(45deg, transparent 44%, rgba(77, 0, 0, 0.6) 44%, rgba(77, 0, 0, 0.6) 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, rgba(77, 0, 0, 0.6) 44%, rgba(77, 0, 0, 0.6) 56%, transparent 56%);
+  transition: opacity 0.12s ease;
+}
+
+.self-close:hover::after {
+  opacity: 1;
+}
+
+/* Windows 收起态：板头左孩子（占位/标题）不渲染，space-between 会把只剩钮的
+   控件带推到左缘——margin-left:auto 归位右缘（macOS 收起态板头右侧同样只剩
+   展开钮，本规则同样生效使其贴分隔条） */
+.session-panel.collapsed .board-head-right {
+  margin-left: auto;
 }
 
 /* 状态点行：40px 方热区、点居中；行间发丝线在窄轨上是逐行噪音（hover 蒙版
@@ -2753,19 +2773,13 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   background: var(--accent-ink);
 }
 
-/* 板脚小图标新建钮：.new-session 的琥珀底/字/三态 hover 全量继承，仅收尺寸
-   为 20×20 图标钮度量族并交由板脚居中 */
+/* 板脚小图标新建钮（反馈轮二「宽度撑满」）：.new-session 的全宽 34px 琥珀与三态
+   hover 全量继承（板脚唯一大面积琥珀惯例原样），仅图标形态去文字间距、字阶微升 */
 .session-panel.collapsed .board-foot {
-  display: flex;
-  justify-content: center;
-  padding: 12px 0;
+  padding: 12px;
 }
 
 .new-session.new-session-icon {
-  flex: none;
   gap: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  font-size: 12px;
+  font-size: 15px;
 }

@@ -62,6 +62,7 @@ export const sessions: Dictionary['sessions'] = {
     newSession: '新增會話',
     collapseSidebar: '收起側邊欄',
     expandSidebar: '展開側邊欄',
+    closeWindow: '關閉視窗',
     reorderFailed: '會話排序失敗，列表順序已恢復',
     moveFailed: '移動會話失敗'
   },
