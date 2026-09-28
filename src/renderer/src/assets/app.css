@@ -2678,3 +2678,94 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   line-height: 1.5;
   color: var(--board-ink-dim);
 }
+
+/* ---------- 侧边栏收起态（2026-09-28 专项，契约冻结于
+   notes/plans/20260928143655 2.4 节）：48px 窄轨——板头只留红绿灯避让位与
+   展开/收起钮，工作区条整条不渲染（JSX 层），列表退化为状态点行，板脚缩为
+   小图标新建钮。布局态（collapsed）由 App.tsx MainShell 持有，本节只管轨道
+   内的视觉；瞬切无过渡（离散跳变先例） */
+
+/* 收起态解除可拖宽的 220/420 钳制：内联宽度即轨道宽 48px（App.tsx
+   PANEL_COLLAPSED_WIDTH），min-width 不放开则内联值被钳到 220 */
+.panel-left-collapsed {
+  min-width: 0;
+  max-width: none;
+}
+
+/* 板头收起/展开钮：度量与交互镜像 settings-toggle 族（20×20 / 4px 圆角 /
+   12px 图标字阶 / hover 蒙版抬升 + 主墨）；布局级控件不参与琥珀信号 */
+.collapse-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.collapse-toggle:hover {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+
+/* Windows 收起态：板头左孩子（占位/标题）不渲染，space-between 会把只剩钮的
+   控件带推到左缘——margin-left:auto 归位右缘（macOS 收起态不渲染板头右侧，
+   本规则空转） */
+.session-panel.collapsed .board-head-right {
+  margin-left: auto;
+}
+
+/* macOS 收起态专用展开行：原生灯组占满板头行，钮下移一行；40px 行高与工作区条
+   同节奏，底部发丝线收边对齐工作区条惯例 */
+.collapse-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border-bottom: 1px solid var(--board-hairline);
+}
+
+/* 状态点行：40px 方热区、点居中；行间发丝线在窄轨上是逐行噪音（hover 蒙版
+   与反白已足以划行），摘除 */
+.session-row-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0;
+  border-bottom: none;
+}
+
+/* 激活轨道行 = 琥珀反白整条（.session-row.selected 既有底色生效）；反白底上
+   空闲点转强调墨（展开态 .session-row.selected .session-dot.idle 同款），加载
+   点的 loading 信号色与琥珀底同族对比不足，一并转强调墨、脉冲动画保留 */
+.session-row-collapsed.selected .session-dot.idle,
+.session-row-collapsed.selected .session-dot.loading {
+  background: var(--accent-ink);
+}
+
+/* 板脚小图标新建钮：.new-session 的琥珀底/字/三态 hover 全量继承，仅收尺寸
+   为 20×20 图标钮度量族并交由板脚居中 */
+.session-panel.collapsed .board-foot {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.new-session.new-session-icon {
+  flex: none;
+  gap: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 12px;
+}

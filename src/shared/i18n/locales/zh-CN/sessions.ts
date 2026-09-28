@@ -59,6 +59,8 @@ export const sessions = {
       desc: '新建会话将加入未分组'
     },
     newSession: '新建会话',
+    collapseSidebar: '收起侧边栏',
+    expandSidebar: '展开侧边栏',
     reorderFailed: '会话排序失败，列表顺序已恢复',
     moveFailed: '移动会话失败'
   },

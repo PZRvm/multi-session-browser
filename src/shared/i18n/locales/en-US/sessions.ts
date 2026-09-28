@@ -54,6 +54,8 @@ export const sessions: Dictionary['sessions'] = {
       desc: 'New sessions will join Ungrouped'
     },
     newSession: 'New session',
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar',
     reorderFailed: 'Reorder failed; list order restored',
     moveFailed: 'Failed to move session'
   },

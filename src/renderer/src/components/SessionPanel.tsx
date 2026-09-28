@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { App, Button, ConfigProvider, Input, Modal, Tooltip, theme } from 'antd'
 import {
   CheckSquareOutlined,
+  DoubleLeftOutlined,
+  DoubleRightOutlined,
   FolderOpenOutlined,
   PlusOutlined,
   SettingOutlined
@@ -23,9 +25,17 @@ import { useUiStore } from '../stores/ui'
 
 interface SessionPanelProps {
   panelWidth: number
+  /* 收起态轨道（2026-09-28 专项）：布局态由 MainShell 持有（同时决定 panel-left
+     宽度与分隔条去留），面板只按此渲染收起变体并回报按钮动作 */
+  collapsed: boolean
+  onToggleCollapse: () => void
 }
 
-function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
+function SessionPanel({
+  panelWidth,
+  collapsed,
+  onToggleCollapse
+}: SessionPanelProps): React.JSX.Element {
   const t = useT()
   const resolvedTheme = useAppearanceStore((s) => s.resolvedTheme)
   const themeColor = useAppearanceStore((s) => s.themeColor)
@@ -102,6 +112,15 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
 
   // 反馈条定时器随卸载清理（防卸载后写状态）
   useEffect(() => () => window.clearTimeout(feedbackTimer.current), [])
+
+  // 收起即退出批量态（计划 2.4 契约）：批量板脚操作栏与行级勾选在 48px 轨道上
+  // 结构性不可达，僵尸勾选会随展开复活——收起时整组清零；展开态不受影响
+  useEffect(() => {
+    if (!collapsed) return
+    setBatchMode(false)
+    setChecked(new Set())
+    setUrlOpen(false)
+  }, [collapsed])
 
   const showBatchFeedback = (tone: 'success' | 'danger', text: string): void => {
     setBatchFeedback({ tone, text })
@@ -286,55 +305,129 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         }
       }}
     >
-      <aside className="session-panel">
+      <aside className={`session-panel${collapsed ? ' collapsed' : ''}`}>
         <header className="board-head">
           {/* macOS 主窗（winc=traffic 门控）：原生标题条已去，左上角为系统原生三灯
               （trafficLightPosition 定位，主进程 index.ts），此处仅留占位防内容顶入
               灯区，原标题文字随之移除（原生/页内双份展示一并收敛）；其余平台保持
-              页内标题现状（Windows 原生标题栏并存为既有设计） */}
-          {windowTrafficControls ? (
-            <span className="traffic-spacer" aria-hidden="true" />
-          ) : (
+              页内标题现状（Windows 原生标题栏并存为既有设计）。收起态按用户裁决
+              「顶部功能按钮全部隐藏，左上角只保留关闭钮」：三灯照常，页内标题在
+              48px 轨道上无处容身，一并隐藏（含 Windows 页内标题变体） */}
+          {windowTrafficControls && <span className="traffic-spacer" aria-hidden="true" />}
+          {!collapsed && !windowTrafficControls && (
             <span className="board-title">
               <span className="board-title-text">{t('common.appName')}</span>
             </span>
           )}
           <span className="board-head-right">
-            <AppearanceEntry panelWidth={panelWidth} />
-            <button
-              type="button"
-              className={`batch-toggle${batchMode ? ' active' : ''}`}
-              title={t('sessions.panel.batchToggle')}
-              aria-label={t('sessions.panel.batchToggle')}
-              disabled={visibleSessions.length === 0 && !batchMode}
-              onClick={toggleBatchMode}
-            >
-              <CheckSquareOutlined />
-            </button>
+            {!collapsed && <AppearanceEntry panelWidth={panelWidth} />}
+            {!collapsed && (
+              <button
+                type="button"
+                className={`batch-toggle${batchMode ? ' active' : ''}`}
+                title={t('sessions.panel.batchToggle')}
+                aria-label={t('sessions.panel.batchToggle')}
+                disabled={visibleSessions.length === 0 && !batchMode}
+                onClick={toggleBatchMode}
+              >
+                <CheckSquareOutlined />
+              </button>
+            )}
             {/* 设置齿轮（设置专项阶段一）：恒渲染不随左栏宽度降级——它是 Windows 的
                 唯一发现路径，宽度降级由外观三段阈值（AppearanceEntry）承担；开窗/
-                聚焦单例由主进程裁决（重复点击聚焦既有窗） */}
-            <button
-              type="button"
-              className="settings-toggle"
-              title={t('sessions.panel.settings')}
-              aria-label={t('sessions.panel.settings')}
-              onClick={() => {
-                window.api.settings.open().catch((error: unknown) => {
-                  console.warn('打开设置窗口失败:', error)
-                })
-              }}
-            >
-              <SettingOutlined />
-            </button>
-            <span className="board-count">
-              <span className="board-count-label">{t('sessions.panel.countLabel')}</span>
-              <CountTiles value={visibleSessions.length} />
-            </span>
+                聚焦单例由主进程裁决（重复点击聚焦既有窗）。收起态例外（DESIGN 收起态
+                条目，2026-09-28 用户裁决）：收起是用户显式选择的模式而非宽度降级，
+                齿轮随板头整组隐藏、展开即恢复可达 */}
+            {!collapsed && (
+              <button
+                type="button"
+                className="settings-toggle"
+                title={t('sessions.panel.settings')}
+                aria-label={t('sessions.panel.settings')}
+                onClick={() => {
+                  window.api.settings.open().catch((error: unknown) => {
+                    console.warn('打开设置窗口失败:', error)
+                  })
+                }}
+              >
+                <SettingOutlined />
+              </button>
+            )}
+            {!collapsed && (
+              <span className="board-count">
+                <span className="board-count-label">{t('sessions.panel.countLabel')}</span>
+                <CountTiles value={visibleSessions.length} />
+              </span>
+            )}
+            {/* 收起/展开钮（侧边栏收起专项 2026-09-28）：板头右侧控件带末位（紧贴
+                分隔条，「往左收」的空间隐喻）；双箭头对偶——展开态 DoubleLeft 收起、
+                收起态 DoubleRight 展开；20×20 度量镜像 settings-toggle 族。
+                macOS 收起态例外：原生灯组实测绘占 x 37–69px，76px 轨道内板头行被
+                灯组占满，钮下移到板头下方专用行（.collapse-row）；Windows 无灯，
+                钮留在板头右侧原位 */}
+            {!(collapsed && windowTrafficControls) && (
+              <button
+                type="button"
+                className="collapse-toggle"
+                title={
+                  collapsed
+                    ? t('sessions.panel.expandSidebar')
+                    : t('sessions.panel.collapseSidebar')
+                }
+                aria-label={
+                  collapsed
+                    ? t('sessions.panel.expandSidebar')
+                    : t('sessions.panel.collapseSidebar')
+                }
+                aria-expanded={!collapsed}
+                onClick={onToggleCollapse}
+              >
+                {collapsed ? <DoubleRightOutlined /> : <DoubleLeftOutlined />}
+              </button>
+            )}
           </span>
         </header>
-        <WorkspaceSwitcher />
-        {sessions.length === 0 ? (
+        {/* macOS 收起态专用展开行：板头被原生灯组占满后的钮位（灯行 + 钮行两段，
+            与展开态板头/工作区条的两段节奏同构） */}
+        {collapsed && windowTrafficControls && (
+          <div className="collapse-row">
+            <button
+              type="button"
+              className="collapse-toggle"
+              title={t('sessions.panel.expandSidebar')}
+              aria-label={t('sessions.panel.expandSidebar')}
+              aria-expanded={false}
+              onClick={onToggleCollapse}
+            >
+              <DoubleRightOutlined />
+            </button>
+          </div>
+        )}
+        {!collapsed && <WorkspaceSwitcher />}
+        {collapsed ? (
+          // 收起态轨道（2026-09-28 专项）：只渲染当前视野会话的状态点行（收起前
+          // 所选组 = activeWorkspaceId 既有视野过滤，零新逻辑）；空视野轨道区空白，
+          // 不渲染空态文案（收起态零文案原则，计划 2.3）
+          <ul className="session-list">
+            {visibleSessions.map((session) => (
+              <SessionRow
+                key={session.id}
+                session={session}
+                collapsed
+                batchMode={false}
+                checked={false}
+                cloning={cloningIds.has(session.id)}
+                dragEnabled={false}
+                isDragSource={false}
+                dropPos={null}
+                wsTag={null}
+                onToggleCheck={toggleChecked}
+                onClone={handleClone}
+                onMove={openMoveModal}
+              />
+            ))}
+          </ul>
+        ) : sessions.length === 0 ? (
           <div className="session-empty">
             <p className="session-empty-title">{t('sessions.panel.emptyAll.title')}</p>
             <p className="session-empty-desc">{t('sessions.panel.emptyAll.desc')}</p>
@@ -382,7 +475,24 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
           </ul>
         )}
         <footer className="board-foot">
-          {batchMode ? (
+          {collapsed ? (
+            // 收起态板脚（2026-09-28 用户裁决「新建会话只留小图标」）：20×20 图标钮
+            // 居中，保留板脚唯一大面积琥珀惯例的迷你形态（accent 底 + accent-ink 字）；
+            // 文案复用既有 newSession 键作 title/aria，零新增字典项。落点 = 当前视野
+            // 归属（membership 现逻辑不变）；批量操作栏在收起态结构性不可达（收起即
+            // 退出批量态）
+            <button
+              type="button"
+              className="new-session new-session-icon"
+              title={t('sessions.panel.newSession')}
+              aria-label={t('sessions.panel.newSession')}
+              onClick={() => {
+                void addSession(membership)
+              }}
+            >
+              <PlusOutlined />
+            </button>
+          ) : batchMode ? (
             <div className="batch-bar">
               <div className="batch-bar-row">
                 <div className="batch-bar-left">

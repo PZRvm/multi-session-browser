@@ -13,13 +13,22 @@ import { applyThemeTokens } from './theme'
 const PANEL_MIN = 220
 const PANEL_MAX = 420
 const PANEL_DEFAULT = 280
+/* 收起态轨道宽（2026-09-28 侧边栏收起专项，契约冻结于
+   notes/plans/20260928143655 2.4 节）：下限由 macOS 原生灯组实测宽决定——
+   trafficLightPosition x=14 时灯组绘占窗口相对 x 37–69px，48px 初版实测把展开钮
+   推出轨道，76 = 灯组右缘 + 7px 边距；跨平台统一值（Windows 无灯但同宽无害） */
+const PANEL_COLLAPSED_WIDTH = 76
 
 // 主窗口 shell：左会话面板 + 分隔条 + 右浏览器区；面板拖拽逻辑内聚于此——
 // 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接。
 // HTML 全屏（视频全屏等）期间左栏与分隔条不渲染（Chrome 对齐，快照 htmlFullscreen
-// 驱动）；panel-right flex:1 自然占满整宽，退出后随快照回落复原
+// 驱动）；panel-right flex:1 自然占满整宽，退出后随快照回落复原。
+// 收起态（collapsed）为渲染层瞬态 UI 态：不持久化，重启恢复展开态（与 panelWidth
+// 不落盘同口径）；收起只换轨道宽，panelWidth 原值保留、展开即原宽恢复；
+// 收起期间分隔条不渲染（轨道恒宽不可拖，展开/收起只经板头按钮）
 function MainShell(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const [collapsed, setCollapsed] = useState(false)
   const dragging = useRef(false)
   const t = useT()
   const htmlFullscreen = useBrowserStore((s) => s.htmlFullscreen)
@@ -58,11 +67,20 @@ function MainShell(): React.JSX.Element {
   return (
     <div className="app-shell">
       {!htmlFullscreen && (
-        <div className="panel-left" style={{ width: panelWidth }}>
-          <SessionPanel panelWidth={panelWidth} />
+        <div
+          className={`panel-left${collapsed ? ' panel-left-collapsed' : ''}`}
+          style={{ width: collapsed ? PANEL_COLLAPSED_WIDTH : panelWidth }}
+        >
+          <SessionPanel
+            panelWidth={panelWidth}
+            collapsed={collapsed}
+            onToggleCollapse={() => {
+              setCollapsed((prev) => !prev)
+            }}
+          />
         </div>
       )}
-      {!htmlFullscreen && (
+      {!htmlFullscreen && !collapsed && (
         <div
           className="panel-divider"
           role="separator"

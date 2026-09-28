@@ -60,6 +60,8 @@ export const sessions: Dictionary['sessions'] = {
       desc: '新建會話將加入未分組'
     },
     newSession: '新增會話',
+    collapseSidebar: '收起側邊欄',
+    expandSidebar: '展開側邊欄',
     reorderFailed: '會話排序失敗，列表順序已恢復',
     moveFailed: '移動會話失敗'
   },

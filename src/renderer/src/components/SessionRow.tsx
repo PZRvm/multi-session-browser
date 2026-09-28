@@ -128,6 +128,10 @@ interface SessionRowProps {
   // 「全部会话」视野下在第二行行首显示归属标记（工作区名或「未分组」）；
   // 工作区视野内全员同归属，不渲染标记
   wsTag: string | null
+  // 收起态轨道行（2026-09-28 侧边栏收起专项）：只渲染状态点，hover 出会话名，
+  // 点击切换激活会话；拖拽/菜单/编辑/批量在轨道上结构性不可达（面板层已保证
+  // batchMode=false 传入，本组件再按 collapsed 短路整条渲染分支）
+  collapsed?: boolean
   onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
   onMove: (session: SessionItem) => void
@@ -142,6 +146,7 @@ function SessionRow({
   isDragSource,
   dropPos,
   wsTag,
+  collapsed = false,
   onToggleCheck,
   onClone,
   onMove
@@ -247,6 +252,40 @@ function SessionRow({
   const rowClass = batchMode
     ? `session-row${checked ? ' batch-checked' : ''}`
     : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
+
+  // 收起态轨道行（分支置于全部 hooks 之后，hook 序不受短路影响）：只渲染状态点
+  // （idle/loading 语义色与展开态同源），激活行沿用琥珀反白；hover Tooltip 出
+  // 会话全名——备注 Tooltip 同款惯例（right 侧弹 + 0.2s 延迟防扫过频闪 +
+  // getPopupContainer 锁挂 .session-panel，弹层不越左栏即不被右区原生层遮挡；
+  // 纯 hover 无需 overlay 登记）。无拖拽/右键/⋮ 菜单/行内编辑/勾选
+  if (collapsed) {
+    return (
+      <Tooltip
+        title={session.name}
+        placement="right"
+        mouseEnterDelay={0.2}
+        getPopupContainer={(triggerNode) =>
+          triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
+        }
+      >
+        <li
+          className={`session-row session-row-collapsed${selected ? ' selected' : ''}`}
+          data-session-id={session.id}
+          tabIndex={0}
+          aria-current={selected ? 'true' : undefined}
+          onClick={() => selectSession(session.id)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              selectSession(session.id)
+            }
+          }}
+        >
+          <span className={`session-dot ${cloning ? 'loading' : session.status}`} />
+        </li>
+      </Tooltip>
+    )
+  }
 
   // 右键唤起与 ⋮ 钮同款菜单（2026-09-21 反馈轮）：整行包 contextMenu Dropdown
   // 复用同一份 menuItems；批量态（无行菜单入口）与行内编辑态触发器置空——菜单
