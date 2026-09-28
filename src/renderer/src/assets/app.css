@@ -2037,6 +2037,7 @@ body[data-role='workspace-picker'] {
   height: 40px;
   padding: 6px 10px 0;
   background: var(--chrome-tabbar);
+  border-bottom: 1px solid var(--chrome-line);
   /* 插入指示竖线（阶段 10）的绝对定位锚；不影响弹层锚——那由 .browser-frame 承担 */
   position: relative;
   /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
