@@ -2730,6 +2730,10 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   border-radius: 50%;
   background: #ff5f57;
   cursor: pointer;
+  /* 板头整行是拖拽带（.board-head app-region: drag），本钮是其直接子元素——不豁免
+     则点击/悬停全被窗口拖拽吞掉（反馈轮五：收起态关闭点无法点击根因），对齐
+     .board-head-right 的 no-drag 豁免惯例 */
+  -webkit-app-region: no-drag;
 }
 
 .self-close::after {
