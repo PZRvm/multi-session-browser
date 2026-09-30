@@ -15,6 +15,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     scopeHistory: '瀏覽歷史（網址列提示）',
     scopeLocalStorage: 'localStorage（網站資料）',
     importBtn: '匯入',
+    importing: '匯入中…',
     cancelBtn: '取消',
     loadFailed: '偵測失敗'
   },

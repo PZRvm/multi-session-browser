@@ -57,6 +57,11 @@ import type { ChromeImportPolicy, ChromeImportScope, ChromeProfileInfo } from '.
 //   chromeImport 域 dry-run/execute 通道闭环（确认与执行两段解耦同先例）；导入的
 //   结果/错误反馈改主进程 information 型 showMessageBox（chromeImport/index.ts 完成
 //   点内联弹出，渲染层 antd message 退役）
+// - 加载动画（2026-09-30 反馈轮三，用户反馈导入过程要加载动画）：导入两 kind pick
+//   必带 keepOpen=true——提交后 sheet 不关、转入加载态（sheet 页本地态：按钮
+//   「导入中…」+ 控件锁定），pending 立即收敛放行编排；sheet 的关闭改由 renderer
+//   编排在 dry-run/execute 完成点经 workspacePickerClose 显式触发，主进程另有 60s
+//   兜底自动关（编排异常不卡死模态）。workspace-picker 通道合计 4 → 5 条
 // - 模态子窗口度量常量（与 WorkspacePickerWindow 组件、app.css、主进程建窗
 //   高度计算同源配对，omniboxSuggest 度量常量先例）
 
@@ -65,7 +70,8 @@ export const DIALOG_CHANNELS = {
   confirmWorkspaceDelete: 'dialog:confirm-workspace-delete',
   showWorkspacePicker: 'dialog:show-workspace-picker',
   workspacePickerPayload: 'dialog:workspace-picker-payload',
-  workspacePickerPick: 'dialog:workspace-picker-pick'
+  workspacePickerPick: 'dialog:workspace-picker-pick',
+  workspacePickerClose: 'dialog:workspace-picker-close'
 } as const
 
 /**
@@ -215,6 +221,13 @@ export interface WorkspacePickerPickPayload {
   scopes?: string[]
   /** chrome-import-conflict 必填：冲突裁决结论；其余 kind 禁传 */
   policy?: string
+  /**
+   * chrome-import 两 kind 必传 true（反馈轮三：导入过程加载动画）——提交后 sheet
+   * 不立即关闭，转入加载态（按钮「导入中…」+ 控件锁定，sheet 页本地态），由
+   * renderer 编排在 dry-run/execute 完成点经 workspacePickerClose 显式关闭；主进程
+   * 另有 60s 兜底自动关（编排异常也不卡死模态）。其余 kind 禁传（提交即关窗语义不变）
+   */
+  keepOpen?: boolean
 }
 
 /**

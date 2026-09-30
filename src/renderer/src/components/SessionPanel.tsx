@@ -15,7 +15,7 @@ import SessionRow from './SessionRow'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
-import { confirmDestructive, showWorkspacePicker } from '../dialogs'
+import { closeWorkspacePicker, confirmDestructive, showWorkspacePicker } from '../dialogs'
 import { WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../../../shared/sessions'
 import type { ChromeImportPolicy } from '../../../shared/chromeImport'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
@@ -245,6 +245,8 @@ function SessionPanel({
           profileDir: picked.profileDir,
           scopes: picked.scopes
         })
+        // dry-run 完成：关掉加载态选择 sheet（反馈轮三）；冲突则二次弹裁决 sheet
+        await closeWorkspacePicker()
         const lsPlan = plan.scopes.find((item) => item.scope === 'localStorage')
         let policy: ChromeImportPolicy = 'session'
         if (lsPlan !== undefined && lsPlan.conflictKeys > 0) {
@@ -266,8 +268,11 @@ function SessionPanel({
         if (result.results.some((item) => item.scope === 'history' && item.status === 'done')) {
           refetchHistory()
         }
+        await closeWorkspacePicker()
       } catch {
-        // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝
+        // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝并
+        // 关掉可能残留的加载态 sheet
+        await closeWorkspacePicker()
       }
     })()
   }

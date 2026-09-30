@@ -14,6 +14,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     scopeHistory: 'Browsing history (address bar suggestions)',
     scopeLocalStorage: 'localStorage (site data)',
     importBtn: 'Import',
+    importing: 'Importing…',
     cancelBtn: 'Cancel',
     loadFailed: 'Detection failed'
   },

@@ -46,3 +46,16 @@ export async function showWorkspacePicker(
     return { status: 'cancelled' }
   }
 }
+
+/**
+ * keepOpen 加载态 sheet 显式关闭薄封装（反馈轮三，2026-09-30）：导入编排在
+ * dry-run/execute 完成点调用；invoke 异常按无操作处理留 warn（sheet 已关/主窗
+ * 缺席时主进程本就 no-op）
+ */
+export async function closeWorkspacePicker(): Promise<void> {
+  try {
+    await window.api.dialog.workspacePickerClose()
+  } catch (error) {
+    console.warn('导入加载态 sheet 关闭调用失败', error)
+  }
+}

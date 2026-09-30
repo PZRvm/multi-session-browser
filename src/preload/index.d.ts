@@ -173,6 +173,7 @@ declare global {
         showWorkspacePicker(payload: ShowWorkspacePickerPayload): Promise<WorkspacePickerResult>
         workspacePickerPayload(): Promise<WorkspacePickerContext | null>
         workspacePickerPick(payload: WorkspacePickerPickPayload): Promise<OkResult>
+        workspacePickerClose(): Promise<OkResult>
       }
     }
   }

@@ -35,6 +35,9 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   const [profileDir, setProfileDir] = useState('')
   const [scopesDraft, setScopesDraft] = useState<ChromeImportScope[]>(['history', 'localStorage'])
   const [policyDraft, setPolicyDraft] = useState<ChromeImportPolicy>('chrome')
+  // 导入加载态（反馈轮三）：提交（keepOpen）即置真——sheet 留显「导入中…」+ 控件
+  // 锁定，直到主进程收到 workspacePickerClose 关窗；60s 兜底自动关防编排异常
+  const [importing, setImporting] = useState(false)
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -97,24 +100,32 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       .catch(() => undefined)
   }
 
-  // 导入选择提交（chrome-import-select）：profile + 内容勾选整包回传，主进程闭集
-  // 守卫后关窗收敛 chrome-import-picked；勾选空为 UI 面禁提交
+  // 导入选择提交（chrome-import-select）：profile + 内容勾选整包回传（keepOpen 转加载
+  // 态），主进程闭集守卫后收敛 chrome-import-picked；勾选空为 UI 面禁提交
   const submitImport = (): void => {
-    if (!context || profileDir === '' || scopesDraft.length === 0) return
+    if (!context || importing || profileDir === '' || scopesDraft.length === 0) return
+    setImporting(true)
     void window.api.dialog
-      .workspacePickerPick({ requestId: context.requestId, profileDir, scopes: scopesDraft })
+      .workspacePickerPick({
+        requestId: context.requestId,
+        profileDir,
+        scopes: scopesDraft,
+        keepOpen: true
+      })
       .catch(() => undefined)
   }
 
-  // 导入冲突裁决提交（chrome-import-conflict）：policy 回传，主进程收敛 chrome-import-policy
+  // 导入冲突裁决提交（chrome-import-conflict）：policy 回传（keepOpen 同上转加载态）
   const submitPolicy = (): void => {
-    if (!context) return
+    if (!context || importing) return
+    setImporting(true)
     void window.api.dialog
-      .workspacePickerPick({ requestId: context.requestId, policy: policyDraft })
+      .workspacePickerPick({ requestId: context.requestId, policy: policyDraft, keepOpen: true })
       .catch(() => undefined)
   }
 
   const toggleScope = (scope: ChromeImportScope, checked: boolean): void => {
+    if (importing) return
     setScopesDraft((prev) =>
       checked
         ? [...prev.filter((item) => item !== scope), scope].sort()
@@ -122,17 +133,23 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
     )
   }
 
-  // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）；输入框聚焦态同样取消
+  // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）；输入框聚焦态同样取消。
+  // 导入加载态锁定：中途 Esc 强关会让「导入中…」失去载体（执行照常完成并弹结果框，
+  // 但加载反馈断裂），锁定到完成（反馈轮三）
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        if (importing) {
+          e.preventDefault()
+          return
+        }
         e.preventDefault()
         window.close()
       }
     }
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
-  }, [])
+  }, [importing])
 
   // payload 拉取失败（无在途请求/来源不被信任/通道异常，正常路径不可达）：无法
   // 区分场景语义，渲染最小兜底——不展示可能误导的选择类标题与空态文案，仅保留
@@ -180,6 +197,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
                 id="chrome-import-profile"
                 className="picker-input"
                 value={profileDir}
+                disabled={importing}
                 onChange={(e) => setProfileDir(e.target.value)}
               >
                 {(context.chromeProfiles ?? []).map((profile) => (
@@ -197,6 +215,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
                 <input
                   type="checkbox"
                   checked={scopesDraft.includes('history')}
+                  disabled={importing}
                   onChange={(e) => toggleScope('history', e.target.checked)}
                 />
                 {t('chromeImport.dialog.scopeHistory')}
@@ -205,22 +224,30 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
                 <input
                   type="checkbox"
                   checked={scopesDraft.includes('localStorage')}
+                  disabled={importing}
                   onChange={(e) => toggleScope('localStorage', e.target.checked)}
                 />
                 {t('chromeImport.dialog.scopeLocalStorage')}
               </label>
             </div>
             <div className="picker-foot">
-              <button type="button" className="picker-btn" onClick={() => window.close()}>
+              <button
+                type="button"
+                className="picker-btn"
+                disabled={importing}
+                onClick={() => window.close()}
+              >
                 {t('chromeImport.dialog.cancelBtn')}
               </button>
               <button
                 type="button"
                 className="picker-btn picker-btn-primary"
-                disabled={scopesDraft.length === 0}
+                disabled={importing || scopesDraft.length === 0}
                 onClick={submitImport}
               >
-                {t('chromeImport.dialog.importBtn')}
+                {importing
+                  ? t('chromeImport.dialog.importing')
+                  : t('chromeImport.dialog.importBtn')}
               </button>
             </div>
           </div>
@@ -262,6 +289,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
                 type="radio"
                 name="chrome-import-policy"
                 checked={policyDraft === 'chrome'}
+                disabled={importing}
                 onChange={() => setPolicyDraft('chrome')}
               />
               {t('chromeImport.conflict.useChrome')}
@@ -271,17 +299,30 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
                 type="radio"
                 name="chrome-import-policy"
                 checked={policyDraft === 'session'}
+                disabled={importing}
                 onChange={() => setPolicyDraft('session')}
               />
               {t('chromeImport.conflict.useSession')}
             </label>
           </div>
           <div className="picker-foot">
-            <button type="button" className="picker-btn" onClick={() => window.close()}>
+            <button
+              type="button"
+              className="picker-btn"
+              disabled={importing}
+              onClick={() => window.close()}
+            >
               {t('chromeImport.dialog.cancelBtn')}
             </button>
-            <button type="button" className="picker-btn picker-btn-primary" onClick={submitPolicy}>
-              {t('chromeImport.conflict.confirmBtn')}
+            <button
+              type="button"
+              className="picker-btn picker-btn-primary"
+              disabled={importing}
+              onClick={submitPolicy}
+            >
+              {importing
+                ? t('chromeImport.dialog.importing')
+                : t('chromeImport.conflict.confirmBtn')}
             </button>
           </div>
         </div>

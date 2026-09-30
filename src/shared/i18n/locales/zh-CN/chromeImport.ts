@@ -15,6 +15,7 @@ export const chromeImport = {
     scopeHistory: '浏览历史（地址栏提示）',
     scopeLocalStorage: 'localStorage（站点数据）',
     importBtn: '导入',
+    importing: '导入中…',
     cancelBtn: '取消',
     loadFailed: '检测失败'
   },

@@ -75,6 +75,26 @@ interface PendingPicker {
 
 let pending: PendingPicker | null = null
 
+/**
+ * keepOpen 加载态 sheet（反馈轮三）：pick 已收敛结论、sheet 留显加载态，关闭权移交
+ * renderer 编排（workspacePickerClose 通道）；60s 兜底自动关防编排异常卡死模态。
+ * 与 pending 互斥存在（pick keepOpen 时 pending 已前置清零）
+ */
+let managedSheet: BrowserWindow | null = null
+let managedTimer: ReturnType<typeof setTimeout> | null = null
+
+/** keepOpen 加载态兜底时长（与导入暂存 TTL 同值口径：编排正常远快于此） */
+const MANAGED_SHEET_FALLBACK_MS = 60_000
+
+/** 释放 keepOpen 引用与兜底定时器（关闭路径统一收口） */
+function releaseManagedSheet(): void {
+  managedSheet = null
+  if (managedTimer !== null) {
+    clearTimeout(managedTimer)
+    managedTimer = null
+  }
+}
+
 /** 守卫失败统一抛出的业务错误（dialogs.ts 同款文案键） */
 function invalidParams(): Error {
   return new Error(t('errors.invalidSessionParams'))
@@ -94,7 +114,13 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     const sessionId = payload.sessionId
     if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
     if (kind === 'chrome-import-select') {
-      if (payload.keys !== undefined || payload.origins !== undefined) throw invalidParams()
+      if (
+        payload.keys !== undefined ||
+        payload.origins !== undefined ||
+        payload.keepOpen !== undefined
+      ) {
+        throw invalidParams()
+      }
       return { kind, sessionId }
     }
     const keys = payload.keys
@@ -109,6 +135,7 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     ) {
       throw invalidParams()
     }
+    if (payload.keepOpen !== undefined) throw invalidParams()
     return { kind, sessionId, keys, origins }
   }
   if (kind === 'workspace-move-single') {
@@ -132,6 +159,7 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
   }
   // workspace-rename：workspaceId 必填过 WORKSPACE_ID_RE；现名由主进程快照现取（渲染层不传名）
   if (payload.sessionId !== undefined || payload.ids !== undefined) throw invalidParams()
+  if (payload.keepOpen !== undefined) throw invalidParams()
   const workspaceId = payload.workspaceId
   if (typeof workspaceId !== 'string' || !WORKSPACE_ID_RE.test(workspaceId)) throw invalidParams()
   return { kind, workspaceId }
@@ -314,7 +342,7 @@ export function registerWorkspacePickerIpc(deps: {
     }
     let result: WorkspacePickerResult
     if (pending.context?.kind === 'workspace-rename') {
-      if (payload.workspaceId !== undefined) throw invalidParams()
+      if (payload.workspaceId !== undefined || payload.keepOpen !== undefined) throw invalidParams()
       const name = typeof payload.name === 'string' ? payload.name.trim() : ''
       if (!name || name.length > WORKSPACE_NAME_MAX) {
         console.warn('[dialog] 工作区重命名提交被守卫拒绝（空名或超长），sheet 保持开启')
@@ -323,6 +351,7 @@ export function registerWorkspacePickerIpc(deps: {
       result = { status: 'submitted', name }
     } else if (pending.context?.kind === 'chrome-import-select') {
       if (payload.workspaceId !== undefined || payload.policy !== undefined) throw invalidParams()
+      if (payload.keepOpen !== true) throw invalidParams()
       const profileDir = payload.profileDir
       if (typeof profileDir !== 'string' || profileDir.trim() === '') throw invalidParams()
       if (
@@ -341,7 +370,7 @@ export function registerWorkspacePickerIpc(deps: {
       if (payload.workspaceId !== undefined || payload.profileDir !== undefined) {
         throw invalidParams()
       }
-      if (payload.scopes !== undefined) throw invalidParams()
+      if (payload.scopes !== undefined || payload.keepOpen !== true) throw invalidParams()
       const policy = payload.policy
       if (
         typeof policy !== 'string' ||
@@ -354,6 +383,7 @@ export function registerWorkspacePickerIpc(deps: {
         policy: policy as (typeof CHROME_IMPORT_POLICIES)[number]
       }
     } else {
+      if (payload.keepOpen !== undefined) throw invalidParams()
       const wid = payload.workspaceId
       if (wid === undefined || (wid !== null && typeof wid !== 'string')) throw invalidParams()
       result = { status: 'picked', workspaceId: wid }
@@ -362,8 +392,30 @@ export function registerWorkspacePickerIpc(deps: {
     const sheet = pending.sheet
     pending = null
     resolve(result)
+    if (payload.keepOpen === true) {
+      // 导入加载动画（反馈轮三）：提交后转加载态不关窗（sheet 页本地锁定控件），关闭
+      // 权移交 renderer 编排（workspacePickerClose）；60s 兜底自动关防编排异常卡死模态
+      managedSheet = sheet
+      managedTimer = setTimeout(() => {
+        console.warn('[dialog] 导入加载态 sheet 超时未关闭，兜底自动关')
+        if (managedSheet && !managedSheet.isDestroyed()) managedSheet.close()
+        releaseManagedSheet()
+      }, MANAGED_SHEET_FALLBACK_MS)
+      managedTimer.unref?.()
+      return { ok: true }
+    }
     // 窗口关闭走 closed 钩子自清引用；此处 pending 已前置清零，钩子 no-op
     sheet.close()
+    return { ok: true }
+  })
+
+  // close：keepOpen 加载态 sheet 的显式关闭（反馈轮三）——renderer 编排在 dry-run /
+  // execute 完成点触发；sender 白名单 = 主窗（编排来源）；已关/不存在 no-op
+  ipcMain.handle(DIALOG_CHANNELS.workspacePickerClose, (event): { ok: true } => {
+    const mainWindow = deps.getMainWindow()
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: true }
+    if (managedSheet && !managedSheet.isDestroyed()) managedSheet.close()
+    releaseManagedSheet()
     return { ok: true }
   })
 
@@ -429,8 +481,10 @@ function openSheet(
       sheet.setContentSize(PICKER_WINDOW_WIDTH, targetHeight)
     }
   })
-  // 任何路径（用户关窗 / 父窗级联 / 应用退出）关闭后：在途请求兜底以取消收敛
+  // 窗口任何路径关闭：keepOpen 加载态引用一并释放（兜底定时器同步清）；在途请求
+  // 兜底以取消收敛
   sheet.once('closed', () => {
+    if (managedSheet === sheet) releaseManagedSheet()
     if (pending && pending.sheet === sheet) {
       resolveCancelled('sheet 窗口关闭（Esc/关闭钮/父窗级联）')
     }

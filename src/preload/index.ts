@@ -388,7 +388,11 @@ const api = {
     workspacePickerPayload: (): Promise<WorkspacePickerContext | null> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPayload),
     workspacePickerPick: (payload: WorkspacePickerPickPayload): Promise<OkResult> =>
-      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPick, payload)
+      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPick, payload),
+    // keepOpen 加载态 sheet 显式关闭（反馈轮三）：renderer 编排在 dry-run/execute
+    // 完成点触发；主进程对已关/不存在 no-op
+    workspacePickerClose: (): Promise<OkResult> =>
+      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerClose)
   }
 }
 
