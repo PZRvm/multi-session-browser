@@ -37,6 +37,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     planExpired: 'Import preparation expired. Start the import again',
     busy: 'This session is already importing. Try again later',
     invalidParams: 'Invalid import parameters',
-    profileNotFound: 'Selected Chrome profile not found'
+    profileNotFound: 'Selected Chrome profile not found',
+    failed: 'Import failed. Try again'
   }
 }

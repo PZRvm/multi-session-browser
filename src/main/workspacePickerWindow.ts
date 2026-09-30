@@ -32,7 +32,7 @@ import {
 import { SESSION_ID_RE, WORKSPACE_ID_RE, WORKSPACE_NAME_MAX } from '../shared/sessions'
 import { CHROME_IMPORT_POLICIES, CHROME_IMPORT_SCOPES } from '../shared/chromeImport'
 import { isRecord } from '../shared/guards'
-import { createChromeDetector, defaultChromeRootDir } from './browser/chromeImport/detect'
+import { chromeDetector } from './browser/chromeImport'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
 import { getCurrentLanguage, t } from './i18n'
@@ -52,9 +52,6 @@ const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'chrome-import-select',
   'chrome-import-conflict'
 ]
-
-/** Chrome profile 探测（导入专项反馈轮原生化：sheet 上下文的 profiles 现取单例，全程只读） */
-const chromeDetector = createChromeDetector({ getRootDir: defaultChromeRootDir })
 
 function isPickerKind(value: string): value is WorkspacePickerKind {
   return (PICKER_KINDS as readonly string[]).includes(value)

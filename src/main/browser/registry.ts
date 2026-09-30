@@ -678,7 +678,9 @@ export function createSessionBrowserRegistry(deps: {
    * 画面——导入失败不得把浏览器区冻结在「有快照无视图」态（clonePartition 失败恢复先例）
    */
   async function runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T> {
-    if (cloningIds.has(id)) throw new Error(t('chromeImport.errors.busy'))
+    // 触发条件实为该会话克隆中（非导入）：文案用泛化的 errors.sessionBusy（克隆/导入
+    // 两种占用），不用导入专用的 chromeImport.errors.busy（消费点保留在 inFlight 单飞）
+    if (cloningIds.has(id)) throw new Error(t('errors.sessionBusy'))
     importingIds.add(id)
     const wasActive = activeSessionId === id
     try {

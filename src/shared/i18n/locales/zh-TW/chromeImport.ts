@@ -38,6 +38,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     planExpired: '匯入準備已過期，請重新發起匯入',
     busy: '該會話正在匯入中，請稍後再試',
     invalidParams: '匯入參數非法',
-    profileNotFound: '所選 Chrome Profile 不存在'
+    profileNotFound: '所選 Chrome Profile 不存在',
+    failed: '匯入失敗，請重試'
   }
 }

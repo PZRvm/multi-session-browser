@@ -41,6 +41,7 @@ export const chromeImport = {
     planExpired: '导入准备已过期，请重新发起导入',
     busy: '该会话正在导入中，请稍后再试',
     invalidParams: '导入参数非法',
-    profileNotFound: '所选 Chrome Profile 不存在'
+    profileNotFound: '所选 Chrome Profile 不存在',
+    failed: '导入失败，请重试'
   }
 }

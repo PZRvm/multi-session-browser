@@ -60,5 +60,11 @@ export const errors: Dictionary['errors'] = {
     'Source partition path is not a directory ({path}); data may be corrupted, clone rejected',
   cloneTargetNotDirectory: 'Target partition path is not a directory ({path})',
   historyPathBlocked:
-    'Session id "{id}" contains illegal characters; history file path assembly rejected'
+    'Session id "{id}" contains illegal characters; history file path assembly rejected',
+
+  // Session-busy mutex (registry.ts runImportQuiesced entry): the trigger is actually
+  // "clone in progress", so wording covers both clone/import occupancy — the
+  // import-specific chromeImport.errors.busy key stays, consumed only by the inFlight
+  // single-flight rejection in chromeImport/index.ts
+  sessionBusy: 'Session is busy (clone/import in progress). Try again later'
 }

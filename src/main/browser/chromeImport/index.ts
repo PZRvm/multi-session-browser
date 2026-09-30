@@ -8,6 +8,7 @@
 // 探测枚举成员 + 路径分隔符拒绝的纵深防御）。同会话在途 dry-run/execute 单飞拒绝。
 
 import { dialog, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -40,8 +41,19 @@ import { createChromeSiteDataMerge } from './siteData'
 /** 暂存 TTL（计划 5.1）：过期 execute 报「导入准备已过期，请重新发起导入」 */
 const STAGE_TTL_MS = 60_000
 
-/** detect/historySource/siteData 装配（模块级单例，零状态或自持状态，通道层无感） */
-const detector = createChromeDetector({ getRootDir: defaultChromeRootDir })
+/**
+ * 显示面 clamp：结果框正文截断上限（审查低-4）。正文来源为 t() 计数插值（定长）或
+ * 错误 message（fs 错误可能携带长路径），超限截断防极端文本撑高弹框——dialogs.ts
+ * DISPLAY_NAME_MAX 同款显示面兜底口径，非落盘面
+ */
+const DIALOG_BODY_MAX = 800
+
+/**
+ * detect/historySource/siteData 装配（模块级单例，零状态或自持状态，通道层无感）。
+ * chromeDetector 导出（审查低-3 收敛）：与 workspacePickerWindow 的探测入口共享同一
+ * 实例，避免 createChromeDetector 工厂被两模块各自实例化
+ */
+export const chromeDetector = createChromeDetector({ getRootDir: defaultChromeRootDir })
 const historySource = createChromeHistorySource({
   makeTempDir: () => mkdtemp(join(tmpdir(), 'msb-chrome-import-'))
 })
@@ -158,11 +170,13 @@ export function registerChromeImportIpc(deps: {
   registry: SessionBrowserRegistry
   getPartitionDir: (sessionId: string) => string
   /** 主窗口解析（导入结果/错误的原生 information 框宿主，反馈轮改原生——渲染层 antd message 退役） */
-  getMainWindow: () => import('electron').BrowserWindow | null
+  getMainWindow: () => BrowserWindow | null
 }): void {
   // list-profiles：探测现取（毫秒级 fs 操作）；失败上抛（renderer 显示检测失败）
   ipcMain.handle(CHROME_IMPORT_CHANNELS.listProfiles, async (): Promise<ChromeProfilesPayload> =>
-    logFailure(CHROME_IMPORT_CHANNELS.listProfiles, undefined, async () => detector.listProfiles())
+    logFailure(CHROME_IMPORT_CHANNELS.listProfiles, undefined, async () =>
+      chromeDetector.listProfiles()
+    )
   )
 
   // dry-run：会话存在性（读盘）→ profileDir 白名单复核（防探针绕过对话框直呼通道）→
@@ -180,7 +194,7 @@ export function registerChromeImportIpc(deps: {
           if (!snapshot.sessions.some((session) => session.id === options.sessionId)) {
             throw new Error(t('errors.sessionNotFound'))
           }
-          const { profiles } = await detector.listProfiles()
+          const { profiles } = await chromeDetector.listProfiles()
           if (!profiles.some((profile) => profile.dir === options.profileDir)) {
             throw new Error(t('chromeImport.errors.profileNotFound'))
           }
@@ -222,11 +236,9 @@ export function registerChromeImportIpc(deps: {
           })
           return { planId, scopes: scopePlans }
         } catch (error) {
-          // 失败原生框（反馈轮改原生）：错误文案如实弹出后原样 rethrow，renderer 编排只消化
-          showResultDialog(
-            deps.getMainWindow,
-            error instanceof Error ? error.message : String(error)
-          )
+          // 失败原生框（反馈轮改原生）：正文经兜底映射（审查中-1）防 fs 英文直出，
+          // 原始错误仍原样 rethrow（renderer 消化 + logFailure 留痕不受影响）
+          showResultDialog(deps.getMainWindow, resolveDialogBody(error))
           throw error
         } finally {
           inFlight.delete(options.sessionId)
@@ -319,10 +331,8 @@ export function registerChromeImportIpc(deps: {
           showResultDialog(deps.getMainWindow, summarizeResults(results))
           return { results }
         } catch (error) {
-          showResultDialog(
-            deps.getMainWindow,
-            error instanceof Error ? error.message : String(error)
-          )
+          // 失败原生框正文经兜底映射（审查中-1，同 dry-run 口径）；原始错误原样 rethrow
+          showResultDialog(deps.getMainWindow, resolveDialogBody(error))
           throw error
         } finally {
           inFlight.delete(entry.sessionId)
@@ -373,14 +383,34 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
 }
 
 /**
+ * 失败弹框正文兜底映射（审查中-1）：域内自产错误（主进程 t() 产出的用户可见文案，
+ * 以已知文案开头即认定——wrapLock 等包装层可携带后缀）原样透出；裸 fs 错误
+ * （EACCES/ENOSPC/EMFILE 等英文系统 message）统一替换为通用失败文案，避免英文
+ * 直出弹框破坏域内「错误口径 i18n 中文」约定。原始错误留痕不受影响：调用方 rethrow
+ * 上浮 renderer、logFailure 主进程留痕均携带完整原始错误，本函数只影响弹框正文
+ */
+export function resolveDialogBody(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  // 已知文案集合 = 本文件 handler 与调用链（historySource/siteData/registry 静默窗口）
+  // 实际会抛出的 t() 文案；failed 自身入集保持映射幂等。集合随语言现取（语言可切）
+  const known = [
+    t('chromeImport.errors.chromeLocked'),
+    t('chromeImport.errors.planExpired'),
+    t('chromeImport.errors.busy'),
+    t('chromeImport.errors.invalidParams'),
+    t('chromeImport.errors.profileNotFound'),
+    t('chromeImport.errors.failed'),
+    t('errors.sessionNotFound')
+  ]
+  return known.some((message) => raw.startsWith(message)) ? raw : t('chromeImport.errors.failed')
+}
+
+/**
  * 原生结果/错误框（导入专项反馈轮改原生，渲染层 antd message 退役）：information 型
  * showMessageBox 单「确认」钮（common.confirm）、主窗窗口模态（主窗缺席静默跳过——macOS 关窗期间导入
  * 流程本就不可达，防御面）
  */
-function showResultDialog(
-  getMainWindow: () => import('electron').BrowserWindow | null,
-  body: string
-): void {
+function showResultDialog(getMainWindow: () => BrowserWindow | null, body: string): void {
   const win = getMainWindow()
   if (!win || win.isDestroyed()) return
   void dialog
@@ -389,7 +419,8 @@ function showResultDialog(
       // 项目图标：darwin 原生框不传即显示 Electron 包角标（PRD 4.10 同款处置）
       icon: dialogIconForDarwin(),
       message: t('chromeImport.dialog.title'),
-      detail: body,
+      // 显示面 clamp（审查低-4）：失败正文可能携带 fs 长路径，超限截断防弹框撑高
+      detail: body.slice(0, DIALOG_BODY_MAX),
       buttons: [t('common.confirm')],
       noLink: true,
       cancelId: 0

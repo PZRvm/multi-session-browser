@@ -57,5 +57,10 @@ export const errors: Dictionary['errors'] = {
   partitionNameTampered: '非法分區名「{name}」（疑似磁碟資料被竄改），拒絕解析目錄路徑',
   cloneSourceNotDirectory: '來源分區路徑不是目錄（{path}），疑似資料損壞，拒絕克隆',
   cloneTargetNotDirectory: '目標分區路徑不是目錄（{path}）',
-  historyPathBlocked: '會話 id「{id}」含非法字元，拒絕拼接歷史檔案路徑'
+  historyPathBlocked: '會話 id「{id}」含非法字元，拒絕拼接歷史檔案路徑',
+
+  /** 会话忙互斥（registry.ts runImportQuiesced 入口）：触发条件为该会话克隆中，文案
+   * 泛化克隆/导入两种分区占用——chromeImport.errors.busy「导入中」专用键保留，消费点
+   * 仅 chromeImport/index.ts 的 inFlight 单飞拒绝 */
+  sessionBusy: '會話正忙（克隆/匯入中），請稍後再試'
 }
