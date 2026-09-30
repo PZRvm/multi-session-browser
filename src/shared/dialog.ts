@@ -1,4 +1,5 @@
 // 原生弹层辅通道共享契约（主进程 / preload / renderer 三方共用）。
+import type { ChromeImportPolicy, ChromeImportScope, ChromeProfileInfo } from './chromeImport'
 // 设计依据 PRD 4.10 / 4.11：破坏性确认走 showMessageBox（2026-09-18 增量，计划
 // notes/plans/20260918182549-删除会话原生确认框开发计划.md 第 2.4 节）；选择类
 // 「移动到工作区」走主进程模态子窗口（2026-09-21 增量，计划 notes/plans/
@@ -6,6 +7,9 @@
 // 同机制承载（2026-09-21 二次增量，计划 notes/plans/20260921155828-工作区菜单
 // 右对齐与重命名原生化开发计划.md 第 2.4 节）——弹层存续期间页面视图
 // 保持可见且内容原样，不经 overlay 悬挂登记收起右区（弹框期间浏览器区变白即事故）。
+// 2026-09-30 导入专项反馈轮：「导入 Chrome 数据」选择/冲突裁决迁同一原生 sheet
+// 机制（渲染层 antd Modal 版退役），导入结果/错误反馈改主进程 information 型
+// showMessageBox（chromeImport/index.ts 完成点内联，渲染层 antd message 退役）。
 //
 // 契约要点（confirmDestructive）：
 // - 载荷只带数据参数（kind + 插值用 name/count），标题/正文/按钮文案由主进程
@@ -46,6 +50,13 @@
 //   未分组）；重命名场景 submitted（name 为过守卫的新名）；cancelled 覆盖 Esc /
 //   关闭弹框 / 父窗缺失 / 建窗失败 / 二次请求被拒等全部未提交路径；移动与重命名
 //   执行仍由既有 workspaces:move-session / move-sessions-batch / rename 通道闭环
+// - 导入场景（2026-09-30 导入专项反馈轮原生化，用户反馈「模态框用原生框」）：两 kind
+//   复用同一 sheet 机制——select（profile 选择 + 内容勾选，上下文 profiles 由主进程
+//   探测现取）与 conflict（localStorage 冲突裁决，计数经 show 载荷数据参数回传）；
+//   pick 结论（chrome-import-picked / chrome-import-policy）由 renderer 编排
+//   chromeImport 域 dry-run/execute 通道闭环（确认与执行两段解耦同先例）；导入的
+//   结果/错误反馈改主进程 information 型 showMessageBox（chromeImport/index.ts 完成
+//   点内联弹出，渲染层 antd message 退役）
 // - 模态子窗口度量常量（与 WorkspacePickerWindow 组件、app.css、主进程建窗
 //   高度计算同源配对，omniboxSuggest 度量常量先例）
 
@@ -98,10 +109,16 @@ export const WORKSPACE_PICKER_WINDOW_ROLE = 'workspace-picker'
 /**
  * 模态框场景白名单（kind，主进程 switch 分支组装上下文；2026-09-21 二次增量扩
  * workspace-rename——重命名输入复用同一 sheet 机制，类型/通道/角色命名保持 Picker
- * 家族不改，语义扩围以头注与本注为准）
+ * 家族不改，语义扩围以头注与本注为准；2026-09-30 导入专项反馈轮扩 chrome-import-select /
+ * chrome-import-conflict——「导入 Chrome 数据」选择与冲突裁决由同一原生 sheet 承载，
+ * 替代渲染层 antd Modal 版 ImportChromeDialog（用户反馈：模态框用原生框））
  */
 export type WorkspacePickerKind =
-  'workspace-move-single' | 'workspace-move-batch' | 'workspace-rename'
+  | 'workspace-move-single'
+  | 'workspace-move-batch'
+  | 'workspace-rename'
+  | 'chrome-import-select'
+  | 'chrome-import-conflict'
 
 /** show 通道载荷：只带数据参数——single 必填 sessionId、batch 必填非空 ids、rename 必填 workspaceId（守卫强制；各 kind 禁传彼此的数据参数） */
 export interface ShowWorkspacePickerPayload {
@@ -112,17 +129,28 @@ export interface ShowWorkspacePickerPayload {
   ids?: string[]
   /** 重命名的目标工作区 id（workspace-rename 必填，须过 WORKSPACE_ID_RE；现名由主进程从快照现取，渲染层不传名） */
   workspaceId?: string
+  /**
+   * chrome-import-conflict 必填（须为 ≥0 整数，渲染层不传整单拒绝）：localStorage
+   * 冲突键数与涉及站点数（dry-run 实测值经 renderer 原样回传，sheet 副行插值展示）；
+   * chrome-import-select 禁传
+   */
+  keys?: number
+  origins?: number
 }
 
 /**
  * show 通道返回值（亦即模态框的最终结论）：picked 携带用户点选的目标工作区 id
  * （null = 移出未分组，仅选择场景）；submitted 携带过主进程守卫的新名（仅重命名
- * 场景）；cancelled 覆盖 Esc / 关闭弹框 / 父窗缺失 / 建窗失败 / 目标已消失 /
+ * 场景）；chrome-import-picked 携带所选 profile 目录与内容勾选（仅导入选择场景，
+ * scopes 经主进程闭集守卫重排）；chrome-import-policy 携带冲突裁决结论（仅导入
+ * 冲突场景）；cancelled 覆盖 Esc / 关闭弹框 / 父窗缺失 / 建窗失败 / 目标已消失 /
  * 二次请求被拒等全部未提交路径
  */
 export type WorkspacePickerResult =
   | { status: 'picked'; workspaceId: string | null }
   | { status: 'submitted'; name: string }
+  | { status: 'chrome-import-picked'; profileDir: string; scopes: ChromeImportScope[] }
+  | { status: 'chrome-import-policy'; policy: ChromeImportPolicy }
   | { status: 'cancelled' }
 
 /** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点）；batch 场景含全部工作区 */
@@ -154,6 +182,18 @@ export interface WorkspacePickerContext {
   showMoveOut: boolean
   /** 重命名场景：预填的当前名称（主进程从权威快照现取）；选择场景缺省 */
   currentName?: string
+  /**
+   * chrome-import-select：profile 枚举（dir + Local State 显示名，主进程现取）与
+   * 探测结论（false = 未检测到 Chrome，sheet 呈提示 + 仅取消钮）；其余 kind 不使用
+   */
+  chromeDetected?: boolean
+  chromeProfiles?: ChromeProfileInfo[]
+  /**
+   * chrome-import-conflict：冲突摘要（dry-run 实测值，主进程经 show 载荷守卫后
+   * 原样组装，sheet 副行插值展示）；其余 kind 不使用
+   */
+  chromeConflictKeys?: number
+  chromeConflictOrigins?: number
 }
 
 /**
@@ -169,6 +209,12 @@ export interface WorkspacePickerPickPayload {
   workspaceId?: string | null
   /** 重命名场景必填：新名称；选择场景禁传（主进程按 pending kind 分流校验） */
   name?: string
+  /** chrome-import-select 必填：所选 profile 目录（须出自 pending 上下文枚举）；其余 kind 禁传 */
+  profileDir?: string
+  /** chrome-import-select 必填非空：内容勾选（scopes 字符串经主进程闭集守卫重排）；其余 kind 禁传 */
+  scopes?: string[]
+  /** chrome-import-conflict 必填：冲突裁决结论；其余 kind 禁传 */
+  policy?: string
 }
 
 /**
@@ -182,7 +228,12 @@ export interface WorkspacePickerPickPayload {
  * 本体；列表区除上内距与行间距外禁任何纵向增量，否则与公式失配。
  * 重命名场景高度 = 头部（与单条同解剖，复用 SINGLE 档）+ 表单间距 + 输入行高 +
  * 表单间距 + 按钮行高（2026-09-21 重命名增量，输入行/按钮行样式见 app.css
- * picker-form 段）
+ * picker-form 段）。
+ * 导入场景（2026-09-30 导入专项反馈轮原生化）：select = 头部 + label 行 + 表单间距
+ * + profile 下拉行（RENAME_INPUT_HEIGHT 同款）+ 表单间距 + 勾选行×2（SCOPES_GAP
+ * 间距）+ 表单间距 + 按钮行；notDetected = 头部 + 空态句；conflict = 头部 + 冲突
+ * 标题 + 副行间距 + 描述（两行封顶）+ 表单间距 + 单选×2 + 表单间距 + 按钮行——
+ * 页面样式 .picker-label/.picker-check/.picker-conflict 系与此公式同源配对
  */
 export const PICKER_WINDOW_WIDTH = 360
 export const PICKER_ROW_HEIGHT = 40
@@ -195,18 +246,49 @@ export const PICKER_EMPTY_HEIGHT = 48
 export const RENAME_FORM_GAP = 12
 export const RENAME_INPUT_HEIGHT = 36
 export const RENAME_FOOT_HEIGHT = 32
+export const CHROME_IMPORT_LABEL_HEIGHT = 20
+export const CHROME_IMPORT_TITLE_HEIGHT = 20
+export const CHROME_IMPORT_DESC_HEIGHT = 40
+export const CHROME_IMPORT_RADIO_HEIGHT = 28
+export const CHROME_IMPORT_SCOPE_HEIGHT = 28
+export const CHROME_IMPORT_SCOPES_GAP = 8
 
 /** 由上下文合成窗口内容高度（主进程建窗用；与上述常量同源，公式变更只改此处） */
-export function pickerWindowHeight(context: {
-  kind: WorkspacePickerKind
-  options: WorkspacePickerOption[]
-  showMoveOut: boolean
-}): number {
+export function pickerWindowHeight(context: WorkspacePickerContext): number {
   if (context.kind === 'workspace-rename') {
     return (
       PICKER_HEADER_HEIGHT_SINGLE +
       RENAME_FORM_GAP +
       RENAME_INPUT_HEIGHT +
+      RENAME_FORM_GAP +
+      RENAME_FOOT_HEIGHT
+    )
+  }
+  if (context.kind === 'chrome-import-select') {
+    if (!context.chromeDetected) return PICKER_HEADER_HEIGHT_SINGLE + PICKER_EMPTY_HEIGHT
+    return (
+      PICKER_HEADER_HEIGHT_SINGLE +
+      CHROME_IMPORT_LABEL_HEIGHT +
+      RENAME_FORM_GAP +
+      RENAME_INPUT_HEIGHT +
+      RENAME_FORM_GAP +
+      CHROME_IMPORT_SCOPE_HEIGHT +
+      CHROME_IMPORT_SCOPES_GAP +
+      CHROME_IMPORT_SCOPE_HEIGHT +
+      RENAME_FORM_GAP +
+      RENAME_FOOT_HEIGHT
+    )
+  }
+  if (context.kind === 'chrome-import-conflict') {
+    return (
+      PICKER_HEADER_HEIGHT_SINGLE +
+      CHROME_IMPORT_TITLE_HEIGHT +
+      CHROME_IMPORT_SCOPES_GAP +
+      CHROME_IMPORT_DESC_HEIGHT +
+      RENAME_FORM_GAP +
+      CHROME_IMPORT_RADIO_HEIGHT +
+      CHROME_IMPORT_SCOPES_GAP +
+      CHROME_IMPORT_RADIO_HEIGHT +
       RENAME_FORM_GAP +
       RENAME_FOOT_HEIGHT
     )

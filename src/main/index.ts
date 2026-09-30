@@ -462,7 +462,8 @@ app.whenReady().then(async () => {
   //（partitionFor/partitionDir 守卫不旁路），暂存与单飞在模块内自持
   registerChromeImportIpc({
     registry: created,
-    getPartitionDir: (sessionId) => created.getPartitionDir(sessionId)
+    getPartitionDir: (sessionId) => created.getPartitionDir(sessionId),
+    getMainWindow: () => mainWindow
   })
   // 破坏性确认框（PRD 4.10）：删除会话/批量关闭/删除工作区的二次确认弹主进程原生
   // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/

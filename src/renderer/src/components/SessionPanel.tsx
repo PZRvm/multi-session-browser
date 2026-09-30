@@ -10,14 +10,14 @@ import {
 import AppearanceEntry from './AppearanceEntry'
 import CollapsedRail from './CollapsedRail'
 import CountTiles from './CountTiles'
-import { windowTrafficControls } from '../stores/browser'
+import { windowTrafficControls, useBrowserStore } from '../stores/browser'
 import SessionRow from './SessionRow'
-import ImportChromeDialog from './ImportChromeDialog'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
 import { confirmDestructive, showWorkspacePicker } from '../dialogs'
 import { WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../../../shared/sessions'
+import type { ChromeImportPolicy } from '../../../shared/chromeImport'
 import { THEME_SYSTEMS } from '../../../shared/themeSystems'
 import { useAppearanceStore } from '../stores/appearance'
 import { useSessionsStore } from '../stores/sessions'
@@ -52,6 +52,7 @@ function SessionPanel({
   const moveSessionsToWorkspace = useSessionsStore((s) => s.moveSessionsToWorkspace)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
+  const refetchHistory = useBrowserStore((s) => s.refetchHistory)
   const { message } = App.useApp()
 
   // 批量模式与克隆反馈均为面板本地 UI 态（不进 store、不进主进程）：
@@ -63,9 +64,6 @@ function SessionPanel({
   // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
   const [urlInvalid, setUrlInvalid] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
-  // 导入 Chrome 数据目标会话（导入专项 2026-09-30）：非空即条件挂载 ImportChromeDialog
-  //（对话框状态随卸载自然复位）；入口 = 会话行右键/⋮ 菜单
-  const [importTarget, setImportTarget] = useState<SessionItem | null>(null)
   // 批量移动板脚反馈条（2026-09-17 增量）：反馈为面板本地 UI 态——成功次墨
   // ~2.4s 淡出、失败 danger 持续至下一次操作（对齐打开测试地址失败不静默惯例）。
   // 弹层本体已于 2026-09-21 迁主进程模态子窗口（原生 sheet，PRD 4.11），不再有
@@ -229,10 +227,49 @@ function SessionPanel({
     }
   }
 
-  // 导入对话框打开（antd Modal 为 portal 渲染层弹层，非窗口模态——无需
-  // useDeferredMenuAction 延迟；overlay 登记由对话框内 useOverlayWhenOpen 承担）
+  // 导入 Chrome 数据编排（反馈轮原生化）：结论经原生 sheet（picker 通道）两段闭环——
+  // select（profile + 勾选）→ dry-run → 无冲突直接 execute；有冲突二次弹 conflict
+  // sheet 裁决 → execute。结果/错误的原生框由主进程完成点弹出（chromeImport/index.ts
+  // 内联 showMessageBox），此处只消化拒绝与驱动历史镜像重拉。确认与执行两段解耦同
+  // showWorkspacePicker 先例（移动/重命名的执行均走既有通道）
   const openImportChrome = (session: SessionItem): void => {
-    setImportTarget(session)
+    void (async () => {
+      const picked = await showWorkspacePicker({
+        kind: 'chrome-import-select',
+        sessionId: session.id
+      })
+      if (picked.status !== 'chrome-import-picked') return
+      try {
+        const plan = await window.api.chromeImport.dryRun({
+          sessionId: session.id,
+          profileDir: picked.profileDir,
+          scopes: picked.scopes
+        })
+        const lsPlan = plan.scopes.find((item) => item.scope === 'localStorage')
+        let policy: ChromeImportPolicy = 'session'
+        if (lsPlan !== undefined && lsPlan.conflictKeys > 0) {
+          const verdict = await showWorkspacePicker({
+            kind: 'chrome-import-conflict',
+            sessionId: session.id,
+            keys: lsPlan.conflictKeys,
+            origins: lsPlan.conflictOrigins
+          })
+          if (verdict.status !== 'chrome-import-policy') return
+          policy = verdict.policy
+        }
+        const result = await window.api.chromeImport.execute({
+          planId: plan.planId,
+          localStoragePolicy: policy
+        })
+        // 导入不经 recordVisit 链路（无逐条推送），完成后重拉镜像使建议即时可用；
+        // 原生结果框已由主进程弹出
+        if (result.results.some((item) => item.scope === 'history' && item.status === 'done')) {
+          refetchHistory()
+        }
+      } catch {
+        // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝
+      }
+    })()
   }
 
   const openUrlModal = (): void => {
@@ -587,9 +624,6 @@ function SessionPanel({
         />
         {urlInvalid && <p className="batch-url-invalid">{t('sessions.urlModal.invalid')}</p>}
       </Modal>
-      {importTarget !== null && (
-        <ImportChromeDialog session={importTarget} onClose={() => setImportTarget(null)} />
-      )}
     </ConfigProvider>
   )
 }

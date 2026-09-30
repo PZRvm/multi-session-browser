@@ -7,7 +7,7 @@
 // 全部通道 invoke 零推送；载荷跨 IPC 边界一律先过运行时守卫（profileDir 白名单 =
 // 探测枚举成员 + 路径分隔符拒绝的纵深防御）。同会话在途 dry-run/execute 单飞拒绝。
 
-import { ipcMain } from 'electron'
+import { dialog, ipcMain } from 'electron'
 import { randomUUID } from 'crypto'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -156,6 +156,8 @@ function previewHistoryMerge(
 export function registerChromeImportIpc(deps: {
   registry: SessionBrowserRegistry
   getPartitionDir: (sessionId: string) => string
+  /** 主窗口解析（导入结果/错误的原生 information 框宿主，反馈轮改原生——渲染层 antd message 退役） */
+  getMainWindow: () => import('electron').BrowserWindow | null
 }): void {
   // list-profiles：探测现取（毫秒级 fs 操作）；失败上抛（renderer 显示检测失败）
   ipcMain.handle(CHROME_IMPORT_CHANNELS.listProfiles, async (): Promise<ChromeProfilesPayload> =>
@@ -218,6 +220,13 @@ export function registerChromeImportIpc(deps: {
             lsStats
           })
           return { planId, scopes: scopePlans }
+        } catch (error) {
+          // 失败原生框（反馈轮改原生）：错误文案如实弹出后原样 rethrow，renderer 编排只消化
+          showResultDialog(
+            deps.getMainWindow,
+            error instanceof Error ? error.message : String(error)
+          )
+          throw error
         } finally {
           inFlight.delete(options.sessionId)
         }
@@ -305,7 +314,15 @@ export function registerChromeImportIpc(deps: {
               conflictsResolved: 0
             })
           }
+          // 成功原生结果框（反馈轮改原生）：按 scope 汇总多行正文
+          showResultDialog(deps.getMainWindow, summarizeResults(results))
           return { results }
+        } catch (error) {
+          showResultDialog(
+            deps.getMainWindow,
+            error instanceof Error ? error.message : String(error)
+          )
+          throw error
         } finally {
           inFlight.delete(entry.sessionId)
         }
@@ -325,4 +342,54 @@ function failedResult(scope: ChromeImportScope, error: unknown): ChromeImportSco
     conflictsResolved: 0,
     error: error instanceof Error ? error.message : String(error)
   }
+}
+
+/** 按 scope 汇总导入结果为多行正文（主进程 t() 组装，随界面语言） */
+function summarizeResults(results: ChromeImportScopeResult[]): string {
+  const lines: string[] = []
+  for (const item of results) {
+    const name =
+      item.scope === 'history'
+        ? t('chromeImport.dialog.scopeHistory')
+        : t('chromeImport.dialog.scopeLocalStorage')
+    if (item.status === 'done') {
+      lines.push(
+        item.scope === 'history'
+          ? t('chromeImport.result.historyDone', { added: item.added, merged: item.merged })
+          : t('chromeImport.result.localStorageDone', {
+              added: item.added,
+              merged: item.merged,
+              conflicts: item.conflictsResolved
+            })
+      )
+    } else if (item.status === 'skipped') {
+      lines.push(t('chromeImport.result.skipped', { scope: name }))
+    } else {
+      lines.push(t('chromeImport.result.failed', { scope: name, error: item.error ?? '' }))
+    }
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 原生结果/错误框（导入专项反馈轮改原生，渲染层 antd message 退役）：information 型
+ * showMessageBox 单「好」钮、主窗窗口模态（主窗缺席静默跳过——macOS 关窗期间导入
+ * 流程本就不可达，防御面）
+ */
+function showResultDialog(
+  getMainWindow: () => import('electron').BrowserWindow | null,
+  body: string
+): void {
+  const win = getMainWindow()
+  if (!win || win.isDestroyed()) return
+  void dialog
+    .showMessageBox(win, {
+      type: 'info',
+      message: t('chromeImport.dialog.title'),
+      detail: body,
+      buttons: [t('common.confirm')],
+      noLink: true,
+      cancelId: 0
+    })
+    .catch(() => undefined)
 }

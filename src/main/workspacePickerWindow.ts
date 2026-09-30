@@ -30,7 +30,9 @@ import {
   type WorkspacePickerResult
 } from '../shared/dialog'
 import { SESSION_ID_RE, WORKSPACE_ID_RE, WORKSPACE_NAME_MAX } from '../shared/sessions'
+import { CHROME_IMPORT_POLICIES, CHROME_IMPORT_SCOPES } from '../shared/chromeImport'
 import { isRecord } from '../shared/guards'
+import { createChromeDetector, defaultChromeRootDir } from './browser/chromeImport/detect'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
 import { getCurrentLanguage, t } from './i18n'
@@ -46,8 +48,13 @@ const PICKER_IDS_MAX = 100_000
 const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'workspace-move-single',
   'workspace-move-batch',
-  'workspace-rename'
+  'workspace-rename',
+  'chrome-import-select',
+  'chrome-import-conflict'
 ]
+
+/** Chrome profile 探测（导入专项反馈轮原生化：sheet 上下文的 profiles 现取单例，全程只读） */
+const chromeDetector = createChromeDetector({ getRootDir: defaultChromeRootDir })
 
 function isPickerKind(value: string): value is WorkspacePickerKind {
   return (PICKER_KINDS as readonly string[]).includes(value)
@@ -79,6 +86,30 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
   const kind = payload.kind
   if (typeof kind !== 'string' || !isPickerKind(kind)) {
     throw invalidParams()
+  }
+  if (kind === 'chrome-import-select' || kind === 'chrome-import-conflict') {
+    // 导入两 kind：sessionId 必填过格式单源；select 禁传冲突计数、conflict 必填
+    // 非负整数计数（dry-run 实测值原样回传，sheet 副行插值展示——审查载荷防御口径）
+    if (payload.ids !== undefined || payload.workspaceId !== undefined) throw invalidParams()
+    const sessionId = payload.sessionId
+    if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
+    if (kind === 'chrome-import-select') {
+      if (payload.keys !== undefined || payload.origins !== undefined) throw invalidParams()
+      return { kind, sessionId }
+    }
+    const keys = payload.keys
+    const origins = payload.origins
+    if (
+      typeof keys !== 'number' ||
+      !Number.isInteger(keys) ||
+      keys < 0 ||
+      typeof origins !== 'number' ||
+      !Number.isInteger(origins) ||
+      origins < 0
+    ) {
+      throw invalidParams()
+    }
+    return { kind, sessionId, keys, origins }
   }
   if (kind === 'workspace-move-single') {
     if (payload.ids !== undefined || payload.workspaceId !== undefined) throw invalidParams()
@@ -120,6 +151,33 @@ async function buildContext(
   requestId: string
 ): Promise<WorkspacePickerContext | null> {
   const snapshot = await loadSnapshot()
+  if (request.kind === 'chrome-import-select' || request.kind === 'chrome-import-conflict') {
+    // 目标会话存在性现取（弹层窗口期内被并发删除返回 null 交由调用方按取消收敛，
+    // 与 rename 目标消失同口径）；select 态 profiles 由探测现取（只读，毫秒级）
+    const session = snapshot.sessions.find((s) => s.id === request.sessionId)
+    if (!session) return null
+    if (request.kind === 'chrome-import-select') {
+      const { detected, profiles } = await chromeDetector.listProfiles()
+      return {
+        requestId,
+        kind: request.kind,
+        sessionName: session.name,
+        chromeDetected: detected,
+        chromeProfiles: profiles,
+        options: [],
+        showMoveOut: false
+      }
+    }
+    return {
+      requestId,
+      kind: request.kind,
+      sessionName: session.name,
+      chromeConflictKeys: request.keys,
+      chromeConflictOrigins: request.origins,
+      options: [],
+      showMoveOut: false
+    }
+  }
   if (request.kind === 'workspace-rename') {
     const workspace = snapshot.workspaces.find((w) => w.id === request.workspaceId)
     if (!workspace) return null
@@ -263,6 +321,38 @@ export function registerWorkspacePickerIpc(deps: {
         return { ok: true }
       }
       result = { status: 'submitted', name }
+    } else if (pending.context?.kind === 'chrome-import-select') {
+      if (payload.workspaceId !== undefined || payload.policy !== undefined) throw invalidParams()
+      const profileDir = payload.profileDir
+      if (typeof profileDir !== 'string' || profileDir.trim() === '') throw invalidParams()
+      if (
+        !Array.isArray(payload.scopes) ||
+        payload.scopes.length === 0 ||
+        !payload.scopes.every((item) => typeof item === 'string')
+      ) {
+        throw invalidParams()
+      }
+      // scopes 闭集守卫重排（跨 IPC 载荷不可信任，白名单外静默剔除）
+      const selected = new Set<string>(payload.scopes as string[])
+      const scopes = CHROME_IMPORT_SCOPES.filter((scope) => selected.has(scope))
+      if (scopes.length === 0) throw invalidParams()
+      result = { status: 'chrome-import-picked', profileDir: profileDir.trim(), scopes }
+    } else if (pending.context?.kind === 'chrome-import-conflict') {
+      if (payload.workspaceId !== undefined || payload.profileDir !== undefined) {
+        throw invalidParams()
+      }
+      if (payload.scopes !== undefined) throw invalidParams()
+      const policy = payload.policy
+      if (
+        typeof policy !== 'string' ||
+        !(CHROME_IMPORT_POLICIES as readonly string[]).includes(policy)
+      ) {
+        throw invalidParams()
+      }
+      result = {
+        status: 'chrome-import-policy',
+        policy: policy as (typeof CHROME_IMPORT_POLICIES)[number]
+      }
     } else {
       const wid = payload.workspaceId
       if (wid === undefined || (wid !== null && typeof wid !== 'string')) throw invalidParams()
@@ -309,7 +399,9 @@ function openSheet(
     title:
       context.kind === 'workspace-rename'
         ? t('sessions.workspaceSwitcher.renameModalTitle')
-        : t('sessions.batchBar.moveToWorkspace'),
+        : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
+          ? t('chromeImport.dialog.title')
+          : t('sessions.batchBar.moveToWorkspace'),
     autoHideMenuBar: true,
     ...(process.platform === 'darwin' ? { frame: false as const } : {}),
     backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme(), deps.getThemeColor()),

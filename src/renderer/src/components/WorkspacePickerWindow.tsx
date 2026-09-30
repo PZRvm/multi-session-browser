@@ -6,6 +6,7 @@ import {
   PICKER_ROW_HEIGHT,
   type WorkspacePickerContext
 } from '../../../shared/dialog'
+import type { ChromeImportPolicy, ChromeImportScope } from '../../../shared/chromeImport'
 import { WORKSPACE_NAME_MAX } from '../../../shared/sessions'
 import { useT } from '../i18n'
 
@@ -30,6 +31,10 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   const [loadFailed, setLoadFailed] = useState(false)
   // 重命名草稿（预填现名，上下文到位时初始化；纯 sheet 本地瞬态）
   const [draft, setDraft] = useState('')
+  // 导入场景草稿（2026-09-30 反馈轮原生化；profile 默认取枚举首个，上下文到位时同点初始化）
+  const [profileDir, setProfileDir] = useState('')
+  const [scopesDraft, setScopesDraft] = useState<ChromeImportScope[]>(['history', 'localStorage'])
+  const [policyDraft, setPolicyDraft] = useState<ChromeImportPolicy>('chrome')
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -44,6 +49,9 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
         if (payload) {
           setContext(payload)
           if (payload.currentName !== undefined) setDraft(payload.currentName)
+          if (payload.chromeProfiles !== undefined) {
+            setProfileDir(payload.chromeProfiles[0]?.dir ?? '')
+          }
         } else {
           setLoadFailed(true)
         }
@@ -89,6 +97,31 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       .catch(() => undefined)
   }
 
+  // 导入选择提交（chrome-import-select）：profile + 内容勾选整包回传，主进程闭集
+  // 守卫后关窗收敛 chrome-import-picked；勾选空为 UI 面禁提交
+  const submitImport = (): void => {
+    if (!context || profileDir === '' || scopesDraft.length === 0) return
+    void window.api.dialog
+      .workspacePickerPick({ requestId: context.requestId, profileDir, scopes: scopesDraft })
+      .catch(() => undefined)
+  }
+
+  // 导入冲突裁决提交（chrome-import-conflict）：policy 回传，主进程收敛 chrome-import-policy
+  const submitPolicy = (): void => {
+    if (!context) return
+    void window.api.dialog
+      .workspacePickerPick({ requestId: context.requestId, policy: policyDraft })
+      .catch(() => undefined)
+  }
+
+  const toggleScope = (scope: ChromeImportScope, checked: boolean): void => {
+    setScopesDraft((prev) =>
+      checked
+        ? [...prev.filter((item) => item !== scope), scope].sort()
+        : prev.filter((item) => item !== scope)
+    )
+  }
+
   // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）；输入框聚焦态同样取消
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent): void => {
@@ -121,10 +154,137 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   const title = context
     ? isRename
       ? t('sessions.workspaceSwitcher.renameModalTitle')
-      : context.kind === 'workspace-move-single'
-        ? t('sessions.moveModal.title', { name: context.sessionName ?? '' })
-        : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
+      : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
+        ? t('chromeImport.dialog.title')
+        : context.kind === 'workspace-move-single'
+          ? t('sessions.moveModal.title', { name: context.sessionName ?? '' })
+          : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
     : t('sessions.moveModal.titleFallback')
+
+  // 导入选择形态（chrome-import-select）：profile 下拉 + 内容勾选 + 导入/取消；未
+  // 检测到 Chrome 呈提示 + 仅取消钮（5.2 交互定案）。度量与 CHROME_IMPORT_* 常量同源
+  if (context?.kind === 'chrome-import-select') {
+    const detected = context.chromeDetected ?? false
+    return (
+      <div className="picker-body" role="dialog" aria-label={title}>
+        <header className="picker-head">
+          <h1 className="picker-title">{title}</h1>
+        </header>
+        {detected ? (
+          <div className="picker-form">
+            <label className="picker-label" htmlFor="chrome-import-profile">
+              {t('chromeImport.dialog.profileLabel')}
+            </label>
+            <select
+              id="chrome-import-profile"
+              className="picker-input"
+              value={profileDir}
+              onChange={(e) => setProfileDir(e.target.value)}
+            >
+              {(context.chromeProfiles ?? []).map((profile) => (
+                <option key={profile.dir} value={profile.dir}>
+                  {profile.dir === profile.name
+                    ? profile.name
+                    : `${profile.name}（${profile.dir}）`}
+                </option>
+              ))}
+            </select>
+            <div className="picker-check-row">
+              <label className="picker-check">
+                <input
+                  type="checkbox"
+                  checked={scopesDraft.includes('history')}
+                  onChange={(e) => toggleScope('history', e.target.checked)}
+                />
+                {t('chromeImport.dialog.scopeHistory')}
+              </label>
+              <label className="picker-check">
+                <input
+                  type="checkbox"
+                  checked={scopesDraft.includes('localStorage')}
+                  onChange={(e) => toggleScope('localStorage', e.target.checked)}
+                />
+                {t('chromeImport.dialog.scopeLocalStorage')}
+              </label>
+            </div>
+            <div className="picker-foot">
+              <button type="button" className="picker-btn" onClick={() => window.close()}>
+                {t('chromeImport.dialog.cancelBtn')}
+              </button>
+              <button
+                type="button"
+                className="picker-btn picker-btn-primary"
+                disabled={scopesDraft.length === 0}
+                onClick={submitImport}
+              >
+                {t('chromeImport.dialog.importBtn')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="picker-form">
+            <p className="picker-empty">{t('chromeImport.dialog.notDetected')}</p>
+            <div className="picker-foot">
+              <button type="button" className="picker-btn" onClick={() => window.close()}>
+                {t('chromeImport.dialog.cancelBtn')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 导入冲突裁决形态（chrome-import-conflict）：冲突摘要插值 + 会话级一次二选一
+  if (context?.kind === 'chrome-import-conflict') {
+    return (
+      <div className="picker-body" role="dialog" aria-label={title}>
+        <header className="picker-head">
+          <h1 className="picker-title">{t('chromeImport.conflict.title')}</h1>
+          <p className="picker-conflict-desc">
+            {t('chromeImport.conflict.desc', {
+              keys: context.chromeConflictKeys ?? 0,
+              origins: context.chromeConflictOrigins ?? 0
+            })}
+          </p>
+        </header>
+        <div className="picker-form">
+          <div
+            className="picker-check-row"
+            role="radiogroup"
+            aria-label={t('chromeImport.conflict.title')}
+          >
+            <label className="picker-check">
+              <input
+                type="radio"
+                name="chrome-import-policy"
+                checked={policyDraft === 'chrome'}
+                onChange={() => setPolicyDraft('chrome')}
+              />
+              {t('chromeImport.conflict.useChrome')}
+            </label>
+            <label className="picker-check">
+              <input
+                type="radio"
+                name="chrome-import-policy"
+                checked={policyDraft === 'session'}
+                onChange={() => setPolicyDraft('session')}
+              />
+              {t('chromeImport.conflict.useSession')}
+            </label>
+          </div>
+          <div className="picker-foot">
+            <button type="button" className="picker-btn" onClick={() => window.close()}>
+              {t('chromeImport.dialog.cancelBtn')}
+            </button>
+            <button type="button" className="picker-btn picker-btn-primary" onClick={submitPolicy}>
+              {t('chromeImport.conflict.confirmBtn')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // 重命名形态：头部 + 输入行 + 按钮行（度量常量与 app.css picker-form 段同源配对）
   if (isRename) {

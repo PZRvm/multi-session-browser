@@ -230,9 +230,9 @@ function SessionRow({
     } else if (key === 'move') {
       deferWhileMenuCloses(() => onMove(session))
     } else if (key === 'importChrome') {
-      // antd Modal 是 portal 渲染层弹层（非窗口模态），不冻结菜单关闭动画——直接
-      // 打开无需 useDeferredMenuAction 延迟（移动 sheet 的窗口模态才有该问题）
-      onImportChrome(session)
+      // 原生 sheet 为窗口模态（反馈轮原生化），挂出会冻结菜单关闭动画——统一延迟
+      // 先例（onMove 同款），宿主卸载时取消未触发动作
+      deferWhileMenuCloses(() => onImportChrome(session))
     } else if (key === 'delete') {
       // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，
       // 弹框期间页面视图保持可见且内容原样——不经 overlay 悬挂登记收起右区
