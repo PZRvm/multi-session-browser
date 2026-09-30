@@ -33,6 +33,7 @@ import {
 } from './settings'
 import { registerFactoryResetIpc } from './factoryReset'
 import { registerShellIpc } from './shell'
+import { registerChromeImportIpc } from './browser/chromeImport'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
@@ -455,6 +456,13 @@ app.whenReady().then(async () => {
     },
     // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
     onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url)
+  })
+  // Chrome 浏览数据导入（导入专项 20260930133553 步骤 5）：枚举 profile / dry-run 只读
+  // 探测并暂存 / execute 经 registry 静默窗口写入目标分区；分区路径取自 registry 单源
+  //（partitionFor/partitionDir 守卫不旁路），暂存与单飞在模块内自持
+  registerChromeImportIpc({
+    registry: created,
+    getPartitionDir: (sessionId) => created.getPartitionDir(sessionId)
   })
   // 破坏性确认框（PRD 4.10）：删除会话/批量关闭/删除工作区的二次确认弹主进程原生
   // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/

@@ -142,6 +142,16 @@ export interface SessionBrowserRegistry extends TabManager {
   closeSession(id: string): Promise<void>
   /** 克隆分区目录（先 closeSession 源，再排除缓存目录递归复制）；源目录不存在时跳过复制（空白环境） */
   clonePartition(srcId: string, dstId: string): Promise<void>
+  /**
+   * 导入静默窗口（Chrome 导入专项，计划 20260930133553 第 3 节契约点 4）：会话计入
+   * importingIds（窗口期 switchSession/批量打开/销毁/克隆一律拒绝——同 cloningIds 先例）
+   * 并 closeSession 收尾活库，task 在静默分区上执行；完成后释放守卫，进入窗口时是激活
+   * 会话的（closeSession 已摘 view 置空激活标记）重建恢复画面（clonePartition 失败恢复
+   * 的 switchSession 先例同款）。克隆窗口期/并发重复导入一律拒绝
+   */
+  runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T>
+  /** 分区落盘目录解析（chromeImport 编排写 LS 用）：partitionDir 单源与读入口守卫不旁路 */
+  getPartitionDir(id: string): string
   /** 批量打开测试地址：逐会话懒创建 manager 并新建 Tab 加载；后台会话摘 view 保活后台加载 */
   openUrlInSessions(ids: string[], url: string): void
   /** 启动恢复：读盘缓存各会话 lastUrl，恢复上次激活会话并重载其上次打开页 */
@@ -252,6 +262,12 @@ export function createSessionBrowserRegistry(deps: {
    * 防复制落盘期间被提前懒创建
    */
   const cloningIds = new Set<string>()
+  /**
+   * 导入静默窗口占用（Chrome 导入专项）：runImportQuiesced 进入/退出，语义同 cloningIds
+   * ——窗口期对守卫入口（switch/openUrlInSessions/destroy/clonePartition）拒绝触达该会话，
+   * 防导入写分区落盘期间重建 manager（活库）产生脏写
+   */
+  const importingIds = new Set<string>()
   /**
    * 待补载集合（R1 定案）：ensureManager 安排了"缓存未命中现读补载"的会话 id。
    * 补载 .then 的守卫语义见 ensureManager 内注释（L4 修订后含批量打开叠加径）
@@ -517,6 +533,11 @@ export function createSessionBrowserRegistry(deps: {
     // 克隆窗口期守卫：源/目标分区正被复制，中途激活会重建源 manager 使副本落入活库
     // （renderer 该行有「克隆中…」反馈；数秒窗口后 clone 收尾的 setActive 接管画面）
     if (id !== null && cloningIds.has(id)) return
+    // 导入静默窗口守卫：分区正被写入导入数据，激活会重建 manager（活库），与克隆同理由拒绝
+    if (id !== null && importingIds.has(id)) {
+      console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次切换请求已跳过`)
+      return
+    }
     // ① 摘除旧激活 manager 的激活 view：webContents 全部保活（Tab、滚动、登录态原样保留），
     //    切回时由 attachToWindow 按其缓存矩形重挂。摘除前先退出 HTML 全屏引发的窗口
     //    OS 全屏态（槽位在 = 窗口全屏源于网页全屏而非用户自主全屏，退出不误伤）——
@@ -548,6 +569,11 @@ export function createSessionBrowserRegistry(deps: {
     // 如实告警后跳过（会话元数据已删，分区残留由克隆失败清理路径或人工处理）
     if (cloningIds.has(id)) {
       console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
+      return
+    }
+    // 导入静默窗口守卫：导入写分区中途销毁会让迁移/清数据与写入竞态（同克隆时序理由）
+    if (importingIds.has(id)) {
+      console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次销毁请求已跳过`)
       return
     }
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
@@ -647,12 +673,41 @@ export function createSessionBrowserRegistry(deps: {
   }
 
   /**
+   * 导入静默窗口（契约点 4）：closeSession 收尾活库的时序语义与克隆同源（库 journal
+   * 未落盘时直接动落盘会得到不一致副本）；task 抛错同样走 finally 释放守卫并恢复激活
+   * 画面——导入失败不得把浏览器区冻结在「有快照无视图」态（clonePartition 失败恢复先例）
+   */
+  async function runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T> {
+    if (cloningIds.has(id)) throw new Error(t('chromeImport.errors.busy'))
+    importingIds.add(id)
+    const wasActive = activeSessionId === id
+    try {
+      await closeSession(id)
+      return await task()
+    } finally {
+      importingIds.delete(id)
+      // 先出守卫再切换：switchSession 的导入窗口守卫不再拦自己（同 id no-op 判据在先，
+      // 无副作用路径）；恢复的是 closeSession 摘 view 前的画面状态
+      if (wasActive) switchSession(id)
+    }
+  }
+
+  /** 分区目录单源解析（chromeImport 编排取写入口径）：partitionFor/partitionDir 守卫不旁路 */
+  function getPartitionDir(id: string): string {
+    return partitionDir(partitionFor(id))
+  }
+
+  /**
    * 克隆分区目录（close-then-copy）：先 closeSession 源会话收尾活库，再递归复制分区目录
    * 到目标（排除缓存类目录，登录态与站点数据全量保真）。源目录不存在（从未激活过的会话）
    * 时跳过复制——产物为空白环境，克隆零异常边界。复制失败先清目标残留再上抛（handler 转
    * IPC 错误，元数据不落盘），残留路径如实告警不静默
    */
   async function clonePartition(srcId: string, dstId: string): Promise<void> {
+    // 导入静默窗口守卫：源/目标任一在导入中即拒绝（导入与克隆都在动分区落盘，并发必脏）
+    if (importingIds.has(srcId) || importingIds.has(dstId)) {
+      throw new Error(t('chromeImport.errors.busy'))
+    }
     cloningIds.add(srcId)
     cloningIds.add(dstId)
     // closeSession 会置空 activeSessionId（当源是激活会话）：失败恢复的判据须先行捕获
@@ -728,6 +783,12 @@ export function createSessionBrowserRegistry(deps: {
     for (const id of ids) {
       // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
       if (cloningIds.has(id)) continue
+      // 导入静默窗口守卫：写入中的分区不开 Tab。与克隆的静默跳过不同——批量打开是
+      // 显式用户动作，静默丢事件难排查，告警留痕
+      if (importingIds.has(id)) {
+        console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次批量打开已跳过`)
+        continue
+      }
       const existed = managers.has(id)
       const manager = ensureManager(id)
       if (!existed) {
@@ -1024,6 +1085,8 @@ export function createSessionBrowserRegistry(deps: {
     destroySession,
     closeSession,
     clonePartition,
+    runImportQuiesced,
+    getPartitionDir,
     openUrlInSessions,
     init,
     onSessionStatus,
