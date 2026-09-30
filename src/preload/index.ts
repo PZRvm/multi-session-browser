@@ -29,6 +29,14 @@ import type {
   OmniboxSuggestPickPayload,
   OmniboxSuggestShowPayload
 } from '../shared/omniboxSuggest'
+import { CHROME_IMPORT_CHANNELS } from '../shared/chromeImport'
+import type {
+  ChromeImportOptions,
+  ChromeImportPlan,
+  ChromeImportResolution,
+  ChromeImportResult,
+  ChromeProfilesPayload
+} from '../shared/chromeImport'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type {
   AppearanceSnapshot,
@@ -312,6 +320,17 @@ const api = {
         ipcRenderer.removeListener(OMNIBOX_SUGGEST_CHANNELS.picked, listener)
       }
     }
+  },
+  // Chrome 浏览数据导入（契约见 shared/chromeImport.ts）：枚举本机 Chrome profile、
+  // dry-run 只读探测（返回冲突摘要并暂存 planId）、execute 消费暂存真正写入目标会话
+  // 分区。全部 invoke 零推送；运行时守卫与暂存在主进程 chromeImport/index.ts
+  chromeImport: {
+    listProfiles: (): Promise<ChromeProfilesPayload> =>
+      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.listProfiles),
+    dryRun: (payload: ChromeImportOptions): Promise<ChromeImportPlan> =>
+      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.dryRun, payload),
+    execute: (payload: ChromeImportResolution): Promise<ChromeImportResult> =>
+      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.execute, payload)
   },
   // 设置域（契约见 shared/settings.ts）：板头齿轮请求主进程打开/聚焦单例设置窗口；
   // 应用菜单路径在主进程内直连不经此通道。阶段三并入关于信息两通道（get-app-info /

@@ -19,6 +19,13 @@ import type {
 import type { BrowserSnapshot } from '../shared/browser'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import type {
+  ChromeImportOptions,
+  ChromeImportPlan,
+  ChromeImportResolution,
+  ChromeImportResult,
+  ChromeProfilesPayload
+} from '../shared/chromeImport'
+import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
   OmniboxSuggestPickPayload,
@@ -139,6 +146,11 @@ declare global {
         onData(callback: (payload: OmniboxSuggestDataPayload) => void): () => void
         onHovered(callback: (payload: OmniboxSuggestHoverPayload) => void): () => void
         onPicked(callback: (payload: OmniboxSuggestPickPayload) => void): () => void
+      }
+      chromeImport: {
+        listProfiles(): Promise<ChromeProfilesPayload>
+        dryRun(payload: ChromeImportOptions): Promise<ChromeImportPlan>
+        execute(payload: ChromeImportResolution): Promise<ChromeImportResult>
       }
       settings: {
         open(): Promise<SettingsOkResult>
