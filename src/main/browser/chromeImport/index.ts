@@ -400,7 +400,8 @@ export function resolveDialogBody(error: unknown): string {
     t('chromeImport.errors.invalidParams'),
     t('chromeImport.errors.profileNotFound'),
     t('chromeImport.errors.failed'),
-    t('errors.sessionNotFound')
+    t('errors.sessionNotFound'),
+    t('errors.sessionBusy')
   ]
   return known.some((message) => raw.startsWith(message)) ? raw : t('chromeImport.errors.failed')
 }
