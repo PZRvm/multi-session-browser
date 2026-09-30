@@ -663,6 +663,32 @@ body[data-role='workspace-picker'] {
   border-color: var(--board-ink);
 }
 
+/* profile 下拉（导入 sheet，2026-09-30 反馈轮）：UA 箭头绘制在边框内缘不受
+   padding 约束（贴边即缺陷）——appearance none 后以 wrapper 内 border chevron
+   自绘（颜色走 board-ink-dim 变量随主题系/亮暗自动），定位 right 12px 与左内距
+   呼应；文字避让箭头留 32px 右内距 */
+.picker-select-wrap {
+  position: relative;
+}
+
+select.picker-input {
+  appearance: none;
+  width: 100%;
+  padding-right: 32px;
+}
+
+.picker-select-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--board-ink-dim);
+  border-bottom: 1.5px solid var(--board-ink-dim);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
 .picker-foot {
   flex: none;
   display: flex;

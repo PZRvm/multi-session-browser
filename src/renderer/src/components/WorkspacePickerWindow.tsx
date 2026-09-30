@@ -175,20 +175,23 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
             <label className="picker-label" htmlFor="chrome-import-profile">
               {t('chromeImport.dialog.profileLabel')}
             </label>
-            <select
-              id="chrome-import-profile"
-              className="picker-input"
-              value={profileDir}
-              onChange={(e) => setProfileDir(e.target.value)}
-            >
-              {(context.chromeProfiles ?? []).map((profile) => (
-                <option key={profile.dir} value={profile.dir}>
-                  {profile.dir === profile.name
-                    ? profile.name
-                    : `${profile.name}（${profile.dir}）`}
-                </option>
-              ))}
-            </select>
+            <div className="picker-select-wrap">
+              <select
+                id="chrome-import-profile"
+                className="picker-input"
+                value={profileDir}
+                onChange={(e) => setProfileDir(e.target.value)}
+              >
+                {(context.chromeProfiles ?? []).map((profile) => (
+                  <option key={profile.dir} value={profile.dir}>
+                    {profile.dir === profile.name
+                      ? profile.name
+                      : `${profile.name}（${profile.dir}）`}
+                  </option>
+                ))}
+              </select>
+              <span className="picker-select-chevron" aria-hidden />
+            </div>
             <div className="picker-check-row">
               <label className="picker-check">
                 <input

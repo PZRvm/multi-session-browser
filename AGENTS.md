@@ -42,6 +42,8 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 - 前端页面设计（新界面、布局与视觉改动、组件风格调整）必须使用 impeccable 技能进行：动手前先走 `$impeccable` 对应命令的流程（新界面用 new-work 路径，已有界面微调用 polish/critique 等 scoped 命令），不要绕过技能直接凭感觉写样式
 - 设计决策以 `PRODUCT.md` 的产品事实与设计原则为依据（纯中文界面、效率优先、Chrome 交互惯例）
+- **模态框一律原生，不写渲染层模态框**（2026-09-30 用户裁决）：破坏性确认与信息反馈走主进程 `dialog.showMessageBox`（PRD 4.10，src/main/dialogs.ts）；选择/输入类模态走主进程模态子窗口原生 sheet（PRD 4.11，src/main/workspacePickerWindow.ts，新场景扩 kind 复用同机制）。不新增渲染层 antd Modal / modal.confirm 作模态——既有唯一例外是「打开测试地址」输入弹层（PRD 4.10 明示保留），新功能不得仿照
+- **操作结果反馈（toast）一律原生提示框，不写渲染层 toast**（同裁决）：导入/导出/批量等动作的完成与失败反馈用主进程 information 型 `showMessageBox`（主进程动作完成点内联弹出，参考 src/main/browser/chromeImport/index.ts）；需要不打断的轻量进度提示可用板面反馈条（SessionPanel batchFeedback 先例，面板内 inline 非浮层）。不新增渲染层 antd message / notification 浮层作结果反馈
 
 ## 坑点
 
