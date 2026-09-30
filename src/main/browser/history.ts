@@ -322,11 +322,14 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
         let added = 0
         let merged = 0
         let changed = false
+        const addedUrls = new Set<string>()
+        const mergedUrls = new Set<string>()
         for (const entry of filtered) {
           const prev = map.get(entry.url)
           if (prev === undefined) {
             map.set(entry.url, { ...entry })
             added += 1
+            addedUrls.add(entry.url)
             changed = true
           } else {
             // 合并规则与 parseStored 同源：计数取大、时间取新、title/favicon 保留非空新值
@@ -347,13 +350,19 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
               changed = true
             }
             merged += 1
+            mergedUrls.add(entry.url)
           }
         }
-        // 超上限淘汰 lastVisitedAt 最旧（复用既有淘汰口径；仅新增才可能超限）
+        // 超上限淘汰 lastVisitedAt 最旧（复用既有淘汰口径；仅新增才可能超限）。
+        // 淘汰后再计数（审查低-6）：added/merged 只报实际留存的条目，与地址栏可见性一致
         if (map.size > HISTORY_MAX_ENTRIES) {
           const kept = new Map<string, HistoryEntry>()
           for (const entry of trimToLimit([...map.values()])) kept.set(entry.url, entry)
           sessions.set(sessionId, kept)
+          added = 0
+          merged = 0
+          for (const url of addedUrls) if (kept.has(url)) added += 1
+          for (const url of mergedUrls) if (kept.has(url)) merged += 1
         }
         // 无实际变化（如重复导入同一份 Chrome 数据）不安排写盘，避免无谓落盘
         if (changed) scheduleWrite(sessionId)

@@ -16,7 +16,6 @@ export const chromeImport = {
     scopeLocalStorage: 'localStorage（站点数据）',
     importBtn: '导入',
     cancelBtn: '取消',
-    importing: '导入中…',
     loadFailed: '检测失败'
   },
   /** localStorage 冲突裁决块（会话级一次二选一，调研报告 5.1 定稿） */
@@ -37,12 +36,10 @@ export const chromeImport = {
   },
   /** 主进程错误（chromeImport/index.ts 抛错文案，跨 IPC 上浮 renderer 显示） */
   errors: {
-    notDetected: '未检测到 Google Chrome',
     chromeLocked: 'Chrome 数据文件被占用，请关闭 Google Chrome 后重试',
     planExpired: '导入准备已过期，请重新发起导入',
     busy: '该会话正在导入中，请稍后再试',
     invalidParams: '导入参数非法',
-    profileNotFound: '所选 Chrome Profile 不存在',
-    failed: '导入失败，请重试'
+    profileNotFound: '所选 Chrome Profile 不存在'
   }
 }

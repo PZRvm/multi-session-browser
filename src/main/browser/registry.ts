@@ -687,8 +687,9 @@ export function createSessionBrowserRegistry(deps: {
     } finally {
       importingIds.delete(id)
       // 先出守卫再切换：switchSession 的导入窗口守卫不再拦自己（同 id no-op 判据在先，
-      // 无副作用路径）；恢复的是 closeSession 摘 view 前的画面状态
-      if (wasActive) switchSession(id)
+      // 无副作用路径）。仅当窗口期内无人接管激活位（用户切走了别的会话）才恢复导入
+      // 会话画面，不覆盖用户的后续切换（审查低-1）
+      if (wasActive && activeSessionId === null) switchSession(id)
     }
   }
 

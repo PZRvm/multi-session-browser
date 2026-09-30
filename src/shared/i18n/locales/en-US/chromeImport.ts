@@ -15,7 +15,6 @@ export const chromeImport: Dictionary['chromeImport'] = {
     scopeLocalStorage: 'localStorage (site data)',
     importBtn: 'Import',
     cancelBtn: 'Cancel',
-    importing: 'Importing…',
     loadFailed: 'Detection failed'
   },
   conflict: {
@@ -33,12 +32,10 @@ export const chromeImport: Dictionary['chromeImport'] = {
     failed: '{scope} import failed: {error}'
   },
   errors: {
-    notDetected: 'Google Chrome not found',
     chromeLocked: 'Chrome data files are locked. Quit Google Chrome and try again',
     planExpired: 'Import preparation expired. Start the import again',
     busy: 'This session is already importing. Try again later',
     invalidParams: 'Invalid import parameters',
-    profileNotFound: 'Selected Chrome profile not found',
-    failed: 'Import failed. Try again'
+    profileNotFound: 'Selected Chrome profile not found'
   }
 }

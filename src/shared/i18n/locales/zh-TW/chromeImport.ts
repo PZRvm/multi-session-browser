@@ -16,7 +16,6 @@ export const chromeImport: Dictionary['chromeImport'] = {
     scopeLocalStorage: 'localStorage（網站資料）',
     importBtn: '匯入',
     cancelBtn: '取消',
-    importing: '匯入中…',
     loadFailed: '偵測失敗'
   },
   conflict: {
@@ -34,12 +33,10 @@ export const chromeImport: Dictionary['chromeImport'] = {
     failed: '{scope} 匯入失敗：{error}'
   },
   errors: {
-    notDetected: '未偵測到 Google Chrome',
     chromeLocked: 'Chrome 資料檔案被佔用，請關閉 Google Chrome 後重試',
     planExpired: '匯入準備已過期，請重新發起匯入',
     busy: '該會話正在匯入中，請稍後再試',
     invalidParams: '匯入參數非法',
-    profileNotFound: '所選 Chrome Profile 不存在',
-    failed: '匯入失敗，請重試'
+    profileNotFound: '所選 Chrome Profile 不存在'
   }
 }

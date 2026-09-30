@@ -35,7 +35,14 @@ export function createChromeHistorySource(deps: {
         const dbPath = join(tempDir, 'History')
         // 主库必拷；伴随文件（回滚日志 / WAL）存在才拷——缺位只影响「拷贝瞬间恰有
         // 未提交事务」的少数场景，SQLite 校验和会自动忽略残帧，不影响只读快照
-        await copyWithLockGuard(join(profileDir, 'History'), dbPath, false)
+        try {
+          await copyWithLockGuard(join(profileDir, 'History'), dbPath, false)
+        } catch (err) {
+          // 主 History 缺失 = 该 profile 无历史（Guest Profile 等衍生目录形态）：
+          // 按空集口径如实返回，不拦同 profile 其他 scope 的导入（审查中-4）
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+          throw err
+        }
         for (const suffix of ['-journal', '-wal', '-shm']) {
           await copyWithLockGuard(
             join(profileDir, `History${suffix}`),
@@ -97,12 +104,16 @@ function toEntry(row: Record<string, unknown>): HistoryEntry | null {
     console.warn(`[chromeImport] 历史 URL 长度 ${url.length} 超上限 ${HISTORY_URL_MAX}，丢弃`)
     return null
   }
+  const lastVisitedAt = webkitToUnixMs(row.last_visit_time)
+  // 1601 纪元原始 0 / 损坏行换算为负 Unix 值：异常行整体丢弃（审查低-5——不伪造时间，
+  // 也不让「史上最旧」脏条目入库挤占 2000 条额度）
+  if (lastVisitedAt < 0) return null
   return {
     url,
     title: typeof row.title === 'string' ? row.title : '',
     faviconUrl: null,
     visitCount: normalizeCount(row.visit_count),
-    lastVisitedAt: webkitToUnixMs(row.last_visit_time)
+    lastVisitedAt
   }
 }
 

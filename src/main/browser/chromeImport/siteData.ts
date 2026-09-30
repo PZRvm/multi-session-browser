@@ -3,11 +3,12 @@
 // notes/think-report/20260930130104-导入Chrome浏览数据.md 单元 C，键三类：
 // `META:<origin>` / `METAACCESS:<origin>` / `_<origin>\x00\x01<key>`）。
 //
-// 【前置契约——调用方必须保证，本模块不自检】目标分区全程静默：无任何指向该分区的
-// webContents / 活动库写入（装配层经 registry.runImportQuiesced 进入：先收尾活库并
-// 拦截切换/克隆/批量/销毁）。Chrome 侧不直接打开原库——`Local Storage` 整目录拷贝到
-// 临时区后打开副本（LevelDB 日志回放保证崩溃一致，Chrome 运行中亦可读）；目标侧直接
-// 打开分区真实目录。
+// 【前置契约——调用方必须保证，本模块不自检】execute（写路径）要求目标分区静默：
+// 无任何指向该分区的 webContents / 活动库写入（装配层经 registry.runImportQuiesced
+// 进入：先收尾活库并拦截切换/克隆/批量/销毁）。Chrome 侧与 dry-run 的目标侧都不直接
+// 打开真实库——`Local Storage` 整目录拷贝到临时区后打开副本（LevelDB 日志回放保证
+// 崩溃一致，Chrome 运行中/分区活跃亦可读快照），dry-run 因此零触达分区真实库句柄、
+// 无需静默前置（审查中-1 修订：原实现直开分区库，处于静默窗口外且锁文案死路）。
 //
 // 值安全策略（把格式风险压到最低的关键）：所有值 Buffer 原样持有/拷贝，绝不解码或
 // 重编码（值首字节 0x00/0x01 是 Latin1/UTF-8 编码前缀，随字节保留）；记录键的切分与
@@ -365,20 +366,19 @@ export function createChromeSiteDataMerge(deps: { makeTempDir: () => Promise<str
           return { total: 0, added: 0, merged: 0, conflictKeys: 0, conflictOrigins: 0 }
         }
         const chromeOrigins = await readOriginRecords(chromeDb)
-        // 目标侧只读：目录不存在 = 空库口径（全新增零冲突）；存在才打开（绝不创建）。
-        // 打开/读取失败过一道锁类口径（分区静默契约下不该发生，发生即如实给中文文案）
+        // 目标侧同样整目录拷贝后开副本（审查中-1 修订）：活跃分区的库可能被 Chromium
+        // 持锁，直开会撞锁且锁文案死路；拷贝快照读零句柄触达、计数无撕裂。目录不存在
+        // = 空库口径（全新增零冲突）
         const targetLeveldb = join(partitionDir, 'Local Storage', 'leveldb')
         let targetOrigins = new Map<string, OriginRecords>()
         if (await pathExists(targetLeveldb)) {
+          const targetCopy = join(tempRoot, 'partition-ls')
+          await cp(targetLeveldb, targetCopy, { recursive: true })
+          const targetDb = await openLsDb(targetCopy, false)
           try {
-            const targetDb = await openLsDb(targetLeveldb, false)
-            try {
-              targetOrigins = await readOriginRecords(targetDb)
-            } finally {
-              await closeStrict(targetDb)
-            }
-          } catch (err) {
-            throw wrapLock(err)
+            targetOrigins = await readOriginRecords(targetDb)
+          } finally {
+            await closeStrict(targetDb)
           }
         }
         const plan = computeMergePlan(chromeOrigins, targetOrigins)

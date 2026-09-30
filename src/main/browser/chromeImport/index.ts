@@ -66,6 +66,17 @@ const inFlight = new Set<string>()
 function putStaged(entry: StagedImport): string {
   const planId = randomUUID()
   staged.set(planId, entry)
+  armStagedTimer(planId)
+  return planId
+}
+
+/** busy 拒绝时归还原 planId 的暂存并重挂 TTL（审查低-2）：拒绝不白耗一次探测 */
+function rearmStaged(planId: string, entry: StagedImport): void {
+  staged.set(planId, entry)
+  armStagedTimer(planId)
+}
+
+function armStagedTimer(planId: string): void {
   // TTL 到点整包作废；unref 防止退出被纯清理定时器拖住
   const timer = setTimeout(() => {
     stageTimers.delete(planId)
@@ -73,7 +84,6 @@ function putStaged(entry: StagedImport): string {
   }, STAGE_TTL_MS)
   timer.unref?.()
   stageTimers.set(planId, timer)
-  return planId
 }
 
 /** 取暂存（取出即销毁：一次 execute 消费一次探测）+ TTL 定时器同步清理；未知/过期一律同文案 */
@@ -89,12 +99,16 @@ function takeStaged(planId: string): StagedImport {
   return entry
 }
 
+/** 入参守卫统一错误（审查低-4 收敛两处同形闭包）：i18n 中文，跨 IPC 上浮 renderer */
+function invalidImportParams(): Error {
+  return new Error(t('chromeImport.errors.invalidParams'))
+}
+
 /** 入参守卫（跨 IPC 边界不可信任）：sessionId 过格式单源、profileDir 拒路径分隔符、scopes 闭集去重保序 */
 function parseOptions(payload: unknown): ChromeImportOptions {
-  const invalid = (): Error => new Error(t('chromeImport.errors.invalidParams'))
-  if (!isRecord(payload)) throw invalid()
+  if (!isRecord(payload)) throw invalidImportParams()
   if (typeof payload.sessionId !== 'string' || !SESSION_ID_RE.test(payload.sessionId)) {
-    throw invalid()
+    throw invalidImportParams()
   }
   if (
     typeof payload.profileDir !== 'string' ||
@@ -103,13 +117,13 @@ function parseOptions(payload: unknown): ChromeImportOptions {
     payload.profileDir.includes('\\') ||
     payload.profileDir.includes('..')
   ) {
-    throw invalid()
+    throw invalidImportParams()
   }
-  if (!Array.isArray(payload.scopes) || payload.scopes.length === 0) throw invalid()
+  if (!Array.isArray(payload.scopes) || payload.scopes.length === 0) throw invalidImportParams()
   const selected = new Set<string>()
   for (const scope of payload.scopes) {
     if (typeof scope !== 'string' || !(CHROME_IMPORT_SCOPES as readonly string[]).includes(scope)) {
-      throw invalid()
+      throw invalidImportParams()
     }
     selected.add(scope)
   }
@@ -120,7 +134,11 @@ function parseOptions(payload: unknown): ChromeImportOptions {
   }
 }
 
-/** 历史并入预演计数（dry-run 摘要用；与 importEntries 合并规则同源的只读口径） */
+/**
+ * 历史并入预演计数（dry-run 摘要用）：url 是否已存在为唯一判据，与 history.importEntries
+ * 的 added/merged 判据同口径（审查低-4）——合并语义变更须两处同步（dry-run 预演若与
+ * execute 实际计数漂移，对话框反馈将前后矛盾）
+ */
 function previewHistoryMerge(
   existing: HistoryEntry[],
   incoming: HistoryEntry[]
@@ -151,13 +169,14 @@ export function registerChromeImportIpc(deps: {
     async (_event, payload: unknown): Promise<ChromeImportPlan> =>
       logFailure(CHROME_IMPORT_CHANNELS.dryRun, payload, async () => {
         const options = parseOptions(payload)
+        // 单飞判据与登记相邻同步（审查中-3）：判据与 add 之间隔 await 可被并发穿过
         if (inFlight.has(options.sessionId)) throw new Error(t('chromeImport.errors.busy'))
-        const snapshot = await loadSnapshot()
-        if (!snapshot.sessions.some((session) => session.id === options.sessionId)) {
-          throw new Error(t('errors.sessionNotFound'))
-        }
         inFlight.add(options.sessionId)
         try {
+          const snapshot = await loadSnapshot()
+          if (!snapshot.sessions.some((session) => session.id === options.sessionId)) {
+            throw new Error(t('errors.sessionNotFound'))
+          }
           const { profiles } = await detector.listProfiles()
           if (!profiles.some((profile) => profile.dir === options.profileDir)) {
             throw new Error(t('chromeImport.errors.profileNotFound'))
@@ -211,18 +230,28 @@ export function registerChromeImportIpc(deps: {
     CHROME_IMPORT_CHANNELS.execute,
     async (_event, payload: unknown): Promise<ChromeImportResult> =>
       logFailure(CHROME_IMPORT_CHANNELS.execute, payload, async () => {
-        const invalid = (): Error => new Error(t('chromeImport.errors.invalidParams'))
-        if (!isRecord(payload) || typeof payload.planId !== 'string') throw invalid()
+        if (!isRecord(payload) || typeof payload.planId !== 'string') throw invalidImportParams()
         if (
           typeof payload.localStoragePolicy !== 'string' ||
           !(CHROME_IMPORT_POLICIES as readonly string[]).includes(payload.localStoragePolicy)
         ) {
-          throw invalid()
+          throw invalidImportParams()
         }
         const entry = takeStaged(payload.planId)
-        if (inFlight.has(entry.sessionId)) throw new Error(t('chromeImport.errors.busy'))
+        // 单飞判据与登记相邻同步（审查中-3 同款）；busy 拒绝归还暂存，拒绝不白耗探测
+        if (inFlight.has(entry.sessionId)) {
+          rearmStaged(payload.planId, entry)
+          throw new Error(t('chromeImport.errors.busy'))
+        }
         inFlight.add(entry.sessionId)
         try {
+          // 暂存窗口期（≤60s）会话可能已被删除——删除不受导入窗口守卫（守卫只在写入
+          // 窗口生效），execute 入口复核存在性：已删会话的暂存一律拒绝，杜绝历史 JSON
+          // 与分区 LS 半截目录的僵尸数据复活 + 对已删会话报成功（审查中-2）
+          const snapshot = await loadSnapshot()
+          if (!snapshot.sessions.some((session) => session.id === entry.sessionId)) {
+            throw new Error(t('errors.sessionNotFound'))
+          }
           const written: ChromeImportScopeResult[] = await deps.registry.runImportQuiesced(
             entry.sessionId,
             async () => {
