@@ -1374,6 +1374,76 @@ body[data-role='workspace-picker'] {
   color: var(--danger);
 }
 
+/* 导入 Chrome 数据对话框（导入专项 2026-09-30）：自有类名不触 .ant-* 内部
+   （.ws-move-item 先例），全部取板面 token，亮暗随主题变量自动翻转。
+   冲突裁决块 = raised 底 + hairline 收边（板面凸起惯例），无阴影无强调色 */
+.import-chrome-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+}
+
+.import-chrome-empty {
+  margin: 0;
+  padding: 18px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+}
+
+.import-chrome-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+.import-chrome-scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+
+.import-chrome-conflict {
+  margin: 16px 0 0;
+  padding: 12px;
+  background: var(--board-bg-raised);
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+}
+
+.import-chrome-conflict-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+
+.import-chrome-conflict-desc {
+  margin: 6px 0 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--board-ink-dim);
+}
+
+.import-chrome-policy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.import-chrome-error {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--danger);
+}
+
 /* 「打开测试地址」复用 .new-session 度量；勾选为空时禁用（灰化不换底色）。
    置于 :active 之后，禁用态钉住琥珀底不被 hover 覆盖 */
 .new-session:disabled {

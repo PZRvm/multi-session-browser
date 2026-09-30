@@ -12,6 +12,7 @@ import CollapsedRail from './CollapsedRail'
 import CountTiles from './CountTiles'
 import { windowTrafficControls } from '../stores/browser'
 import SessionRow from './SessionRow'
+import ImportChromeDialog from './ImportChromeDialog'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
 import { useT } from '../i18n'
@@ -62,6 +63,9 @@ function SessionPanel({
   // URL 弹层行内错误态（整单拒绝时保持弹层开启并提示，对齐地址栏无效提示惯例）
   const [urlInvalid, setUrlInvalid] = useState(false)
   const [cloningIds, setCloningIds] = useState<Set<string>>(new Set())
+  // 导入 Chrome 数据目标会话（导入专项 2026-09-30）：非空即条件挂载 ImportChromeDialog
+  //（对话框状态随卸载自然复位）；入口 = 会话行右键/⋮ 菜单
+  const [importTarget, setImportTarget] = useState<SessionItem | null>(null)
   // 批量移动板脚反馈条（2026-09-17 增量）：反馈为面板本地 UI 态——成功次墨
   // ~2.4s 淡出、失败 danger 持续至下一次操作（对齐打开测试地址失败不静默惯例）。
   // 弹层本体已于 2026-09-21 迁主进程模态子窗口（原生 sheet，PRD 4.11），不再有
@@ -225,6 +229,12 @@ function SessionPanel({
     }
   }
 
+  // 导入对话框打开（antd Modal 为 portal 渲染层弹层，非窗口模态——无需
+  // useDeferredMenuAction 延迟；overlay 登记由对话框内 useOverlayWhenOpen 承担）
+  const openImportChrome = (session: SessionItem): void => {
+    setImportTarget(session)
+  }
+
   const openUrlModal = (): void => {
     // portal 弹层可能延伸到右区，开关经 overlay 悬挂登记（声明式 Modal 无同步
     // 抛出路径，登记释放在 afterClose，含 Esc/取消关闭）
@@ -315,6 +325,7 @@ function SessionPanel({
         onToggleCheck={toggleChecked}
         onClone={handleClone}
         onMove={openMoveModal}
+        onImportChrome={openImportChrome}
       />
     ))
 
@@ -576,6 +587,9 @@ function SessionPanel({
         />
         {urlInvalid && <p className="batch-url-invalid">{t('sessions.urlModal.invalid')}</p>}
       </Modal>
+      {importTarget !== null && (
+        <ImportChromeDialog session={importTarget} onClose={() => setImportTarget(null)} />
+      )}
     </ConfigProvider>
   )
 }

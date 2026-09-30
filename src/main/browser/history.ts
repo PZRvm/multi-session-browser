@@ -45,6 +45,16 @@ export type HistoryEntryListener = (payload: HistoryChangedPayload) => void
 export interface BrowserHistory {
   /** 采集入口（manager 的 onVisit 回调转发）：入史过滤 + upsert 合并 + 推送 + 去抖落盘 */
   recordVisit(sessionId: string, fact: VisitFact): void
+  /**
+   * 批量导入（Chrome 历史导入专用）：合并规则与 parseStored 同源（同 url 计数取大、
+   * 时间取新、title/favicon 保留非空新值），入参先过 HISTORY_URL_MAX 过滤，超上限
+   * 淘汰最旧后去抖落盘；不逐条推送（导入完成后由 renderer 重拉镜像，防推送风暴）。
+   * 返回 added = 目标侧原无该 url 的条数、merged = 已存在并走合并的条数
+   */
+  importEntries(
+    sessionId: string,
+    entries: HistoryEntry[]
+  ): Promise<{ added: number; merged: number }>
   /** 该会话全量历史（数组元素为浅拷贝，防调用方污染内存条目）；首触懒加载落盘文件 */
   getEntries(sessionId: string): Promise<HistoryEntry[]>
   /** 克隆会话携带历史：先冲刷源会话待写，再复制落盘文件与内存条目到目标 */
@@ -285,6 +295,70 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
           entry: { ...entry }
         }
         for (const cb of listeners) cb(payload)
+      })
+    },
+
+    async importEntries(sessionId, entries) {
+      // 超长 URL 先行丢弃（与 recordVisit 同口径：不截断——截断后的 URL 无法再导航，
+      // 入史即坏数据）；其余坏形不在此处校验（入参来自 dry-run 暂存的已清洗条目）
+      const filtered = entries.filter((entry) => {
+        if (entry.url.length <= HISTORY_URL_MAX) return true
+        console.warn(
+          `[history] 导入会话 ${sessionId} 的 URL 长度 ${entry.url.length} 超上限 ${HISTORY_URL_MAX}，丢弃`
+        )
+        return false
+      })
+      // 沿 ensureLoaded 链排队（防读盘竞态，照 recordVisit 先例），批内一次性合并只安排一次写盘
+      const pending = ensureLoaded(sessionId)
+      return pending.then(() => {
+        if (sealed) return { added: 0, merged: 0 }
+        // 与回填同判据：读盘/合并链期间会话已被 dropHistory 清场即弃置本次导入（结果如实为 0）
+        if (loads.get(sessionId) !== pending) return { added: 0, merged: 0 }
+        let map = sessions.get(sessionId)
+        if (!map) {
+          map = new Map()
+          sessions.set(sessionId, map)
+        }
+        let added = 0
+        let merged = 0
+        let changed = false
+        for (const entry of filtered) {
+          const prev = map.get(entry.url)
+          if (prev === undefined) {
+            map.set(entry.url, { ...entry })
+            added += 1
+            changed = true
+          } else {
+            // 合并规则与 parseStored 同源：计数取大、时间取新、title/favicon 保留非空新值
+            if (entry.visitCount > prev.visitCount) {
+              prev.visitCount = entry.visitCount
+              changed = true
+            }
+            if (entry.lastVisitedAt > prev.lastVisitedAt) {
+              prev.lastVisitedAt = entry.lastVisitedAt
+              changed = true
+            }
+            if (entry.title !== '' && entry.title !== prev.title) {
+              prev.title = entry.title
+              changed = true
+            }
+            if (entry.faviconUrl !== null && entry.faviconUrl !== prev.faviconUrl) {
+              prev.faviconUrl = entry.faviconUrl
+              changed = true
+            }
+            merged += 1
+          }
+        }
+        // 超上限淘汰 lastVisitedAt 最旧（复用既有淘汰口径；仅新增才可能超限）
+        if (map.size > HISTORY_MAX_ENTRIES) {
+          const kept = new Map<string, HistoryEntry>()
+          for (const entry of trimToLimit([...map.values()])) kept.set(entry.url, entry)
+          sessions.set(sessionId, kept)
+        }
+        // 无实际变化（如重复导入同一份 Chrome 数据）不安排写盘，避免无谓落盘
+        if (changed) scheduleWrite(sessionId)
+        // 不逐条推送 onEntryChanged（防 ≤2000 条推送风暴）：导入完成后由 renderer 重拉镜像
+        return { added, merged }
       })
     },
 

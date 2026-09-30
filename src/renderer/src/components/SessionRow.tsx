@@ -131,6 +131,8 @@ interface SessionRowProps {
   onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
   onMove: (session: SessionItem) => void
+  /** 打开「导入 Chrome 数据」对话框（导入专项 2026-09-30）：提升到面板持目标态 */
+  onImportChrome: (session: SessionItem) => void
 }
 
 function SessionRow({
@@ -144,7 +146,8 @@ function SessionRow({
   wsTag,
   onToggleCheck,
   onClone,
-  onMove
+  onMove,
+  onImportChrome
 }: SessionRowProps): React.JSX.Element {
   const t = useT()
   const { activeId, removeSession, selectSession } = useSessionsStore()
@@ -192,6 +195,11 @@ function SessionRow({
       label: t('sessions.sessionRow.menu.move')
     },
     {
+      // 导入 Chrome 数据（导入专项 2026-09-30）：非破坏管理操作，置于删除之前
+      key: 'importChrome',
+      label: t('chromeImport.menu.importChromeData')
+    },
+    {
       key: 'delete',
       label: t('sessions.sessionRow.menu.delete'),
       danger: true
@@ -221,6 +229,10 @@ function SessionRow({
       void onClone(session.id)
     } else if (key === 'move') {
       deferWhileMenuCloses(() => onMove(session))
+    } else if (key === 'importChrome') {
+      // antd Modal 是 portal 渲染层弹层（非窗口模态），不冻结菜单关闭动画——直接
+      // 打开无需 useDeferredMenuAction 延迟（移动 sheet 的窗口模态才有该问题）
+      onImportChrome(session)
     } else if (key === 'delete') {
       // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，
       // 弹框期间页面视图保持可见且内容原样——不经 overlay 悬挂登记收起右区

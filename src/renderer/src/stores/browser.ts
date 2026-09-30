@@ -85,6 +85,8 @@ interface BrowserState {
   searchFind: (query: string) => void
   /** Enter/Shift+Enter 步进（findNext=false 沿 forward 换向）；栏未开或 query 为空 no-op */
   findNextStep: (forward: boolean) => void
+  /** 导入完成后重拉当前作用域会话的历史镜像（Chrome 导入专项）：复用全量拉取链路 */
+  refetchHistory: () => void
 }
 
 let initialized = false
@@ -390,6 +392,13 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     } catch (error) {
       console.error('重拉浏览器状态失败', error)
     }
+  },
+
+  // Chrome 导入专项：导入不经 recordVisit 链路（无逐条增量推送——2000 条推送风暴已
+  // 否决），完成后全量重拉一次。镜像本就只属于当前作用域会话：导入目标非激活会话时
+  // 本次重拉结果与导入无关，无害
+  refetchHistory: () => {
+    refreshHistory(set, get)
   },
 
   // 以下命令均不乐观更新：IPC 成功后以返回快照更新，失败保持原状态
