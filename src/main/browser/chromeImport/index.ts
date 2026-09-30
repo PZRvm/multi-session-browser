@@ -28,6 +28,7 @@ import {
 import { HISTORY_MAX_ENTRIES, type HistoryEntry } from '../../../shared/history'
 import { SESSION_ID_RE } from '../../../shared/sessions'
 import { t } from '../../i18n'
+import { dialogIconForDarwin } from '../../dialogs'
 import { loadSnapshot } from '../../store'
 import { logFailure } from '../../ipc-utils'
 import type { SessionBrowserRegistry } from '../registry'
@@ -373,7 +374,7 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
 
 /**
  * 原生结果/错误框（导入专项反馈轮改原生，渲染层 antd message 退役）：information 型
- * showMessageBox 单「好」钮、主窗窗口模态（主窗缺席静默跳过——macOS 关窗期间导入
+ * showMessageBox 单「确认」钮（common.confirm）、主窗窗口模态（主窗缺席静默跳过——macOS 关窗期间导入
  * 流程本就不可达，防御面）
  */
 function showResultDialog(
@@ -385,6 +386,8 @@ function showResultDialog(
   void dialog
     .showMessageBox(win, {
       type: 'info',
+      // 项目图标：darwin 原生框不传即显示 Electron 包角标（PRD 4.10 同款处置）
+      icon: dialogIconForDarwin(),
       message: t('chromeImport.dialog.title'),
       detail: body,
       buttons: [t('common.confirm')],

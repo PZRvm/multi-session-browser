@@ -46,7 +46,10 @@ function clampDisplayCount(count: number): number {
  * 分支）；仅 darwin 生效，Windows 保留 warning 盾形原生语义。读取失败
  * （createFromPath 得空图）时 Electron 判 isNull 走回默认合成图标，安全退化
  */
-function dialogIconForDarwin(): NativeImage | undefined {
+/** darwin 弹框图标：项目 icon.png 整体替换 dev 态 Electron 包角标（2026-09-18 增补；
+ * 导入结果框等 information 型同需，2026-09-30 导出复用）；非 darwin undefined 保留
+ * 原生语义（Windows info 型系统图标） */
+export function dialogIconForDarwin(): NativeImage | undefined {
   return process.platform === 'darwin' ? nativeImage.createFromPath(dialogIcon) : undefined
 }
 
