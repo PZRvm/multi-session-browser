@@ -253,7 +253,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.pzrvm.multisessionbrowser')
   // OS 展示名（2026-09-18 用户裁决）：app.name 随操作系统语言取短名——Windows 任务
   // 栏归属名/关于面板等系统面消费；macOS dev 态 Dock 名来自未打包二进制不可运行期
   // 改（打包后由 electron-builder 元数据 + 本地化 InfoPlist.strings 生效），契约见

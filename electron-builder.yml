@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.pzrvm.multisessionbrowser
 # OS 展示名兜底（无匹配系统语言的场景）：短名契约单源 src/shared/appDisplay.ts，
 # 三语言本地化名由 afterPack 钩子注入 .lproj/InfoPlist.strings（改名三处同步）
 productName: 多会话浏览器
