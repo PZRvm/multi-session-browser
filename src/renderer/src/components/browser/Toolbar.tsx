@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  CameraOutlined,
   CloseOutlined,
   HomeOutlined,
   LeftOutlined,
   ReloadOutlined,
-  RightOutlined
+  RightOutlined,
+  VideoCameraOutlined
 } from '@ant-design/icons'
+import { Tooltip } from 'antd'
 import { useBrowserStore } from '../../stores/browser'
 import { useSettingsStore } from '../../stores/settings'
 import { useT } from '../../i18n'
+import { useOverlayWhenOpen } from '../useOverlayWhenOpen'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -36,6 +40,11 @@ function Toolbar(): React.JSX.Element {
   const stop = useBrowserStore((s) => s.stop)
   const navigate = useBrowserStore((s) => s.navigate)
   const toggleDevTools = useBrowserStore((s) => s.toggleDevTools)
+
+  // 截图/录屏钮悬停 Tooltip 的 overlay 登记（快速截图与快速录屏专项）：Tooltip 自
+  // 工具栏下垂跨入页面区原生层，开启期间经 useOverlayWhenOpen 收起页面视图保证可见
+  const [captureTipOpen, setCaptureTipOpen] = useState(false)
+  useOverlayWhenOpen(captureTipOpen)
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
@@ -273,6 +282,42 @@ function Toolbar(): React.JSX.Element {
           }}
           onKeyDown={onKeyDown}
         />
+      </div>
+      {/* 截图/录屏钮（快速截图与快速录屏专项，入口先行）：icon 钮沿用 .chrome-nav
+          图标钮语言，置于 DevTools 开关左侧；本步只落按钮与悬停 Tooltip（垂入页面区，
+          captureTipOpen 登记 overlay），点击接线随截图/录屏 IPC 编排落地。disabled
+          钮不派发鼠标事件，span 槽承接 hover 使提示禁用态同样可用 */}
+      <div className="chrome-tools">
+        <Tooltip
+          title={t('browser.toolbar.screenshot')}
+          placement="bottom"
+          mouseEnterDelay={0.2}
+          overlayStyle={{ pointerEvents: 'none' }}
+          onOpenChange={setCaptureTipOpen}
+        >
+          <span>
+            <button
+              type="button"
+              aria-label={t('browser.toolbar.screenshot')}
+              disabled={!activeTab}
+            >
+              <CameraOutlined />
+            </button>
+          </span>
+        </Tooltip>
+        <Tooltip
+          title={t('browser.toolbar.record')}
+          placement="bottom"
+          mouseEnterDelay={0.2}
+          overlayStyle={{ pointerEvents: 'none' }}
+          onOpenChange={setCaptureTipOpen}
+        >
+          <span>
+            <button type="button" aria-label={t('browser.toolbar.record')} disabled={!activeTab}>
+              <VideoCameraOutlined />
+            </button>
+          </span>
+        </Tooltip>
       </div>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button

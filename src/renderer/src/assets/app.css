@@ -2358,7 +2358,22 @@ img.chrome-tab-favicon {
   gap: 2px;
 }
 
-.chrome-nav button {
+/* 截图/录屏工具钮（快速截图与快速录屏专项）：置于地址栏与 DevTools 开关之间，
+   与导航四键同一图标钮语言（28px 圆形、悬停蒙版、灰阶焦点），故共用按钮规则 */
+.chrome-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Tooltip 触发槽：disabled 钮不派发鼠标事件，inline-flex span 槽承接 hover，
+   使悬停提示在禁用态（无激活 Tab）同样可用 */
+.chrome-tools > span {
+  display: inline-flex;
+}
+
+.chrome-nav button,
+.chrome-tools button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2372,7 +2387,8 @@ img.chrome-tab-favicon {
   cursor: not-allowed;
 }
 
-.chrome-nav button:not(:disabled) {
+.chrome-nav button:not(:disabled),
+.chrome-tools button:not(:disabled) {
   color: var(--chrome-ink-dim);
   cursor: pointer;
   transition:
@@ -2380,16 +2396,19 @@ img.chrome-tab-favicon {
     color 0.12s ease;
 }
 
-.chrome-nav button:not(:disabled):hover {
+.chrome-nav button:not(:disabled):hover,
+.chrome-tools button:not(:disabled):hover {
   background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
-.chrome-nav button:focus-visible {
+.chrome-nav button:focus-visible,
+.chrome-tools button:focus-visible {
   outline: none;
 }
 
-.chrome-nav button:not(:disabled):focus-visible {
+.chrome-nav button:not(:disabled):focus-visible,
+.chrome-tools button:not(:disabled):focus-visible {
   background: var(--chrome-pressed-veil);
   color: var(--chrome-ink);
 }

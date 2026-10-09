@@ -17,6 +17,10 @@ export const browser: Dictionary['browser'] = {
     home: 'Home',
     addressPlaceholder: 'Enter URL',
     addressInvalid: 'Invalid URL',
+    /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
+    screenshot: 'Screenshot',
+    /** 录屏钮 aria-label 与悬停 Tooltip 文案（同一词） */
+    record: 'Record',
     devtools: 'Developer tools',
     devtoolsOpenTitle: 'Open Developer tools (F12)',
     devtoolsCloseTitle: 'Close Developer tools (Esc)'

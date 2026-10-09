@@ -13,7 +13,7 @@ export const browser: Dictionary['browser'] = {
     /** Tab 关闭钮 aria-label，{title} 为 Tab 标题（空标题兜底 common.blankTabTitle） */
     closeWith: '關閉標籤頁：{title}'
   },
-  /** 工具栏（Toolbar）：导航四键 + 地址栏 + DevTools 开关 */
+  /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
     back: '後退',
     forward: '前進',
@@ -24,6 +24,10 @@ export const browser: Dictionary['browser'] = {
     addressPlaceholder: '輸入網址',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
     addressInvalid: '無效的網址',
+    /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
+    screenshot: '截圖',
+    /** 录屏钮 aria-label 与悬停 Tooltip 文案（同一词） */
+    record: '錄屏',
     /** DevTools 开关的可见文案与 aria-label（同一词） */
     devtools: '開發人員工具',
     /** DevTools 未开启时的开关 title */
