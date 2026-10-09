@@ -12,6 +12,10 @@ import { createDragPreview } from './browser/dragPreview'
 import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
+import {
+  createCaptureFeedbackWindows,
+  type CaptureFeedbackWindows
+} from './browser/captureFeedbackWindow'
 import { installShellInputGuard } from './inputGuard'
 import { installWarningChannelFilter } from './warnings'
 import { loadSnapshot } from './store'
@@ -34,6 +38,7 @@ import {
 import { registerFactoryResetIpc } from './factoryReset'
 import { registerShellIpc } from './shell'
 import { registerChromeImportIpc } from './browser/chromeImport'
+import { registerCaptureIpc } from './browser/capture'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
@@ -75,6 +80,10 @@ let mainWindow: BrowserWindow | null = null
 // 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
 // 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
 let suggestWindows: OmniboxSuggestWindows | null = null
+
+// 截图反馈子窗池（快速截图专项反馈轮三）：宿主窗口 closed 级联销毁各自子窗——
+// 主窗 closed 钩子与独立窗 onWindowClosed 调用（同建议子窗池）；whenReady 创建回填
+let captureFeedbackWindows: CaptureFeedbackWindows | null = null
 // 设置窗控制器（设置专项阶段一）：单例设置子窗的创建/聚焦/主窗级联——应用菜单
 //「设置… ⌘,」直连 open()（模块级晚绑定：菜单安装先于控制器创建，click 触发必在
 // 用户交互时、控制器已就绪），板头齿轮经设置域 open IPC 通道；主窗 closed 钩子经
@@ -232,11 +241,13 @@ function createWindow(): void {
   }
 
   // 主窗口销毁（macOS 关窗）即置空显式引用：getWindow('main')/定向推送此后自然跳过；
-  // 重开由 activate → createWindow 重建并回填。建议子窗随之销毁（挂池摘监听），
-  // 设置窗（若有）一并级联关闭（单例控制器内自清引用，重开主窗后可再次开窗）
+  // 重开由 activate → createWindow 重建并回填。建议子窗与截图反馈子窗随之销毁
+  //（挂池摘监听），设置窗（若有）一并级联关闭（单例控制器内自清引用，重开主窗后
+  // 可再次开窗）
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
     suggestWindows?.dispose(WINDOW_ID_MAIN)
+    captureFeedbackWindows?.dispose(WINDOW_ID_MAIN)
     settingsWindowController?.dispose()
   })
 
@@ -304,6 +315,7 @@ app.whenReady().then(async () => {
     },
     onWindowClosed: (sessionId: string, windowId: string): void => {
       suggestWindows?.dispose(windowId)
+      captureFeedbackWindows?.dispose(windowId)
       registry?.onIndependentWindowClosed(sessionId, windowId)
     }
   })
@@ -314,6 +326,15 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     // 建窗 query sys 现取（子窗统一注入不特判，主窗/独立窗同款契约）
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
+  })
+
+  // 截图反馈子窗池（快速截图专项反馈轮三）：悬浮反馈条原生子窗承载（盖在网页上方，
+  // 宿主内容区零压缩），机制同建议子窗池（懒创建/隐藏复用/宿主 move-resize 跟随/
+  // closed 级联）
+  captureFeedbackWindows = createCaptureFeedbackWindows({
+    getWindow: (windowId: string): BrowserWindow | null =>
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     getThemeColor: () => appearanceController.getSnapshot().themeColor
   })
 
@@ -464,6 +485,14 @@ app.whenReady().then(async () => {
     registry: created,
     getPartitionDir: (sessionId) => created.getPartitionDir(sessionId),
     getMainWindow: () => mainWindow
+  })
+  // 快速截图（快速截图专项 20261009232146 步骤 5）：capture 截来源窗口作用域激活
+  // Tab 入剪贴板 + save-last 最近一次截图落盘下载目录（captureId 单槽对账）；
+  // 页面聚焦态快捷键的 capture:request 定向推挂在 manager before-input-event 分支
+  // （快捷键链路），不经本装配
+  registerCaptureIpc({
+    registry: created,
+    feedbackWindows: captureFeedbackWindows!
   })
   // 破坏性确认框（PRD 4.10）：删除会话/批量关闭/删除工作区的二次确认弹主进程原生
   // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/

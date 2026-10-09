@@ -15,9 +15,15 @@ import {
   type FoundInPageResult,
   type SetBoundsPayload
 } from '../../shared/browser'
-import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/browserShortcuts'
+import {
+  matchBrowserShortcut,
+  matchConfiguredShortcut,
+  type BrowserShortcutId
+} from '../../shared/browserShortcuts'
+import { CAPTURE_CHANNELS } from '../../shared/capture'
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
+import { getScreenshotShortcut } from '../settings'
 import type { VisitFact } from './history'
 import { isOpenableUrl } from './url'
 
@@ -524,6 +530,37 @@ export function createTabManager(
     // 页面侧快捷键（Chrome 对齐最小集，键位表 shared/browserShortcuts 与 renderer shell 侧共用）：
     // 命中即吞掉按键防页面默认行为，未命中放行；close-devtools（ESC）仅该 Tab DevTools 已开时吞键
     wc.on('before-input-event', (event, input) => {
+      // 自定义截图快捷键（快速截图专项）：主进程同步缓存 null（未设置）整链跳过。
+      // 命中即吞键并把 CAPTURE_CHANNELS.request 定向推送到该 Tab 归属窗口的 shell
+      // webContents——推送目标解析与 find-request 同款（tab.windowId 对应窗口现取，
+      // ipc.ts 的 find 桥接在 manager 外监听转发，本通道按步骤 4 契约收口在此直发）；
+      // 渲染层 onRequest 汇流同一 capture 动作，无需归还 shell 焦点（截图不依赖焦点）。
+      // HTML 全屏期间不激活：状态位用 htmlFullscreenByWindow（enter/leave-html-full-screen
+      // 接管实现的事实源，快照 htmlFullscreen 字段与壳层 TabStrip/Toolbar/反馈条隐藏
+      // 均由它派生——全屏时壳层不可见，触发了也无反馈位），与 find 分支同门控：不吞键
+      // 放行、按键留给页面。仅消费非自动重复键（按住不放不连发截图，与 renderer 侧
+      // !e.repeat 同口径）
+      const screenshotAccel = getScreenshotShortcut()
+      if (
+        screenshotAccel !== null &&
+        input.type === 'keyDown' &&
+        !input.isAutoRepeat &&
+        !htmlFullscreenByWindow.has(tab.windowId) &&
+        matchConfiguredShortcut(
+          {
+            key: input.key,
+            ctrl: input.control,
+            meta: input.meta,
+            shift: input.shift,
+            alt: input.alt
+          },
+          screenshotAccel
+        )
+      ) {
+        event.preventDefault()
+        getWindow(tab.windowId)?.webContents.send(CAPTURE_CHANNELS.request)
+        return
+      }
       const action = matchShortcut(input)
       if (!action) return
       // 未开 DevTools 时 ESC 原样放行（不吞键，页面自留行为不受影响）

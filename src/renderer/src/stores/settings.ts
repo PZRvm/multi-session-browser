@@ -7,7 +7,8 @@ import { useI18nStore } from './i18n'
 // 拉取防初始化窗口漏掉主进程推送）、模块级 in-flight Promise 让 StrictMode/HMR
 // 重入共享同一次初始化、HMR dispose 精确移除当前有效 listener——模式逐条对齐
 // stores/appearance.ts。本 store 为纯镜像 + 命令转发：homepageUrl 恒以主进程快照
-// 为准，setHomepage 成功应用返回快照、失败保持旧值不造半态
+// 为准，setHomepage 成功应用返回快照、失败保持旧值不造半态；快速截图专项增
+// screenshotShortcut 镜像（onChanged 随动 + setScreenshotShortcut 命令转发，同模式）
 
 /** 取词（非组件文件，appearance.ts appearanceText 同款形态）：按 i18n 镜像当前语言
  * 构造 t——store 自产的用户可见报错在产生时刻取词（构造期语言口径，计划 §10 如实
@@ -27,11 +28,20 @@ export function readableIpcError(error: unknown, fallback: string): string {
 export type SetHomepageResult =
   { snapshot: SettingsSnapshot; error?: undefined } | { snapshot?: undefined; error: string }
 
+export type SetScreenshotShortcutResult =
+  { snapshot: SettingsSnapshot; error?: undefined } | { snapshot?: undefined; error: string }
+
 interface SettingsState {
   homepageUrl: string
+  /** 截图快捷键镜像（快速截图专项）：归一加速键串或 null（未设置）——主窗/独立窗
+   * useBrowserShortcuts 消费（shell 聚焦态触发），设置窗 PaneShortcuts 消费（回显） */
+  screenshotShortcut: string | null
   setting: boolean
   init: () => Promise<void>
   setHomepage: (raw: string) => Promise<SetHomepageResult>
+  /** 设置截图快捷键（快速截图专项）：null = 清除恢复「无」；非空值由调用方先经
+   * shared validateShortcut 前端预检（PaneShortcuts），主进程校验单源兜底 */
+  setScreenshotShortcut: (raw: string | null) => Promise<SetScreenshotShortcutResult>
   /** 恢复出厂（阶段七）：成功返回 null，失败返回可呈现的中文错误；镜像不改——
    * 成功后各镜像（settings/appearance/i18n）经主进程 changed 广播自动回默认 */
   factoryReset: () => Promise<string | null>
@@ -45,11 +55,13 @@ const applySnapshot = (
   set: (partial: Partial<SettingsState>) => void,
   snapshot: SettingsSnapshot
 ): void => {
-  set({ homepageUrl: snapshot.homepageUrl })
+  set({ homepageUrl: snapshot.homepageUrl, screenshotShortcut: snapshot.screenshotShortcut })
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   homepageUrl: '',
+
+  screenshotShortcut: null,
 
   setting: false,
 
@@ -92,6 +104,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return { error: readableIpcError(error, t('settings.homepageRow.saveFailed')) }
     } finally {
       set({ setting: false })
+    }
+  },
+
+  // 截图快捷键（快速截图专项）：与 setHomepage 同模式——成功以主进程返回快照为准
+  //（归一化串回填），失败保持旧值并把可呈现的中文错误返回调用方行内红显（主进程
+  // 校验单源拒绝的 errors.shortcutConflict / errors.invalidShortcut 经
+  // readableIpcError 剥壳上浮，剥不出用行内兜底文案）。不设在途守卫：录入态天然
+  // 串行（捕获组合即退出录入），并发以主进程写队列为准、后写胜出
+  setScreenshotShortcut: async (raw) => {
+    try {
+      const snapshot = await window.api.settings.setScreenshotShortcut({ shortcut: raw })
+      applySnapshot(set, snapshot)
+      return { snapshot }
+    } catch (error) {
+      return { error: readableIpcError(error, t('settings.screenshotShortcutRow.saveFailed')) }
     }
   },
 

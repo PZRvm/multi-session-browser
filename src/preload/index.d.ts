@@ -26,6 +26,14 @@ import type {
   ChromeProfilesPayload
 } from '../shared/chromeImport'
 import type {
+  CaptureFeedbackActionPayload,
+  CaptureFeedbackDataPayload,
+  CaptureFeedbackShowPayload,
+  CaptureResult,
+  CaptureSavePayload,
+  CaptureSaveResult
+} from '../shared/capture'
+import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
   OmniboxSuggestPickPayload,
@@ -40,6 +48,7 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetScreenshotShortcutPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -152,6 +161,16 @@ declare global {
         dryRun(payload: ChromeImportOptions): Promise<ChromeImportPlan>
         execute(payload: ChromeImportResolution): Promise<ChromeImportResult>
       }
+      capture: {
+        capture(): Promise<CaptureResult>
+        saveLast(payload: CaptureSavePayload): Promise<CaptureSaveResult>
+        showFeedback(payload: CaptureFeedbackShowPayload): Promise<void>
+        hideFeedback(): Promise<void>
+        feedbackAction(payload: CaptureFeedbackActionPayload): Promise<void>
+        onRequest(callback: () => void): () => void
+        onFeedbackData(callback: (payload: CaptureFeedbackDataPayload) => void): () => void
+        onDownloadRequest(callback: () => void): () => void
+      }
       settings: {
         open(): Promise<SettingsOkResult>
         getAppInfo(): Promise<SettingsAppInfo>
@@ -159,6 +178,7 @@ declare global {
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
+        setScreenshotShortcut(payload: SetScreenshotShortcutPayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }

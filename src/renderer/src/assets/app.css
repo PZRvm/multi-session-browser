@@ -2366,10 +2366,42 @@ img.chrome-tab-favicon {
   gap: 2px;
 }
 
-/* Tooltip 触发槽：disabled 钮不派发鼠标事件，inline-flex span 槽承接 hover，
-   使悬停提示在禁用态（无激活 Tab）同样可用 */
-.chrome-tools > span {
-  display: inline-flex;
+/* 工具钮悬停 popover（快速截图专项反馈五定稿）：深色气泡始终出现在 icon 正上方
+   ——固定定位钉在按钮上方 Tab 条壳层高度带内（壳层 DOM 无页面原生层遮挡，天然
+   不被页面盖住），transform -50% 水平居中于按钮中心、下缘距按钮顶 6px，::after
+   三角箭头指向按钮；经典深色工具提示观感（rgba(0,0,0,.85) 白字 4px 圆角，亮暗
+   双主题同色可读），内容 = 功能名 + 键帽串（已设快捷键，半透明白次级）；
+   pointer-events 关闭不扰交互 */
+.chrome-tools-pop {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.chrome-tools-pop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.85);
+}
+
+.chrome-tools-pop-key {
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
 }
 
 .chrome-nav button,
@@ -2637,6 +2669,81 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   padding: 0 10px;
   background: var(--chrome-toolbar);
   border-bottom: 1px solid var(--chrome-line);
+}
+
+/* 悬浮截图反馈条（快速截图专项反馈轮三定稿，同日两轮复核修正）：原生子窗承载——
+   透明窗体**全宽贴宿主内容区（chrome-body）顶缘**，覆盖在网页上方（parent 归属
+   宿主浮于原生层之上），宿主布局零压缩（消失即整窗 hide，无停靠版布局回弹空白）；
+   窗口边界即条边界（x/y/宽度 = chrome-body 左缘/顶缘/宽度，高度 28 由主进程按
+   shared/capture.ts 常量确定性计算）。视觉（反馈轮五定稿）：chrome-toolbar 底 +
+   底缘 chrome-line 发丝线（Chrome 通知条语系、无圆角无阴影）——**条底保留，按钮
+   自身各态均无底色**（用户澄清：「反馈条的背景是要的，下载按钮不要有背景」）；
+   内容右对齐：文本 12px 次墨单行截断（路径保持 ltr）、danger 转错误红（地址栏
+   invalid 同源）；「下载」链接式钮（正墨 600 下划线）。显隐均瞬时（子窗
+   show/hide）；主题随 prefers-color-scheme 自动亮暗 */
+body[data-role='capture-feedback'] {
+  background: transparent;
+}
+
+.chrome-capturebar {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+
+.chrome-capturebar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-capturebar.is-danger .chrome-capturebar-text {
+  color: var(--chrome-error);
+}
+
+/* 「下载」链接式次动作钮：无边框无底、正墨 600 常驻下划线（与反馈次墨文本拉开
+   层次），hover 转 ink-dim 弱化示意已反馈、focus-visible 蒙版底（右侧控件灰阶
+   焦点惯例），禁用转 disabled 灰并去下划线 */
+.chrome-capturebar-save {
+  flex: none;
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--chrome-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.chrome-capturebar-save:not(:disabled):hover {
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-capturebar-save:focus-visible {
+  outline: none;
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-capturebar-save:disabled {
+  color: var(--chrome-disabled);
+  text-decoration: none;
+  cursor: not-allowed;
 }
 
 .chrome-findbox {

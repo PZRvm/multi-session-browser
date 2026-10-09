@@ -1,6 +1,11 @@
 import { useEffect } from 'react'
-import { matchBrowserShortcut, type BrowserShortcutId } from '../../../../shared/browserShortcuts'
+import {
+  matchBrowserShortcut,
+  matchConfiguredShortcut,
+  type BrowserShortcutId
+} from '../../../../shared/browserShortcuts'
 import { useBrowserStore } from '../../stores/browser'
+import { useSettingsStore } from '../../stores/settings'
 import { useUiStore } from '../../stores/ui'
 
 /** 键盘事件适配 shared 单源匹配函数（规则见 shared/browserShortcuts），keydown 由挂载点保证 */
@@ -41,6 +46,8 @@ function isFindBarFocused(): boolean {
  * 放行、地址栏编辑态放行）在本文件落实，DevTools 自身 webContents 侧不拦 ESC。
  * find（Cmd/Ctrl+F）shell 聚焦态在此本地开栏（无激活 Tab 不开）；页面聚焦态经主进程
  * find-request 推送走 store 同一 openFind，两侧语义一致。
+ * 自定义截图快捷键（快速截图专项）shell 聚焦态在此直调 store.capture；页面聚焦态经
+ * 主进程 capture:request 推送汇流同一动作，判定单源 matchConfiguredShortcut。
  * 明确不做清单（Ctrl+Tab、Ctrl+Shift+T、数字键切 Tab）见 shared/browserShortcuts.ts 头注。
  */
 export function useBrowserShortcuts(): void {
@@ -51,6 +58,32 @@ export function useBrowserShortcuts(): void {
       // 全局弹层（删除确认框等）打开期间冻结浏览器快捷键：原生层已收起，
       // F12/Cmd+W 等若照常生效是对隐藏浏览器的盲操作（登记方见 stores/ui.ts）
       if (useUiStore.getState().overlayDepth > 0) return
+      // 自定义截图快捷键（快速截图专项）：键位取 settings 镜像（null 未设置即整链
+      // 不激活），判定走 shared matchConfiguredShortcut 单源（与主进程页面聚焦态分支
+      // 同族——键位经 validateShortcut 校验必含 CmdOrCtrl，语义互斥不重复触发）。
+      // 仅非重复键；HTML 全屏期间壳层（含反馈条）隐藏，与 find 分支同门控不触发。
+      // 命中即吞键直调 capture——与工具栏截图钮、页面聚焦态 capture:request 推送
+      // 三路汇流同一 store 动作
+      const shortcutAccel = useSettingsStore.getState().screenshotShortcut
+      if (
+        shortcutAccel !== null &&
+        !e.repeat &&
+        matchConfiguredShortcut(
+          {
+            key: e.key,
+            ctrl: e.ctrlKey,
+            meta: e.metaKey,
+            shift: e.shiftKey,
+            alt: e.altKey
+          },
+          shortcutAccel
+        ) &&
+        !useBrowserStore.getState().htmlFullscreen
+      ) {
+        e.preventDefault()
+        void useBrowserStore.getState().capture()
+        return
+      }
       const action = matchShortcut(e)
       if (!action) return
       // 事件时刻现读 store 取最新 activeTabId，避免闭包快照过期；动作失败由 store 内部吞错

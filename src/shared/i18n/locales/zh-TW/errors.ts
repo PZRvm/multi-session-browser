@@ -31,6 +31,16 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: '無效的首頁網址',
   invalidHomepageParams: '無效的首頁設定參數',
   invalidLanguageParams: '無效的語言設定參數',
+  invalidShortcut: '快捷鍵格式不正確',
+  invalidShortcutParams: '無效的快捷鍵設定參數',
+  shortcutConflict: '快捷鍵與既有功能衝突：{shortcut}',
+
+  /** 快速截图域 handler（browser/capture.ts，快速截图专项） */
+  captureNoTab: '目前沒有可截圖的分頁',
+  captureFailed: '截圖失敗，請重試',
+  captureExpired: '截圖已過期，請重新截圖',
+  captureSaveFailed: '儲存截圖失敗',
+  invalidCaptureParams: '無效的截圖參數',
 
   /** 设置窗通道（settingsWindow.ts registerSettingsIpc） */
   settingsWindowSourceOnly: '設定視窗命令僅接受主視窗來源',

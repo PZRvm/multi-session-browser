@@ -87,6 +87,26 @@ export const settings: Dictionary['settings'] = {
     closeDevtools: '關閉開發人員工具'
   },
 
+  /** 快捷键版面：截图快捷键自定义行（快速截图专项——速查表唯一可自定义键位） */
+  screenshotShortcutRow: {
+    label: '截圖',
+    desc: '擷取目前分頁到剪貼簿，預設無快捷鍵',
+    /** 未设置时的键帽占位 */
+    none: '無',
+    /** 录入态按钮文案 */
+    record: '錄入',
+    /** 录入态提示（Esc 取消） */
+    recording: '按下組合鍵，Esc 取消',
+    /** 清除按钮（恢复「无」） */
+    clear: '清除',
+    /** 冲突拒绝行内错误（{shortcut} 为尝试录入的键位串） */
+    conflict: '與既有快捷鍵衝突：{shortcut}',
+    /** 非法组合键行内错误 */
+    invalid: '該組合鍵不可用',
+    /** 保存失败兜底（主进程已本地化的具体错误优先） */
+    saveFailed: '儲存截圖快捷鍵失敗'
+  },
+
   /** 关于版面：签名区与数据目录行 */
   about: {
     version: '版本 {v}',

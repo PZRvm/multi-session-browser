@@ -24,8 +24,9 @@ function IndependentWindowFrame(): React.JSX.Element {
       {!htmlFullscreen && <TabStrip />}
       {!htmlFullscreen && <Toolbar />}
       <div className="chrome-body">
-        {/* 查找栏停靠在锚点上方：挂载即压缩锚点，bounds 重报让位原生层（零新增布局机制）；
-            HTML 全屏期间不可达（PRD 3.7.3），全屏态不渲染兜底 */}
+        {/* 查找栏停靠在锚点上方：挂载即压缩锚点，bounds 重报让位原生层（零新增布局
+            机制）；HTML 全屏期间不可达，全屏态不渲染兜底。截图反馈条随反馈轮三迁
+            原生子窗悬浮（盖在网页上方、内容区零压缩），不再挂载壳内 */}
         {!htmlFullscreen && <FindBar />}
         <BrowserContentAnchor suspended={suspended} />
       </div>

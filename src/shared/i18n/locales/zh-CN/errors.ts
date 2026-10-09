@@ -33,6 +33,16 @@ export const errors = {
   invalidHomepageUrl: '无效的主页地址',
   invalidHomepageParams: '无效的主页设置参数',
   invalidLanguageParams: '无效的语言设置参数',
+  invalidShortcut: '快捷键格式不正确',
+  invalidShortcutParams: '无效的快捷键设置参数',
+  shortcutConflict: '快捷键与既有功能冲突：{shortcut}',
+
+  /** 快速截图域 handler（browser/capture.ts，快速截图专项） */
+  captureNoTab: '当前没有可截图的标签页',
+  captureFailed: '截图失败，请重试',
+  captureExpired: '截图已过期，请重新截图',
+  captureSaveFailed: '保存截图失败',
+  invalidCaptureParams: '无效的截图参数',
 
   /** 设置窗通道（settingsWindow.ts registerSettingsIpc） */
   settingsWindowSourceOnly: '设置窗命令仅接受主窗口来源',

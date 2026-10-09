@@ -32,6 +32,17 @@ export const browser = {
     /** DevTools 已开启时的开关 title */
     devtoolsCloseTitle: '关闭开发者工具（Esc）'
   },
+  /** 快速截图反馈条（浏览器区 inline 非浮层，快速截图专项） */
+  capture: {
+    /** 截图成功反馈（已复制到剪贴板） */
+    copied: '已复制到剪贴板',
+    /** 反馈条「下载」次动作钮（最近一次截图落盘下载目录） */
+    download: '下载',
+    /** 下载成功反馈（{path} 为落盘绝对路径） */
+    saved: '已保存：{path}',
+    /** store 层兜底失败文案（主进程已本地化的具体错误优先） */
+    failed: '截图失败，请重试'
+  },
   /** 页内查找栏（FindBar） */
   find: {
     /** 查找输入框 placeholder 与 aria-label（同一词） */
