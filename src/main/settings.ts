@@ -14,7 +14,7 @@ import { join } from 'path'
 import { isRecord } from '../shared/guards'
 import { DEFAULT_LANGUAGE, isSupportedLanguage } from '../shared/i18n'
 import type { SupportedLanguage } from '../shared/i18n'
-import { SETTINGS_CHANNELS } from '../shared/settings'
+import { SETTINGS_CHANNELS, validateShortcut } from '../shared/settings'
 import type { SettingsSnapshot } from '../shared/settings'
 import { atomicWriteJson } from './fs-utils'
 import { setMainProcessLanguage, t } from './i18n'
@@ -25,15 +25,20 @@ const SETTINGS_VERSION = 1
 /** 主页 URL 输入长度上限（对齐 history 域 URL 上限 2000 的既有惯例） */
 const HOMEPAGE_URL_MAX = 2000
 
+/** 截图快捷键输入长度上限（加速键串实际不过十几字符，防异常长串进校验） */
+const SHORTCUT_RAW_MAX = 100
+
 /** settings.json 的 v1 存储形状：v1 空骨架（仅 version）之上随阶段四入住
- * homepageUrl、阶段六入住 language——v1 内增键属兼容扩展（存量文件缺键读侧补默认，
- * 不升 version） */
+ * homepageUrl、阶段六入住 language、快速截图专项入住 screenshotShortcut——v1 内
+ * 增键属兼容扩展（存量文件缺键读侧补默认，不升 version） */
 export interface StoredSettings {
   version: typeof SETTINGS_VERSION
   /** 主页 URL：规范化绝对 URL 或空串（空 = 工具栏主页按钮维持 about:blank 默认） */
   homepageUrl: string
   /** 界面语言（阶段六）：合法值 = shared/i18n 注册表闭集 */
   language: SupportedLanguage
+  /** 截图快捷键（快速截图专项）：validateShortcut 归一加速键串或 null（未设置） */
+  screenshotShortcut: string | null
 }
 
 function settingsPath(): string {
@@ -42,7 +47,12 @@ function settingsPath(): string {
 
 /** 默认骨架（每次新对象：调用方持有返回值改写不得污染共享常量） */
 function defaultSettings(): StoredSettings {
-  return { version: SETTINGS_VERSION, homepageUrl: '', language: DEFAULT_LANGUAGE }
+  return {
+    version: SETTINGS_VERSION,
+    homepageUrl: '',
+    language: DEFAULT_LANGUAGE,
+    screenshotShortcut: null
+  }
 }
 
 function warnInvalidSettings(reason: string): void {
@@ -85,7 +95,8 @@ export async function loadSettings(): Promise<StoredSettings> {
   return {
     version: SETTINGS_VERSION,
     homepageUrl: readHomepageUrl(data),
-    language: readLanguage(data)
+    language: readLanguage(data),
+    screenshotShortcut: readScreenshotShortcut(data)
   }
 }
 
@@ -96,12 +107,14 @@ export async function loadSettings(): Promise<StoredSettings> {
 // 零变更
 let cachedHomepageUrl = ''
 let cachedLanguage: SupportedLanguage = DEFAULT_LANGUAGE
+let cachedScreenshotShortcut: string | null = null
 
 /** 启动填充主页与语言同步缓存：唯一调用点 index.ts whenReady（先于菜单安装与窗口创建） */
 export async function initHomepageCache(): Promise<void> {
   const settings = await loadSettings()
   cachedHomepageUrl = settings.homepageUrl
   cachedLanguage = settings.language
+  cachedScreenshotShortcut = settings.screenshotShortcut
 }
 
 /** 主进程内同步取当前主页（空串 = 未设置）：registry 注入 createTabManager 消费 */
@@ -112,6 +125,12 @@ export function getHomepageUrl(): string {
 /** 主进程内同步取当前语言（阶段六）：菜单安装、原生对话框、报错文案构造期消费 */
 export function getBootLanguage(): SupportedLanguage {
   return cachedLanguage
+}
+
+/** 主进程内同步取截图快捷键（快速截图专项，null = 未设置）：manager 页面聚焦态
+ * before-input-event 分派消费——读内存不读盘 */
+export function getScreenshotShortcut(): string | null {
+  return cachedScreenshotShortcut
 }
 
 /** 语言缓存更新（setLanguage 落盘成功后调用，阶段六接线） */
@@ -147,6 +166,25 @@ function readLanguage(data: Record<string, unknown>): SupportedLanguage {
       `[settings] language 非法（不在语言注册表闭集），已回退默认语言: ${JSON.stringify(value)}`
     )
     return DEFAULT_LANGUAGE
+  }
+  return value
+}
+
+/** 截图快捷键读取（快速截图专项）：缺键（存量文件）与 null（saveSettings 落盘的合法
+ * 「未设置」形态）均静默补 null（审查低 1 修复：null 打假告警会污染「告警即可信」的
+ * 诊断信号）；坏值（非字符串/过长/不过 validateShortcut——含撞既有键位的手改值）
+ * 中文告警回退 null——手改盘值不直达触发链路 */
+function readScreenshotShortcut(data: Record<string, unknown>): string | null {
+  const value = data.screenshotShortcut
+  if (value === undefined || value === null) return null
+  const check =
+    typeof value === 'string' && value.length <= SHORTCUT_RAW_MAX ? validateShortcut(value) : null
+  // 归一化后再校验 = 盘值必须已是归一形态（手改 'Cmd+R' 等异写不接受，回退未设置）
+  if (!check || !check.ok || check.normalized !== value) {
+    console.warn(
+      `[settings] screenshotShortcut 非法（未过校验单源），已回退未设置: ${JSON.stringify(value)}`
+    )
+    return null
   }
   return value
 }
@@ -191,13 +229,22 @@ function normalizeHomepageInput(raw: string): string {
   return normalized
 }
 
+/** 存储形状 → renderer 快照的统一出口（三键齐全，防各构造点漏键漂移） */
+function toSnapshot(settings: StoredSettings): SettingsSnapshot {
+  return {
+    homepageUrl: settings.homepageUrl,
+    language: settings.language,
+    screenshotShortcut: settings.screenshotShortcut
+  }
+}
+
 /** 设置主页并落盘：返回快照（对齐外观域 setMode 返回快照先例，renderer 以此为准） */
 export async function setHomepage(raw: string): Promise<SettingsSnapshot> {
   const homepageUrl = normalizeHomepageInput(raw)
   const next: StoredSettings = { ...(await loadSettings()), homepageUrl }
   await saveSettings(next)
   cachedHomepageUrl = homepageUrl
-  return { homepageUrl, language: next.language }
+  return toSnapshot(next)
 }
 
 /**
@@ -210,7 +257,31 @@ export async function setLanguage(language: SupportedLanguage): Promise<Settings
   const next: StoredSettings = { ...(await loadSettings()), language }
   await saveSettings(next)
   updateCachedLanguage(language)
-  return { homepageUrl: next.homepageUrl, language }
+  return toSnapshot(next)
+}
+
+/**
+ * 设置截图快捷键并落盘（快速截图专项）：null = 清除恢复「无」；非空经 validateShortcut
+ * 校验单源（语法/语义非法 → errors.invalidShortcut，撞既有键位 → errors.shortcutConflict
+ * 带键位串，拒绝路径盘与缓存零变更），通过后落归一化串并同步主进程缓存（manager 页面
+ * 聚焦态分派消费）。读-改-写经既有串行队列（与 setHomepage 同语义）。
+ */
+export async function setScreenshotShortcut(raw: string | null): Promise<SettingsSnapshot> {
+  let screenshotShortcut: string | null = null
+  if (raw !== null) {
+    const check = validateShortcut(raw)
+    if (!check.ok) {
+      if (check.reason === 'conflict') {
+        throw new Error(t('errors.shortcutConflict', { shortcut: raw }))
+      }
+      throw new Error(t('errors.invalidShortcut'))
+    }
+    screenshotShortcut = check.normalized
+  }
+  const next: StoredSettings = { ...(await loadSettings()), screenshotShortcut }
+  await saveSettings(next)
+  cachedScreenshotShortcut = screenshotShortcut
+  return toSnapshot(next)
 }
 
 /**
@@ -226,11 +297,9 @@ export async function resetSettingsToDefaults(): Promise<SettingsSnapshot> {
   await saveSettings(defaults)
   cachedHomepageUrl = defaults.homepageUrl
   cachedLanguage = defaults.language
+  cachedScreenshotShortcut = defaults.screenshotShortcut
   setMainProcessLanguage(defaults.language)
-  const snapshot: SettingsSnapshot = {
-    homepageUrl: defaults.homepageUrl,
-    language: defaults.language
-  }
+  const snapshot = toSnapshot(defaults)
   broadcastSettingsChanged(snapshot)
   return snapshot
 }
@@ -244,14 +313,11 @@ function broadcastSettingsChanged(snapshot: SettingsSnapshot): void {
   }
 }
 
-/** 值域 IPC 装配（阶段四 + 阶段六 set-language）：get 拉快照 / set-homepage、
- * set-language 守卫 + 落盘 + changed 全推 */
+/** 值域 IPC 装配（阶段四 + 阶段六 set-language + 快速截图专项 set-screenshot-shortcut）：
+ * get 拉快照 / set-homepage、set-language、set-screenshot-shortcut 守卫 + 落盘 + changed 全推 */
 export function registerSettingsValueIpc(): void {
   ipcMain.handle(SETTINGS_CHANNELS.get, (): Promise<SettingsSnapshot> =>
-    loadSettings().then((settings) => ({
-      homepageUrl: settings.homepageUrl,
-      language: settings.language
-    }))
+    loadSettings().then((settings) => toSnapshot(settings))
   )
 
   ipcMain.handle(
@@ -279,6 +345,26 @@ export function registerSettingsValueIpc(): void {
       }
       return setLanguage(payload.language).then((snapshot) => {
         setMainProcessLanguage(snapshot.language)
+        broadcastSettingsChanged(snapshot)
+        return snapshot
+      })
+    }
+  )
+
+  // set-screenshot-shortcut（快速截图专项）：载荷守卫（shortcut 为 null 或不超长
+  // 字符串）→ setScreenshotShortcut 校验单源拒绝（非法/冲突中文错误上浮，盘与缓存
+  // 零变更）→ changed 全窗推送（renderer settings 镜像随动，双通道触发即时生效）
+  ipcMain.handle(
+    SETTINGS_CHANNELS.setScreenshotShortcut,
+    (_event, payload: unknown): Promise<SettingsSnapshot> => {
+      const shortcut = isRecord(payload) ? payload.shortcut : undefined
+      if (
+        shortcut !== null &&
+        (typeof shortcut !== 'string' || shortcut.length > SHORTCUT_RAW_MAX)
+      ) {
+        return Promise.reject(new Error(t('errors.invalidShortcutParams')))
+      }
+      return setScreenshotShortcut(shortcut as string | null).then((snapshot) => {
         broadcastSettingsChanged(snapshot)
         return snapshot
       })

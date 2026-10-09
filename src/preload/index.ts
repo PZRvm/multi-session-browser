@@ -37,6 +37,15 @@ import type {
   ChromeImportResult,
   ChromeProfilesPayload
 } from '../shared/chromeImport'
+import { CAPTURE_CHANNELS } from '../shared/capture'
+import type {
+  CaptureFeedbackActionPayload,
+  CaptureFeedbackDataPayload,
+  CaptureFeedbackShowPayload,
+  CaptureResult,
+  CaptureSavePayload,
+  CaptureSaveResult
+} from '../shared/capture'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type {
   AppearanceSnapshot,
@@ -73,6 +82,7 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetScreenshotShortcutPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -332,6 +342,51 @@ const api = {
     execute: (payload: ChromeImportResolution): Promise<ChromeImportResult> =>
       ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.execute, payload)
   },
+  // 快速截图域（契约见 shared/capture.ts）：截图入剪贴板 + 最近一次落盘两 invoke，
+  // request 为页面聚焦态快捷键触发的回程推送（find-request 同构，renderer 汇流
+  // 同一 capture 动作）；反馈轮三增悬浮反馈条原生子窗四通道——show/hide 归宿主
+  // shell（显隐编排），data 归反馈子窗（内容推送），action 归反馈子窗（「下载」
+  // 上报）、downloadRequest 归宿主 shell（点击回程汇流 saveLast）
+  capture: {
+    capture: (): Promise<CaptureResult> => ipcRenderer.invoke(CAPTURE_CHANNELS.capture),
+    saveLast: (payload: CaptureSavePayload): Promise<CaptureSaveResult> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.saveLast, payload),
+    showFeedback: (payload: CaptureFeedbackShowPayload): Promise<void> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.showFeedback, payload),
+    hideFeedback: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.hideFeedback),
+    feedbackAction: (payload: CaptureFeedbackActionPayload): Promise<void> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.feedbackAction, payload),
+    onRequest: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.request, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.request, listener)
+      }
+    },
+    // 反馈子窗消费：内容推送（主进程 show 时全量发，纯展示零自治）
+    onFeedbackData: (callback: (payload: CaptureFeedbackDataPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: CaptureFeedbackDataPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.feedbackData, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.feedbackData, listener)
+      }
+    },
+    // 宿主 shell 消费：「下载」点击回程（子窗 action 上报经主进程转发），汇流
+    // saveLastCapture（与工具栏钮/快捷键同一动作）
+    onDownloadRequest: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.downloadRequest, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.downloadRequest, listener)
+      }
+    }
+  },
   // 设置域（契约见 shared/settings.ts）：板头齿轮请求主进程打开/聚焦单例设置窗口；
   // 应用菜单路径在主进程内直连不经此通道。阶段三并入关于信息两通道（get-app-info /
   // open-data-dir），阶段四并入值域三通道（get / changed / set-homepage——订阅-推送
@@ -346,6 +401,9 @@ const api = {
     // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
     setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
+    // 截图快捷键（快速截图专项）：null = 清除恢复「无」；校验/冲突拒绝在主进程
+    setScreenshotShortcut: (payload: SetScreenshotShortcutPayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setScreenshotShortcut, payload),
     // 恢复出厂（阶段七）：两步确认通过后调用；无 payload，sender 白名单 = 设置窗
     factoryReset: (): Promise<SettingsOkResult> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.factoryReset),

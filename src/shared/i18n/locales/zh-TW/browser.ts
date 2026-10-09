@@ -35,6 +35,17 @@ export const browser: Dictionary['browser'] = {
     /** DevTools 已开启时的开关 title */
     devtoolsCloseTitle: '關閉開發人員工具（Esc）'
   },
+  /** 快速截图反馈条（浏览器区 inline 非浮层，快速截图专项） */
+  capture: {
+    /** 截图成功反馈（已复制到剪贴板） */
+    copied: '已複製到剪貼簿',
+    /** 反馈条「下载」次动作钮（最近一次截图落盘下载目录） */
+    download: '下載',
+    /** 下载成功反馈（{path} 为落盘绝对路径） */
+    saved: '已儲存：{path}',
+    /** store 层兜底失败文案（主进程已本地化的具体错误优先） */
+    failed: '截圖失敗，請重試'
+  },
   /** 页内查找栏（FindBar） */
   find: {
     /** 查找输入框 placeholder 与 aria-label（同一词） */

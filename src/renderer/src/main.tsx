@@ -11,6 +11,7 @@ import { useSettingsStore } from './stores/settings'
 import { bootstrapThemeTokens } from './theme'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 import { WORKSPACE_PICKER_WINDOW_ROLE } from '../../shared/dialog'
+import { CAPTURE_FEEDBACK_WINDOW_ROLE } from '../../shared/capture'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
 // 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
@@ -22,6 +23,10 @@ const SettingsWindow = lazy(() => import('./components/SettingsWindow'))
 
 // 工作区选择模态框渲染端（原生 sheet 专项，?role=workspace-picker）：同款惰性分流
 const WorkspacePickerWindow = lazy(() => import('./components/WorkspacePickerWindow'))
+
+// 悬浮截图反馈条子窗渲染端（快速截图专项反馈轮三，?role=capture-feedback）：同建议
+// 子窗形态的纯展示端
+const CaptureFeedbackWindow = lazy(() => import('./components/browser/CaptureFeedbackWindow'))
 
 // 主题 token 首帧注入（设置专项阶段五）：建窗 URL query 的 sys 是主进程建窗注入的
 // 首帧初始值契约（运行期主题变更不再读 query，一律经 appearance:changed 推送收敛）。
@@ -82,6 +87,19 @@ if (role === SETTINGS_WINDOW_ROLE) {
     <StrictMode>
       <Suspense fallback={null}>
         <WorkspacePickerWindow />
+      </Suspense>
+    </StrictMode>
+  )
+} else if (role === CAPTURE_FEEDBACK_WINDOW_ROLE) {
+  document.body.dataset.role = CAPTURE_FEEDBACK_WINDOW_ROLE
+  // 悬浮截图反馈条子窗（快速截图专项反馈轮三）：同建议子窗形态——仅 init i18n 镜像
+  //（懒建复用池，语言切换经 settings:changed 推送），不初始化其他 store（内容由
+  // 主进程 feedback-data 推送，纯展示零自治）
+  void useI18nStore.getState().init()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={null}>
+        <CaptureFeedbackWindow />
       </Suspense>
     </StrictMode>
   )

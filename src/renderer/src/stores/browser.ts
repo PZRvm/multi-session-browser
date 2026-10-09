@@ -8,7 +8,11 @@ import type {
   TabDragPreviewPayload
 } from '../../../shared/browser'
 import { WINDOW_ID_MAIN } from '../../../shared/browser'
+import type { CaptureFeedbackShowPayload } from '../../../shared/capture'
 import type { HistoryChangedPayload, HistoryEntry } from '../../../shared/history'
+import { createT, DICTIONARIES } from '../../../shared/i18n'
+import { readableIpcError } from './settings'
+import { useI18nStore } from './i18n'
 import { useSessionsStore } from './sessions'
 
 // 浏览器状态是主进程快照的纯镜像：sessionId/tabs/activeTabId/devtoolsOpen 原样存储
@@ -50,6 +54,13 @@ interface BrowserState {
   findResolved: boolean
   /** find-request 推送/shell 开栏的计数信号：FindBar 据此聚焦并全选输入框 */
   findRequestTick: number
+  // 快速截图瞬态（本窗口作用域）：lastCaptureId/captureSaving 为纯本地态，不进快照
+  // 契约、不落盘（比照拖拽/查找瞬态口径）；反馈条渲染态在原生子窗（反馈轮三），
+  // 本地不再持有
+  /** 最近一次截图 captureId 镜像（「下载」次动作对账：主进程单槽，新截图覆盖） */
+  lastCaptureId: string | null
+  /** 「下载」在途锁（防回程连点重复落盘） */
+  captureSaving: boolean
   init: () => Promise<void>
   /** 重拉当前快照对齐主进程（删除会话等场景：级联推送先于命令回复到达而被守卫丢弃） */
   resync: () => Promise<void>
@@ -87,9 +98,120 @@ interface BrowserState {
   findNextStep: (forward: boolean) => void
   /** 导入完成后重拉当前作用域会话的历史镜像（Chrome 导入专项）：复用全量拉取链路 */
   refetchHistory: () => void
+  /** 快速截图：截当前激活 Tab 入剪贴板，成功置反馈条（含「下载」次动作），失败置
+   *  danger 反馈（主进程已本地化的错误优先，兜底 browser.capture.failed） */
+  capture: () => Promise<void>
+  /** 「下载」次动作：最近一次截图落盘系统下载目录（captureId 对账，过期由主进程
+   *  拒绝并上浮「截图已过期」） */
+  saveLastCapture: () => Promise<void>
 }
 
 let initialized = false
+
+// 截图反馈条自动消退定时器（batchFeedback 时序先例）：success 6000ms 后置 fading
+//（2026-10-10 用户反馈：原 2400ms 偏短，需留足点「下载」的时间），再 260ms 卸载；
+// 截图反馈显隐编排（反馈轮三：反馈条由原生子窗承载——全宽贴宿主内容区顶缘、
+// 覆盖在网页上方、宿主布局零压缩〔消失即整窗 hide，无布局回弹空白〕；用户定稿：
+// 宽 100% 贴导航栏下方）：success 6s 后整窗隐藏，danger 不排定时器、持续至下一次
+// 截图动作（审查低-3：主窗会话漂移时亦收起，编排见 applySnapshot 漂移分支）
+const CAPTURE_FEEDBACK_VISIBLE_MS = 6000
+
+let captureHideTimer: number | null = null
+
+// 最近一次已发 show-feedback 的完整载荷镜像（审查低-2 resize 跟随用）：重发时复用
+// 其 kind/text/actionLabel 组配新锚点，保证条内容与原条完全一致；随收起/重挂清空
+let captureFeedbackShown: CaptureFeedbackShowPayload | null = null
+
+// 宿主内容区 resize 跟随观察器（审查低-2）：show-feedback 锚点是显示时刻快照，
+// 主进程 follow 只按缓存锚点重定位——宿主 resize 后条宽不跟随（变宽不满宽、变窄
+// 右侧溢出）。显示期间观察 .chrome-body，尺寸变化即以相同 kind/text/actionLabel +
+// 新锚点幂等重发 showFeedback（主进程池对已有子窗是幂等全量更新：重定位 + 重推
+// 内容 + showInactive，安全）；danger 持续显示期间保持存活（跟随 resize），直到
+// 下一次截图动作或 hide
+let captureResizeObserver: ResizeObserver | null = null
+
+function clearCaptureTimer(): void {
+  if (captureHideTimer !== null) {
+    window.clearTimeout(captureHideTimer)
+    captureHideTimer = null
+  }
+}
+
+/** 收起本地反馈编排态（定时器 + resize 跟随 + 内容镜像）：重挂（下一次
+ *  showCaptureFeedback）、6s 自动隐藏、会话漂移隐藏三路共用，防 observer 泄漏 */
+function teardownCaptureFeedback(): void {
+  clearCaptureTimer()
+  captureResizeObserver?.disconnect()
+  captureResizeObserver = null
+  captureFeedbackShown = null
+}
+
+/** 显示悬浮反馈条：组装已本地化内容 + chrome-body 锚点（左缘/顶缘/宽度，客户端
+ * 坐标 DIP——反馈条贴内容区顶缘全宽覆盖在网页上方），经 show-feedback 交主进程
+ * 子窗池承载；fire-and-forget（失败静默——反馈属尽力而为通知，截图/落盘主链路
+ * 结果不依赖它） */
+function showCaptureFeedback(kind: 'copied' | 'saved' | 'danger', text: string): void {
+  teardownCaptureFeedback()
+  const body = document.querySelector('.chrome-body')
+  const rect = body?.getBoundingClientRect()
+  const anchorLeft = rect ? rect.left : 0
+  const anchorTop = rect ? rect.top : 0
+  const anchorWidth = rect ? rect.width : window.innerWidth
+  const t = storeT()
+  const payload: CaptureFeedbackShowPayload = {
+    kind,
+    text,
+    ...(kind === 'copied' ? { actionLabel: t('browser.capture.download') } : {}),
+    anchorLeft,
+    anchorTop,
+    anchorWidth
+  }
+  captureFeedbackShown = payload
+  window.api.capture.showFeedback(payload).catch(() => {})
+  // resize 跟随挂载：锚点未变的事件（含观察开始的首次回调）与宿主元素已脱离文档
+  //（零会话空态卸载等，反馈即将随会话漂移路径收起）不重发
+  if (body) {
+    captureResizeObserver = new ResizeObserver(() => {
+      const shown = captureFeedbackShown
+      if (!shown || !body.isConnected) return
+      const next = body.getBoundingClientRect()
+      if (
+        next.left === shown.anchorLeft &&
+        next.top === shown.anchorTop &&
+        next.width === shown.anchorWidth
+      ) {
+        return
+      }
+      captureFeedbackShown = {
+        ...shown,
+        anchorLeft: next.left,
+        anchorTop: next.top,
+        anchorWidth: next.width
+      }
+      window.api.capture.showFeedback(captureFeedbackShown).catch(() => {})
+    })
+    captureResizeObserver.observe(body)
+  }
+  if (kind !== 'danger') {
+    captureHideTimer = window.setTimeout(() => {
+      captureHideTimer = null
+      teardownCaptureFeedback()
+      window.api.capture.hideFeedback().catch(() => {})
+    }, CAPTURE_FEEDBACK_VISIBLE_MS)
+  }
+}
+
+/** store 层取当前语言字典的 t（无 hook 语境：动作内组装已本地化反馈文案） */
+function storeT(): ReturnType<typeof createT> {
+  return createT(DICTIONARIES[useI18nStore.getState().language])
+}
+
+/** 截图动作失败文案：主进程 t() 上浮的已本地化消息经 readableIpcError 剥 invoke
+ * 包装壳（「Error invoking remote method …」前缀）后透出，剥不出用通用句兜底
+ * （审查中 2 修复——纯中文界面原则，settings store 同款剥壳先例） */
+function captureErrorText(error: unknown): string {
+  return readableIpcError(error, storeT()('browser.capture.failed'))
+}
 
 /**
  * 窗口身份（模块加载时解析一次 URL query，契约：计划第 3 节点 1）：
@@ -253,6 +375,16 @@ const applySnapshot = (
     ...findPatchFor(state, snapshot, sessionDrifted)
   }))
   if (sessionDrifted && snapshot.sessionId !== null) void refreshHistory(set, get)
+  // 会话漂移即收起悬浮反馈条（审查低-3）：danger 定稿语义为持续至下一次截图动作，
+  // 但主窗会话已漂移时陈旧反馈仍悬于新会话内容上方（与查找栏「切 Tab 即关」同
+  // 语义；此路需补发 IPC——反馈子窗归主进程，摘 view 清不掉它）；fire-and-forget
+  // 失败静默（反馈属尽力而为通知）。漂移判断复用 sessionDrifted：镜像随每次快照
+  // 更新，仅在 sessionId 实际变化的那一次为 true，不逐快照触发；独立窗无需此路
+  //——会话建窗绑定恒定，异窗快照已被上方守卫丢弃
+  if (windowIdentity.mode === 'main' && sessionDrifted) {
+    teardownCaptureFeedback()
+    window.api.capture.hideFeedback().catch(() => {})
+  }
 }
 
 // 悬停推送守卫（与 applySnapshot 同构，按窗口模式分流，契约：阶段 9 计划第 3 节）：
@@ -310,6 +442,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
   findMatches: 0,
   findResolved: false,
   findRequestTick: 0,
+  lastCaptureId: null,
+  captureSaving: false,
 
   // 先订阅推送、再拉取初始快照：订阅先就位后拉取期间到达的推送不会丢失，避免推送与拉取竞态
   init: async () => {
@@ -321,6 +455,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     let offHistoryChanged: (() => void) | null = null
     let offFindRequest: (() => void) | null = null
     let offFindResult: (() => void) | null = null
+    let offCaptureRequest: (() => void) | null = null
+    let offCaptureDownload: (() => void) | null = null
     try {
       // 历史增量推送（地址栏补全）：订阅先于拉取就位，推送与重拉双到达幂等无害
       offHistoryChanged = window.api.browser.onHistoryChanged((payload) => {
@@ -342,6 +478,16 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       // 汇合同一 openFind（tick 信号驱动 FindBar 聚焦/全选）；计数控 find-result 推送
       offFindRequest = window.api.browser.onFindRequest(() => {
         get().openFind()
+      })
+      // 页面聚焦态自定义截图快捷键（capture:request 定向推送，快速截图专项）：与
+      // 工具栏钮、shell 侧快捷键三路汇流同一 capture（反馈条随动）
+      offCaptureRequest = window.api.capture.onRequest(() => {
+        void get().capture()
+      })
+      // 「下载」点击回程（反馈轮三：反馈子窗 action 上报经主进程转发本窗）：与
+      // 工具栏钮/快捷键同作用域，汇流同一 saveLastCapture（in-flight 锁防回程连点）
+      offCaptureDownload = window.api.capture.onDownloadRequest(() => {
+        void get().saveLastCapture()
       })
       offFindResult = window.api.browser.onFindResult((result: FoundInPageResult) => {
         // 栏开才采用：关栏后的迟到回执不复活旧态
@@ -380,6 +526,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       offHistoryChanged?.()
       offFindRequest?.()
       offFindResult?.()
+      offCaptureRequest?.()
+      offCaptureDownload?.()
       initialized = false
       console.error('初始化浏览器状态失败', error)
     }
@@ -565,7 +713,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     if (!get().findOpen) return
     set({ findOpen: false, findOrdinal: 0, findMatches: 0, findResolved: false })
     // 主进程 findStop：清高亮 + 焦点归还页面（Chrome 对齐）；快照守卫触发的关栏
-    // 不经此路（applySnapshot 内不发 IPC，高亮已由主进程摘 view 源头清理）
+    // 不经此路（该路径不发 findStop，高亮已由主进程摘 view 源头清理）
     window.api.browser.findStop().catch(() => {})
   },
 
@@ -585,5 +733,38 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     const { findOpen, findQuery } = get()
     if (!findOpen || !findQuery) return
     window.api.browser.findStart({ text: findQuery, forward, findNext: false }).catch(() => {})
+  },
+
+  // 快速截图（按钮/页面聚焦态推送/shell 聚焦态快捷键三路汇流）：不乐观更新——
+  // capturePage 完成即回 captureId，成功/失败均经悬浮反馈子窗呈现（反馈轮三）；
+  // 单槽语义下 lastCaptureId 随最新截图覆盖
+  capture: async () => {
+    const t = storeT()
+    try {
+      const result = await window.api.capture.capture()
+      set({ lastCaptureId: result.captureId })
+      showCaptureFeedback('copied', t('browser.capture.copied'))
+    } catch (error) {
+      console.error('截图失败', error)
+      showCaptureFeedback('danger', captureErrorText(error))
+    }
+  },
+
+  // 「下载」次动作：最近一次截图落盘（在途锁防连点）；成功/失败（含 captureId
+  // 过期）经悬浮反馈子窗如实呈现（工具栏钮与反馈条「下载」回程同汇此动作）
+  saveLastCapture: async () => {
+    const { lastCaptureId, captureSaving } = get()
+    if (!lastCaptureId || captureSaving) return
+    const t = storeT()
+    set({ captureSaving: true })
+    try {
+      const result = await window.api.capture.saveLast({ captureId: lastCaptureId })
+      showCaptureFeedback('saved', t('browser.capture.saved', { path: result.path }))
+    } catch (error) {
+      console.error('保存截图失败', error)
+      showCaptureFeedback('danger', captureErrorText(error))
+    } finally {
+      set({ captureSaving: false })
+    }
   }
 }))

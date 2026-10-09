@@ -25,6 +25,12 @@ export const browser: Dictionary['browser'] = {
     devtoolsOpenTitle: 'Open Developer tools (F12)',
     devtoolsCloseTitle: 'Close Developer tools (Esc)'
   },
+  capture: {
+    copied: 'Copied to clipboard',
+    download: 'Download',
+    saved: 'Saved: {path}',
+    failed: 'Screenshot failed, please retry'
+  },
   find: {
     placeholder: 'Find in page',
     close: 'Close find bar',

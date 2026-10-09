@@ -88,6 +88,26 @@ export const settings = {
     closeDevtools: '关闭开发者工具'
   },
 
+  /** 快捷键版面：截图快捷键自定义行（快速截图专项——速查表唯一可自定义键位） */
+  screenshotShortcutRow: {
+    label: '截图',
+    desc: '截取当前标签页到剪贴板，默认无快捷键',
+    /** 未设置时的键帽占位 */
+    none: '无',
+    /** 录入态按钮文案 */
+    record: '录入',
+    /** 录入态提示（Esc 取消） */
+    recording: '按下组合键，Esc 取消',
+    /** 清除按钮（恢复「无」） */
+    clear: '清除',
+    /** 冲突拒绝行内错误（{shortcut} 为尝试录入的键位串） */
+    conflict: '与既有快捷键冲突：{shortcut}',
+    /** 非法组合键行内错误 */
+    invalid: '该组合键不可用',
+    /** 保存失败兜底（主进程已本地化的具体错误优先） */
+    saveFailed: '保存截图快捷键失败'
+  },
+
   /** 关于版面：签名区与数据目录行（数据目录打开失败的完整文案由主进程
    * errors.openDataDirFailed 构造期拼装随拒绝上浮，renderer 只剥壳呈现不重复拼装） */
   about: {

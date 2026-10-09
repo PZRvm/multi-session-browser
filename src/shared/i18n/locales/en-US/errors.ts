@@ -30,6 +30,16 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: 'Invalid homepage URL',
   invalidHomepageParams: 'Invalid homepage settings parameters',
   invalidLanguageParams: 'Invalid language settings parameters',
+  invalidShortcut: 'Invalid shortcut format',
+  invalidShortcutParams: 'Invalid shortcut settings parameters',
+  shortcutConflict: 'Shortcut conflicts with an existing feature: {shortcut}',
+
+  // Quick capture handlers (browser/capture.ts, quick-screenshot feature)
+  captureNoTab: 'No tab available to capture',
+  captureFailed: 'Screenshot failed, please retry',
+  captureExpired: 'Screenshot expired, please capture again',
+  captureSaveFailed: 'Failed to save the screenshot',
+  invalidCaptureParams: 'Invalid capture parameters',
 
   settingsWindowSourceOnly: 'Settings window commands are only accepted from the main window',
   dataDirSourceOnly: 'Data directory commands are only accepted from the settings window',

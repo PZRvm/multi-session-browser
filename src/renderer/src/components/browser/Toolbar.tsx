@@ -8,11 +8,10 @@ import {
   RightOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
-import { Tooltip } from 'antd'
 import { useBrowserStore } from '../../stores/browser'
 import { useSettingsStore } from '../../stores/settings'
 import { useT } from '../../i18n'
-import { useOverlayWhenOpen } from '../useOverlayWhenOpen'
+import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -40,11 +39,62 @@ function Toolbar(): React.JSX.Element {
   const stop = useBrowserStore((s) => s.stop)
   const navigate = useBrowserStore((s) => s.navigate)
   const toggleDevTools = useBrowserStore((s) => s.toggleDevTools)
+  const capture = useBrowserStore((s) => s.capture)
 
-  // 截图/录屏钮悬停 Tooltip 的 overlay 登记（快速截图与快速录屏专项）：Tooltip 自
-  // 工具栏下垂跨入页面区原生层，开启期间经 useOverlayWhenOpen 收起页面视图保证可见
-  const [captureTipOpen, setCaptureTipOpen] = useState(false)
-  useOverlayWhenOpen(captureTipOpen)
+  // 截图/录屏钮悬停 popover（快速截图与快速录屏专项，反馈五定稿——用户要求始终
+  // 出现在 icon 正上方）：手写固定定位深色气泡，钉在按钮正上方的 Tab 条壳层高度
+  // 带内——壳层 DOM 无 WebContentsView 原生层遮挡，天然不被页面盖住（OS title 位置
+  // 由系统控制无法保证「正上方」；antd 弹层落页面区即被盖且自动翻转不可控；原生子
+  // 窗 hint 经用户复核回退——三者均退役）。截图行已设置快捷键时附键帽串（⌘⇧C /
+  // Ctrl+Shift+C，shortcutDisplay 平台派生经 settings:get-app-info 单源；未设置只
+  // 显功能名）。悬停/聚焦 300ms 延迟显示（扫过不闪现），离开/失焦即隐。气泡位置为
+  // 悬停进入时刻的快照（审查低-1 定稿：短暂悬停可接受，布局变化不跟随，下一次
+  // 进入即刷新）
+  const screenshotShortcut = useSettingsStore((s) => s.screenshotShortcut)
+  const [platform, setPlatform] = useState<SettingsAppInfo['platform'] | null>(null)
+  useEffect(() => {
+    void window.api.settings
+      .getAppInfo()
+      .then((info) => setPlatform(info.platform))
+      .catch(() => {})
+  }, [])
+  const recordLabel = t('browser.toolbar.record')
+  const screenshotLabel = t('browser.toolbar.screenshot')
+  const screenshotKeyText =
+    screenshotShortcut !== null && platform !== null
+      ? shortcutDisplay(screenshotShortcut, platform)
+      : null
+
+  const [toolsPop, setToolsPop] = useState<{
+    x: number
+    y: number
+    label: string
+    keyText: string | null
+  } | null>(null)
+  const popDelayTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
+    },
+    []
+  )
+  const showToolsPop = (anchor: HTMLElement, label: string, keyText: string | null): void => {
+    if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
+    // rect 取槽元素自身（span 紧包按钮，矩形与按钮一致）——审查低-3 修复：不再对
+    // querySelector 结果做非空断言
+    const rect = anchor.getBoundingClientRect()
+    popDelayTimer.current = window.setTimeout(() => {
+      popDelayTimer.current = null
+      setToolsPop({ x: rect.left + rect.width / 2, y: rect.top, label, keyText })
+    }, 300)
+  }
+  const hideToolsPop = (): void => {
+    if (popDelayTimer.current !== null) {
+      window.clearTimeout(popDelayTimer.current)
+      popDelayTimer.current = null
+    }
+    setToolsPop(null)
+  }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
@@ -283,42 +333,48 @@ function Toolbar(): React.JSX.Element {
           onKeyDown={onKeyDown}
         />
       </div>
-      {/* 截图/录屏钮（快速截图与快速录屏专项，入口先行）：icon 钮沿用 .chrome-nav
-          图标钮语言，置于 DevTools 开关左侧；本步只落按钮与悬停 Tooltip（垂入页面区，
-          captureTipOpen 登记 overlay），点击接线随截图/录屏 IPC 编排落地。disabled
-          钮不派发鼠标事件，span 槽承接 hover 使提示禁用态同样可用 */}
+      {/* 截图/录屏钮（快速截图与快速录屏专项）：icon 钮沿用 .chrome-nav 图标钮语言，
+          置于 DevTools 开关左侧；悬停 popover 始终出现在 icon 正上方（深色气泡 +
+          下向箭头，钉在 Tab 条壳层带）。截图钮点击直连 store.capture（剪贴板 + 悬浮
+          反馈条）；录屏钮点击行为随录屏专项落地（保持 inert）。disabled 钮不派发
+          鼠标事件，span 槽承接 hover 使 popover 禁用态同样可用 */}
       <div className="chrome-tools">
-        <Tooltip
-          title={t('browser.toolbar.screenshot')}
-          placement="bottom"
-          mouseEnterDelay={0.2}
-          overlayStyle={{ pointerEvents: 'none' }}
-          onOpenChange={setCaptureTipOpen}
+        <span
+          onMouseEnter={(e) =>
+            showToolsPop(
+              e.currentTarget.querySelector('button')!,
+              screenshotLabel,
+              screenshotKeyText
+            )
+          }
+          onMouseLeave={hideToolsPop}
         >
-          <span>
-            <button
-              type="button"
-              aria-label={t('browser.toolbar.screenshot')}
-              disabled={!activeTab}
-            >
-              <CameraOutlined />
-            </button>
-          </span>
-        </Tooltip>
-        <Tooltip
-          title={t('browser.toolbar.record')}
-          placement="bottom"
-          mouseEnterDelay={0.2}
-          overlayStyle={{ pointerEvents: 'none' }}
-          onOpenChange={setCaptureTipOpen}
+          <button
+            type="button"
+            aria-label={screenshotLabel}
+            disabled={!activeTab}
+            onClick={() => void capture()}
+          >
+            <CameraOutlined />
+          </button>
+        </span>
+        <span
+          onMouseEnter={(e) =>
+            showToolsPop(e.currentTarget.querySelector('button')!, recordLabel, null)
+          }
+          onMouseLeave={hideToolsPop}
         >
-          <span>
-            <button type="button" aria-label={t('browser.toolbar.record')} disabled={!activeTab}>
-              <VideoCameraOutlined />
-            </button>
-          </span>
-        </Tooltip>
+          <button type="button" aria-label={recordLabel} disabled={!activeTab}>
+            <VideoCameraOutlined />
+          </button>
+        </span>
       </div>
+      {toolsPop && (
+        <div className="chrome-tools-pop" style={{ left: toolsPop.x, top: toolsPop.y - 30 }}>
+          <span>{toolsPop.label}</span>
+          {toolsPop.keyText && <span className="chrome-tools-pop-key">{toolsPop.keyText}</span>}
+        </div>
+      )}
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button
         type="button"

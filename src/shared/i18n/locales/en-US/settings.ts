@@ -65,6 +65,19 @@ export const settings: Dictionary['settings'] = {
     toggleDevtools: 'Toggle Developer Tools',
     closeDevtools: 'Close Developer Tools'
   },
+  // Screenshot shortcut customization row (quick-screenshot feature — the only
+  // customizable shortcut in the speed-check table)
+  screenshotShortcutRow: {
+    label: 'Screenshot',
+    desc: 'Capture the current tab to the clipboard; no shortcut by default',
+    none: 'None',
+    record: 'Record',
+    recording: 'Press a key combination; Esc to cancel',
+    clear: 'Clear',
+    conflict: 'Conflicts with an existing shortcut: {shortcut}',
+    invalid: 'This key combination is not available',
+    saveFailed: 'Failed to save the screenshot shortcut'
+  },
   about: {
     version: 'Version {v}',
     versionPending: 'Version …',
