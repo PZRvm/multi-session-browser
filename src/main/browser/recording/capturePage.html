@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>msb-recording-collector</title>
+  </head>
+  <body>
+    <script>
+      // 采集器页（录屏线 A' 架构，计划 20261009231903 步骤 5）：本页运行在被录会话
+      // 分区的 WebContentsView 里，是 getDisplayMedia 的发起方（spike 结论：授予方与
+      // 目标须同 session，跨 session 授予 Timeout）。主进程在分区 session 注册的
+      // setDisplayMediaRequestHandler 会把被录 Tab 的 WebFrameMain 授予本页。
+      // 本页与主进程的全部通信经 preload 暴露的 window.__msbCapture（capturePreload.ts）。
+      ;(() => {
+        const cap = window.__msbCapture
+        let recorder = null
+        // 就绪前指令排队（审查高-2① + 二审中-1 修复）：页面加载/getDisplayMedia 握手
+        // 窗口内到达的指令不丢弃——stop 排队后不再 start（该录制被取消）；pause 排队
+        // 为布尔（pause/resume 快速交替收敛为最终态），recorder 建立后立即应用，
+        // 保证「暂停期间不落帧」从 UI 暂停时刻成立
+        let pendingStop = false
+        let pendingPause = false
+        cap.onCommand(async (cmd) => {
+          if (!recorder) {
+            if (cmd === 'stop') pendingStop = true
+            else if (cmd === 'pause') pendingPause = true
+            else if (cmd === 'resume') pendingPause = false
+            return
+          }
+          try {
+            if (cmd === 'pause' && recorder.state === 'recording') {
+              recorder.pause()
+            } else if (cmd === 'resume' && recorder.state === 'paused') {
+              recorder.resume()
+            } else if (cmd === 'stop' && recorder.state !== 'inactive') {
+              recorder.stop()
+            }
+          } catch (err) {
+            cap.reportError('command ' + cmd + ': ' + String(err))
+          }
+        })
+        ;(async () => {
+          try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: false
+            })
+            if (pendingStop) {
+              // 排队中的 stop：不 start，直接收尾上报（tracks 释放 + stopped）
+              stream.getTracks().forEach((t) => t.stop())
+              cap.reportStopped()
+              return
+            }
+            recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' })
+            recorder.ondataavailable = async (e) => {
+              if (e.data && e.data.size > 0) {
+                try {
+                  // Blob → ArrayBuffer：contextBridge 结构化克隆对二进制缓冲稳定
+                  cap.saveChunk(await e.data.arrayBuffer())
+                } catch (err) {
+                  cap.reportError('chunk: ' + String(err))
+                }
+              }
+            }
+            recorder.onerror = () => {
+              cap.reportError('mediarecorder error')
+            }
+            recorder.onstop = () => {
+              stream.getTracks().forEach((t) => t.stop())
+              cap.reportStopped()
+            }
+            cap.ready()
+            recorder.start(500)
+            if (pendingPause) {
+              // 排队的 pause：start 后立即暂停（首帧后即停），暂停段不落帧
+              recorder.pause()
+              pendingPause = false
+            }
+          } catch (err) {
+            cap.reportError('start: ' + String(err))
+          }
+        })()
+      })()
+    </script>
+  </body>
+</html>

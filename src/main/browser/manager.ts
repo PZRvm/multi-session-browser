@@ -30,6 +30,12 @@ export { BLANK_URL }
 const NET_ERR_ABORTED = -3
 /** 悬挂（确认框等弹层）时的收起矩形 */
 const HIDDEN_RECT: SetBoundsPayload = { x: 0, y: 0, width: 0, height: 0 }
+/**
+ * 弹层收起态的应用矩形（非录制窗，F'）：1×1 而非 0×0——录制中的 view 经历零尺寸→
+ * 恢复会触发合成层不跟随新 bounds（破版，见 setBounds 注），1×1 避开零尺寸路径；
+ * 悬挂信号仍以 renderer 的 0×0 上报表达（判定语义不变）
+ */
+const COLLAPSE_RECT: SetBoundsPayload = { x: 0, y: 0, width: 1, height: 1 }
 
 /** 页面侧快捷键匹配：Input 适配 shared 单源匹配函数（规则见 shared/browserShortcuts） */
 function matchShortcut(input: Input): BrowserShortcutId | null {
@@ -206,6 +212,12 @@ export function createTabManager(
     getHomepageUrl: () => string
     /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：registry 注入外观快照派生——newTab 同步函数同上不容 await */
     getFallbackBackground: () => string
+    /**
+     * 录制中锚定窗现取（录屏线 F''，可缺省）：该窗的弹层收起用「整尺寸移出屏幕」
+     * 替代 1×1——被录 view 的合成输出尺寸不变（弹层期间捕获画面不出现缩小损坏段）；
+     * 非录制窗维持 1×1（既有弹层行为，页面近乎不可见但布局稳定）
+     */
+    getRecordingWindowId?: () => string | null
   }
 ): TearOffTabManager {
   // Map 迭代序即创建序，快照 tabs 顺序直接按此输出（作用域过滤不改变窗口内创建序）
@@ -341,7 +353,7 @@ export function createTabManager(
 
   /** 挂入 view 时应应用的矩形（按窗口）：悬挂收起优先（弹层必须可见），其次 HTML 全屏整窗，再次该窗口最后缓存的有效布局，均无则零矩形 */
   function currentRect(windowId: string): SetBoundsPayload {
-    if (suspendedByWindow.has(windowId)) return HIDDEN_RECT
+    if (suspendedByWindow.has(windowId)) return collapseRectFor(windowId)
     if (htmlFullscreenByWindow.has(windowId)) return fullWindowRect(windowId)
     return boundsByWindow.get(windowId) ?? HIDDEN_RECT
   }
@@ -747,6 +759,25 @@ export function createTabManager(
     return buildSnapshot(windowId)
   }
 
+  /**
+   * 收起应用矩形（2026-10-10 破版二轮 F'/F''）：双因素实证——「录制进行中（合成器挂
+   * 视频捕获轨道）」+「view 经历零尺寸→恢复」同时满足时，恢复后的合成层不跟随新
+   * bounds（页面绘制停在 0,0 小块、盖住壳层，用户两轮报告"网页跑到左上角"；纯录制
+   * 或纯弹层收起均不触发，真实键盘/鼠标交互可稳定复现）。据此：
+   * - 非录制窗：应用 1×1（避开零尺寸路径；左上角 1 像素残点弹层期间不可感知）
+   * - 录制中锚定窗（F''）：应用「整尺寸移出屏幕」——1×1 仍会让捕获轨道在弹层期间
+   *   录到缩小画面（实测产物含损坏段），移出屏幕保持合成输出尺寸、捕获内容无损
+   */
+  function collapseRectFor(windowId: string): SetBoundsPayload {
+    if (opts.getRecordingWindowId?.() === windowId) {
+      const cached = boundsByWindow.get(windowId)
+      if (cached && cached.width > 0 && cached.height > 0) {
+        return { x: -cached.width - 64, y: cached.y, width: cached.width, height: cached.height }
+      }
+    }
+    return COLLAPSE_RECT
+  }
+
   function setBounds(rect: SetBoundsPayload, windowId: string = WINDOW_ID_MAIN): void {
     // 零矩形是"收起信号"（确认框等弹层悬挂）而非布局：置该窗口悬挂态并作用于其激活
     // view，不污染布局缓存；非零矩形解除该窗口悬挂并记忆布局（均只写该窗口槽位）
@@ -760,7 +791,8 @@ export function createTabManager(
       if (!htmlFullscreenByWindow.has(windowId)) boundsByWindow.set(windowId, rect)
     }
     // 仅作用于该窗口激活 view；未激活 view 保持脱离状态，切回时由 activate 应用
-    applyRect(windowId, rect)
+    const applied = rect.width <= 0 || rect.height <= 0 ? collapseRectFor(windowId) : rect
+    applyRect(windowId, applied)
   }
 
   /** 打开该 Tab 的原生受管 DevTools；停靠位置和设备模拟布局全部交由 Chromium 管理 */

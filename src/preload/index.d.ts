@@ -26,6 +26,12 @@ import type {
   ChromeProfilesPayload
 } from '../shared/chromeImport'
 import type {
+  CaptureBeginPayload,
+  CaptureBeginResult,
+  CaptureState,
+  CaptureStopResult
+} from '../shared/capture'
+import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
   OmniboxSuggestPickPayload,
@@ -151,6 +157,14 @@ declare global {
         listProfiles(): Promise<ChromeProfilesPayload>
         dryRun(payload: ChromeImportOptions): Promise<ChromeImportPlan>
         execute(payload: ChromeImportResolution): Promise<ChromeImportResult>
+      }
+      /** 录屏域（契约 shared/capture.ts，录屏线 A'：UI 只发意图与订阅，chunk 不经此） */
+      capture: {
+        begin(payload: CaptureBeginPayload): Promise<CaptureBeginResult>
+        pause(): Promise<CaptureState>
+        resume(): Promise<CaptureState>
+        stop(): Promise<CaptureStopResult>
+        onStateChanged(callback: (state: CaptureState) => void): () => void
       }
       settings: {
         open(): Promise<SettingsOkResult>

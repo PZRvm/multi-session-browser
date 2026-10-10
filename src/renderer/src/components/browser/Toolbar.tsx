@@ -4,15 +4,16 @@ import {
   CloseOutlined,
   HomeOutlined,
   LeftOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
   RightOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
-import { Tooltip } from 'antd'
 import { useBrowserStore } from '../../stores/browser'
 import { useSettingsStore } from '../../stores/settings'
+import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { useT } from '../../i18n'
-import { useOverlayWhenOpen } from '../useOverlayWhenOpen'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -41,10 +42,72 @@ function Toolbar(): React.JSX.Element {
   const navigate = useBrowserStore((s) => s.navigate)
   const toggleDevTools = useBrowserStore((s) => s.toggleDevTools)
 
-  // 截图/录屏钮悬停 Tooltip 的 overlay 登记（快速截图与快速录屏专项）：Tooltip 自
-  // 工具栏下垂跨入页面区原生层，开启期间经 useOverlayWhenOpen 收起页面视图保证可见
-  const [captureTipOpen, setCaptureTipOpen] = useState(false)
-  useOverlayWhenOpen(captureTipOpen)
+  // 录制态（录屏线步骤 4）：主进程推送镜像 + 每秒 ticking（paused 停摆、时长冻结）；
+  // 双窗共用本组件，两窗各自 attach 订阅同一广播（appearance 广播式先例）
+  const recordLabel = t('browser.toolbar.record')
+  const screenshotLabel = t('browser.toolbar.screenshot')
+
+  // 悬停提示（用户裁决轮六：参考截图线实现回归工具栏 tooltip，上方自绘轻量层——
+  // fixed 定位于 DOM 渲染层内、不跨页面原生层、零 overlay 登记与零 antd 弹层，与兄弟
+  // 截图线 feature/quick-screenshot 逐字同构以便合并；keyText 恒 null——快捷键提示属
+  // 截图线域，合并时由截图线带入）
+  const [toolsPop, setToolsPop] = useState<{
+    x: number
+    y: number
+    label: string
+    keyText: string | null
+    /** 暂停钮场景：label 渲染期动态取（hover 中点击切换录制状态时文案即时跟随） */
+    kind?: 'pause-toggle'
+  } | null>(null)
+  const popDelayTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
+    },
+    []
+  )
+  const showToolsPop = (
+    anchor: HTMLElement,
+    label: string,
+    keyText: string | null,
+    kind?: 'pause-toggle'
+  ): void => {
+    if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
+    const rect = anchor.getBoundingClientRect()
+    popDelayTimer.current = window.setTimeout(() => {
+      popDelayTimer.current = null
+      setToolsPop({ x: rect.left + rect.width / 2, y: rect.top, label, keyText, kind })
+    }, 300)
+  }
+  const hideToolsPop = (): void => {
+    if (popDelayTimer.current !== null) {
+      window.clearTimeout(popDelayTimer.current)
+      popDelayTimer.current = null
+    }
+    setToolsPop(null)
+  }
+
+  const recState = useCaptureStore((s) => s.state)
+  const recNow = useCaptureStore((s) => s.now)
+  const attachCapture = useCaptureStore((s) => s.attach)
+  useEffect(() => attachCapture(), [attachCapture])
+  // 录制意图编排（录屏线 A'）：begin 载荷现取激活位（主进程按 resolveSenderScope +
+  // 快照 activeTabId 双核验，审查中-8）；拒绝（busy/载荷过期）静默——UI 主路径不可达
+  //（录制态本窗呈胶囊无 begin 入口），多窗竞态由状态推送自然收敛；pause/resume/stop
+  // 的状态变化以推送回镜像为准（不乐观）
+  const beginRecording = async (): Promise<void> => {
+    if (sessionId === null || activeTabId === null) return
+    await window.api.capture.begin({ sessionId, tabId: activeTabId })
+  }
+  const pauseRecording = async (): Promise<void> => {
+    await window.api.capture.pause()
+  }
+  const resumeRecording = async (): Promise<void> => {
+    await window.api.capture.resume()
+  }
+  const stopRecording = async (): Promise<void> => {
+    await window.api.capture.stop()
+  }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
@@ -283,42 +346,118 @@ function Toolbar(): React.JSX.Element {
           onKeyDown={onKeyDown}
         />
       </div>
-      {/* 截图/录屏钮（快速截图与快速录屏专项，入口先行）：icon 钮沿用 .chrome-nav
-          图标钮语言，置于 DevTools 开关左侧；本步只落按钮与悬停 Tooltip（垂入页面区，
-          captureTipOpen 登记 overlay），点击接线随截图/录屏 IPC 编排落地。disabled
-          钮不派发鼠标事件，span 槽承接 hover 使提示禁用态同样可用 */}
+      {/* 截图/录屏钮（快速截图与快速录屏专项）：icon 钮沿用 .chrome-nav 图标钮语言，
+          置于 DevTools 开关左侧。无悬停提示（用户裁决 2026-10-10 轮四：antd Tooltip
+          跨层遮挡/收页面诸病、原生 title 延迟不稳——干脆不做，图标语义自明）；aria-label
+          保留无障碍；disabled 钮不派发鼠标事件，span 槽无 hover 需求仅为布局稳定保留 */}
       <div className="chrome-tools">
-        <Tooltip
-          title={t('browser.toolbar.screenshot')}
-          placement="bottom"
-          mouseEnterDelay={0.2}
-          overlayStyle={{ pointerEvents: 'none' }}
-          onOpenChange={setCaptureTipOpen}
+        <span
+          onMouseEnter={(e) =>
+            showToolsPop(e.currentTarget.querySelector('button')!, screenshotLabel, null)
+          }
+          onMouseLeave={hideToolsPop}
         >
-          <span>
+          <button type="button" aria-label={screenshotLabel} disabled={!activeTab}>
+            <CameraOutlined />
+          </button>
+        </span>
+        {recState.status === 'idle' ? (
+          <span
+            onMouseEnter={(e) =>
+              showToolsPop(e.currentTarget.querySelector('button')!, recordLabel, null)
+            }
+            onMouseLeave={hideToolsPop}
+          >
             <button
               type="button"
-              aria-label={t('browser.toolbar.screenshot')}
+              aria-label={recordLabel}
               disabled={!activeTab}
+              onClick={() => {
+                hideToolsPop()
+                void beginRecording()
+              }}
             >
-              <CameraOutlined />
-            </button>
-          </span>
-        </Tooltip>
-        <Tooltip
-          title={t('browser.toolbar.record')}
-          placement="bottom"
-          mouseEnterDelay={0.2}
-          overlayStyle={{ pointerEvents: 'none' }}
-          onOpenChange={setCaptureTipOpen}
-        >
-          <span>
-            <button type="button" aria-label={t('browser.toolbar.record')} disabled={!activeTab}>
               <VideoCameraOutlined />
             </button>
           </span>
-        </Tooltip>
+        ) : (
+          <>
+            {/* 录制态：常驻暂停/继续图标钮（弃 Popover——弹层跨页面层必收页面或被盖，
+                嵌入工具栏两全：页面恒显 + 控件恒可达） */}
+            <span
+              onMouseEnter={(e) =>
+                showToolsPop(
+                  e.currentTarget.querySelector('button')!,
+                  t(
+                    recState.status === 'paused'
+                      ? 'capture.resumeRecording'
+                      : 'capture.pauseRecording'
+                  ),
+                  null,
+                  'pause-toggle'
+                )
+              }
+              onMouseLeave={hideToolsPop}
+            >
+              <button
+                type="button"
+                className="chrome-record-toggle"
+                aria-label={t(
+                  recState.status === 'paused'
+                    ? 'capture.resumeRecording'
+                    : 'capture.pauseRecording'
+                )}
+                onClick={() =>
+                  void (recState.status === 'paused' ? resumeRecording() : pauseRecording())
+                }
+              >
+                {recState.status === 'paused' ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+              </button>
+            </span>
+            {/* 录制胶囊：红点（录制中脉动/暂停静止）＋ mono 时长，点击＝停止
+                （PRD 3.10.2「再次点击停止」） */}
+            <span
+              onMouseEnter={(e) =>
+                showToolsPop(
+                  e.currentTarget.querySelector('button')!,
+                  t('capture.stopRecord'),
+                  null
+                )
+              }
+              onMouseLeave={hideToolsPop}
+            >
+              <button
+                type="button"
+                className="chrome-record-pill"
+                aria-label={t('capture.stopRecord')}
+                onClick={() => {
+                  hideToolsPop()
+                  void stopRecording()
+                }}
+              >
+                <span
+                  className={`chrome-record-dot${recState.status === 'recording' ? ' pulsing' : ''}`}
+                />
+                <span className="chrome-record-time">{formatElapsed(recState, recNow)}</span>
+              </button>
+            </span>
+          </>
+        )}
       </div>
+      {toolsPop && (
+        <div className="chrome-tools-pop" style={{ left: toolsPop.x, top: toolsPop.y - 30 }}>
+          <span>
+            {toolsPop.kind === 'pause-toggle'
+              ? t(
+                  recState.status === 'paused'
+                    ? 'capture.resumeRecording'
+                    : 'capture.pauseRecording'
+                )
+              : toolsPop.label}
+          </span>
+          {toolsPop.keyText && <span className="chrome-tools-pop-key">{toolsPop.keyText}</span>}
+        </div>
+      )}
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button
         type="button"

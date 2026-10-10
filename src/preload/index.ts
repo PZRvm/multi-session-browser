@@ -22,6 +22,13 @@ import type {
 } from '../shared/browser'
 import { HISTORY_CHANNELS } from '../shared/history'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
+import { CAPTURE_CHANNELS } from '../shared/capture'
+import type {
+  CaptureBeginPayload,
+  CaptureBeginResult,
+  CaptureState,
+  CaptureStopResult
+} from '../shared/capture'
 import { OMNIBOX_SUGGEST_CHANNELS } from '../shared/omniboxSuggest'
 import type {
   OmniboxSuggestDataPayload,
@@ -331,6 +338,24 @@ const api = {
       ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.dryRun, payload),
     execute: (payload: ChromeImportResolution): Promise<ChromeImportResult> =>
       ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.execute, payload)
+  },
+  // 录屏域（契约见 shared/capture.ts，录屏线 A' 架构）：UI 只发意图与订阅状态；
+  // 媒体分块不经本命名空间（采集器专用桥 capturePreload.ts 自持 capture:record-chunk）
+  capture: {
+    begin: (payload: CaptureBeginPayload): Promise<CaptureBeginResult> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.begin, payload),
+    pause: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.pause),
+    resume: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.resume),
+    stop: (): Promise<CaptureStopResult> => ipcRenderer.invoke(CAPTURE_CHANNELS.stop),
+    onStateChanged: (callback: (state: CaptureState) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, state: CaptureState): void => {
+        callback(state)
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.stateChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.stateChanged, listener)
+      }
+    }
   },
   // 设置域（契约见 shared/settings.ts）：板头齿轮请求主进程打开/聚焦单例设置窗口；
   // 应用菜单路径在主进程内直连不经此通道。阶段三并入关于信息两通道（get-app-info /

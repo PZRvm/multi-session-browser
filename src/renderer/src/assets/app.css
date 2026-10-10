@@ -2622,6 +2622,107 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   cursor: not-allowed;
 }
 
+/* 工具钮悬停提示（轮六：与截图线逐字同构的自绘轻量 tooltip——fixed 定位于 DOM 层内
+   按钮上方，黑底白字＋小箭头，pointer-events 穿透，零 overlay/零 antd 弹层） */
+.chrome-tools-pop {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.chrome-tools-pop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.85);
+}
+
+.chrome-tools-pop-key {
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 录制态胶囊（录屏线步骤 4，impeccable 定稿）：录屏钮在录制/暂停态的变形——22px 高
+   与 DevTools 开关同节奏、4px 圆角（右区直角语言）、内红点＋mono 时长；点击＝停止。
+   红点是录制信号色（Chrome 系红，非左板主题强调色——右区灰阶世界仅放行这一枚
+   语义红，屏幕占比极小）；时长 tabular-nums（计数数字即信号语言） */
+.chrome-tools .chrome-record-pill {
+  flex: none;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 4px;
+  background: var(--chrome-hover-veil);
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--chrome-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-record-pill:hover {
+  background: var(--chrome-pressed-veil);
+}
+
+.chrome-record-pill:focus-visible {
+  outline: none;
+  background: var(--chrome-pressed-veil);
+}
+
+.chrome-record-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d93025;
+  flex: none;
+}
+
+.chrome-record-dot.pulsing {
+  animation: chrome-record-pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chrome-record-dot {
+    background: #f28b82;
+  }
+}
+
+@keyframes chrome-record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.chrome-record-time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 /* 页内查找栏（会话网页内查找开发计划步骤 4，impeccable 定稿）：chrome-body 顶部停靠条
    ——toolbar 底 + 底缘发丝线（无阴影规则）、高 36px 与 Tab 栏同节奏、内容右对齐
    （Chrome find bar 位感）；查找框 28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，

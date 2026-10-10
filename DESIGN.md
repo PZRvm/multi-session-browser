@@ -342,6 +342,10 @@ Tab 栏（#dee1e6，36px）：真实多 tab（radio 语义，激活白底、标�
 
 Cmd/Ctrl+F 唤起的页内查找停靠条（Chrome find bar 对齐）。**停靠而非浮层**：内容区被主进程 WebContentsView 原生覆盖，DOM 无法浮于页面之上，而整页收起（overlayDepth 路线）与「查找时须看见页面」直接矛盾——查找条以 chrome-body 顶部停靠条呈现，挂载即压缩内容锚点、bounds 重报让位原生层（零新增布局机制），页面轻微 reflow 是该架构下的批复取舍。条：高 36px（与 Tab 栏同节奏）、chrome-toolbar 底 + 底缘 chrome-line 发丝线（无阴影规则）、内容右对齐（Chrome find bar 位感）、显隐瞬切无动效（停靠让位是结构性布局变化，离散跳变先例）。查找框：28px（地址栏同度量）+ 4px 圆角（区别于地址栏药丸，Chrome find 框观感）、chrome-surface 底 + chrome-line 边框，聚焦（focus-within）边框灰阶加深至 chrome-ink-dim（右侧控件 focus 灰阶化惯例，强调色不进右侧），输入 12px chrome-ink、占位「在网页中查找」。计数「n/m」：12px chrome-ink-dim + tabular-nums 对位不跳——**不用计数砖**（高频变化 + Chrome 原生形态的次要元数据，非「航班信息」级信号）；无匹配 0/0 转 chrome-error。关闭钮 20×20 灰阶蒙版阶梯（hover-veil → pressed-veil，:focus-visible 以 select-veil 加深代替强调色外框）。页面内匹配高亮由 Chromium 原生绘制（普通匹配黄底、当前匹配橙底），应用零自绘。键盘 Enter/Shift+Enter 前后跳转、Esc 关栏（组件内吞冒泡不让位 close-devtools 快捷键，shell 侧查找栏聚焦豁免为第二道防线）、输入法组合态不触发（Toolbar 同款守卫）；切 Tab/切会话即关栏，旧 Tab 高亮由主进程摘 view 源头清理，计数 0 命中收尾的同 query 单次自动重搜兜底 Chromium find 的瞬时假阴性（重搜仍 0 如实显 0/0）。
 
+### 录制态胶囊（Recording Pill）— 录屏专项新增（2026-10-10）
+
+工具栏录屏钮的双形态（快速截图与快速录屏专项，计划 20261009231903；轮三/四/五修订见文末「工具栏提示终态」「去 overlay 化」条目）。**空闲态**：28px 圆形图标钮，与导航四键同一图标钮语言（悬停蒙版、灰阶焦点），原生 title 提示（无弹层、零 overlay——下文 Tooltip/Popover 措辞为已废历史方案，终态以此为准）。**录制/暂停态**：按钮变形成胶囊——高 22px 与 DevTools 开关同节奏、4px 圆角（右区直角语言）、hover-veil 底（悬停 pressed-veil），内容 = 红点 + mono 时长；点击＝停止（PRD 3.10.2「再次点击停止」）。红点是右区灰阶世界放行的唯一一枚语义信号红（Chrome 系红 #d93025 / 暗态 #f28b82，非左板主题强调色——录制信号如 Chrome 屏幕共享指示，屏幕占比极小）；录制中 1.5s 呼吸脉动（opacity 1→0.45），暂停态静止。时长 mm:ss（超 1h 显 h:mm:ss），tabular-nums（计数数字即信号语言），每秒 ticking 由 store 驱动（暂停冻结——时长口径单源 shared/capture.ts elapsedMs，进行中暂停段现扣不跳变）。**暂停/继续控件（轮五终态）**：常驻图标钮嵌在胶囊左侧（.chrome-tools 图标钮语言，⏸/▶ 图标、原生 title），**无弹层**——Popover/Tooltip 方案已废（跨页面层收页面=白屏、触发器替换卡死 overlay，见「去 overlay 化」条目）；busy 拒绝为主进程原生信息框（频率极低）。完成/自动停止/失败反馈为主进程原生信息框（AGENTS 结果反馈原生裁决），不进渲染层浮层。
+
 ### 原生 DevTools（Managed DevTools）— 阶段 3 新增
 
 每个 Tab 直接调用其页面 `webContents.openDevTools()`，由 Electron/Chromium 创建并管理原生 DevTools；不再通过 `setDevToolsWebContents` 注入第二个 WebContentsView。DevTools 的停靠按钮、方向、分隔条、设备模拟页面和尺寸调整均为 Chromium 原生能力，并沿用其上次停靠状态。应用只维护激活 Tab 的 `devtoolsOpen` 快照和 F12/ESC 路由，不注入 DevTools 样式或布局。这样既保持 DevTools 与页面 webContents 一对一绑定，也避免应用停靠占位与 Chromium 设备模拟布局形成两套互相冲突的坐标系统。阶段 4 会话绑定后，DevTools 随所在 Tab 的 webContents 自然归属其会话分区，切换会话即整体交换（无需任何额外接线）。
@@ -409,3 +413,27 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
 - **`--accent-ink-dim`（缺省 #4a3a00）在 `:root` 定义但零引用，且未随主题系统配置**：琥珀系缺省值存在、体系里未启用，未收录进本记录的 token 表与 themeSystems 配置单源；启用前先入配置再引用，避免非琥珀主题下取到错值。
 - **无断点体系**：弹性由窗口最小尺寸（1080×680）与左栏 220–420px 拖拽承担；不要引入媒体查询断点。
+
+### 录屏破版修复（录屏专项修复轮二，2026-10-10，根因更正）
+
+用户两轮报告「开始录屏后网页跑到左上角」。第一轮曾把根因判为「共享 contentView 多 view 合成冻结」并把采集器改为独立隐藏子窗——**该判断错误**（被遮挡窗口截图=陈旧帧属遮挡节流正常表现），修复无效。二轮以真实键盘/鼠标交互稳定复现后实证真根因：**双因素**——「录制进行中（被录 view 合成器挂视频捕获轨道）」+「view 经历弹层收起的零尺寸（0×0）→恢复循环」同时满足时，恢复后的合成层不跟随新 bounds（页面绘制停在 0,0 小块盖住壳层；主进程 bounds 全程正确；纯录制或纯弹层收起均不触发，单因素无害）。修复（F' 方案，manager.ts）：弹层收起信号（renderer 零矩形上报、悬挂判定不变）在**应用层**改为 1×1 而非 0×0——避开零尺寸路径，弹层期间左上角 1 像素残点不可感知。真实键盘复现序列双验 + 既有弹层收起回归 + 录制全链（6s/115 帧）回归全过。**F'' 增量（同日）**：F' 的 1×1 收起仍让捕获轨道在弹层期间录到缩小画面（实测产物含损坏段）——录制中锚定窗的收起改「整尺寸移出屏幕」（manager collapseRectFor 按录制态分派：录制窗=移出、非录制窗=1×1 既有行为；录制窗经 registry→manager 的 getRecordingWindowId 注入，装配层可变 holder 回填解决构造顺序）。双验：布局无破版 + 抽帧 16 格全部全尺寸（无缩小段）。
+
+### 工具栏提示与录制控件去 overlay 化（用户反馈轮三，2026-10-10）
+
+用户报告两症状：hover 截图/录屏钮时浏览器区变白；开始录制后浏览器区变白且停止后不恢复。根因同源：工具栏 Tooltip/Popover 向下弹入页面原生层须登记 overlay 收起页面（露白为收起语义）；且录屏钮被胶囊替换时 Tooltip 触发器卸载不回调关闭，overlay 计数卡死——页面永久收起（停止也不恢复）。定稿：①截图/录屏钮 Tooltip 改 **placement top**（弹入 Tab 条壳层 DOM 区，不跨原生层、零 overlay、页面恒显）；②录制态弃 Popover——**常驻暂停/继续图标钮**嵌入工具栏（.chrome-tools 图标钮语言，胶囊左侧；弹层跨页面层要么收页面要么被盖，嵌入两全：页面恒显 + 控件恒可达）；③暂停/继续钮与胶囊用原生 title/aria（无 antd 弹层）。三场景实测：hover 页面保持渲染、录制中页面保持渲染（暂停钮+胶囊就位）、停止后页面保持渲染（原生结果框后面非白）。
+
+### 工具栏提示终态：原生 title（用户反馈轮四，2026-10-10）
+
+placement top 的 antd Tooltip 被 Tab 条层叠区域遮挡。终态裁决：截图/录屏钮提示回归**原生 title**（Electron 无系统 popover API；title 由 Chromium 自动定位避让、零层叠问题，与导航四键/DevTools 钮先例一致）；busy 拒绝提示经 title 动态切换；录制态暂停/继续钮与胶囊同用原生 title。工具栏全部按钮的悬停提示自此统一为原生 title 行为。
+
+### 工具栏提示终态修订（用户反馈轮五，2026-10-10）：无悬停提示
+
+原生 title 实测不稳（Electron 下 1s 静止延迟、非聚焦窗口被吞）。用户裁决：截图/录屏/暂停继续/胶囊**一律不做悬停提示**——图标语义自明（相机/摄像机/⏸/▶＋胶囊红点与 mono 时长），aria-label 保留无障碍，busy 拒绝静默（UI 主路径录制态呈胶囊无 begin 入口，竞态由状态推送收敛）。工具栏既有导航四键与 DevTools 钮的 title 先例维持不变（本条为截图/录屏控件 scoped 裁决）。
+
+### 工具栏提示终态修订二（用户裁决轮六，2026-10-10）：自绘 tooltip 回归
+
+参考兄弟截图线（feature/quick-screenshot）实现，截图/录屏钮回归悬停提示：**自绘轻量层**（`.chrome-tools-pop`——fixed 定位于 DOM 渲染层内按钮上方，黑底白字＋小箭头、300ms 延迟、pointer-events 穿透）——不跨页面原生层、零 overlay 登记、零 antd 弹层，规避轮三/四暴露的全部弹层病症；与截图线逐字同构（state/timer/样式三段一致，keyText 参数保留恒 null，快捷键提示属截图线域合并时带入）以便两线合并。轮五「无悬停提示」裁决由本条取代。实测：hover 截图钮提示显示于按钮上方、页面保持渲染。
+
+### 工具栏录制态 tooltip 补全（用户裁决轮七，2026-10-10）
+
+轮六 tooltip 回归的三点补全：①点击录屏钮瞬间隐藏在显提示（按钮将被胶囊替换，卸载不触发 mouseleave——onClick 内显式 hideToolsPop）；②录制态胶囊悬停提示「结束录屏」（stopRecord 键，aria-label 同词）；③暂停/继续钮悬停提示「暂停录屏/继续录屏」（pauseRecording/resumeRecording 新键替代原 pause/resume，aria 同词）——hover 中点击切换录制状态时提示文案渲染期动态跟随（toolsPop 增 kind: 'pause-toggle' 判别，label 不再是快照）。DOM 断言实证：暂停→同 hover 切「继续录屏」→再点回「暂停录屏」；胶囊「结束录屏」。

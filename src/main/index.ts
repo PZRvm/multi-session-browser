@@ -34,6 +34,8 @@ import {
 import { registerFactoryResetIpc } from './factoryReset'
 import { registerShellIpc } from './shell'
 import { registerChromeImportIpc } from './browser/chromeImport'
+import { registerRecordingIpc, routeBrowserLifecycleToRecording } from './browser/recording'
+import collectorPageAsset from './browser/recording/capturePage.html?asset'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
 import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
@@ -331,6 +333,9 @@ app.whenReady().then(async () => {
   // 来源窗口作用域路由（ipc.ts 经 resolveSenderScope 解析后委托），会话运行状态
   //（idle/loading）在注册表内聚合；宿主窗口解析：'main' → 主窗口显式引用，独立窗口
   // → 登记表现取（一律不缓存，macOS 关窗重建场景）
+  // 录制中锚定窗 holder（F''）：registry 构造在录制域之前，经可变引用回填——
+  // manager 弹层收起按录制态分派「移出屏幕」应用矩形
+  const recordedWindowIdHolder: { get: () => string | null } = { get: () => null }
   const created = createSessionBrowserRegistry({
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
@@ -338,7 +343,8 @@ app.whenReady().then(async () => {
     getHomepageUrl,
     // WebContentsView 兜底底色现取（外观快照派生 chrome surface 族，单源 shared/browser.ts）
     getFallbackBackground: () =>
-      browserViewFallbackBackground(appearanceController.getSnapshot().resolvedTheme)
+      browserViewFallbackBackground(appearanceController.getSnapshot().resolvedTheme),
+    getRecordingWindowId: () => recordedWindowIdHolder.get()
   })
   registry = created
 
@@ -465,6 +471,21 @@ app.whenReady().then(async () => {
     getPartitionDir: (sessionId) => created.getPartitionDir(sessionId),
     getMainWindow: () => mainWindow
   })
+  // 录屏域（录屏线 A' 架构，计划 20261009231903 步骤 5）：四 UI 通道 + 采集器桥 +
+  // 生命周期订阅；采集器 preload 为多入口产物（electron.vite.config.ts），采集页
+  // ?asset 导入。会话名经 loadSnapshot 现取（begin 低频动作，读盘可接受）。
+  // getRecordedWindowId 经可变 holder 回填（registry 构造在先、录制域在后，F''）
+  const recordingHooks = registerRecordingIpc({
+    registry: created,
+    getMainWindow: () => mainWindow,
+    collectorPreloadPath: join(__dirname, '../preload/capturePreload.js'),
+    collectorPagePath: collectorPageAsset,
+    getSessionName: (id) => loadSnapshot().then((s) => s.sessions.find((x) => x.id === id)?.name),
+    t,
+    tmpDir: join(app.getPath('userData'), 'recording-tmp')
+  })
+  routeBrowserLifecycleToRecording(created, recordingHooks)
+  recordedWindowIdHolder.get = recordingHooks.getRecordedWindowId
   // 破坏性确认框（PRD 4.10）：删除会话/批量关闭/删除工作区的二次确认弹主进程原生
   // 对话框，弹框期间页面视图保持可见；本通道只确认不执行，删除仍由上方 sessions/
   // workspaces 通道闭环（契约见 shared/dialog.ts）
