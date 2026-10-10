@@ -65,19 +65,14 @@ export interface CaptureFeedbackShowPayload {
 }
 
 /**
- * feedback-data 推送载荷（主进程 → 反馈子窗）。
- * 注：hint kind（工具钮悬停子窗提示）已随 2026-10-10 合并裁决退役——tooltip 统一为
- * renderer 自绘气泡（Toolbar .chrome-tools-pop，显于按钮上方）；字段保留仅为反馈窗
- * 端类型兼容，无活跃发送方，后续清理
+ * feedback-data 推送载荷（主进程 → 反馈子窗）：kind 三态与反馈条一致。工具钮悬停
+ * 提示已随 2026-10-10 合并裁决统一为 renderer 自绘气泡（Toolbar .chrome-tools-pop，
+ * 显于按钮上方），不经本通道——原 hint kind 与键帽/箭头字段已随修复轮清除
  */
 export interface CaptureFeedbackDataPayload {
-  kind: CaptureFeedbackKind | 'hint'
+  kind: CaptureFeedbackKind
   text: string
   actionLabel?: string
-  /** hint 键帽显示串（仅 kind === 'hint' 携带；已废） */
-  keyText?: string
-  /** hint 箭头 x 偏移（仅 kind === 'hint'；已废） */
-  arrowLeft?: number
 }
 
 /** feedback-action 载荷（反馈子窗 → 主进程） */

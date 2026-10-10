@@ -13,16 +13,22 @@
 // 文件仅按用户「下载」动作写系统下载目录，命名锚定发起截图时的会话名（会话更名不
 // 影响已落盘文件；读不到回退 sessionId 截断，不臆造名字）。
 //
-// 结构分层：清洗/兜底解析/时间戳/唯一路径是纯函数（或仅依赖注入的 fs 探测），导出
-// 供临时断言脚本单测（计划步骤 2 验收）；capture:request 定向推送不经本模块（manager
+// 结构分层：清洗/时间戳/同名序号探测的单源在 downloadNaming.ts（两线合并修复轮，
+// 与录屏线 recording/name.ts 合订，行为裁决见该模块头注）；本模块保留截图域命名源
+// 策略（resolveNameSource/fileNameBase）。capture:request 定向推送不经本模块（manager
 // before-input-event 分派链持有，快捷键链路另行接线）。IPC 装配面仅
 // registerCaptureIpc（src/main/index.ts 步骤 5 装配，registerChromeImportIpc 先例）。
 
 import { app, clipboard, ipcMain } from 'electron'
 import type { NativeImage, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
-import { rm, rename, stat, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { rm, rename, writeFile } from 'fs/promises'
+import {
+  fileExists,
+  formatDownloadStamp,
+  resolveUniqueDownloadPath,
+  sanitizeDownloadNameSegment
+} from './downloadNaming'
 import { CAPTURE_CHANNELS, type CaptureResult, type CaptureSaveResult } from '../../shared/capture'
 import type { CaptureFeedbackShowPayload } from '../../shared/capture'
 import { isRecord } from '../../shared/guards'
@@ -34,12 +40,8 @@ import type { CaptureFeedbackWindows } from './captureFeedbackWindow'
 
 /** save-last 入参 captureId 长度白名单（randomUUID 产物 36 字符，防御性封顶） */
 const CAPTURE_ID_MAX = 128
-/** 文件名会话名段截断上限：与会话名落盘 clamp（sessions.ts 的 NAME_MAX=50）同量级 */
-const FILE_NAME_SEGMENT_MAX = 50
 /** 会话名读不到时兜底 id 段的截断长度（sess-<base36 时间戳>-<seq> 稳定落在 20 字符内） */
 const SESSION_ID_FALLBACK_MAX = 20
-/** 同名序号追加上限：超出按保存失败如实报错（防异常目录下的无界循环） */
-const FILE_SEQUENCE_MAX = 1000
 
 /** 单槽缓存条目：captureId（save-last 对账标识）+ PNG 字节 + 发起时会话命名名源 */
 interface CaptureSlot {
@@ -57,31 +59,14 @@ function invalidCaptureParams(): Error {
   return new Error(t('errors.invalidCaptureParams'))
 }
 
-// —— 纯函数区（可单测面，导出仅为临时断言脚本消费，无其他模块依赖） ——
-
-/** 文件名段非法字符全集：三平台交集（Windows 保留集 <>:"/\|?* 为主）+ 控制符（\p{Cc}：C0/DEL/C1） */
-const ILLEGAL_FILENAME_SEGMENT_RE = /[<>:"/\\|?*\p{Cc}]/gu
-
-/**
- * 文件名段清洗（纯函数）：非法字符与控制符替换为空格，空白折叠为单空格，去首尾
- * 空白与结尾点（Windows 文件名不得以点/空格结尾），再按段上限截断（码点安全：
- * Array.from 按码元对切，防止 UTF-16 代理对拦腰截断产出 U+FFFD——审查低 2 修复）。
- * 全非法输入清洗后为空串，由调用方走兜底链
- */
-export function sanitizeFileNameSegment(raw: string): string {
-  return Array.from(raw.replace(ILLEGAL_FILENAME_SEGMENT_RE, ' ').replace(/\s+/g, ' ').trim())
-    .slice(0, FILE_NAME_SEGMENT_MAX)
-    .join('')
-    .trim()
-    .replace(/[.\s]+$/u, '')
-}
+// —— 纯函数区（清洗/时间戳/序号探测单源在 downloadNaming.ts；此处仅截图域命名源策略） ——
 
 /**
  * 命名源解析（纯函数）：落盘会话名可用（清洗后非空）即锚定真名；读不到（null）或
  * 清洗后为空的会话名回退 sessionId 截断——不臆造名字（计划契约点 6）
  */
 export function resolveNameSource(sessionName: string | null, sessionId: string): string {
-  if (sessionName !== null && sanitizeFileNameSegment(sessionName) !== '') return sessionName
+  if (sessionName !== null && sanitizeDownloadNameSegment(sessionName) !== '') return sessionName
   return sessionId.slice(0, SESSION_ID_FALLBACK_MAX)
 }
 
@@ -91,46 +76,7 @@ export function resolveNameSource(sessionName: string | null, sessionId: string)
  * 该分支实际不可达；文件名段非用户可见文案，不入 i18n 字典
  */
 export function fileNameBase(nameSource: string): string {
-  return sanitizeFileNameSegment(nameSource) || 'capture'
-}
-
-/** 落盘时间戳段（纯函数）：本地时间 YYYYMMDD-HHmmss */
-export function formatCaptureStamp(now: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return (
-    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
-    `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-  )
-}
-
-/** 路径存在性探测：ENOENT 即不存在，其余 fs 错误原样上抛（registry isENOENT 同款判据） */
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch (error) {
-    if (error instanceof Error && (error as { code?: string }).code === 'ENOENT') return false
-    throw error
-  }
-}
-
-/**
- * 唯一落盘路径解析：`<base>_<stamp>.png` 被占（同秒重名或撞既有文件）时追加
- * -2/-3… 序号（首个文件无后缀、第二个起 -2），不覆盖任何既有文件；序号超上限按
- * 保存失败如实抛错
- */
-export async function resolveUniqueCapturePath(
-  dir: string,
-  base: string,
-  stamp: string
-): Promise<string> {
-  const plain = join(dir, `${base}_${stamp}.png`)
-  if (!(await pathExists(plain))) return plain
-  for (let n = 2; n <= FILE_SEQUENCE_MAX; n += 1) {
-    const candidate = join(dir, `${base}_${stamp}-${n}.png`)
-    if (!(await pathExists(candidate))) return candidate
-  }
-  throw new Error(t('errors.captureSaveFailed'))
+  return sanitizeDownloadNameSegment(nameSource) || 'capture'
 }
 
 // —— 编排区 ——
@@ -223,11 +169,11 @@ async function saveLastCapture(payload: unknown): Promise<CaptureSaveResult> {
     throw new Error(t('errors.captureExpired'))
   }
   const dir = app.getPath('downloads')
-  const target = await resolveUniqueCapturePath(
-    dir,
-    fileNameBase(slot.sessionName),
-    formatCaptureStamp(new Date())
-  )
+  // 唯一路径解析（单源 downloadNaming）：stem = 清洗名_保存时刻时间戳，序号超上限
+  // 按保存失败如实报错
+  const stem = `${fileNameBase(slot.sessionName)}_${formatDownloadStamp(new Date())}`
+  const target = await resolveUniqueDownloadPath(fileExists, dir, stem, '.png')
+  if (target === null) throw new Error(t('errors.captureSaveFailed'))
   // 临时名与目标同目录（rename 原子性前提），随机后缀防并发写交错（fs-utils 同款）
   const tmpPath = `${target}.${randomUUID().slice(0, 8)}.tmp`
   try {

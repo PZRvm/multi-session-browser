@@ -48,10 +48,9 @@ function Toolbar(): React.JSX.Element {
   const recordLabel = t('browser.toolbar.record')
   const screenshotLabel = t('browser.toolbar.screenshot')
 
-  // 悬停提示（用户裁决轮六：参考截图线实现回归工具栏 tooltip，上方自绘轻量层——
-  // fixed 定位于 DOM 渲染层内、不跨页面原生层、零 overlay 登记与零 antd 弹层，与兄弟
-  // 截图线 feature/quick-screenshot 逐字同构以便合并；keyText 恒 null——快捷键提示属
-  // 截图线域，合并时由截图线带入）
+  // 悬停提示（两线融合终态，用户裁决轮六）：上方自绘轻量层 .chrome-tools-pop——
+  // fixed 定位于 DOM 渲染层内、不跨页面原生层、零 overlay 登记与零 antd 弹层；
+  // keyText 键帽槽由截图钮消费（shortcutDisplay 平台派生），录屏面各钮恒 null
   const [toolsPop, setToolsPop] = useState<{
     x: number
     y: number
@@ -67,6 +66,20 @@ function Toolbar(): React.JSX.Element {
     },
     []
   )
+  // 窗口尺寸变化即隐（遗留低-1 修复）：气泡坐标是悬停时刻的 rect 快照，resize 后
+  // 锚钮位移会让气泡钉在空处——隐藏比跟随廉价（跟随需持续测量重算），重新悬停/
+  // 聚焦即再现；setter 与 ref 皆稳定引用，空依赖数组安全
+  useEffect(() => {
+    const hide = (): void => {
+      if (popDelayTimer.current !== null) {
+        window.clearTimeout(popDelayTimer.current)
+        popDelayTimer.current = null
+      }
+      setToolsPop(null)
+    }
+    window.addEventListener('resize', hide)
+    return () => window.removeEventListener('resize', hide)
+  }, [])
   const showToolsPop = (
     anchor: HTMLElement,
     label: string,
@@ -364,20 +377,18 @@ function Toolbar(): React.JSX.Element {
           onKeyDown={onKeyDown}
         />
       </div>
-      {/* 截图/录屏钮（快速截图与快速录屏专项）：icon 钮沿用 .chrome-nav 图标钮语言，
-          置于 DevTools 开关左侧。无悬停提示（用户裁决 2026-10-10 轮四：antd Tooltip
-          跨层遮挡/收页面诸病、原生 title 延迟不稳——干脆不做，图标语义自明）；aria-label
-          保留无障碍；disabled 钮不派发鼠标事件，span 槽无 hover 需求仅为布局稳定保留 */}
+      {/* 截图/录屏钮（快速截图与快速录屏专项，两线融合）：icon 钮沿用 .chrome-nav 图标钮
+          语言，置于 DevTools 开关左侧。悬停气泡统一 .chrome-tools-pop（轮四「不做提示」
+          裁决已被轮六自绘轻量层取代）；aria-label 保留无障碍；disabled 钮不派发鼠标事件
+          且不可聚焦，span 槽承接 hover；聚焦气泡经 span 的 onFocus/onBlur 接线（React
+          焦点事件按 focusin/focusout 冒泡，内层 button 聚焦即达）——锚点即 span 自身
+          （flex 项紧包按钮，rect 与按钮等值，无需 querySelector 取钮） */}
       <div className="chrome-tools">
         <span
-          onMouseEnter={(e) =>
-            showToolsPop(
-              e.currentTarget.querySelector('button')!,
-              screenshotLabel,
-              screenshotKeyText
-            )
-          }
+          onMouseEnter={(e) => showToolsPop(e.currentTarget, screenshotLabel, screenshotKeyText)}
           onMouseLeave={hideToolsPop}
+          onFocus={(e) => showToolsPop(e.currentTarget, screenshotLabel, screenshotKeyText)}
+          onBlur={hideToolsPop}
         >
           <button
             type="button"
@@ -390,10 +401,10 @@ function Toolbar(): React.JSX.Element {
         </span>
         {recState.status === 'idle' ? (
           <span
-            onMouseEnter={(e) =>
-              showToolsPop(e.currentTarget.querySelector('button')!, recordLabel, null)
-            }
+            onMouseEnter={(e) => showToolsPop(e.currentTarget, recordLabel, null)}
             onMouseLeave={hideToolsPop}
+            onFocus={(e) => showToolsPop(e.currentTarget, recordLabel, null)}
+            onBlur={hideToolsPop}
           >
             <button
               type="button"
@@ -414,7 +425,7 @@ function Toolbar(): React.JSX.Element {
             <span
               onMouseEnter={(e) =>
                 showToolsPop(
-                  e.currentTarget.querySelector('button')!,
+                  e.currentTarget,
                   t(
                     recState.status === 'paused'
                       ? 'capture.resumeRecording'
@@ -425,6 +436,19 @@ function Toolbar(): React.JSX.Element {
                 )
               }
               onMouseLeave={hideToolsPop}
+              onFocus={(e) =>
+                showToolsPop(
+                  e.currentTarget,
+                  t(
+                    recState.status === 'paused'
+                      ? 'capture.resumeRecording'
+                      : 'capture.pauseRecording'
+                  ),
+                  null,
+                  'pause-toggle'
+                )
+              }
+              onBlur={hideToolsPop}
             >
               <button
                 type="button"
@@ -444,14 +468,10 @@ function Toolbar(): React.JSX.Element {
             {/* 录制胶囊：红点（录制中脉动/暂停静止）＋ mono 时长，点击＝停止
                 （PRD 3.10.2「再次点击停止」） */}
             <span
-              onMouseEnter={(e) =>
-                showToolsPop(
-                  e.currentTarget.querySelector('button')!,
-                  t('capture.stopRecord'),
-                  null
-                )
-              }
+              onMouseEnter={(e) => showToolsPop(e.currentTarget, t('capture.stopRecord'), null)}
               onMouseLeave={hideToolsPop}
+              onFocus={(e) => showToolsPop(e.currentTarget, t('capture.stopRecord'), null)}
+              onBlur={hideToolsPop}
             >
               <button
                 type="button"

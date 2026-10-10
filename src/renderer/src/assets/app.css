@@ -2368,12 +2368,16 @@ img.chrome-tab-favicon {
   gap: 2px;
 }
 
-/* 工具钮悬停 popover（快速截图专项反馈五定稿）：深色气泡始终出现在 icon 正上方
+/* 工具钮悬停 popover（快速截图专项反馈五定稿；两线合并后为唯一单份——录屏线轮六
+   曾逐字复刻本块，合并冲突各留一份已并回此处）：深色气泡始终出现在 icon 正上方
    ——固定定位钉在按钮上方 Tab 条壳层高度带内（壳层 DOM 无页面原生层遮挡，天然
    不被页面盖住），transform -50% 水平居中于按钮中心、下缘距按钮顶 6px，::after
    三角箭头指向按钮；经典深色工具提示观感（rgba(0,0,0,.85) 白字 4px 圆角，亮暗
    双主题同色可读），内容 = 功能名 + 键帽串（已设快捷键，半透明白次级）；
-   pointer-events 关闭不扰交互 */
+   pointer-events 关闭不扰交互。触发槽 = .chrome-tools 内 span（disabled 钮不派发
+   鼠标事件也不可聚焦，span 承接 hover；可聚焦钮的气泡经 span 的 onFocus/onBlur
+   接线——React 焦点事件冒泡；.chrome-tools 为 flex 容器，span 作为 flex 项自动
+   紧包按钮，其 rect 即按钮 rect，气泡锚定无需取钮） */
 .chrome-tools-pop {
   position: fixed;
   z-index: 1000;
@@ -2654,40 +2658,6 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
 .chrome-devtools-toggle:disabled {
   color: var(--chrome-disabled);
   cursor: not-allowed;
-}
-
-/* 工具钮悬停提示（轮六：与截图线逐字同构的自绘轻量 tooltip——fixed 定位于 DOM 层内
-   按钮上方，黑底白字＋小箭头，pointer-events 穿透，零 overlay/零 antd 弹层） */
-.chrome-tools-pop {
-  position: fixed;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.85);
-  color: #ffffff;
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.chrome-tools-pop::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 4px solid transparent;
-  border-top-color: rgba(0, 0, 0, 0.85);
-}
-
-.chrome-tools-pop-key {
-  color: rgba(255, 255, 255, 0.65);
-  font-variant-numeric: tabular-nums;
 }
 
 /* 录制态胶囊（录屏线步骤 4，impeccable 定稿）：录屏钮在录制/暂停态的变形——22px 高
