@@ -39,12 +39,16 @@ import type {
 } from '../shared/chromeImport'
 import { CAPTURE_CHANNELS } from '../shared/capture'
 import type {
+  CaptureBeginPayload,
+  CaptureBeginResult,
   CaptureFeedbackActionPayload,
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
   CaptureResult,
   CaptureSavePayload,
-  CaptureSaveResult
+  CaptureSaveResult,
+  CaptureState,
+  CaptureStopResult
 } from '../shared/capture'
 import { APPEARANCE_CHANNELS } from '../shared/appearance'
 import type {
@@ -346,7 +350,9 @@ const api = {
   // request 为页面聚焦态快捷键触发的回程推送（find-request 同构，renderer 汇流
   // 同一 capture 动作）；反馈轮三增悬浮反馈条原生子窗四通道——show/hide 归宿主
   // shell（显隐编排），data 归反馈子窗（内容推送），action 归反馈子窗（「下载」
-  // 上报）、downloadRequest 归宿主 shell（点击回程汇流 saveLast）
+  // 上报）、downloadRequest 归宿主 shell（点击回程汇流 saveLast）。
+  // 录屏面（录屏线 A' 合并融合）：begin/pause/resume/stop 四意图 + stateChanged 订阅；
+  // 媒体分块不经本命名空间（采集器专用桥 capturePreload.ts 自持）
   capture: {
     capture: (): Promise<CaptureResult> => ipcRenderer.invoke(CAPTURE_CHANNELS.capture),
     saveLast: (payload: CaptureSavePayload): Promise<CaptureSaveResult> =>
@@ -356,6 +362,11 @@ const api = {
     hideFeedback: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.hideFeedback),
     feedbackAction: (payload: CaptureFeedbackActionPayload): Promise<void> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.feedbackAction, payload),
+    begin: (payload: CaptureBeginPayload): Promise<CaptureBeginResult> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.begin, payload),
+    pause: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.pause),
+    resume: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.resume),
+    stop: (): Promise<CaptureStopResult> => ipcRenderer.invoke(CAPTURE_CHANNELS.stop),
     onRequest: (callback: () => void): (() => void) => {
       const listener = (): void => {
         callback()
@@ -384,6 +395,16 @@ const api = {
       ipcRenderer.on(CAPTURE_CHANNELS.downloadRequest, listener)
       return () => {
         ipcRenderer.removeListener(CAPTURE_CHANNELS.downloadRequest, listener)
+      }
+    },
+    // 录屏状态订阅（全部窗口广播式；录制态胶囊/暂停钮数据源）
+    onStateChanged: (callback: (state: CaptureState) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, state: CaptureState): void => {
+        callback(state)
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.stateChanged, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.stateChanged, listener)
       }
     }
   },

@@ -35,11 +35,31 @@ import { createBrowserHistory, type BrowserHistory } from './history'
 import type { IndependentWindows } from './windows'
 
 /**
+ * 浏览器生命周期通知种类（录屏线五路自动停止的信号面）：
+ * - 'tab-closed' 关闭 Tab（tabId = 被关 Tab）
+ * - 'tab-moved' 拖出独立窗口 / 跨窗转移（tabId = 迁移 Tab）
+ * - 'tab-switched' 窗口内切换 Tab（tabId = 新激活 Tab）
+ * - 'session-switched' 激活会话变化（sessionId = 新激活位）
+ * - 'session-gone' 会话销毁或关闭（sessionId = 目标会话）
+ */
+export type BrowserLifecycleKind =
+  'tab-closed' | 'tab-moved' | 'tab-switched' | 'session-switched' | 'session-gone'
+
+/** 生命周期监听器：tabId/windowId 仅 Tab 级事件携带（windowId = 事件发生的作用域窗，
+ *  审查中-9：切 Tab 判定需按窗收窄防他窗误停）；sessionId 为 null 仅 'session-switched'（切到空态） */
+export type BrowserLifecycleListener = (
+  kind: BrowserLifecycleKind,
+  sessionId: string | null,
+  tabId?: string,
+  windowId?: string
+) => void
+
+/**
  * 会话分区名（AGENTS.md 领域规则：persist:sess-<id>，一会话一分区禁止共享）。
  * 读入口拦截（F5 定案）：id 先过 SESSION_ID_RE 单源校验——被篡改的落盘 id 在拼分区串
  * 之前拒绝，否则非法分区串会被用于 WebContentsView/fromPartition 创建 session
  */
-function partitionFor(sessionId: string): string {
+export function partitionFor(sessionId: string): string {
   if (!SESSION_ID_RE.test(sessionId)) {
     throw new Error(t('errors.partitionAssemblyBlocked', { id: sessionId }))
   }
@@ -127,6 +147,13 @@ export interface SessionBrowserRegistry extends TabManager {
    * 未知窗口/已销毁/绑定会话已不在注册表一律抛中文错误（契约点 3）
    */
   resolveSenderScope(sender: WebContents): SenderWindowScope
+  /**
+   * 浏览器生命周期订阅（录屏线五路自动停止的挂载面）：closeTab/switchTab/
+   * moveTabToWindow/tearOffTab/switchSession/destroySession/closeSession 的副作用
+   * 完成点通知；sessionId 为 null 仅 'session-switched'（切到零会话空态）；
+   * tabId/windowId 仅 Tab 级事件携带（windowId = 事件发生的作用域窗）
+   */
+  onBrowserLifecycle(cb: BrowserLifecycleListener): () => void
   /** 独立窗口就绪（ready-to-show 防白屏时点）：挂入该窗口作用域激活 Tab 的 view */
   onIndependentWindowReady(sessionId: string, windowId: string): void
   /** 独立窗口已销毁：销毁该窗口作用域全部 Tab（含 webContents）并清槽位 */
@@ -189,6 +216,8 @@ export function createSessionBrowserRegistry(deps: {
   getHomepageUrl: () => string
   /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：index.ts 注入外观快照派生——ensureManager 透传 createTabManager */
   getFallbackBackground: () => string
+  /** 录制中锚定窗现取（录屏线 F''）：ensureManager 透传 createTabManager——弹层收起按录制态分派应用矩形 */
+  getRecordingWindowId?: () => string | null
 }): SessionBrowserRegistry {
   const { getWindow, windows, getHomepageUrl, getFallbackBackground } = deps
 
@@ -247,6 +276,28 @@ export function createSessionBrowserRegistry(deps: {
   let initHandled = false
 
   const snapshotListeners = new Set<SnapshotListener>()
+  /**
+   * 浏览器生命周期通知（录屏线 20261009231903 步骤 5，五路自动停止的挂载面）：
+   * 包装层（closeTab/switchTab/moveTabToWindow/switchSession/destroySession/
+   * closeSession）在副作用完成点 emit，装配层订阅并路由到录制钩子——registry 不
+   * import 录制域（分层：编排注入反向依赖，onSnapshotChanged 同款先例）
+   */
+  const lifecycleListeners = new Set<BrowserLifecycleListener>()
+  const emitLifecycle = (
+    kind: BrowserLifecycleKind,
+    sessionId: string | null,
+    tabId?: string,
+    windowId?: string
+  ): void => {
+    // null 仅 'session-switched'（切到零会话空态）合法携带；其余 kind 调用点恒非 null
+    for (const listener of lifecycleListeners) {
+      try {
+        listener(kind, sessionId, tabId, windowId)
+      } catch (error) {
+        console.warn('[registry] 生命周期通知回调失败:', error)
+      }
+    }
+  }
   const focusListeners = new Set<FocusAddressListener>()
   const findRequestListeners = new Set<FindRequestListener>()
   const findResultListeners = new Set<FindResultListener>()
@@ -436,7 +487,8 @@ export function createSessionBrowserRegistry(deps: {
       partition,
       initialBounds: globalBounds ?? undefined,
       getHomepageUrl,
-      getFallbackBackground
+      getFallbackBackground,
+      getRecordingWindowId: deps.getRecordingWindowId
     })
     managers.set(id, manager)
 
@@ -552,6 +604,7 @@ export function createSessionBrowserRegistry(deps: {
       detachActiveView(prev)
     }
     activeSessionId = id
+    emitLifecycle('session-switched', id)
     // ② null = 摘除全部（零会话空态），快照同步广播空态
     if (id === null) {
       notifySnapshot()
@@ -579,6 +632,7 @@ export function createSessionBrowserRegistry(deps: {
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
     // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
     cameraPermissions.disposeSession(id)
+    emitLifecycle('session-gone', id)
     // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
     // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
     // 由下方 killPartitionWebContents 按 session 分区扫杀兜底覆盖，两路都杀不冲突
@@ -659,6 +713,7 @@ export function createSessionBrowserRegistry(deps: {
     // clonePartition 经此入口调用天然覆盖——克隆前源会话独立窗口全关，窗内页面不再写入
     // 分区，复制不落入活库。manager 不存在（无窗可关）时此调用本身即 no-op
     windows.closeAllForSession(id)
+    emitLifecycle('session-gone', id)
     if (!manager) return
     managers.delete(id)
     // 恢复集保留（settleSession 的分叉点）：该会话仍在落盘元数据里存活，
@@ -851,22 +906,52 @@ export function createSessionBrowserRegistry(deps: {
 
   function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
-    return manager ? manager.newTab(url, windowId) : emptySnapshot()
+    const snapshot = manager ? manager.newTab(url, windowId) : emptySnapshot()
+    if (manager) {
+      // 新 Tab 必然成为该窗激活位（manager.newTab 内 activate）——录制中被录 Tab 让位
+      // 须可被生命周期观察到（审查中-9：否则录制挂在已摘离的 view 上继续）
+      const sessionId =
+        windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      if (sessionId !== null && snapshot.activeTabId !== null) {
+        emitLifecycle('tab-switched', sessionId, snapshot.activeTabId, windowId)
+      }
+    }
+    return snapshot
   }
 
   function newUserTab(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
-    return manager ? manager.newUserTab(windowId) : emptySnapshot()
+    const snapshot = manager ? manager.newUserTab(windowId) : emptySnapshot()
+    if (manager) {
+      const sessionId =
+        windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      if (sessionId !== null && snapshot.activeTabId !== null) {
+        emitLifecycle('tab-switched', sessionId, snapshot.activeTabId, windowId)
+      }
+    }
+    return snapshot
   }
 
   function closeTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
-    return manager ? manager.closeTab(id, windowId) : emptySnapshot()
+    const snapshot = manager ? manager.closeTab(id, windowId) : emptySnapshot()
+    if (manager) {
+      const sessionId =
+        windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      emitLifecycle('tab-closed', sessionId, id)
+    }
+    return snapshot
   }
 
   function switchTab(id: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     const manager = scopedManager(windowId)
-    return manager ? manager.switchTab(id, windowId) : emptySnapshot()
+    const snapshot = manager ? manager.switchTab(id, windowId) : emptySnapshot()
+    if (manager) {
+      const sessionId =
+        windowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(windowId)
+      emitLifecycle('tab-switched', sessionId, id)
+    }
+    return snapshot
   }
 
   function reorderTabs(ids: string[], windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
@@ -959,7 +1044,9 @@ export function createSessionBrowserRegistry(deps: {
     // 结果为准（与前导校验通过的作用域恒一致）
     const resolved = requireScopeForTab(id, windowId)
     const created = windows.createWindow(resolved.sessionId, title, at)
-    return resolved.manager.tearOffTab(id, windowId, created.windowId)
+    const snapshot = resolved.manager.tearOffTab(id, windowId, created.windowId)
+    emitLifecycle('tab-moved', resolved.sessionId, id, windowId)
+    return snapshot
   }
 
   function moveTabToWindow(
@@ -976,6 +1063,7 @@ export function createSessionBrowserRegistry(deps: {
       targetWindowId === WINDOW_ID_MAIN ? activeSessionId : windows.getSessionId(targetWindowId)
     if (targetSessionId !== sessionId) throw new Error(t('errors.moveTargetSessionMismatch'))
     manager.moveTabToWindow(id, sourceWindowId, targetWindowId, insertIndex)
+    emitLifecycle('tab-moved', sessionId, id, sourceWindowId)
   }
 
   function getActiveSessionId(): string | null {
@@ -1017,6 +1105,11 @@ export function createSessionBrowserRegistry(deps: {
   function onSnapshotChanged(cb: SnapshotListener): () => void {
     snapshotListeners.add(cb)
     return () => snapshotListeners.delete(cb)
+  }
+
+  function onBrowserLifecycle(cb: BrowserLifecycleListener): () => void {
+    lifecycleListeners.add(cb)
+    return () => lifecycleListeners.delete(cb)
   }
 
   function onFocusAddressRequest(cb: FocusAddressListener): () => void {
@@ -1081,6 +1174,7 @@ export function createSessionBrowserRegistry(deps: {
     dispose,
     getSnapshot,
     onSnapshotChanged,
+    onBrowserLifecycle,
     onFocusAddressRequest,
     onFindRequest,
     onFindResult,

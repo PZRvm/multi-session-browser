@@ -26,12 +26,16 @@ import type {
   ChromeProfilesPayload
 } from '../shared/chromeImport'
 import type {
+  CaptureBeginPayload,
+  CaptureBeginResult,
   CaptureFeedbackActionPayload,
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
   CaptureResult,
   CaptureSavePayload,
-  CaptureSaveResult
+  CaptureSaveResult,
+  CaptureState,
+  CaptureStopResult
 } from '../shared/capture'
 import type {
   OmniboxSuggestDataPayload,
@@ -161,15 +165,21 @@ declare global {
         dryRun(payload: ChromeImportOptions): Promise<ChromeImportPlan>
         execute(payload: ChromeImportResolution): Promise<ChromeImportResult>
       }
+      /** 快速截图 + 快速录屏（契约 shared/capture.ts 两线融合：截图执行/反馈条编排 + 录制四意图与状态订阅） */
       capture: {
         capture(): Promise<CaptureResult>
         saveLast(payload: CaptureSavePayload): Promise<CaptureSaveResult>
         showFeedback(payload: CaptureFeedbackShowPayload): Promise<void>
         hideFeedback(): Promise<void>
         feedbackAction(payload: CaptureFeedbackActionPayload): Promise<void>
+        begin(payload: CaptureBeginPayload): Promise<CaptureBeginResult>
+        pause(): Promise<CaptureState>
+        resume(): Promise<CaptureState>
+        stop(): Promise<CaptureStopResult>
         onRequest(callback: () => void): () => void
         onFeedbackData(callback: (payload: CaptureFeedbackDataPayload) => void): () => void
         onDownloadRequest(callback: () => void): () => void
+        onStateChanged(callback: (state: CaptureState) => void): () => void
       }
       settings: {
         open(): Promise<SettingsOkResult>

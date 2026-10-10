@@ -8,5 +8,16 @@ import { sessions } from './sessions'
 import { browser } from './browser'
 import { settings } from './settings'
 import { chromeImport } from './chromeImport'
+import { capture } from './capture'
 
-export const zhCN = { common, menu, dialogs, errors, sessions, browser, settings, chromeImport }
+export const zhCN = {
+  common,
+  menu,
+  dialogs,
+  errors,
+  sessions,
+  browser,
+  settings,
+  chromeImport,
+  capture
+}

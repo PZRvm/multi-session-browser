@@ -12,6 +12,7 @@ import type {
   Session,
   WebContents
 } from 'electron'
+import { collectorGate } from './recording/collectorGate'
 import { t } from '../i18n'
 
 type CameraDecision = 'allow' | 'deny'
@@ -65,6 +66,14 @@ function requestOrigin(
 ): string | null {
   if (securityOrigin !== undefined) return secureOrigin(securityOrigin)
   return requestingUrl ? secureOrigin(requestingUrl) : null
+}
+
+/** 采集器页 URL 判定（录屏线 A'）：file:// 协议 + 文件名 capturePage 前缀 .html 后缀
+ * （dev 指源文件、打包指 out 资源，两者均匹配）；display-media handler 层承担零越权 */
+function isRecordingCollectorUrl(url: string): boolean {
+  if (!url.startsWith('file://')) return false
+  const base = url.slice(url.lastIndexOf('/') + 1)
+  return base.startsWith('capturePage') && base.endsWith('.html')
 }
 
 function isPureVideoRequest(details: MediaAccessPermissionRequest): boolean {
@@ -265,6 +274,10 @@ export function createCameraPermissionBroker(
         if (permission === 'clipboard-sanitized-write') return true
         // HTML 全屏探测（permissions.query('fullscreen')）放行：与 request handler 同口径
         if (permission === 'fullscreen') return true
+        // 屏幕捕获探测放行（录屏线 A'）：getDisplayMedia 前的 check 走此且 PermissionCheck
+        // 的 TS 枚举不含 'display-capture'（运行时会收到——枚举非闭集），字符串比较放行；
+        // 真正的流授予在 setDisplayMediaRequestHandler（captureView.ts），此处放行不构成越权
+        if ((permission as string) === 'display-capture') return true
         if (!isCurrent(binding) || permission !== 'media' || details.mediaType !== 'video') {
           return false
         }
@@ -303,8 +316,28 @@ export function createCameraPermissionBroker(
         finish(true)
         return
       }
+      // 屏幕捕获权限放行（录屏线 A'，2026-10-10 修复轮）：采集器 view 与被录页面同
+      // 分区（分区串对齐后），其 getDisplayMedia 的权限询问经此——放行只越过「询问」
+      // 环节，真正给流的是分区 session 的 setDisplayMediaRequestHandler（captureView.ts：
+      // 请求方非采集器一律 callback({}) 拒绝），页面自身发起的请求拿不到流，零越权由该层承担
+      if (permission === 'display-capture') {
+        finish(true)
+        return
+      }
       if (!isCurrent(binding) || permission !== 'media') {
         finish(false)
+        return
+      }
+      // 录屏采集器放行（录屏线 A'，2026-10-10 修复轮）：Electron 39 的 getDisplayMedia
+      // 权限询问以 'media' 走此（冒烟实证），采集器页（capturePage-*.html，file://）发起
+      // 的视频询问直接放行——不走摄像头授权对话框；真正的流授予在分区 session 的
+      // setDisplayMediaRequestHandler（captureView.ts：请求方非采集器一律拒），页面
+      // 自身发起（含伪造同名 file:// 页）拿不到流，零越权由该层承担
+      if (
+        isRecordingCollectorUrl(webContents.getURL()) &&
+        collectorGate.webContentsId === webContents.id
+      ) {
+        finish(true)
         return
       }
       const details = rawDetails as MediaAccessPermissionRequest
