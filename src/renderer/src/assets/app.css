@@ -2120,7 +2120,9 @@ select.picker-input {
   align-items: center;
   gap: 8px;
   height: 30px;
-  padding: 0 14px;
+  /* 右内边距窄于左（8 vs 14）：关闭钮贴近右缘（Chrome 对齐），右缘留白与栏内
+     8px 间隙同律；左侧保持内容呼吸位 */
+  padding: 0 8px 0 14px;
   /* 拖拽带内保持交互（主窗 macOS）：Tab 手势与点击不被 app-region 吞掉 */
   -webkit-app-region: no-drag;
   border-radius: 8px 8px 0 0;
