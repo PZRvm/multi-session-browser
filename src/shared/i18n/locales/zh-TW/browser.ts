@@ -41,6 +41,8 @@ export const browser: Dictionary['browser'] = {
     copied: '已複製到剪貼簿',
     /** 反馈条「下载」次动作钮（最近一次截图落盘下载目录） */
     download: '下載',
+    /** 反馈条关闭钮 aria-label 与 title（同一词，点击即收起反馈条） */
+    close: '關閉',
     /** 下载成功反馈（{path} 为落盘绝对路径） */
     saved: '已儲存：{path}',
     /** store 层兜底失败文案（主进程已本地化的具体错误优先） */

@@ -23,10 +23,14 @@ export const CAPTURE_CHANNELS = {
   hideFeedback: 'capture:hide-feedback',
   /** 主进程 → 反馈子窗：推送反馈内容（kind/text/actionLabel） */
   feedbackData: 'capture:feedback-data',
-  /** 反馈子窗 → 主进程：「下载」次动作点击上报（主进程转发宿主 shell） */
+  /** 反馈子窗 → 主进程：反馈条按钮点击上报（download=「下载」次动作 / dismiss=关闭钮，
+   *  主进程校验 sender 白名单后转发宿主 shell） */
   feedbackAction: 'capture:feedback-action',
   /** 主进程 → 宿主 shell：「下载」点击转发（shell 汇流 saveLastCapture 动作） */
   downloadRequest: 'capture:download-request',
+  /** 主进程 → 宿主 shell：关闭钮点击转发（载荷带内容指纹，shell 与最近一次 show
+   *  镜像比对后收起——不匹配即忽略，防迟到 dismiss 收起新一轮反馈条） */
+  dismissRequest: 'capture:dismiss-request',
   // ===== 录屏面 =====
   /** UI → 主进程：开始录制（载荷 CaptureBeginPayload；主进程编排采集器，失败整体回滚 idle） */
   begin: 'capture:record-begin',
@@ -75,10 +79,19 @@ export interface CaptureFeedbackDataPayload {
   actionLabel?: string
 }
 
-/** feedback-action 载荷（反馈子窗 → 主进程） */
-export interface CaptureFeedbackActionPayload {
-  action: 'download'
+/** dismiss 内容指纹（dismiss action / dismiss-request 共用载荷面）：被关那条的
+ *  kind + text——宿主与最近一次 show 的镜像比对，不匹配说明已显示更新一轮反馈，
+ *  迟到的 dismiss 应忽略（审查 20261014105226 低-2 加固；连续两次同文案截图指纹
+ *  相同属可接受残留：新条与被关条内容一致，隐藏即用户所指） */
+export interface CaptureDismissRequestPayload {
+  kind: CaptureFeedbackKind
+  text: string
 }
+
+/** feedback-action 载荷（反馈子窗 → 主进程）：download=「下载」次动作（转发宿主汇流
+ *  saveLastCapture），dismiss=关闭钮收起（携带内容指纹，转发宿主比对镜像后收起） */
+export type CaptureFeedbackActionPayload =
+  { action: 'download' } | ({ action: 'dismiss' } & CaptureDismissRequestPayload)
 
 /** capture 返回：captureId 为主进程单槽缓存标识（save-last 对账用） */
 export interface CaptureResult {

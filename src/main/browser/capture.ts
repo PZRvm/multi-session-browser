@@ -198,8 +198,10 @@ async function saveLastCapture(payload: unknown): Promise<CaptureSaveResult> {
  * - show-feedback / hide-feedback（invoke，宿主 shell → 主进程）：作用域解析同
  *   capture（sender 即宿主），经反馈子窗池显隐；
  * - feedback-action（invoke，反馈子窗 → 主进程）：sender 白名单 = 池内反馈子窗
- *   （resolveOwnerOf），「下载」点击转发宿主 shell（download-request）；
- * - feedback-data / download-request 为推送（子窗内容 / 宿主回程），无 handler。
+ *   （resolveOwnerOf），「下载」/关闭钮点击按 action 转发宿主 shell（download-request /
+ *   dismiss-request）；
+ * - feedback-data / download-request / dismiss-request 为推送（子窗内容 / 宿主回程），
+ *   无 handler。
  */
 export function registerCaptureIpc(deps: {
   registry: SessionBrowserRegistry
@@ -252,9 +254,11 @@ export function registerCaptureIpc(deps: {
     )
   )
 
-  // 「下载」点击上报：sender 白名单 = 池内反馈子窗（非子窗来源一律拒绝），经池
-  // 定向转发 download-request 到宿主 shell（shell 汇流 saveLastCapture——与工具栏
-  // 钮、快捷键同一 store 动作）
+  // 反馈条按钮点击上报：sender 白名单 = 池内反馈子窗（非子窗来源一律拒绝），按
+  // action 分支校验载荷后经池定向转发宿主 shell——download 转发 download-request
+  // （shell 汇流 saveLastCapture，与工具栏钮、快捷键同一 store 动作）；dismiss
+  // （关闭钮）校验内容指纹（kind 枚举 + text 非空 ≤2000，与 show-feedback 同限）
+  // 后转发 dismiss-request，宿主比对最近一次 show 镜像后与 6s 自动隐藏同路收起
   ipcMain.handle(CAPTURE_CHANNELS.feedbackAction, (event, payload: unknown): Promise<void> =>
     logFailureAsync(
       CAPTURE_CHANNELS.feedbackAction,
@@ -262,8 +266,27 @@ export function registerCaptureIpc(deps: {
       async () => {
         const ownerWindowId = deps.feedbackWindows.resolveOwnerOf(event.sender)
         if (ownerWindowId === null) throw invalidCaptureParams()
-        if (!isRecord(payload) || payload.action !== 'download') throw invalidCaptureParams()
-        deps.feedbackWindows.sendToHost(ownerWindowId)
+        if (!isRecord(payload)) throw invalidCaptureParams()
+        if (payload.action === 'download') {
+          deps.feedbackWindows.sendToHost(ownerWindowId, { action: 'download' })
+          return
+        }
+        if (payload.action !== 'dismiss') throw invalidCaptureParams()
+        if (payload.kind !== 'copied' && payload.kind !== 'saved' && payload.kind !== 'danger') {
+          throw invalidCaptureParams()
+        }
+        if (
+          typeof payload.text !== 'string' ||
+          payload.text.length === 0 ||
+          payload.text.length > 2000
+        ) {
+          throw invalidCaptureParams()
+        }
+        deps.feedbackWindows.sendToHost(ownerWindowId, {
+          action: 'dismiss',
+          kind: payload.kind,
+          text: payload.text
+        })
       },
       'capture'
     )

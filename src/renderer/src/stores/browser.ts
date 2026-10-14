@@ -113,7 +113,9 @@ let initialized = false
 // 截图反馈显隐编排（反馈轮三：反馈条由原生子窗承载——全宽贴宿主内容区顶缘、
 // 覆盖在网页上方、宿主布局零压缩〔消失即整窗 hide，无布局回弹空白〕；用户定稿：
 // 宽 100% 贴导航栏下方）：success 6s 后整窗隐藏，danger 不排定时器、持续至下一次
-// 截图动作（审查低-3：主窗会话漂移时亦收起，编排见 applySnapshot 漂移分支）
+// 截图动作或关闭钮（2026-10-14 增量：条左端常驻关闭钮，dismiss 回程与自动隐藏
+// 同路收起——编排态必须随收起清理，否则 resize 观察器会把已关的条复活；主窗
+// 会话漂移时亦收起，编排见 applySnapshot 漂移分支）
 const CAPTURE_FEEDBACK_VISIBLE_MS = 6000
 
 let captureHideTimer: number | null = null
@@ -144,6 +146,13 @@ function teardownCaptureFeedback(): void {
   captureResizeObserver?.disconnect()
   captureResizeObserver = null
   captureFeedbackShown = null
+}
+
+/** 收起反馈条（编排态清理 + 主进程整窗隐藏）：6s 自动隐藏、关闭钮 dismiss 回程、
+ * 会话漂移隐藏三路共用，fire-and-forget 同 showCaptureFeedback 口径 */
+function hideCaptureFeedback(): void {
+  teardownCaptureFeedback()
+  window.api.capture.hideFeedback().catch(() => {})
 }
 
 /** 显示悬浮反馈条：组装已本地化内容 + chrome-body 锚点（左缘/顶缘/宽度，客户端
@@ -195,8 +204,7 @@ function showCaptureFeedback(kind: 'copied' | 'saved' | 'danger', text: string):
   if (kind !== 'danger') {
     captureHideTimer = window.setTimeout(() => {
       captureHideTimer = null
-      teardownCaptureFeedback()
-      window.api.capture.hideFeedback().catch(() => {})
+      hideCaptureFeedback()
     }, CAPTURE_FEEDBACK_VISIBLE_MS)
   }
 }
@@ -382,8 +390,7 @@ const applySnapshot = (
   // 更新，仅在 sessionId 实际变化的那一次为 true，不逐快照触发；独立窗无需此路
   //——会话建窗绑定恒定，异窗快照已被上方守卫丢弃
   if (windowIdentity.mode === 'main' && sessionDrifted) {
-    teardownCaptureFeedback()
-    window.api.capture.hideFeedback().catch(() => {})
+    hideCaptureFeedback()
   }
 }
 
@@ -457,6 +464,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     let offFindResult: (() => void) | null = null
     let offCaptureRequest: (() => void) | null = null
     let offCaptureDownload: (() => void) | null = null
+    let offCaptureDismiss: (() => void) | null = null
     try {
       // 历史增量推送（地址栏补全）：订阅先于拉取就位，推送与重拉双到达幂等无害
       offHistoryChanged = window.api.browser.onHistoryChanged((payload) => {
@@ -488,6 +496,15 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       // 工具栏钮/快捷键同作用域，汇流同一 saveLastCapture（in-flight 锁防回程连点）
       offCaptureDownload = window.api.capture.onDownloadRequest(() => {
         void get().saveLastCapture()
+      })
+      // 关闭钮点击回程（2026-10-14 增量，反馈条最左端 × 钮）：dismiss 携内容指纹
+      // 与最近一次 show 镜像比对——不匹配说明 dismiss 在途时已显示更新一轮反馈
+      //（毫秒窗竞态，审查 20261014105226 低-2 加固），忽略防收起新条；镜像为 null
+      // 说明已收起（定时器/漂移先到），no-op。匹配才与 6s 自动隐藏、会话漂移同路收起
+      offCaptureDismiss = window.api.capture.onDismissRequest((payload) => {
+        const shown = captureFeedbackShown
+        if (shown === null || shown.kind !== payload.kind || shown.text !== payload.text) return
+        hideCaptureFeedback()
       })
       offFindResult = window.api.browser.onFindResult((result: FoundInPageResult) => {
         // 栏开才采用：关栏后的迟到回执不复活旧态
@@ -528,6 +545,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       offFindResult?.()
       offCaptureRequest?.()
       offCaptureDownload?.()
+      offCaptureDismiss?.()
       initialized = false
       console.error('初始化浏览器状态失败', error)
     }

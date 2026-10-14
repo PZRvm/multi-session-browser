@@ -28,6 +28,7 @@ export const browser: Dictionary['browser'] = {
   capture: {
     copied: 'Copied to clipboard',
     download: 'Download',
+    close: 'Close',
     saved: 'Saved: {path}',
     failed: 'Screenshot failed, please retry'
   },

@@ -38,6 +38,8 @@ export const browser = {
     copied: '已复制到剪贴板',
     /** 反馈条「下载」次动作钮（最近一次截图落盘下载目录） */
     download: '下载',
+    /** 反馈条关闭钮 aria-label 与 title（同一词，点击即收起反馈条） */
+    close: '关闭',
     /** 下载成功反馈（{path} 为落盘绝对路径） */
     saved: '已保存：{path}',
     /** store 层兜底失败文案（主进程已本地化的具体错误优先） */

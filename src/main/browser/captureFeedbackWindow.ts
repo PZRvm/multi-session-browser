@@ -20,7 +20,11 @@ import {
   CAPTURE_FEEDBACK_HEIGHT,
   CAPTURE_FEEDBACK_WINDOW_ROLE
 } from '../../shared/capture'
-import type { CaptureFeedbackDataPayload, CaptureFeedbackShowPayload } from '../../shared/capture'
+import type {
+  CaptureFeedbackActionPayload,
+  CaptureFeedbackDataPayload,
+  CaptureFeedbackShowPayload
+} from '../../shared/capture'
 import type { ThemeSystemId } from '../../shared/themeSystems'
 
 export interface CaptureFeedbackWindows {
@@ -32,8 +36,9 @@ export interface CaptureFeedbackWindows {
   dispose(windowId: string): void
   /** sender 身份判别：sender 属池内反馈子视图时返回宿主 windowId，否则 null */
   resolveOwnerOf(sender: WebContents): string | null
-  /** 定向推送 download-request 到宿主 shell（「下载」点击回程；宿主已销毁 no-op） */
-  sendToHost(windowId: string): void
+  /** 定向转发 download-request / dismiss-request 到宿主 shell（反馈条按钮点击回程；
+   *  载荷已经 registerCaptureIpc 运行时守卫；宿主已销毁 no-op） */
+  sendToHost(windowId: string, payload: CaptureFeedbackActionPayload): void
 }
 
 /** 视图 bounds：锚点为宿主内容区 chrome-body（左缘/顶缘/宽度，客户端坐标 DIP 与
@@ -187,10 +192,14 @@ export function createCaptureFeedbackWindows(deps: {
     return null
   }
 
-  function sendToHost(windowId: string): void {
+  function sendToHost(windowId: string, payload: CaptureFeedbackActionPayload): void {
     const owner = deps.getWindow(windowId)
     if (!owner || owner.isDestroyed() || owner.webContents.isDestroyed()) return
-    owner.webContents.send(CAPTURE_CHANNELS.downloadRequest, { action: 'download' })
+    const channel =
+      payload.action === 'download'
+        ? CAPTURE_CHANNELS.downloadRequest
+        : CAPTURE_CHANNELS.dismissRequest
+    owner.webContents.send(channel, payload)
   }
 
   return { show, hide, dispose: destroy, resolveOwnerOf, sendToHost }

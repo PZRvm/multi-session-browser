@@ -28,6 +28,7 @@ import type {
 import type {
   CaptureBeginPayload,
   CaptureBeginResult,
+  CaptureDismissRequestPayload,
   CaptureFeedbackActionPayload,
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
@@ -179,6 +180,7 @@ declare global {
         onRequest(callback: () => void): () => void
         onFeedbackData(callback: (payload: CaptureFeedbackDataPayload) => void): () => void
         onDownloadRequest(callback: () => void): () => void
+        onDismissRequest(callback: (payload: CaptureDismissRequestPayload) => void): () => void
         onStateChanged(callback: (state: CaptureState) => void): () => void
       }
       settings: {

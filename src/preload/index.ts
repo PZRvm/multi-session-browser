@@ -44,6 +44,7 @@ import type {
   CaptureFeedbackActionPayload,
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
+  CaptureDismissRequestPayload,
   CaptureResult,
   CaptureSavePayload,
   CaptureSaveResult,
@@ -348,9 +349,10 @@ const api = {
   },
   // 快速截图域（契约见 shared/capture.ts）：截图入剪贴板 + 最近一次落盘两 invoke，
   // request 为页面聚焦态快捷键触发的回程推送（find-request 同构，renderer 汇流
-  // 同一 capture 动作）；反馈轮三增悬浮反馈条原生子窗四通道——show/hide 归宿主
-  // shell（显隐编排），data 归反馈子窗（内容推送），action 归反馈子窗（「下载」
-  // 上报）、downloadRequest 归宿主 shell（点击回程汇流 saveLast）。
+  // 同一 capture 动作）；悬浮反馈条通道（反馈轮三起建，关闭钮增量随 2026-10-14）：
+  // show/hide 归宿主 shell（显隐编排），data 归反馈子窗（内容推送），action 归反馈
+  // 子窗（「下载」/关闭钮点击上报），downloadRequest / dismissRequest 归宿主 shell
+  // （点击回程：汇流 saveLast / 携内容指纹比对镜像后收起）。
   // 录屏面（录屏线 A' 合并融合）：begin/pause/resume/stop 四意图 + stateChanged 订阅；
   // 媒体分块不经本命名空间（采集器专用桥 capturePreload.ts 自持）
   capture: {
@@ -395,6 +397,17 @@ const api = {
       ipcRenderer.on(CAPTURE_CHANNELS.downloadRequest, listener)
       return () => {
         ipcRenderer.removeListener(CAPTURE_CHANNELS.downloadRequest, listener)
+      }
+    },
+    // 宿主 shell 消费：关闭钮点击回程（子窗 dismiss 上报经主进程转发），携内容
+    // 指纹与最近一次 show 镜像比对后收起（防迟到 dismiss 收起新一轮反馈条）
+    onDismissRequest: (callback: (payload: CaptureDismissRequestPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: CaptureDismissRequestPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(CAPTURE_CHANNELS.dismissRequest, listener)
+      return () => {
+        ipcRenderer.removeListener(CAPTURE_CHANNELS.dismissRequest, listener)
       }
     },
     // 录屏状态订阅（全部窗口广播式；录制态胶囊/暂停钮数据源）

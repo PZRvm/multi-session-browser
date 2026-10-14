@@ -2752,8 +2752,11 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
    底缘 chrome-line 发丝线（Chrome 通知条语系、无圆角无阴影）——**条底保留，按钮
    自身各态均无底色**（用户澄清：「反馈条的背景是要的，下载按钮不要有背景」）；
    内容右对齐：文本 12px 次墨单行截断（路径保持 ltr）、danger 转错误红（地址栏
-   invalid 同源）；「下载」链接式钮（正墨 600 下划线）。显隐均瞬时（子窗
-   show/hide）；主题随 prefers-color-scheme 自动亮暗 */
+   invalid 同源）；「下载」链接式钮（正墨 600 下划线）。左端常驻关闭钮（2026-10-14
+   增量）：.chrome-tab-close 同款图标钮配方（CloseOutlined 18×18、hover 蒙版底转
+   正墨），margin-right auto 吸收余宽把右组推回右缘——右对齐不变、关闭居左（Chrome
+   通知条惯例；瞬态条上唯一主动收起入口，常驻可见不做 hover 才现）。显隐均瞬时
+   （子窗 show/hide）；主题随 prefers-color-scheme 自动亮暗 */
 body[data-role='capture-feedback'] {
   background: transparent;
 }
@@ -2769,6 +2772,38 @@ body[data-role='capture-feedback'] {
   box-sizing: border-box;
   background: var(--chrome-toolbar);
   border-bottom: 1px solid var(--chrome-line);
+}
+
+/* 左端关闭钮（最左常驻）：.chrome-tab-close 同款配方；margin-right auto 吸收全部
+   余宽——关闭钉在左缘、文本与「下载」保持右对齐；danger 态图标仍次墨（错误红
+   只属于文本语义），focus-visible 蒙版底（右侧控件灰阶焦点惯例） */
+.chrome-capturebar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: auto;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 10px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-capturebar-close:hover,
+.chrome-capturebar-close:focus-visible {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-capturebar-close:focus-visible {
+  outline: none;
 }
 
 .chrome-capturebar-text {
