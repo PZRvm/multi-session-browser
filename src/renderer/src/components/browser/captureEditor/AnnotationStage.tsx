@@ -584,6 +584,10 @@ const AnnotationStage = forwardRef<AnnotationStageHandle, AnnotationStageProps>(
         cropRedo,
         cancelCrop
       }),
+      // cropHistory/cropDraft 为必要依赖：cropUndo/cropRedo/cancelCrop 闭包消费这两份
+      // 状态，缺了会冻结首渲染闭包（裁剪撤销/退出失效）。exhaustive-deps 看不穿函数
+      // 闭包误报「不必要」——豁免并留此说明
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [scale, cropHistory, cropDraft]
     )
 

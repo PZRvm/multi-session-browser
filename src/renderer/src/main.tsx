@@ -12,6 +12,7 @@ import { bootstrapThemeTokens } from './theme'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 import { WORKSPACE_PICKER_WINDOW_ROLE } from '../../shared/dialog'
 import { CAPTURE_EDITOR_WINDOW_ROLE, CAPTURE_FEEDBACK_WINDOW_ROLE } from '../../shared/capture'
+import { attachCaptureFeedbackData } from './components/browser/captureFeedbackData'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
 // 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
@@ -100,7 +101,11 @@ if (role === SETTINGS_WINDOW_ROLE) {
   document.body.dataset.role = CAPTURE_FEEDBACK_WINDOW_ROLE
   // 悬浮截图反馈条子窗（快速截图专项反馈轮三）：同建议子窗形态——仅 init i18n 镜像
   //（懒建复用池，语言切换经 settings:changed 推送），不初始化其他 store（内容由
-  // 主进程 feedback-data 推送，纯展示零自治）
+  // 主进程 feedback-data 推送，纯展示零自治）。
+  // feedback-data 订阅在**入口求值期**同步挂接（2026-10-14 首现丢失缺陷修复）：
+  // 主进程在 dom-ready 冲洗 pendingData，而组件是 React.lazy 懒 chunk、求值晚于
+  // dom-ready——订阅留在组件内首推必丢（时序依据见 captureFeedbackData.ts 头注）
+  attachCaptureFeedbackData()
   void useI18nStore.getState().init()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

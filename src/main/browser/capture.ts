@@ -113,10 +113,35 @@ async function readStoredSessionName(sessionId: string): Promise<string | null> 
 }
 
 /**
+ * capturePage 空图重试（2026-10-14，防御性加固——见模块头注误诊更正）：窗口刚被
+ * 激活/视图刚恢复可见时 Chromium 可能尚未产出新合成帧，首调 capturePage 返回空图
+ * ——与录屏轮「被遮挡窗口截图为陈旧/空帧」同一行为族。固定延时 200ms 等合成就绪
+ * 后重试一次（WebContents 的 paint 事件仅离屏渲染触发，在线渲染无帧信号可等——
+ * 审查 20261014183748 低-1 清除死监听）；仍空则交调用方守卫如实报错
+ */
+async function capturePageWithRetry(wc: WebContents): Promise<NativeImage> {
+  let image = await wc.capturePage()
+  if (!image.isEmpty()) return image
+  await new Promise<void>((resolve) => {
+    // wc 销毁竞态下不再触碰其方法（审查低-2：destroyed 对象方法调用会抛
+    // "Object has been destroyed"，异常会把等待 Promise 置 rejected、吞掉外层
+    // 「无标签页」销毁语义）——纯延时到点即续，销毁判定交给下方现取
+    setTimeout(resolve, 200)
+  })
+  if (wc.isDestroyed()) return image
+  image = await wc.capturePage()
+  if (image.isEmpty()) {
+    console.warn('[capture] capturePage 空图（已延时 200ms 重试一次仍空）')
+  }
+  return image
+}
+
+/**
  * capture 编排（契约见 shared/capture.ts）：来源窗口作用域解析 → 该作用域激活 Tab
- * 的 webContents → capturePage → 空图/零尺寸守卫 → toPNG → clipboard.writeImage →
- * 单槽缓存（整体覆盖）→ 返回 captureId。webContents 销毁/无 Tab 如实抛
- * 「当前没有可截图的标签页」，空图如实抛「截图失败，请重试」（不进剪贴板）
+ * 的 webContents → capturePage（空图等一帧重试，见 capturePageWithRetry）→ 空图/零
+ * 尺寸守卫 → toPNG → clipboard.writeImage → 单槽缓存（整体覆盖）→ 返回 captureId。
+ * webContents 销毁/无 Tab 如实抛「当前没有可截图的标签页」，空图如实抛
+ * 「截图失败，请重试」（不进剪贴板）
  */
 async function captureActiveTab(
   registry: SessionBrowserRegistry,
@@ -135,7 +160,7 @@ async function captureActiveTab(
   const storedName = readStoredSessionName(scope.sessionId)
   let image: NativeImage
   try {
-    image = await wc.capturePage()
+    image = await capturePageWithRetry(wc)
   } catch (error) {
     console.warn('[capture] capturePage 失败:', error)
     throw new Error(t('errors.captureFailed'))
