@@ -31,6 +31,17 @@ export const CAPTURE_CHANNELS = {
   /** 主进程 → 宿主 shell：关闭钮点击转发（载荷带内容指纹，shell 与最近一次 show
    *  镜像比对后收起——不匹配即忽略，防迟到 dismiss 收起新一轮反馈条） */
   dismissRequest: 'capture:dismiss-request',
+  // ===== 截图编辑器（2026-10-14 增量，调研报告 notes/think-report/20261014130059 定稿） =====
+  /** 宿主 shell → 主进程：打开/聚焦截图编辑子窗（单例，settings 窗先例；反馈条
+   *  「编辑」钮经 feedback-action 的 edit 动作触达，主进程直接开窗不经宿主回程） */
+  openEditor: 'capture:open-editor',
+  /** 编辑子窗 → 主进程：取单槽截图（返回 CaptureEditImagePayload；空槽中文报错） */
+  getEditImage: 'capture:get-edit-image',
+  /** 编辑子窗 → 主进程：编辑成品写系统剪贴板并回写单槽（captureId 对账） */
+  editCopy: 'capture:edit-copy',
+  /** 编辑子窗 → 主进程：编辑成品落系统下载目录并回写单槽（对账；返回落盘路径，
+   *  命名复用 save-last 同链——会话名锚定/时间戳/同名序号） */
+  editDownload: 'capture:edit-download',
   // ===== 录屏面 =====
   /** UI → 主进程：开始录制（载荷 CaptureBeginPayload；主进程编排采集器，失败整体回滚 idle） */
   begin: 'capture:record-begin',
@@ -47,6 +58,10 @@ export const CAPTURE_CHANNELS = {
 
 /** 反馈子窗角色（建窗 query role，main.tsx 第六角色分流） */
 export const CAPTURE_FEEDBACK_WINDOW_ROLE = 'capture-feedback'
+
+/** 截图编辑子窗角色（建窗 query role，main.tsx 第七角色分流；独立 BrowserWindow，
+ *  settings 窗单例先例——懒建/focus 复用/closed 自清） */
+export const CAPTURE_EDITOR_WINDOW_ROLE = 'capture-editor'
 
 /** 悬浮反馈条度量常量（与 app.css .chrome-capturebar 系同源配对，改一处必改另一处）：
  * 全宽通知条贴宿主内容区（chrome-body）顶缘——覆盖在网页上方、宿主布局零压缩；
@@ -89,9 +104,30 @@ export interface CaptureDismissRequestPayload {
 }
 
 /** feedback-action 载荷（反馈子窗 → 主进程）：download=「下载」次动作（转发宿主汇流
- *  saveLastCapture），dismiss=关闭钮收起（携带内容指纹，转发宿主比对镜像后收起） */
+ *  saveLastCapture），dismiss=关闭钮收起（携带内容指纹，转发宿主比对镜像后收起），
+ *  edit=「编辑」入口（主进程直接开编辑子窗，无宿主回程） */
 export type CaptureFeedbackActionPayload =
-  { action: 'download' } | ({ action: 'dismiss' } & CaptureDismissRequestPayload)
+  | { action: 'download' }
+  | ({ action: 'dismiss' } & CaptureDismissRequestPayload)
+  | { action: 'edit' }
+
+/** get-edit-image 返回（主进程 → 编辑子窗）：dataUrl 为单槽 PNG 的 data URL，
+ *  width/height 为原图像像素尺寸（编辑窗显示缩放与导出 pixelRatio 换算的基准——
+ *  显示层缩放不缩放标注语义，标注统一存图像坐标） */
+export interface CaptureEditImagePayload {
+  captureId: string
+  dataUrl: string
+  width: number
+  height: number
+}
+
+/** edit-copy / edit-download 入参（编辑子窗 → 主进程）：dataUrl 为编辑成品 PNG 的
+ *  data URL（主进程守卫前缀与长度上限，防任意巨串）；captureId 为编辑窗取图时获得
+ *  的标识——对账失败（编辑期间又截图覆盖单槽）如实报「截图已过期」 */
+export interface CaptureEditApplyPayload {
+  captureId: string
+  dataUrl: string
+}
 
 /** capture 返回：captureId 为主进程单槽缓存标识（save-last 对账用） */
 export interface CaptureResult {

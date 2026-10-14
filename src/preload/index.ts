@@ -45,6 +45,8 @@ import type {
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
   CaptureDismissRequestPayload,
+  CaptureEditApplyPayload,
+  CaptureEditImagePayload,
   CaptureResult,
   CaptureSavePayload,
   CaptureSaveResult,
@@ -364,6 +366,15 @@ const api = {
     hideFeedback: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.hideFeedback),
     feedbackAction: (payload: CaptureFeedbackActionPayload): Promise<void> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.feedbackAction, payload),
+    // 截图编辑器四口（2026-10-14 增量）：开窗（宿主/反馈条入口侧）与取图/产出
+    // （编辑子窗侧）；产出对账语义同 save-last（captureId 不匹配＝「截图已过期」）
+    openEditor: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.openEditor),
+    getEditImage: (): Promise<CaptureEditImagePayload> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.getEditImage),
+    editCopy: (payload: CaptureEditApplyPayload): Promise<void> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.editCopy, payload),
+    editDownload: (payload: CaptureEditApplyPayload): Promise<CaptureSaveResult> =>
+      ipcRenderer.invoke(CAPTURE_CHANNELS.editDownload, payload),
     begin: (payload: CaptureBeginPayload): Promise<CaptureBeginResult> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.begin, payload),
     pause: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.pause),

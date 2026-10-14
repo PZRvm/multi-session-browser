@@ -13,3 +13,6 @@ out
 # 本地文档与笔记
 docs/
 notes/
+
+# TypeScript 增量构建缓存（typecheck composite 产物）
+*.tsbuildinfo

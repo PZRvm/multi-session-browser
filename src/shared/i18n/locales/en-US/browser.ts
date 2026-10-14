@@ -30,7 +30,54 @@ export const browser: Dictionary['browser'] = {
     download: 'Download',
     close: 'Close',
     saved: 'Saved: {path}',
-    failed: 'Screenshot failed, please retry'
+    failed: 'Screenshot failed, please retry',
+    edit: 'Edit'
+  },
+  captureEditor: {
+    loading: 'Loading screenshot…',
+    tools: {
+      rectangle: 'Rectangle',
+      ellipse: 'Ellipse',
+      arrow: 'Arrow',
+      brush: 'Brush',
+      mosaic: 'Mosaic',
+      text: 'Text',
+      crop: 'Crop'
+    },
+    mosaicBrush: 'Brush mode',
+    mosaicRect: 'Region mode',
+    strokeThin: 'Thin',
+    strokeMedium: 'Medium',
+    strokeThick: 'Thick',
+    fontSize: 'Font size',
+    fontLarge: 'Large',
+    fontMedium: 'Medium',
+    fontSmall: 'Small',
+    undo: 'Undo',
+    redo: 'Redo',
+    copy: 'Copy to clipboard',
+    download: 'Download',
+    copied: 'Copied',
+    saved: 'Saved: {file}',
+    failed: 'Editing failed, please retry',
+    slotSwitched: 'Switched to the latest screenshot',
+    cropConfirm: 'Confirm',
+    cropCancel: 'Cancel',
+    /** Toolbar container (role=toolbar) aria-label (step 5/6 addition) */
+    toolbarAria: 'Screenshot tools',
+    /** Weight group (role=group) aria-label: stroke/block semantics switch by tool (step 5/6 addition) */
+    weightAria: 'Size',
+    /** Color palette group (role=group) aria-label (step 5/6 addition) */
+    paletteAria: 'Color',
+    /** Palette color aria-labels (WeChat-style six colors, same order as editorConstants COLOR_PALETTE; step 5/6 addition) */
+    colors: {
+      red: 'Red',
+      orange: 'Orange',
+      green: 'Green',
+      blue: 'Blue',
+      white: 'White',
+      black: 'Black'
+    }
   },
   find: {
     placeholder: 'Find in page',

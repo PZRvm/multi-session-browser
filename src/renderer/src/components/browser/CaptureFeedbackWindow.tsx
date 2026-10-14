@@ -12,6 +12,10 @@ import { useT } from '../../i18n'
 // 左端常驻关闭钮：dismiss 经 feedback-action 上报（携 kind/text 内容指纹，主进程
 // 转发 dismiss-request）→ 宿主与 6s 自动隐藏同路收起（danger 常驻条由此获得手动
 // 出口）；文案经 useT（建窗 query lang 首帧注入，语言切换经 settings:changed 推送）。
+// 「编辑」入口（截图编辑器专项步骤 4，位次 2026-10-14 二轮批复「编辑入口显示在
+// 最右边」）：copied/saved 态显示、danger 不显示（错误态无编辑对象）；DOM 序列在
+// 「下载」钮之后即条最右端（saved 态无下载钮则独占右端），点击经 feedback-action
+// 的 edit 动作上报，主进程直接开/聚焦编辑子窗（不经宿主回程）。
 // 视觉：透明窗体 + .chrome-capturebar（app.css body[data-role] 满窗作用域），主题随
 // prefers-color-scheme 自动亮暗。可访问性（审查 20261014105226 低-3）：role="status"
 // 落在文本 span 上——live region 不含可聚焦按钮，关闭/下载钮在静默容器内。
@@ -75,6 +79,19 @@ function CaptureFeedbackWindow(): React.JSX.Element | null {
           }}
         >
           {data.actionLabel}
+        </button>
+      )}
+      {(data.kind === 'copied' || data.kind === 'saved') && (
+        <button
+          type="button"
+          className="chrome-capturebar-save chrome-capturebar-edit"
+          aria-label={t('browser.capture.edit')}
+          title={t('browser.capture.edit')}
+          onClick={() => {
+            void window.api.capture.feedbackAction({ action: 'edit' }).catch(() => {})
+          }}
+        >
+          {t('browser.capture.edit')}
         </button>
       )}
     </div>

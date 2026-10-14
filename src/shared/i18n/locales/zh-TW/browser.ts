@@ -46,7 +46,68 @@ export const browser: Dictionary['browser'] = {
     /** 下载成功反馈（{path} 为落盘绝对路径） */
     saved: '已儲存：{path}',
     /** store 层兜底失败文案（主进程已本地化的具体错误优先） */
-    failed: '截圖失敗，請重試'
+    failed: '截圖失敗，請重試',
+    /** 反馈条「编辑」入口钮（最右端，打开截图编辑子窗） */
+    edit: '編輯'
+  },
+  /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
+  captureEditor: {
+    /** 取图期间空态文案 */
+    loading: '正在載入截圖…',
+    /** 工具 aria-label 与 title（同一词；brush 画笔为反馈轮一新增） */
+    tools: {
+      rectangle: '矩形',
+      ellipse: '橢圓',
+      arrow: '箭頭',
+      brush: '畫筆',
+      mosaic: '馬賽克',
+      text: '文字',
+      crop: '裁剪'
+    },
+    /** 马赛克双模式切换钮 aria-label（反馈轮一：画笔涂抹/选区框选） */
+    mosaicBrush: '畫筆模式',
+    mosaicRect: '選區模式',
+    /** 粗细三档名（马赛克激活时语义为块径档，aria 用） */
+    strokeThin: '細',
+    strokeMedium: '中',
+    strokeThick: '粗',
+    /** 文本字号档选择器 aria-label */
+    fontSize: '字號',
+    fontLarge: '大',
+    fontMedium: '中',
+    fontSmall: '小',
+    /** 撤销/重做 */
+    undo: '撤銷',
+    redo: '重做',
+    /** 窗内产出钮 aria-label 与 title（同一词） */
+    copy: '複製到剪貼簿',
+    download: '下載',
+    /** 复制成功窗内 inline 反馈 */
+    copied: '已複製',
+    /** 下载成功窗内 inline 反馈（{file} 为落盘文件名） */
+    saved: '已儲存：{file}',
+    /** 兜底失败文案（主进程已本地化的具体错误优先） */
+    failed: '編輯失敗，請重試',
+    /** 产出续编弱校验命中提示（审查低-1：续编取到并发新截图而非本窗成品时告知） */
+    slotSwitched: '已切換至最新截圖',
+    /** 裁剪选区确认/取消钮 */
+    cropConfirm: '確認',
+    cropCancel: '取消',
+    /** 工具条容器（role=toolbar）aria-label（步骤 5/6 增补） */
+    toolbarAria: '截圖工具',
+    /** 档位选择组（role=group）aria-label：粗细/块径语义随工具切换（步骤 5/6 增补） */
+    weightAria: '粗細',
+    /** 色板组（role=group）aria-label（步骤 5/6 增补） */
+    paletteAria: '顏色',
+    /** 色板六色 aria-label（微信系六色，与 editorConstants COLOR_PALETTE 同序；步骤 5/6 增补） */
+    colors: {
+      red: '紅色',
+      orange: '橙黃色',
+      green: '綠色',
+      blue: '藍色',
+      white: '白色',
+      black: '黑色'
+    }
   },
   /** 页内查找栏（FindBar） */
   find: {

@@ -2752,11 +2752,15 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
    底缘 chrome-line 发丝线（Chrome 通知条语系、无圆角无阴影）——**条底保留，按钮
    自身各态均无底色**（用户澄清：「反馈条的背景是要的，下载按钮不要有背景」）；
    内容右对齐：文本 12px 次墨单行截断（路径保持 ltr）、danger 转错误红（地址栏
-   invalid 同源）；「下载」链接式钮（正墨 600 下划线）。左端常驻关闭钮（2026-10-14
-   增量）：.chrome-tab-close 同款图标钮配方（CloseOutlined 18×18、hover 蒙版底转
-   正墨），margin-right auto 吸收余宽把右组推回右缘——右对齐不变、关闭居左（Chrome
-   通知条惯例；瞬态条上唯一主动收起入口，常驻可见不做 hover 才现）。显隐均瞬时
-   （子窗 show/hide）；主题随 prefers-color-scheme 自动亮暗 */
+   invalid 同源）；「下载」链接式钮（正墨 600 下划线）。「编辑」入口钮（截图编辑器
+   专项步骤 4，位次 2026-10-14 用户二轮批复「编辑入口显示在最右边」）：复用「下载」
+   链接式配方 + .chrome-capturebar-edit 修饰类（后续视觉轮微调挂点），copied/saved
+   态显示、danger 不显示；DOM 序列在「下载」钮之后即条最右端（saved 态无下载钮则
+   独占右端），与「下载」钮间距由条容器既有 gap:8px 提供，不加额外间距。左端常驻
+   关闭钮（2026-10-14 增量）：.chrome-tab-close 同款图标钮配方（CloseOutlined
+   18×18、hover 蒙版底转正墨），margin-right auto 吸收余宽把右组推回右缘——右对齐
+   不变、关闭居左（Chrome 通知条惯例；瞬态条上唯一主动收起入口，常驻可见不做
+   hover 才现）。显隐均瞬时（子窗 show/hide）；主题随 prefers-color-scheme 自动亮暗 */
 body[data-role='capture-feedback'] {
   background: transparent;
 }
@@ -2823,7 +2827,9 @@ body[data-role='capture-feedback'] {
 
 /* 「下载」链接式次动作钮：无边框无底、正墨 600 常驻下划线（与反馈次墨文本拉开
    层次），hover 转 ink-dim 弱化示意已反馈、focus-visible 蒙版底（右侧控件灰阶
-   焦点惯例），禁用转 disabled 灰并去下划线 */
+   焦点惯例），禁用转 disabled 灰并去下划线。「编辑」入口（条最右端，copied 在
+   「下载」钮之后/saved 独占右端）复用本配方，仅叠加 .chrome-capturebar-edit 修饰
+   类作后续视觉轮微调挂点——当前零覆盖（hover/focus/disabled 各态随本选择器同频） */
 .chrome-capturebar-save {
   flex: none;
   border: none;
@@ -3119,4 +3125,414 @@ body[data-role='capture-feedback'] {
   gap: 0;
   border-radius: 0;
   font-size: 15px;
+}
+
+/* ============================================================
+   截图编辑子窗（.chrome-capture-editor-* 系，截图编辑器专项步骤 5/6 新增段；
+   仅追加，不改上方既有段落）
+   Chrome 系工具条语系：chrome-toolbar 底 + chrome-line 发丝线、28px 圆形图标钮、
+   灰阶蒙版阶梯（hover-veil → pressed-veil、focus 灰阶化——右侧控件惯例）、选中态
+   select-veil 底。暗色经 prefers-color-scheme 自动适配（反馈条窗先例：chrome-*
+   变量族昼夜双值）。结构：窗根纵向 flex = 顶部工具条（~48px，右端产出钮组）+
+   窗内错误条 + 中部画布区（checker 底居中）。视觉细节由步骤 7 impeccable 轮校准。
+   ============================================================ */
+
+body[data-role='capture-editor'] {
+  background: var(--chrome-toolbar);
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 取图空态/失败态：居中单行（loading 或如实错误文案） */
+.chrome-capture-editor-boot {
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-capture-editor-boot-error {
+  color: var(--chrome-error);
+}
+
+/* 顶部工具条行：左侧六工具/档位/色板/撤销重做，右端产出钮组（margin-left auto
+   吸收余宽——产出钮保持窗右上角，与工具条同一组视觉带） */
+.chrome-capture-editor-topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+
+.chrome-capture-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 图标钮基配方（.chrome-tools button 同语言）：28px 圆形、灰阶蒙版阶梯、focus
+   灰阶化（强调色不进右侧）；选中态（.is-active）select-veil 底 + 正墨 */
+.chrome-capture-editor-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-capture-editor-iconbtn:disabled {
+  color: var(--chrome-disabled);
+  cursor: not-allowed;
+}
+
+.chrome-capture-editor-iconbtn:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor-iconbtn:focus-visible {
+  outline: none;
+}
+
+.chrome-capture-editor-iconbtn:not(:disabled):focus-visible {
+  background: var(--chrome-pressed-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor-iconbtn.is-active,
+.chrome-capture-editor-iconbtn.is-active:not(:disabled):hover,
+.chrome-capture-editor-iconbtn.is-active:not(:disabled):focus-visible {
+  background: var(--chrome-select-veil);
+  color: var(--chrome-ink);
+}
+
+/* 工具组间竖分隔线 */
+.chrome-capture-editor-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--chrome-line);
+}
+
+/* 档位选择器（细/中/粗）：共用图标钮配方，内容为递增圆点（显示像素 6/8/10） */
+.chrome-capture-editor-weight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-capture-editor-weightdot {
+  display: block;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 色板：六色圆点 16px；白/黑点靠 chrome-line 描边立界，选中态双环（toolbar 底
+   空隙 + ink 外环） */
+.chrome-capture-editor-palette {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.chrome-capture-editor-colorbtn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--chrome-line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.chrome-capture-editor-colorbtn.is-active {
+  box-shadow:
+    0 0 0 2px var(--chrome-toolbar),
+    0 0 0 3px var(--chrome-ink);
+}
+
+.chrome-capture-editor-colorbtn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--chrome-toolbar),
+    0 0 0 3px var(--chrome-ink-dim);
+}
+
+/* 文字字号档（仅文字工具激活时显示）：文字型小钮，tabular-nums 对位 */
+.chrome-capture-editor-fontsizes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-capture-editor-fontbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-capture-editor-fontbtn:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor-fontbtn:focus-visible {
+  outline: none;
+}
+
+.chrome-capture-editor-fontbtn.is-active,
+.chrome-capture-editor-fontbtn.is-active:hover,
+.chrome-capture-editor-fontbtn.is-active:focus-visible {
+  background: var(--chrome-select-veil);
+  color: var(--chrome-ink);
+}
+
+/* 右端产出钮组 + inline 成功反馈短文案（2.5s 淡出，不弹浮层不自动关窗） */
+.chrome-capture-editor-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-capture-editor-flash {
+  margin-right: 6px;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+  white-space: nowrap;
+  transition: opacity 0.45s ease;
+}
+
+.chrome-capture-editor-flash.is-fading {
+  opacity: 0;
+}
+
+/* 窗内错误条（取图失败/产出失败/对账过期如实呈现，留在编辑态） */
+.chrome-capture-editor-errorbar {
+  flex: none;
+  padding: 4px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--chrome-error);
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+
+/* 中部画布区：居中 + checker 底（图像边界可辨；hover-veil 两次 45° 铺贴出隐格），
+   窗比画布小时滚动承接 */
+.chrome-capture-editor-canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background-color: var(--chrome-toolbar);
+  background-image:
+    linear-gradient(
+      45deg,
+      var(--chrome-hover-veil) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--chrome-hover-veil) 75%
+    ),
+    linear-gradient(
+      45deg,
+      var(--chrome-hover-veil) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--chrome-hover-veil) 75%
+    );
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    8px 8px;
+}
+
+/* Stage 容器：相对定位承载文本 textarea 与裁剪确认浮层的绝对定位 */
+.chrome-capture-editor-stage {
+  position: relative;
+  flex: none;
+}
+
+.chrome-capture-editor-stage canvas {
+  display: block;
+}
+
+/* 文本输入浮层（Konva 官方可编辑文本模式：canvas 上叠 DOM textarea 承接 IME）：
+   透明底、虚线描边随当前色、行高 1 对齐 Konva Text 度量；尺寸/位置/字号/颜色由
+   组件 inline style 注入（随显示缩放换算） */
+.chrome-capture-editor-textinput {
+  position: absolute;
+  z-index: 5;
+  margin: 0;
+  padding: 0 1px;
+  min-width: 40px;
+  border: 1px dashed currentColor;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  line-height: 1;
+  /* 全局 body user-select:none 会继承进输入框，IME 编辑需恢复文本选择 */
+  user-select: text;
+}
+
+/* 裁剪确认/取消浮层（DOM 绝对定位在选区下方，画布放不下时移到选区上方）：
+   chrome 工具条语系小浮层；确认钮正墨 600 */
+.chrome-capture-editor-cropbar {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 4px;
+  background: var(--chrome-toolbar);
+  border: 1px solid var(--chrome-line);
+}
+
+.chrome-capture-editor-cropbtn {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chrome-capture-editor-cropbtn:hover,
+.chrome-capture-editor-cropbtn:focus-visible {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor-cropbtn:focus-visible {
+  outline: none;
+}
+
+/* 确认/取消配色（反馈轮二用户裁决修正）：确认 = 主题主色实底（--accent-strong，
+   琥珀/雾蓝/苔绿随主题系统换色）+ 深主题字（--accent-ink，板面主钮同款供色）；
+   取消 = 红色（chrome-error 同源红字透明底，与确认实底成主次） */
+.chrome-capture-editor-cropbtn.is-primary {
+  background: var(--accent-strong);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.chrome-capture-editor-cropbtn.is-primary:hover,
+.chrome-capture-editor-cropbtn.is-primary:focus-visible {
+  background: var(--accent-strong);
+  color: var(--accent-ink);
+  opacity: 0.88;
+}
+
+.chrome-capture-editor-cropbtn.is-danger {
+  color: var(--chrome-error);
+}
+
+.chrome-capture-editor-cropbtn.is-danger:hover,
+.chrome-capture-editor-cropbtn.is-danger:focus-visible {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-error);
+}
+
+/* 圆形字形（反馈轮一 2026-10-14 用户裁决：椭圆工具 = 单纯圆形）：图集 6.3.4 无
+   Circle 系图标，CSS 字形兜底（.chrome-tab-favicon-dot 先例——非手写 SVG），色随
+   iconbtn currentColor */
+.chrome-capture-editor-glyph-circle {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+/* darwin 去标题条让位（反馈轮一用户裁决：编辑窗无标题条、保留原生红绿灯；轮二续
+   x 8→16 左缘呼吸边距）：顶部工具条整条承担窗口拖动（app-region drag），工具条与
+   产出钮组 no-drag；左让红绿灯位（trafficLightPosition {x:16,y:16}，三灯约占
+   16–70px → 让 84px）。非 darwin 无此形态（建窗不带 chrome query，窗口形态单源 =
+   主进程建窗） */
+.chrome-capture-editor-chrome-custom .chrome-capture-editor-topbar {
+  -webkit-app-region: drag;
+  padding-left: 84px;
+}
+
+.chrome-capture-editor-chrome-custom .chrome-capture-editor-toolbar,
+.chrome-capture-editor-chrome-custom .chrome-capture-editor-actions {
+  -webkit-app-region: no-drag;
+}
+
+/* 马赛克双模式切换（反馈轮一：画笔涂抹/选区框选）：文字型小切换钮（同字号档按钮
+   语系），仅马赛克工具激活时呈现 */
+.chrome-capture-editor-mosaicmodes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-capture-editor-modebtn {
+  border: none;
+  background: transparent;
+  padding: 0 8px;
+  height: 24px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.chrome-capture-editor-modebtn:hover {
+  color: var(--chrome-ink);
+}
+
+.chrome-capture-editor-modebtn.is-active {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+  font-weight: 600;
 }
