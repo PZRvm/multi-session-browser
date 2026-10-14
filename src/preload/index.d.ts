@@ -29,6 +29,8 @@ import type {
   CaptureBeginPayload,
   CaptureBeginResult,
   CaptureDismissRequestPayload,
+  CaptureEditApplyPayload,
+  CaptureEditImagePayload,
   CaptureFeedbackActionPayload,
   CaptureFeedbackDataPayload,
   CaptureFeedbackShowPayload,
@@ -173,6 +175,10 @@ declare global {
         showFeedback(payload: CaptureFeedbackShowPayload): Promise<void>
         hideFeedback(): Promise<void>
         feedbackAction(payload: CaptureFeedbackActionPayload): Promise<void>
+        openEditor(): Promise<void>
+        getEditImage(): Promise<CaptureEditImagePayload>
+        editCopy(payload: CaptureEditApplyPayload): Promise<void>
+        editDownload(payload: CaptureEditApplyPayload): Promise<CaptureSaveResult>
         begin(payload: CaptureBeginPayload): Promise<CaptureBeginResult>
         pause(): Promise<CaptureState>
         resume(): Promise<CaptureState>

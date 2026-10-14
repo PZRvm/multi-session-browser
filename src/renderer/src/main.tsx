@@ -11,7 +11,8 @@ import { useSettingsStore } from './stores/settings'
 import { bootstrapThemeTokens } from './theme'
 import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 import { WORKSPACE_PICKER_WINDOW_ROLE } from '../../shared/dialog'
-import { CAPTURE_FEEDBACK_WINDOW_ROLE } from '../../shared/capture'
+import { CAPTURE_EDITOR_WINDOW_ROLE, CAPTURE_FEEDBACK_WINDOW_ROLE } from '../../shared/capture'
+import { attachCaptureFeedbackData } from './components/browser/captureFeedbackData'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
 // 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
@@ -27,6 +28,12 @@ const WorkspacePickerWindow = lazy(() => import('./components/WorkspacePickerWin
 // 悬浮截图反馈条子窗渲染端（快速截图专项反馈轮三，?role=capture-feedback）：同建议
 // 子窗形态的纯展示端
 const CaptureFeedbackWindow = lazy(() => import('./components/browser/CaptureFeedbackWindow'))
+
+// 截图编辑子窗渲染端（截图编辑器专项，?role=capture-editor）：独立 BrowserWindow
+// （settings 窗单例先例）挂本 renderer 包进入该角色——编辑器本体（Konva Stage 工具
+// 集与产出链，components/browser/captureEditor/）；react-konva/konva 随本懒加载
+// chunk 分流，不进主包
+const CaptureEditorWindow = lazy(() => import('./components/browser/captureEditor/EditorWindow'))
 
 // 主题 token 首帧注入（设置专项阶段五）：建窗 URL query 的 sys 是主进程建窗注入的
 // 首帧初始值契约（运行期主题变更不再读 query，一律经 appearance:changed 推送收敛）。
@@ -94,12 +101,29 @@ if (role === SETTINGS_WINDOW_ROLE) {
   document.body.dataset.role = CAPTURE_FEEDBACK_WINDOW_ROLE
   // 悬浮截图反馈条子窗（快速截图专项反馈轮三）：同建议子窗形态——仅 init i18n 镜像
   //（懒建复用池，语言切换经 settings:changed 推送），不初始化其他 store（内容由
-  // 主进程 feedback-data 推送，纯展示零自治）
+  // 主进程 feedback-data 推送，纯展示零自治）。
+  // feedback-data 订阅在**入口求值期**同步挂接（2026-10-14 首现丢失缺陷修复）：
+  // 主进程在 dom-ready 冲洗 pendingData，而组件是 React.lazy 懒 chunk、求值晚于
+  // dom-ready——订阅留在组件内首推必丢（时序依据见 captureFeedbackData.ts 头注）
+  attachCaptureFeedbackData()
   void useI18nStore.getState().init()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Suspense fallback={null}>
         <CaptureFeedbackWindow />
+      </Suspense>
+    </StrictMode>
+  )
+} else if (role === CAPTURE_EDITOR_WINDOW_ROLE) {
+  document.body.dataset.role = CAPTURE_EDITOR_WINDOW_ROLE
+  // 截图编辑子窗：同建议子窗形态——仅 init i18n 镜像（语言切换经 settings:changed
+  // 推送），不初始化 sessions/browser 等其他 store（图源由主进程 get-edit-image 拉取，
+  // 编辑态窗内自持）
+  void useI18nStore.getState().init()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={null}>
+        <CaptureEditorWindow />
       </Suspense>
     </StrictMode>
   )

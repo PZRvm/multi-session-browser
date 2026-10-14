@@ -26,6 +26,8 @@
     "antd": "^6.6.3",
     "classic-level": "^3.0.0",
     "electron-updater": "^6.3.9",
+    "konva": "^10.8.0",
+    "react-konva": "19.2",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

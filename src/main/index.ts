@@ -16,6 +16,10 @@ import {
   createCaptureFeedbackWindows,
   type CaptureFeedbackWindows
 } from './browser/captureFeedbackWindow'
+import {
+  createCaptureEditorWindowController,
+  type CaptureEditorWindowController
+} from './browser/captureEditorWindow'
 import { installShellInputGuard } from './inputGuard'
 import { installWarningChannelFilter } from './warnings'
 import { loadSnapshot } from './store'
@@ -91,6 +95,11 @@ let captureFeedbackWindows: CaptureFeedbackWindows | null = null
 // 用户交互时、控制器已就绪），板头齿轮经设置域 open IPC 通道；主窗 closed 钩子经
 // 此引用级联关闭设置窗（whenReady 内创建，此前为 null）
 let settingsWindowController: SettingsWindowController | null = null
+// 截图编辑子窗控制器（截图编辑器增量步骤 3）：单例编辑子窗的创建/聚焦/主窗级联——
+// 宿主 open-editor IPC 与反馈条「编辑」钮两入口都在 registerCaptureIpc 内经此引用
+// 触达（含编辑窗专属通道的 sender 白名单判据）；主窗 closed 钩子级联关闭、退出前
+// 清理（whenReady 内创建，此前为 null）
+let captureEditorWindowController: CaptureEditorWindowController | null = null
 const appearanceController = createAppearanceController({
   // WebContentsView 兜底底色随主题（2026-09-25 专项）：亮暗翻转即同步全部存量会话
   // 视图；registry 晚于外观控制器初始化（whenReady 内创建），启动窗口期空值静默跳过
@@ -251,6 +260,8 @@ function createWindow(): void {
     suggestWindows?.dispose(WINDOW_ID_MAIN)
     captureFeedbackWindows?.dispose(WINDOW_ID_MAIN)
     settingsWindowController?.dispose()
+    // 编辑窗若有（单例）一并级联关闭（controller 内自清引用，重开主窗后可再次开窗）
+    captureEditorWindowController?.dispose()
   })
 
   // macOS 关窗重开场景：重挂当前激活会话的 view 到新窗口（注册表路由到激活 manager；
@@ -345,6 +356,16 @@ app.whenReady().then(async () => {
   // 随外观主题现取（主窗同款注入），后续主题翻转由 appearance 广播链自动覆盖（getAllWindows
   // 逐窗 setBackgroundColor，设置窗创建后即纳入），无需本控制器额外接线
   settingsWindowController = createSettingsWindowController({
+    getMainWindow: () => mainWindow,
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
+  })
+
+  // 截图编辑子窗控制器（截图编辑器增量步骤 3）：单例编辑子窗——宿主 open-editor IPC
+  // 与反馈条「编辑」钮双入口在 registerCaptureIpc 内触达（下方注册区接线）；建窗
+  // 背景色与 sys query 随外观主题现取（设置窗同款注入），后续主题翻转由 appearance
+  // 广播链自动覆盖（getAllWindows 逐窗 setBackgroundColor），无需本控制器额外接线
+  captureEditorWindowController = createCaptureEditorWindowController({
     getMainWindow: () => mainWindow,
     getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
     getThemeColor: () => appearanceController.getSnapshot().themeColor
@@ -495,10 +516,13 @@ app.whenReady().then(async () => {
   // 快速截图（快速截图专项 20261009232146 步骤 5）：capture 截来源窗口作用域激活
   // Tab 入剪贴板 + save-last 最近一次截图落盘下载目录（captureId 单槽对账）；
   // 页面聚焦态快捷键的 capture:request 定向推挂在 manager before-input-event 分支
-  // （快捷键链路），不经本装配
+  // （快捷键链路），不经本装配。编辑器增量（2026-10-14 步骤 3）：编辑子窗控制器一并
+  // 注入——open-editor 开窗 / 反馈条 edit 动作直连 / get-edit-image 等三通道 sender
+  // 白名单判据（控制器创建先于本注册，非空断言对齐上方 captureFeedbackWindows!）
   registerCaptureIpc({
     registry: created,
-    feedbackWindows: captureFeedbackWindows!
+    feedbackWindows: captureFeedbackWindows!,
+    editorWindow: captureEditorWindowController!
   })
   // 录屏域（录屏线 A' 架构，计划 20261009231903 步骤 5，两线合并融合）：四 UI 通道 +
   // 采集器桥 + 生命周期订阅；采集器 preload 为多入口产物（electron.vite.config.ts），
@@ -571,6 +595,10 @@ app.whenReady().then(async () => {
       .then(() => {
         quitFlushSettled = true
         independentWindows.closeAll()
+        // 编辑窗显式关闭（截图编辑器增量步骤 3）：主窗 closed 级联在 app.quit 关全部
+        // 窗口时同样触达，此处先行一步——编辑态不持久化（用户裁决关窗即弃），无需等
+        // 待，只求退出路径不留孤儿窗
+        captureEditorWindowController?.dispose()
         app.quit()
       })
   }
