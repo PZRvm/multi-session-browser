@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   PICKER_LIST_PAD_TOP,
   PICKER_MAX_VISIBLE_ROWS,
@@ -7,8 +7,29 @@ import {
   type WorkspacePickerContext
 } from '../../../shared/dialog'
 import type { ChromeImportPolicy, ChromeImportScope } from '../../../shared/chromeImport'
-import { WORKSPACE_NAME_MAX } from '../../../shared/sessions'
+import {
+  normalizeProxyConfig,
+  WORKSPACE_NAME_MAX,
+  type ProxyProtocol,
+  type SessionProxyConfig
+} from '../../../shared/sessions'
 import { useT } from '../i18n'
+
+/** 独立代理草稿（session-proxy 形态）：port 为 string 输入态（提交/检测时转 number 过校验） */
+interface ProxyDraft {
+  protocol: ProxyProtocol
+  host: string
+  port: string
+  username: string
+  password: string
+}
+
+/** 出口 IP 检测结论四态（结果行固定占位防高度跳变）：idle = 未检测 */
+type ProxyCheckState =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'ok'; ip: string }
+  | { state: 'fail'; reason: 'unreachable' | 'auth' | 'fetch' }
 
 /**
  * 工作区模态框渲染端（第五角色 ?role=workspace-picker，原生 sheet；PRD 4.11）：
@@ -19,7 +40,12 @@ import { useT } from '../i18n'
  * 裁剪的全局琥珀 focus ring）。重命名场景（workspace-rename，2026-09-21 增量）：
  * Input 预填现名挂载即聚焦全选，Enter/保存提交（trim 空不提交、保存钮禁用——
  * UI 面；主进程守卫 trim 非空 + 长度上限是契约面），取消钮/Esc 关窗由主进程
- * closed 钩子按取消收敛（取消 ≠ 提交两条路径严格分离）。文案消费既有字典键
+ * closed 钩子按取消收敛（取消 ≠ 提交两条路径严格分离）。独立代理场景
+ *（session-proxy，2026-10-15 增量）：协议/地址/端口/账号/密码表单预填现值
+ *（currentProxy），「检测」钮按草稿归一值直调 sessions:check-proxy 探测出口 IP
+ *（探测通道化，不经 sheet 结论），保存（携归一值）/清除（携 null）经 pick 结论
+ * 返回后由 sessions:set-proxy 通道闭环；表单纵向度量与 SESSION_PROXY_* 常量同源
+ * 配对。文案消费既有字典键
  * （选择 sessions.moveModal.*、重命名 sessions.workspaceSwitcher.renameModalTitle
  * 等，i18n 零新增）；列表封顶高度由 shared 度量常量合成（与主进程建窗高度同源
  * 配对）；亮暗随 CSS 媒体查询
@@ -38,8 +64,20 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   // 导入加载态（反馈轮三）：提交（keepOpen）即置真——sheet 留显「导入中…」+ 控件
   // 锁定，直到主进程收到 workspacePickerClose 关窗；60s 兜底自动关防编排异常
   const [importing, setImporting] = useState(false)
+  // 独立代理草稿（2026-10-15 增量）：预填现值随载荷一次性落定（同重命名草稿
+  // 先例，纯 sheet 本地瞬态，不经 effect 同步）；port 用 string 输入态
+  const [proxyDraft, setProxyDraft] = useState<ProxyDraft>({
+    protocol: 'http',
+    host: '',
+    port: '',
+    username: '',
+    password: ''
+  })
+  // 出口 IP 检测结论四态（结果行固定占位）；草稿变更即回占位（旧结论对新草稿失真）
+  const [checkState, setCheckState] = useState<ProxyCheckState>({ state: 'idle' })
   const firstOptionRef = useRef<HTMLButtonElement | null>(null)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
+  const proxyHostRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -55,6 +93,16 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
           if (payload.chromeProfiles !== undefined) {
             setProfileDir(payload.chromeProfiles[0]?.dir ?? '')
           }
+          if (payload.kind === 'session-proxy' && payload.currentProxy) {
+            const current = payload.currentProxy
+            setProxyDraft({
+              protocol: current.protocol,
+              host: current.host,
+              port: String(current.port),
+              username: current.username,
+              password: current.password
+            })
+          }
         } else {
           setLoadFailed(true)
         }
@@ -68,18 +116,22 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   }, [])
 
   const isRename = context?.kind === 'workspace-rename'
+  const isProxySheet = context?.kind === 'session-proxy'
 
   // 聚焦分流：重命名聚焦输入框并全选（改一个字即整词替换的最低成本路径）；
-  // 选择场景聚焦首个可选项（当前归属行禁用不参与；全禁用时聚焦移出行，再无则不聚焦）
+  // 独立代理聚焦地址框（最常编辑位，不全选——预填值通常是完整地址）；选择场景
+  // 聚焦首个可选项（当前归属行禁用不参与；全禁用时聚焦移出行，再无则不聚焦）
   const firstEnabledIdx = context?.options.findIndex((o) => !o.current) ?? -1
   useEffect(() => {
     if (isRename) {
       renameInputRef.current?.focus()
       renameInputRef.current?.select()
+    } else if (isProxySheet) {
+      proxyHostRef.current?.focus()
     } else {
       firstOptionRef.current?.focus()
     }
-  }, [context, isRename])
+  }, [context, isRename, isProxySheet])
 
   // 重命名提交：UI 面 trim 空禁提交；主进程命中即关窗，连点窗口期的二次提交被
   // requestId/pending 守卫静默忽略
@@ -133,6 +185,62 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
     )
   }
 
+  // 草稿归一值（与主进程守卫同源 normalizeProxyConfig 单源）：null = 本地校验未过
+  //（保存/检测钮禁用的 UI 面判据；主进程守卫是契约面）；port 草稿在此转 number 校验
+  const normalizedProxy = useMemo(
+    () =>
+      normalizeProxyConfig({
+        protocol: proxyDraft.protocol,
+        host: proxyDraft.host,
+        port: Number(proxyDraft.port),
+        username: proxyDraft.username,
+        password: proxyDraft.password
+      }),
+    [proxyDraft]
+  )
+
+  // 检测序号（审查中 3）：草稿每次变更自增，检测回调只认发起时的序号——检测中
+  // （最长 8s）继续编辑时，旧草稿的迟到结论（含出口 IP）不得覆盖新草稿的占位态
+  const checkSeqRef = useRef(0)
+
+  // 草稿变更：合并补丁并把检测结论收敛回占位——旧结论对新草稿失真，不滞留误导
+  const updateProxyDraft = (patch: Partial<ProxyDraft>): void => {
+    checkSeqRef.current += 1
+    setProxyDraft((prev) => ({ ...prev, ...patch }))
+    setCheckState({ state: 'idle' })
+  }
+
+  // 出口 IP 检测（不经 sheet 结论）：按草稿归一值经 check-proxy 通道对该会话分区
+  // 探测（探测目标经上下文 targetSessionId）；通道异常按探测失败（fetch 态）收敛，
+  // 不伪造成功
+  const runProxyCheck = (): void => {
+    if (!context?.targetSessionId || !normalizedProxy || checkState.state === 'checking') return
+    const seq = ++checkSeqRef.current
+    setCheckState({ state: 'checking' })
+    void window.api.sessions
+      .checkProxy({ id: context.targetSessionId, proxy: normalizedProxy })
+      .then((result) => {
+        if (seq !== checkSeqRef.current) return // 草稿已变更：迟到结论作废
+        setCheckState(
+          result.ok ? { state: 'ok', ip: result.ip } : { state: 'fail', reason: result.reason }
+        )
+      })
+      .catch(() => {
+        if (seq !== checkSeqRef.current) return
+        setCheckState({ state: 'fail', reason: 'fetch' })
+      })
+  }
+
+  // 保存（携草稿归一值）/ 清除（携 null = 清除回直连，合法提交）：主进程命中即关
+  // 窗，连点窗口期的二次提交被 requestId/pending 守卫静默忽略
+  const submitProxy = (proxy: SessionProxyConfig | null): void => {
+    if (!context) return
+    if (proxy !== null && !normalizedProxy) return
+    void window.api.dialog
+      .workspacePickerPick({ requestId: context.requestId, proxy })
+      .catch(() => undefined)
+  }
+
   // Esc = 取消（关窗，主进程 closed 兜底收敛 cancelled）；输入框聚焦态同样取消。
   // 导入加载态锁定：中途 Esc 强关会让「导入中…」失去载体（执行照常完成并弹结果框，
   // 但加载反馈断裂），锁定到完成（反馈轮三）
@@ -173,9 +281,11 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       ? t('sessions.workspaceSwitcher.renameModalTitle')
       : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
         ? t('chromeImport.dialog.title')
-        : context.kind === 'workspace-move-single'
-          ? t('sessions.moveModal.title', { name: context.sessionName ?? '' })
-          : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
+        : isProxySheet
+          ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
+          : context.kind === 'workspace-move-single'
+            ? t('sessions.moveModal.title', { name: context.sessionName ?? '' })
+            : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
     : t('sessions.moveModal.titleFallback')
 
   // 导入选择形态（chrome-import-select）：profile 下拉 + 内容勾选 + 导入/取消；未
@@ -364,6 +474,140 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
               onClick={submitRename}
             >
               {t('sessions.workspaceSwitcher.saveText')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 独立代理形态（session-proxy）：协议分段 + 地址端口同行 + 账号 + 密码 + 检测行
+  // + 结果行 + 三钮（清除代理/取消/保存）；纵向度量与 SESSION_PROXY_* 常量同源配对
+  //（协议 28 / 输入 36×3 / 检测 28 / 结果 20 / 按钮行 32，间距 12——建窗高度由
+  // pickerWindowHeight 按常量合成，CSS 行高与常量吻合即配对）；检测按草稿归一值
+  // 直调 check-proxy（不经 sheet 结论）；清除钮仅已配置时可用（pick null = 清除）；
+  // 结果行固定 20px 占位四态等高（空/检测中/成功墨色/失败 danger）
+  if (context?.kind === 'session-proxy') {
+    const checking = checkState.state === 'checking'
+    const resultText =
+      checkState.state === 'checking'
+        ? t('sessions.sessionProxy.checking')
+        : checkState.state === 'ok'
+          ? t('sessions.sessionProxy.checkOk', { ip: checkState.ip })
+          : checkState.state === 'fail'
+            ? checkState.reason === 'unreachable'
+              ? t('sessions.sessionProxy.checkUnreachable')
+              : checkState.reason === 'auth'
+                ? t('sessions.sessionProxy.checkAuth')
+                : t('sessions.sessionProxy.checkFetch')
+            : ''
+    const resultClass =
+      checkState.state === 'ok'
+        ? 'picker-proxy-result is-ok'
+        : checkState.state === 'fail'
+          ? 'picker-proxy-result is-fail'
+          : 'picker-proxy-result'
+    return (
+      <div className="picker-body" role="dialog" aria-label={title}>
+        <header className="picker-head">
+          <h1 className="picker-title">{title}</h1>
+        </header>
+        <div className="picker-form">
+          <div
+            className="picker-proxy-seg"
+            role="group"
+            aria-label={t('sessions.sessionProxy.protocolLabel')}
+          >
+            <button
+              type="button"
+              className="picker-proxy-seg-btn"
+              aria-pressed={proxyDraft.protocol === 'http'}
+              onClick={() => updateProxyDraft({ protocol: 'http' })}
+            >
+              {t('sessions.sessionProxy.protocolHttp')}
+            </button>
+            <button
+              type="button"
+              className="picker-proxy-seg-btn"
+              aria-pressed={proxyDraft.protocol === 'socks5'}
+              onClick={() => updateProxyDraft({ protocol: 'socks5' })}
+            >
+              {t('sessions.sessionProxy.protocolSocks5')}
+            </button>
+          </div>
+          <div className="picker-proxy-hostport">
+            <input
+              ref={proxyHostRef}
+              className="picker-input picker-proxy-host"
+              type="text"
+              autoComplete="off"
+              value={proxyDraft.host}
+              aria-label={t('sessions.sessionProxy.hostLabel')}
+              placeholder={t('sessions.sessionProxy.hostPlaceholder')}
+              onChange={(e) => updateProxyDraft({ host: e.target.value })}
+            />
+            <input
+              className="picker-input picker-proxy-port"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={proxyDraft.port}
+              aria-label={t('sessions.sessionProxy.portLabel')}
+              onChange={(e) => updateProxyDraft({ port: e.target.value })}
+            />
+          </div>
+          <input
+            className="picker-input"
+            type="text"
+            autoComplete="off"
+            value={proxyDraft.username}
+            aria-label={t('sessions.sessionProxy.usernameLabel')}
+            placeholder={t('sessions.sessionProxy.usernamePlaceholder')}
+            onChange={(e) => updateProxyDraft({ username: e.target.value })}
+          />
+          <input
+            className="picker-input"
+            type="password"
+            autoComplete="new-password"
+            value={proxyDraft.password}
+            aria-label={t('sessions.sessionProxy.passwordLabel')}
+            placeholder={t('sessions.sessionProxy.passwordPlaceholder')}
+            onChange={(e) => updateProxyDraft({ password: e.target.value })}
+          />
+          <div className="picker-proxy-checkrow">
+            <button
+              type="button"
+              className="picker-proxy-check-btn"
+              disabled={checking || !normalizedProxy}
+              onClick={runProxyCheck}
+            >
+              {checking
+                ? t('sessions.sessionProxy.checking')
+                : t('sessions.sessionProxy.checkButton')}
+            </button>
+          </div>
+          <p className={resultClass} role="status">
+            {resultText}
+          </p>
+          <div className="picker-foot">
+            <button
+              type="button"
+              className="picker-btn"
+              disabled={context.currentProxy == null}
+              onClick={() => submitProxy(null)}
+            >
+              {t('sessions.sessionProxy.clear')}
+            </button>
+            <button type="button" className="picker-btn" onClick={() => window.close()}>
+              {t('sessions.sessionProxy.cancel')}
+            </button>
+            <button
+              type="button"
+              className="picker-btn picker-btn-primary"
+              disabled={!normalizedProxy}
+              onClick={() => submitProxy(normalizedProxy)}
+            >
+              {t('sessions.sessionProxy.save')}
             </button>
           </div>
         </div>

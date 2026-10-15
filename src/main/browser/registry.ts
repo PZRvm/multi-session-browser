@@ -5,7 +5,9 @@
 // destroySession / init）。本模块不含任何 IPC（命令通道与状态推送由 ipc.ts / index.ts
 // 装配，分层同 manager.ts）；持久化上报与恢复集由 browser/persistence.ts 承担（L7
 // 定案），落盘读写经 store.ts；独立窗口登记表经 deps 注入（windows.ts 的回调反向触达
-// 也经 index.ts 晚绑定注入，模块间无 import 环）。
+// 也经 index.ts 晚绑定注入，模块间无 import 环）。独立代理应用接线（独立代理专项
+// 步骤 2，PRD 4.14）同经 deps 注入引擎（browser/proxy.ts）：激活链 await 应用完成
+// 再挂视图/导航、ensureManager 异步幂等兜底、克隆产物分区预应用、destroySession 清登记。
 
 import { app, BrowserWindow, session, webContents, WebContentsView } from 'electron'
 import type { Session, WebContents } from 'electron'
@@ -15,7 +17,8 @@ import { WINDOW_ID_MAIN, type BrowserSnapshot, type SetBoundsPayload } from '../
 import {
   SESSION_ID_RE,
   type SessionStatus,
-  type SessionStatusesPayload
+  type SessionStatusesPayload,
+  type SessionsSnapshot
 } from '../../shared/sessions'
 import { loadSnapshot } from '../store'
 import { t } from '../i18n'
@@ -32,6 +35,7 @@ import {
 import { createCameraPermissionBroker } from './permissions'
 import { createSessionPersistence, type RestoreSet } from './persistence'
 import { createBrowserHistory, type BrowserHistory } from './history'
+import type { SessionProxyEngine } from './proxy'
 import type { IndependentWindows } from './windows'
 
 /**
@@ -216,10 +220,16 @@ export function createSessionBrowserRegistry(deps: {
   getHomepageUrl: () => string
   /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：index.ts 注入外观快照派生——ensureManager 透传 createTabManager */
   getFallbackBackground: () => string
+  /**
+   * 会话独立代理引擎（独立代理专项步骤 2，browser/proxy.ts 单源）：激活链/兜底/克隆
+   * 预应用经其 applySessionProxy 落地，destroySession 经 dropSession 清凭据与登记；
+   * 分区串仍由本文件的 partitionFor 单源（引擎侧经其 deps 注入同一实现）
+   */
+  proxy: SessionProxyEngine
   /** 录制中锚定窗现取（录屏线 F''）：ensureManager 透传 createTabManager——弹层收起按录制态分派应用矩形 */
   getRecordingWindowId?: () => string | null
 }): SessionBrowserRegistry {
-  const { getWindow, windows, getHomepageUrl, getFallbackBackground } = deps
+  const { getWindow, windows, getHomepageUrl, getFallbackBackground, proxy } = deps
 
   const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
@@ -474,6 +484,23 @@ export function createSessionBrowserRegistry(deps: {
     }
   }
 
+  /**
+   * 按落盘现值把代理应用到该会话分区（独立代理专项步骤 2）：读盘取配置 → 引擎应用
+   * （幂等，值未变不重放）。返回会话是否仍在落盘（激活链据此放弃 await 期间被并发
+   * 删除会话的提交）；顺带把当前全量 id 并入引擎反查集（覆盖「会话存在但从未应用」
+   * 的 login 反查场景）
+   */
+  async function applyProxyFromStore(id: string, snapshot?: SessionsSnapshot): Promise<boolean> {
+    // snapshot 入参（审查低-6）：批量打开等 N 会话连发场景由调用方读盘一次复用，
+    // 避免逐会话整文件读；缺省自读（单点调用语义不变）
+    const loaded = snapshot ?? (await loadSnapshot())
+    proxy.noteKnownIds(loaded.sessions.map((item) => item.id))
+    const item = loaded.sessions.find((entry) => entry.id === id)
+    if (!item) return false
+    await proxy.applySessionProxy(id, item.proxy)
+    return true
+  }
+
   /** 懒创建该会话的 manager（persist:sess-<id>）并接线：快照驱动转发/状态聚合/上报去抖 */
   function ensureManager(id: string): TabManager {
     const existing = managers.get(id)
@@ -482,6 +509,12 @@ export function createSessionBrowserRegistry(deps: {
     // handler 必须先于首个 WebContentsView 创建安装，避免页面首个 media 请求落入 Electron
     // 默认自动批准；同一分区重建 manager 时 install 幂等且保留本次运行内的站点决定。
     cameraPermissions.install(id, session.fromPartition(partition))
+    // 代理兜底应用（独立代理专项）：主路径（下方激活链 await / 克隆预应用）已覆盖
+    // switchSession/init/clone，此处兜住未列举的直接调用方（openUrlInSessions 等）——
+    // 异步幂等，落地前已建的连接由引擎配置变更时的 closeAllConnections 收尾重路由
+    void applyProxyFromStore(id).catch((error: unknown) => {
+      console.warn(`[registry] 会话 ${id} 兜底应用代理失败:`, error)
+    })
     const manager = createTabManager(getWindow, {
       sessionId: id,
       partition,
@@ -571,9 +604,23 @@ export function createSessionBrowserRegistry(deps: {
     return manager
   }
 
+  /**
+   * 激活切换代号（last-wins 收敛）：代理应用是异步链（读盘 + setProxy），await 期间
+   * 可能又有新的切换/清空发起——只有最新代号有权提交切换，复刻同步版的「后发覆盖」
+   * 语义（独立代理专项步骤 2 引入）
+   */
+  let switchGeneration = 0
+
   function switchSession(id: string | null): void {
     initHandled = true
-    if (id === activeSessionId) return // 同 id no-op
+    if (id === activeSessionId) {
+      // 同 id no-op 仍推进代号作废在途激活（审查中 2）：用户点回当前会话是最新意图，
+      // 若不推进，先前在途的 prepareActivation 会在 await 后提交——落盘 activeId、
+      // registry 激活位与面板三方失配（极端时序下删除级联切换恰为同 id 时，stale
+      // 提交还会复活已删除会话的激活画面）
+      switchGeneration += 1
+      return
+    }
     // 被篡改 id 前置拒绝（R2 定案）：在任何副作用（摘旧 view、置 activeSessionId）之前
     // 早退——深层 ensureManager→partitionFor 的抛错点晚于摘 view，会让浏览器区冻结在
     // "有快照无视图"状态；此处早退保住旧会话画面可用（后续推送被 renderer 守卫丢弃
@@ -590,6 +637,38 @@ export function createSessionBrowserRegistry(deps: {
       console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次切换请求已跳过`)
       return
     }
+    const generation = ++switchGeneration
+    // null（清空激活）无代理可应用，同步提交；非 null 走激活链：await 代理应用完成
+    // 再提交切换（分区首个 loadURL 前生效，PRD 4.14）——await 期间旧画面保持挂载
+    // （无空窗）、命令作用域仍按旧激活位（与同步版一致），并发切换由 generation 收敛
+    if (id === null) {
+      commitSwitch(null)
+      return
+    }
+    void prepareActivation(id, generation)
+  }
+
+  /** 激活链的异步前段：await 代理应用，完成后守卫仍有效才提交切换 */
+  async function prepareActivation(id: string, generation: number): Promise<void> {
+    let alive = true
+    try {
+      alive = await applyProxyFromStore(id)
+    } catch (error) {
+      // 读盘/应用失败如实告警后继续激活：代理缺失不应冻结会话切换（下次切换幂等补应用）
+      console.warn(`[registry] 会话 ${id} 激活前应用代理失败（按既有配置继续激活）:`, error)
+    }
+    if (generation !== switchGeneration) return // await 期间已有更新的切换/清空发起
+    if (!alive) return // await 期间会话已被删除（删除链自带切换/空态收口，此处不复活）
+    // 窗口期守卫复验：await 期间进入克隆/导入窗口的分区不得激活（活库理由同上）
+    if (cloningIds.has(id) || importingIds.has(id)) {
+      console.warn(`[registry] 会话 ${id} 激活前进入克隆/导入窗口，本次切换已跳过`)
+      return
+    }
+    commitSwitch(id)
+  }
+
+  /** 切换的同步提交段（原 switchSession 主体，语义零变更：摘旧 → 置位 → 通知 → 挂新） */
+  function commitSwitch(id: string | null): void {
     // ① 摘除旧激活 manager 的激活 view：webContents 全部保活（Tab、滚动、登录态原样保留），
     //    切回时由 attachToWindow 按其缓存矩形重挂。摘除前先退出 HTML 全屏引发的窗口
     //    OS 全屏态（槽位在 = 窗口全屏源于网页全屏而非用户自主全屏，退出不误伤）——
@@ -632,6 +711,9 @@ export function createSessionBrowserRegistry(deps: {
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
     // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
     cameraPermissions.disposeSession(id)
+    // 代理凭据表与模块登记一并清理（独立代理专项）：凭据不留驻已销毁会话（id 含
+    // 时间戳不复用，登记残留只碍反查）；closeSession 不走此分支，会话仍存活
+    proxy.dropSession(id)
     emitLifecycle('session-gone', id)
     // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
     // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
@@ -828,6 +910,23 @@ export function createSessionBrowserRegistry(deps: {
       // "有快照无视图"状态直到用户手动点击。守卫已解除，切回源会话（manager 重建 +
       // lastUrl 重载）即可恢复可用（活页面状态不还原，如实代价）
       if (failed && wasActive) switchSession(srcId)
+      // 克隆产物分区预应用代理（独立代理专项步骤 2）：按源会话落盘现值应用到目标分区，
+      // 在新会话激活前完成——renderer setActive 的激活链（prepareActivation）随后幂等
+      // 复核（元数据携带的 proxy 与此处同源自落盘）。失败如实告警，由激活链兜底补应用；
+      // 元数据写盘失败的孤儿分区带一份代理配置无流量触达（id 不复用），无清理面
+      if (!failed) {
+        try {
+          const snapshot = await loadSnapshot()
+          proxy.noteKnownIds(snapshot.sessions.map((item) => item.id))
+          const src = snapshot.sessions.find((item) => item.id === srcId)
+          if (src) await proxy.applySessionProxy(dstId, src.proxy)
+        } catch (error) {
+          console.warn(
+            `[registry] 克隆产物 ${dstId} 预应用代理失败（激活时按落盘配置补应用）:`,
+            error
+          )
+        }
+      }
     }
   }
 
@@ -838,44 +937,65 @@ export function createSessionBrowserRegistry(deps: {
    * 保活后台加载，加载态经既有 statusChanged 推送如实驱动）；仅当前激活会话的 view 保持挂入
    */
   function openUrlInSessions(ids: string[], url: string): void {
-    for (const id of ids) {
-      // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
-      if (cloningIds.has(id)) continue
-      // 导入静默窗口守卫：写入中的分区不开 Tab。与克隆的静默跳过不同——批量打开是
-      // 显式用户动作，静默丢事件难排查，告警留痕
-      if (importingIds.has(id)) {
-        console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次批量打开已跳过`)
-        continue
+    // 批量打开是页面首航来源之一：懒创建/加载前 await 落盘代理应用（审查中 4——
+    // ensureManager 的兜底是 fire-and-forget，本运行期未激活过且配了代理的会话其
+    // 首请求可能先于 setProxy 直连泄漏）。await 失败如实告警后继续（代理缺失不应
+    // 阻断批量打开），应用幂等由引擎承担。接口签名维持同步 void（调用方不感知时序）
+    void (async () => {
+      // 整批读盘一次（审查低-6）：N 会话共用同一快照做代理应用，避免 N 次整文件读
+      let proxySnapshot: SessionsSnapshot | undefined
+      try {
+        proxySnapshot = await loadSnapshot()
+      } catch (error) {
+        console.warn('[registry] 批量打开前读取快照失败（按无代理配置继续）:', error)
       }
-      const existed = managers.has(id)
-      const manager = ensureManager(id)
-      if (!existed) {
-        // 刚懒创建会话的三分支（L4 定案：批量打开绝不丢弃恢复集）：
-        // ① 缓存有恢复集（ensureManager 已多开恢复）→ 直接叠加批量 Tab；
-        // ② 缓存明确无恢复集（空数组，无补载待定）且初始 Tab 空白 → 复用该 Tab 直接
-        //    加载目标地址，避免"新标签页 + 目标页"双 Tab；
-        // ③ 缓存未命中（补载待定，落盘可能有恢复集）→ 不撤销补载、置叠加标记，批量 Tab
-        //    先叠加；补载读盘后关掉系统创建的初始空白 Tab 全量恢复（见 ensureManager）
-        const snap = manager.getSnapshot()
-        const activeTab = snap.tabs.find((tab) => tab.id === snap.activeTabId)
-        const restore = persistence.getRestore(id)
-        if (restore && restore.tabs.length > 0) {
-          // 分支 ①：落到末尾 newTab(url)
-        } else if (activeTab && activeTab.url === BLANK_URL && restore) {
-          const wc = manager.getActiveWebContents()
-          if (wc && !wc.isDestroyed()) {
-            // 失败日志由 manager 挂的 did-fail-load 单点承担
-            void wc.loadURL(url).catch(() => {})
-            if (id !== activeSessionId) detachActiveView(manager)
-            continue
-          }
-        } else if (activeTab && activeTab.url === BLANK_URL) {
-          persistence.markBatchOpened(id)
+      for (const id of ids) {
+        // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
+        if (cloningIds.has(id)) continue
+        // 导入静默窗口守卫：写入中的分区不开 Tab。与克隆的静默跳过不同——批量打开是
+        // 显式用户动作，静默丢事件难排查，告警留痕
+        if (importingIds.has(id)) {
+          console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次批量打开已跳过`)
+          continue
         }
+        try {
+          await applyProxyFromStore(id, proxySnapshot)
+        } catch (error) {
+          console.warn(`[registry] 会话 ${id} 批量打开前应用代理失败（按既有配置继续）:`, error)
+        }
+        const existed = managers.has(id)
+        const manager = ensureManager(id)
+        if (!existed) {
+          // 刚懒创建会话的三分支（L4 定案：批量打开绝不丢弃恢复集）：
+          // ① 缓存有恢复集（ensureManager 已多开恢复）→ 直接叠加批量 Tab；
+          // ② 缓存明确无恢复集（空数组，无补载待定）且初始 Tab 空白 → 复用该 Tab 直接
+          //    加载目标地址，避免"新标签页 + 目标页"双 Tab；
+          // ③ 缓存未命中（补载待定，落盘可能有恢复集）→ 不撤销补载、置叠加标记，批量 Tab
+          //    先叠加；补载读盘后关掉系统创建的初始空白 Tab 全量恢复（见 ensureManager）
+          const snap = manager.getSnapshot()
+          const activeTab = snap.tabs.find((tab) => tab.id === snap.activeTabId)
+          const restore = persistence.getRestore(id)
+          if (restore && restore.tabs.length > 0) {
+            // 分支 ①：落到末尾 newTab(url)
+          } else if (activeTab && activeTab.url === BLANK_URL && restore) {
+            const wc = manager.getActiveWebContents()
+            if (wc && !wc.isDestroyed()) {
+              // 失败日志由 manager 挂的 did-fail-load 单点承担
+              void wc.loadURL(url).catch(() => {})
+              if (id !== activeSessionId) detachActiveView(manager)
+              continue
+            }
+          } else if (activeTab && activeTab.url === BLANK_URL) {
+            persistence.markBatchOpened(id)
+          }
+        }
+        manager.newTab(url)
+        if (id !== activeSessionId) detachActiveView(manager)
       }
-      manager.newTab(url)
-      if (id !== activeSessionId) detachActiveView(manager)
-    }
+    })().catch((error: unknown) => {
+      // 循环体内部各步已各自吞错留痕，此处仅兜未预期异常防 unhandled rejection
+      console.warn('[registry] 批量打开执行异常:', error)
+    })
   }
 
   function init(activeId: string | null): void {

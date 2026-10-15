@@ -109,6 +109,36 @@ export const sessions = {
     moved: '已移动 {n} 个到「{name}」',
     movedSkipped: '已移动 {n} 个到「{name}」（{skipped} 个已在目标，已跳过）'
   },
+  /** 独立代理（PRD 4.14，2026-10-15 增量）：会话行菜单入口 / 设置 sheet / 行内徽标 */
+  sessionProxy: {
+    menuEntry: '代理设置…',
+    /** 行内徽标短字（已配置时渲染） */
+    badge: '代理',
+    /** 徽标悬停：协议为 HTTP/SOCKS5 字面量（术语不译） */
+    badgeTip: '{protocol} · {host}:{port}',
+    sheetTitle: '「{name}」代理设置',
+    protocolLabel: '协议',
+    protocolHttp: 'HTTP',
+    protocolSocks5: 'SOCKS5',
+    hostLabel: '代理服务器地址',
+    hostPlaceholder: 'IP 或域名',
+    portLabel: '端口',
+    usernameLabel: '账号（可选）',
+    usernamePlaceholder: '代理账号',
+    passwordLabel: '密码（可选）',
+    passwordPlaceholder: '代理密码',
+    checkButton: '检测',
+    checking: '检测中…',
+    checkOk: '代理可用，当前出口 IP：{ip}',
+    checkUnreachable: '连不上代理：请检查地址、端口或本机网络',
+    checkAuth: '代理认证失败：请检查账号与密码',
+    checkFetch: '代理已连通，但出口 IP 探测失败：请稍后重试',
+    save: '保存',
+    clear: '清除代理',
+    cancel: '取消',
+    saveFailed: '保存代理失败，请重试',
+    clearFailed: '清除代理失败，请重试'
+  },
   /** 工作区切换框（WorkspaceSwitcher） */
   workspaceSwitcher: {
     allSessions: '全部会话',

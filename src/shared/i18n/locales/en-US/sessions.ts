@@ -101,6 +101,36 @@ export const sessions: Dictionary['sessions'] = {
     moved: 'Moved {n} to "{name}"',
     movedSkipped: 'Moved {n} to "{name}" ({skipped} already in target, skipped)'
   },
+  /** Per-session proxy (PRD 4.14, 2026-10-15): session row menu entry / settings sheet / inline badge */
+  sessionProxy: {
+    menuEntry: 'Proxy Settings…',
+    /** Inline badge short label (rendered when configured) */
+    badge: 'Proxy',
+    /** Badge hover: protocol stays HTTP/SOCKS5 literal (term not translated) */
+    badgeTip: '{protocol} · {host}:{port}',
+    sheetTitle: 'Proxy Settings for "{name}"',
+    protocolLabel: 'Protocol',
+    protocolHttp: 'HTTP',
+    protocolSocks5: 'SOCKS5',
+    hostLabel: 'Proxy server address',
+    hostPlaceholder: 'IP or domain',
+    portLabel: 'Port',
+    usernameLabel: 'Username (optional)',
+    usernamePlaceholder: 'Proxy username',
+    passwordLabel: 'Password (optional)',
+    passwordPlaceholder: 'Proxy password',
+    checkButton: 'Check',
+    checking: 'Checking…',
+    checkOk: 'Proxy reachable. Current exit IP: {ip}',
+    checkUnreachable: 'Cannot reach the proxy: check the address, port, or local network',
+    checkAuth: 'Proxy authentication failed: check the username and password',
+    checkFetch: 'Proxy connected, but the exit IP probe failed: try again later',
+    save: 'Save',
+    clear: 'Clear Proxy',
+    cancel: 'Cancel',
+    saveFailed: 'Failed to save the proxy. Please retry.',
+    clearFailed: 'Failed to clear the proxy. Please retry.'
+  },
   workspaceSwitcher: {
     allSessions: 'All sessions',
     comboboxTitle: 'Switch workspace (type to filter)',

@@ -730,6 +730,17 @@ select.picker-input {
   background: var(--accent-strong);
 }
 
+/* 次级钮禁用态（独立代理 sheet「清除代理」未配置时禁用，2026-10-15）：降透明 +
+   去 hover 面，对齐主钮禁用语言；:not(primary) 防高特异性覆盖主钮禁用底色 */
+.picker-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.picker-btn:not(.picker-btn-primary):disabled:hover {
+  background: transparent;
+}
+
 .ws-option:hover,
 .ws-option.active {
   background: var(--board-hover-veil);
@@ -1439,6 +1450,123 @@ select.picker-input {
   line-height: 20px;
   font-size: 11px;
   color: var(--board-ink-dim);
+}
+
+/* 独立代理设置 sheet（独立代理专项 2026-10-15，session-proxy kind）：复用
+   picker-form/input/foot/btn 语系；纵向度量与 shared/dialog.ts SESSION_PROXY_* 常量
+   同源配对——高度公式 = 68 头 + 12 表单上距 + 6×12 行距 + 协议行 28 + 输入行 36×3 +
+   检测行 28 + 结果行 20 + 按钮行 32（pickerWindowHeight 单源合成，改值多处对账；
+   行高与间距严格等于常量）。协议分段钮：未选 = 通透融入板面（透明底 + 次级墨），
+   分段组带可见轨道（发丝线框 + 板底 + 2px 内距，读作一枚控件而非两段文字——
+  2026-10-15 用户反馈轮：原透明无边实现像纯文本），选中段墨底反白（board-ink 底 +
+  board-bg 字，板面世界反白先例的灰阶版——突出选中但不抢保存主钮的琥珀，亮暗对称）；
+  地址端口同行（地址弹性 /
+   端口 88px 数字输入）；结果行固定 20px 占位四态等高——成功墨色 / 检测中与占位
+   次级墨 / 失败 danger（本形态唯一 danger 用点，零琥珀） */
+.picker-proxy-seg {
+  display: flex;
+  gap: 2px;
+  height: 28px; /* SESSION_PROXY_PROTOCOL_HEIGHT（入建窗高度公式，改值多处对账） */
+  padding: 2px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg);
+}
+
+.picker-proxy-seg-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* 未选中 hover：悬停面 + 升墨（选中段不吃 hover 面，:not 防覆写） */
+.picker-proxy-seg-btn:hover:not([aria-pressed='true']) {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+
+/* 选中段：墨底反白（轨道内实心段，板面灰阶反白——亮态深墨底浅字/暗态浅底深字随 token 对称） */
+.picker-proxy-seg-btn[aria-pressed='true'] {
+  background: var(--board-ink);
+  color: var(--board-bg);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* 键盘焦点可见（分段钮是真实按钮，独立于 hover/选中态） */
+.picker-proxy-seg-btn:focus-visible {
+  outline: 1px solid var(--board-ink);
+  outline-offset: 1px;
+}
+
+.picker-proxy-hostport {
+  display: flex;
+  gap: 8px;
+  height: 36px; /* SESSION_PROXY_INPUT_HEIGHT（地址与端口同行共享一行高） */
+}
+
+.picker-proxy-host {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-proxy-port {
+  flex: none;
+  width: 88px; /* 端口定宽（1—65535 至多五位数 + 内距余量，不参与高度公式） */
+}
+
+.picker-proxy-checkrow {
+  display: flex;
+  align-items: center;
+  height: 28px; /* SESSION_PROXY_CHECK_HEIGHT（入建窗高度公式，改值多处对账） */
+}
+
+/* 检测小钮：次级文字钮（无发丝线、24px 居中于 28px 行），检测中/草稿未过守卫禁用 */
+.picker-proxy-check-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.picker-proxy-check-btn:hover:not(:disabled) {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+
+.picker-proxy-check-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.picker-proxy-result {
+  height: 20px; /* SESSION_PROXY_RESULT_HEIGHT（固定占位防高度跳变——四态等高） */
+  margin: 0;
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--board-ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-proxy-result.is-ok {
+  color: var(--board-ink);
+}
+
+.picker-proxy-result.is-fail {
+  color: var(--danger);
 }
 
 /* 「打开测试地址」复用 .new-session 度量；勾选为空时禁用（灰化不换底色）。

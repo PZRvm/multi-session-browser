@@ -1,19 +1,22 @@
-// 会话 IPC handlers：十八条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
+// 会话 IPC handlers：二十条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
 // batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项七条 create/rename/delete/
-// move-session/move-sessions-batch/reorder/set-active + 备注编辑 set-note 一条，含
-// 2026-09-21 工作区排序增量）的业务实现，读写一律经 store.ts 的快照接口；status-changed
-// 推送不经本文件（index.ts 直连 registry）。通道名一律取自 shared/sessions 的
+// move-session/move-sessions-batch/reorder/set-active + 备注编辑 set-note 一条 + 独立
+//代理 set-proxy / check-proxy 两条，2026-10-15 增量）的业务实现，读写一律经 store.ts
+// 的快照接口；status-changed 推送不经本文件（index.ts 直连 registry）。通道名一律取自
+// shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
 // （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区七通道纯元数据：唯一
 // 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
 
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron'
 import { isRecord } from '../shared/guards'
 import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
+  type RowMenuActionKey,
+  type RowMenuVariant,
   SESSION_NOTE_MAX,
   SESSIONS_CHANNELS,
   WORKSPACE_ID_RE,
@@ -21,8 +24,11 @@ import {
   WORKSPACE_VIEW_ALL,
   WORKSPACE_VIEW_UNGROUPED,
   cloneTabs,
+  normalizeProxyConfig,
   type MoveSessionsBatchResult,
   type OkResult,
+  type ProxyCheckResult,
+  type SessionProxyConfig,
   type SessionStatusesPayload,
   type SessionsSnapshot,
   type StoredSession,
@@ -30,6 +36,7 @@ import {
   type StoredWorkspace
 } from '../shared/sessions'
 import { normalizeInput } from './browser/url'
+import { dialogIconForDarwin } from './dialogs'
 import { t } from './i18n'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
 
@@ -45,6 +52,9 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  *   激活过）返回 undefined，调用方回退落盘值
  * - onBatchDeleted：deleteBatch 落盘成功后通知编排层一次切换到级联 activeId + 逐会话销毁清分区
  * - onBatchOpenUrl：batchOpenUrl 整单校验通过后通知编排层逐会话新建 Tab 加载
+ * - onProxyChanged：set-proxy 落盘成功后把（清除后的）代理配置应用到该会话分区（独立
+ *   代理增量，引擎幂等；本文件不 import registry/proxy，装配在 index.ts）
+ * - checkProxyExitIp：check-proxy 按草稿值经该会话分区探测出口 IP（不落盘不动生效配置）
  */
 interface SessionIpcDeps {
   onActiveChanged(id: string | null): void
@@ -56,6 +66,12 @@ interface SessionIpcDeps {
   getRestoreSet(srcId: string): { tabs: StoredTab[]; activeTabIndex: number } | undefined
   onBatchDeleted(ids: string[], nextActiveId: string | null): void
   onBatchOpenUrl(ids: string[], url: string): void
+  /** set-proxy 落盘成功后的分区应用入口（proxy 传 null = 清除回直连） */
+  onProxyChanged(id: string, proxy: SessionProxyConfig | null): Promise<void>
+  /** check-proxy 的探测入口：按草稿值经该会话分区探测，返回三态结论 */
+  checkProxyExitIp(id: string, proxy: SessionProxyConfig): Promise<ProxyCheckResult>
+  /** 主窗解析（行原生菜单 sender 白名单判据；macOS 关窗期间为 null → 请求拒绝） */
+  getMainWindow: () => BrowserWindow | null
 }
 
 /** id 自增序列（模块级，跨多次 create 递增） */
@@ -221,6 +237,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             // 阶段 6 契约：新建会话无恢复集，懒创建时回退单空白 Tab
             tabs: [],
             activeTabIndex: 0,
+            // 独立代理增量（v5）：新建会话未配置代理（直连），后续经 set-proxy 配置
+            proxy: null,
             // 工作区专项：可选归属（undefined 未分组 / null 未分组 / 须存在）
             workspaceId: resolveMembership(
               membership,
@@ -282,6 +300,94 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           target.note = clampString(note, SESSION_NOTE_MAX)
           return target
         })
+      })
+  )
+
+  // set-proxy：保存/清除会话独立代理（独立代理增量 2026-10-15，PRD 4.14）。proxy 传
+  // null = 清除（合法语义回直连，对齐 set-note 空串清除先例）；非空值经
+  // normalizeProxyConfig 单源守卫（协议闭集/host/端口/凭据任一不过整单拒绝，磁盘
+  // 不变）。结构守卫 → id 存在性 → mutateSnapshot 临界区内写 target.proxy → 落盘
+  // 成功后经 deps.onProxyChanged 应用到该会话分区 → 返回更新后的 StoredSession
+  // （renderer 非乐观 merge，对齐 set-note 返回范式）。应用失败只告警不回滚：落盘是
+  // 权威，切换/激活链会按落盘值幂等补应用
+  ipcMain.handle(
+    SESSIONS_CHANNELS.setProxy,
+    async (event, payload: unknown): Promise<StoredSession> =>
+      logFailure(SESSIONS_CHANNELS.setProxy, payload, async () => {
+        // payload 必须含 string 类型的 id 与（null 或可归一化的）proxy
+        if (!isRecord(payload)) throw invalidParams()
+        if (typeof payload.id !== 'string') throw invalidParams()
+        if (!SESSION_ID_RE.test(payload.id)) throw invalidParams()
+        const id = payload.id
+        let next: SessionProxyConfig | null = null
+        try {
+          next = payload.proxy === null ? null : normalizeProxyConfig(payload.proxy)
+          if (payload.proxy !== null && next === null) throw invalidParams()
+          const updated = await mutateSnapshot((snapshot) => {
+            const target = snapshot.sessions.find((s) => s.id === id)
+            if (!target) throw new Error(t('errors.sessionNotFound'))
+            target.proxy = next
+            return target
+          })
+          // 落盘成功后应用（守卫失败或写盘失败即抛错，不应用）：await 让 invoke 落定
+          // 意味着代理已（尽力）生效；失败如实告警不回滚（见上方 handler 注释）
+          try {
+            await deps.onProxyChanged(id, next)
+          } catch (error) {
+            console.warn(
+              `[sessions] 会话 ${id} 的代理配置落盘成功但应用失败（将由激活链补应用）:`,
+              error
+            )
+          }
+          return updated
+        } catch (error) {
+          // 失败反馈（审查中-1 修复）：主进程原生信息框（chromeImport 完成点先例，
+          // AGENTS 结果反馈原生裁决）——发起窗口模态弹出后原样上抛，renderer invoke
+          // 以 false 收敛不再重复承载（batchFeedback 在普通模式不可见的死路径已废）
+          const win = BrowserWindow.fromWebContents(event.sender)
+          if (win && !win.isDestroyed()) {
+            void dialog
+              .showMessageBox(win, {
+                type: 'info',
+                icon: dialogIconForDarwin(),
+                message: t(
+                  next === null
+                    ? 'sessions.sessionProxy.clearFailed'
+                    : 'sessions.sessionProxy.saveFailed'
+                ),
+                buttons: [t('common.confirm')],
+                noLink: true,
+                cancelId: 0
+              })
+              .catch(() => undefined)
+          }
+          throw error
+        }
+      })
+  )
+
+  // check-proxy：按草稿值探测该会话出口 IP（不落盘、不动当前生效配置；探测锚定该
+  // 会话真实分区——凭据与连通性都以该分区为准，故 id 必须存在）。proxy 必填非 null
+  // 且过 normalizeProxyConfig 单源守卫（非法整单拒绝）；探测期临时应用草稿值、结束
+  // 恢复原状由引擎承担（browser/proxy.ts probeExitIpForId）。三态失败如实分类，不伪造生效
+  ipcMain.handle(
+    SESSIONS_CHANNELS.checkProxy,
+    async (_event, payload: unknown): Promise<ProxyCheckResult> =>
+      logFailure(SESSIONS_CHANNELS.checkProxy, payload, async () => {
+        // payload 必须含 string 类型的 id 与非 null 的 proxy
+        if (!isRecord(payload)) throw invalidParams()
+        if (typeof payload.id !== 'string') throw invalidParams()
+        if (!SESSION_ID_RE.test(payload.id)) throw invalidParams()
+        if (payload.proxy === null || payload.proxy === undefined) throw invalidParams()
+        const draft = normalizeProxyConfig(payload.proxy)
+        if (draft === null) throw invalidParams()
+        const id = payload.id
+        // 会话存在性校验（读盘）：探测必须锚定真实分区，未知会话整单拒绝
+        const snapshot = await loadSnapshot()
+        if (!snapshot.sessions.some((s) => s.id === id)) {
+          throw new Error(t('errors.sessionNotFound'))
+        }
+        return deps.checkProxyExitIp(id, draft)
       })
   )
 
@@ -398,7 +504,9 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
                 membership,
                 source.workspaceId,
                 new Set(data.workspaces.map((w) => w.id))
-              )
+              ),
+              // 独立代理增量（v5）：克隆携带源会话代理配置（环境同款复制语义）
+              proxy: source.proxy
             }
             data.sessions.push(cloned)
             return cloned
@@ -764,6 +872,102 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // 本文件注册 18 条 invoke 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），合计 20 条
+  // popup-row-menu：会话行原生菜单（2026-10-15 反馈轮四，DOM 菜单退役）。renderer
+  // 传会话 id + 视口坐标 + 变体；主进程经 main/i18n 取既有键组装 Menu 并 popup
+  //（OS 级绘制盖过页面 WebContentsView，点任意位置关闭——含页面区，找回 2026-09-21
+  // 收起方案换掉的「全区域外点关闭」）。菜单项点击经 row-menu-action 定向推回发起
+  // webContents，由 renderer 既有编排闭环（重命名/备注行内编辑、克隆/移动/导入/
+  // 代理 sheet、删除确认框）。ipcMain.on 单向通道：守卫失败 warn 后静默返回。
+  // full 变体 = 行右键全量菜单；dots 变体 = ⋮ 按钮短菜单（重命名/克隆/删除）
+  ipcMain.on(SESSIONS_CHANNELS.popupRowMenu, (event, payload: unknown): void => {
+    const fail = (reason: string): void => {
+      console.warn(`[sessions] 行原生菜单请求被拒绝（${reason}）`)
+    }
+    // sender 白名单（审查低-2）：会话行只存在于主窗 shell，其余来源（独立窗/sheet
+    // 子窗/被攻陷页面）一律拒绝——对齐 dialog:show 的主窗来源判据先例
+    const mainWindow = deps.getMainWindow()
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      return fail('非主窗来源')
+    }
+    if (!isRecord(payload)) return fail('载荷非法')
+    const id = typeof payload.id === 'string' ? payload.id : ''
+    if (!SESSION_ID_RE.test(id)) return fail('会话 id 非法')
+    const x = payload.x
+    const y = payload.y
+    if (
+      typeof x !== 'number' ||
+      typeof y !== 'number' ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      x < 0 ||
+      y < 0
+    ) {
+      return fail('坐标非法')
+    }
+    const variant: RowMenuVariant = payload.variant === 'dots' ? 'dots' : 'full'
+    if (payload.variant !== 'dots' && payload.variant !== 'full') {
+      return fail(`变体非法: ${String(payload.variant)}`)
+    }
+    const sender = event.sender
+    const win = BrowserWindow.fromWebContents(sender)
+    if (!win || win.isDestroyed()) return fail('发起窗口缺失')
+    // 会话存在性（审查低-2）：幻影 id 静默返回（菜单无数据面，防御对齐 dialog:show
+    // 的 cancelled 语义；读盘频率 = 菜单弹出频率，可忽略）
+    void (async () => {
+      const known = (await loadSnapshot()).sessions.some((s) => s.id === id)
+      if (!known) return fail('会话不存在')
+      // 坐标 clamp（审查低-3）：越界锚点交给窗口内容尺寸收口，防原生菜单定位到
+      // 屏幕外不可见
+      const [contentW, contentH] = win.getContentSize()
+      const cx = Math.min(Math.max(Math.round(x), 0), Math.max(contentW - 1, 0))
+      const cy = Math.min(Math.max(Math.round(y), 0), Math.max(contentH - 1, 0))
+      const dispatch = (key: RowMenuActionKey): void => {
+        if (!sender.isDestroyed()) {
+          sender.send(SESSIONS_CHANNELS.rowMenuAction, { id, key })
+        }
+      }
+      const item = (key: 'rename' | 'editNote' | 'clone' | 'delete'): MenuItem =>
+        new MenuItem({
+          // 菜单标签经 main/i18n 取既有键（阶段六双语化覆盖 sessions/chromeImport 命名空间）
+          label: t(`sessions.sessionRow.menu.${key}`),
+          click: () => dispatch(key)
+        })
+      const menu = new Menu()
+      if (variant === 'full') {
+        menu.append(item('rename'))
+        menu.append(item('editNote'))
+        menu.append(new MenuItem({ type: 'separator' }))
+        menu.append(item('clone'))
+        menu.append(
+          new MenuItem({
+            label: t('sessions.sessionRow.menu.move'),
+            click: () => dispatch('move')
+          })
+        )
+        menu.append(
+          new MenuItem({
+            label: t('chromeImport.menu.importChromeData'),
+            click: () => dispatch('importChrome')
+          })
+        )
+        menu.append(
+          new MenuItem({
+            label: t('sessions.sessionProxy.menuEntry'),
+            click: () => dispatch('proxy')
+          })
+        )
+        menu.append(new MenuItem({ type: 'separator' }))
+        menu.append(item('delete'))
+      } else {
+        menu.append(item('rename'))
+        menu.append(item('clone'))
+        menu.append(new MenuItem({ type: 'separator' }))
+        menu.append(item('delete'))
+      }
+      menu.popup({ window: win, x: cx, y: cy })
+    })()
+  })
+
+  // 本文件注册 20 条 invoke 通道 + popup-row-menu 一条 on 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），row-menu-action 推送由本文件 popup handler 定向回推，合计 24 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

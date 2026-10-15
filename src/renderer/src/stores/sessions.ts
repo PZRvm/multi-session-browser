@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  SessionProxyConfig,
   SessionStatus,
   SessionStatusesPayload,
   StoredSession,
@@ -30,6 +31,9 @@ interface SessionsState {
   renameSession: (id: string, name: string) => Promise<boolean>
   // 备注 trim 后空串 = 清除（合法提交非拒绝），与 renameSession 的拒空短路不同
   setSessionNote: (id: string, note: string) => Promise<boolean>
+  // 独立代理（PRD 4.14，2026-10-15 增量）：null = 清除回直连（合法提交，对齐
+  // set-note 空串清除先例）；返回是否成功（false = IPC 失败，徽标态保持原样）
+  setSessionProxy: (id: string, proxy: SessionProxyConfig | null) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
   // 返回是否成功：整单拒绝或 IPC 失败返回 false，供调用方呈现中文失败反馈
@@ -319,6 +323,26 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       return true
     } catch (error) {
       console.error('编辑会话备注失败', error)
+      return false
+    }
+  },
+
+  // 独立代理（PRD 4.14，2026-10-15 增量）：对齐 setSessionNote 非乐观口径——
+  // proxy 为 null = 清除（合法提交回直连，不做零变化短路：配置为对象深比较噪音
+  // 大于一次幂等 IPC）；载荷校验单源在主进程（normalizeProxyConfig），成功以返回
+  // StoredSession 更新镜像（proxy 字段随之流达，行内徽标即时出现/消失），失败
+  // console 中文留痕返回 false 供调用方反馈
+  setSessionProxy: async (id, proxy) => {
+    const current = get().sessions.find((s) => s.id === id)
+    if (!current) return false
+    try {
+      const updated: StoredSession = await window.api.sessions.setProxy({ id, proxy })
+      set((state) => ({
+        sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...updated } : s))
+      }))
+      return true
+    } catch (error) {
+      console.error('设置会话代理失败', error)
       return false
     }
   },

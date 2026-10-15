@@ -110,6 +110,36 @@ export const sessions: Dictionary['sessions'] = {
     moved: '已移動 {n} 個到「{name}」',
     movedSkipped: '已移動 {n} 個到「{name}」（{skipped} 個已在目標，已跳過）'
   },
+  /** 獨立代理（PRD 4.14，2026-10-15 增量）：會話行選單入口 / 設定 sheet / 行內徽標 */
+  sessionProxy: {
+    menuEntry: '代理設定…',
+    /** 行內徽標短字（已設定時渲染） */
+    badge: '代理',
+    /** 徽標懸停：協議為 HTTP/SOCKS5 字面量（術語不譯） */
+    badgeTip: '{protocol} · {host}:{port}',
+    sheetTitle: '「{name}」代理設定',
+    protocolLabel: '通訊協定',
+    protocolHttp: 'HTTP',
+    protocolSocks5: 'SOCKS5',
+    hostLabel: '代理伺服器位址',
+    hostPlaceholder: 'IP 或網域',
+    portLabel: '連接埠',
+    usernameLabel: '帳號（可選）',
+    usernamePlaceholder: '代理帳號',
+    passwordLabel: '密碼（可選）',
+    passwordPlaceholder: '代理密碼',
+    checkButton: '檢測',
+    checking: '檢測中…',
+    checkOk: '代理可用，當前出口 IP：{ip}',
+    checkUnreachable: '連不上代理：請檢查位址、連接埠或本機網路',
+    checkAuth: '代理認證失敗：請檢查帳號與密碼',
+    checkFetch: '代理已連通，但出口 IP 探測失敗：請稍後重試',
+    save: '儲存',
+    clear: '清除代理',
+    cancel: '取消',
+    saveFailed: '儲存代理失敗，請重試',
+    clearFailed: '清除代理失敗，請重試'
+  },
   /** 工作区切换框（WorkspaceSwitcher） */
   workspaceSwitcher: {
     allSessions: '全部會話',

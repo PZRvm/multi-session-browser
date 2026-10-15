@@ -1,6 +1,10 @@
 // 工作区模态框（原生 sheet）装配（PRD 4.11，契约见 shared/dialog.ts）：选择类
 // 「移动到工作区」与输入类「工作区重命名」（2026-09-21 二次增量，同机制第三 kind
-// workspace-rename——sheet 页面按上下文 kind 分支渲染，预填现名由主进程快照现取）
+// workspace-rename——sheet 页面按上下文 kind 分支渲染，预填现名由主进程快照现取；
+// 2026-10-15 独立代理专项扩第六 kind session-proxy——「代理设置」表单：预填现值与
+// 检测目标会话（targetSessionId）由快照现取，pick 结论再过 normalizeProxyConfig
+// 守卫，保存/清除执行由 sessions:set-proxy 通道闭环，检测由 sheet 页面直调
+// sessions:check-proxy，两段解耦同先例）
 // 弹主进程模态子窗口——macOS 呈原生
 // sheet（窗口模态，冒烟实证 parent sheet-begin 触发、父窗 isEnabled()=false 被阻塞；
 // Windows/Linux 呈系统框模态对话框），模态存续期间页面视图保持可见且内容原样，
@@ -29,7 +33,12 @@ import {
   type WorkspacePickerKind,
   type WorkspacePickerResult
 } from '../shared/dialog'
-import { SESSION_ID_RE, WORKSPACE_ID_RE, WORKSPACE_NAME_MAX } from '../shared/sessions'
+import {
+  normalizeProxyConfig,
+  SESSION_ID_RE,
+  WORKSPACE_ID_RE,
+  WORKSPACE_NAME_MAX
+} from '../shared/sessions'
 import { CHROME_IMPORT_POLICIES, CHROME_IMPORT_SCOPES } from '../shared/chromeImport'
 import { isRecord } from '../shared/guards'
 import { chromeDetector } from './browser/chromeImport'
@@ -50,7 +59,8 @@ const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'workspace-move-batch',
   'workspace-rename',
   'chrome-import-select',
-  'chrome-import-conflict'
+  'chrome-import-conflict',
+  'session-proxy'
 ]
 
 function isPickerKind(value: string): value is WorkspacePickerKind {
@@ -154,6 +164,22 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     }
     return { kind, ids: raw }
   }
+  if (kind === 'session-proxy') {
+    // 独立代理设置：sessionId 必填过格式单源；禁传其余 kind 的数据参数与 keepOpen
+    //（互斥校验风格同先例——keepOpen 属导入加载态语义，本 kind 保存即关窗）
+    if (
+      payload.ids !== undefined ||
+      payload.workspaceId !== undefined ||
+      payload.keys !== undefined ||
+      payload.origins !== undefined ||
+      payload.keepOpen !== undefined
+    ) {
+      throw invalidParams()
+    }
+    const sessionId = payload.sessionId
+    if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
+    return { kind, sessionId }
+  }
   // workspace-rename：workspaceId 必填过 WORKSPACE_ID_RE；现名由主进程快照现取（渲染层不传名）
   if (payload.sessionId !== undefined || payload.ids !== undefined) throw invalidParams()
   if (payload.keepOpen !== undefined) throw invalidParams()
@@ -227,6 +253,22 @@ async function buildContext(
         ...(w.id === session.workspaceId ? { current: true } : {})
       })),
       showMoveOut: session.workspaceId !== null
+    }
+  }
+  if (request.kind === 'session-proxy') {
+    // 会话名与现有代理配置由权威快照现取（标题插值 / 表单预填 / 清除钮可用性）；
+    // targetSessionId 供 sheet 检测按钮锚定该会话分区探测；会话已消失（弹层窗口期
+    // 内被并发删除）返回 null 交由调用方按取消收敛——对齐 rename 过期目标先例
+    const session = snapshot.sessions.find((s) => s.id === request.sessionId)
+    if (!session) return null
+    return {
+      requestId,
+      kind: request.kind,
+      sessionName: session.name,
+      currentProxy: session.proxy,
+      targetSessionId: session.id,
+      options: [],
+      showMoveOut: false
     }
   }
   const checked = new Set(request.ids)
@@ -337,6 +379,11 @@ export function registerWorkspacePickerIpc(deps: {
       console.warn('[dialog] 工作区选择框收到 requestId 不匹配的迟到提交，已忽略')
       return { ok: true }
     }
+    // 跨 kind 互斥字段单点防御（独立代理审查低）：proxy 为 session-proxy 结论专属，
+    // 其余 kind 载荷出现即载荷串染，整单拒绝（其余分支各自的禁传清单维持原样）
+    if (pending.context?.kind !== 'session-proxy' && payload.proxy !== undefined) {
+      throw invalidParams()
+    }
     let result: WorkspacePickerResult
     if (pending.context?.kind === 'workspace-rename') {
       if (payload.workspaceId !== undefined || payload.keepOpen !== undefined) throw invalidParams()
@@ -379,6 +426,28 @@ export function registerWorkspacePickerIpc(deps: {
         status: 'chrome-import-policy',
         policy: policy as (typeof CHROME_IMPORT_POLICIES)[number]
       }
+    } else if (pending.context?.kind === 'session-proxy') {
+      // 独立代理提交：proxy 必填（null = 清除回直连，合法语义对齐 set-note 空串
+      // 先例）；非 null 须过 normalizeProxyConfig 守卫，非法拒绝、sheet 保持不关
+      //（对齐 rename 拒绝先例——正常路径保存钮空值已禁不可达，防御面）；禁传
+      // 其余 kind 的结论参数与 keepOpen（保存即关窗语义）
+      if (
+        payload.workspaceId !== undefined ||
+        payload.name !== undefined ||
+        payload.profileDir !== undefined ||
+        payload.scopes !== undefined ||
+        payload.policy !== undefined ||
+        payload.keepOpen !== undefined
+      ) {
+        throw invalidParams()
+      }
+      if (payload.proxy === undefined) throw invalidParams()
+      const proxy = payload.proxy === null ? null : normalizeProxyConfig(payload.proxy)
+      if (payload.proxy !== null && proxy === null) {
+        console.warn('[dialog] 代理设置提交被守卫拒绝（配置非法），sheet 保持开启')
+        return { ok: true }
+      }
+      result = { status: 'session-proxy-submitted', proxy }
     } else {
       if (payload.keepOpen !== undefined) throw invalidParams()
       const wid = payload.workspaceId
@@ -444,13 +513,16 @@ function openSheet(
     maximizable: false,
     fullscreenable: false,
     show: false,
-    // win/linux 系统框需要标题；darwin 无框不展示（title 仍归窗口本体语义）
+    // win/linux 系统框需要标题；darwin 无框不展示（title 仍归窗口本体语义）。
+    // session-proxy 标题 {name} 插值（会话名经上下文快照现取）
     title:
       context.kind === 'workspace-rename'
         ? t('sessions.workspaceSwitcher.renameModalTitle')
         : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
           ? t('chromeImport.dialog.title')
-          : t('sessions.batchBar.moveToWorkspace'),
+          : context.kind === 'session-proxy'
+            ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
+            : t('sessions.batchBar.moveToWorkspace'),
     autoHideMenuBar: true,
     ...(process.platform === 'darwin' ? { frame: false as const } : {}),
     backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme(), deps.getThemeColor()),

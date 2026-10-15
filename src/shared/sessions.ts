@@ -48,6 +48,22 @@
 //   格式非法/重复/缺项/多项/未知 id 任一整单拒绝、磁盘顺序不变）；纯重排 workspaces
 //   数组（元素对象原样引用），不动 activeWorkspaceId/activeId/lastActiveSessionId
 //   与会话归属，零编排回调；schema v4 零变更（数组顺序即唯一持久化顺序）
+// - 独立代理增量（2026-10-15，计划 notes/plans/20261015025109-独立代理开发计划.md
+//   第 3 节）：setProxy / checkProxy（20 → 22，invoke 18 → 20）——单会话独立配置
+//   代理（PRD 3.5 / 4.14）；proxy 字段随 StoredSession 落盘（schema v5，见
+//   src/main/store.ts），null = 未配置（直连）；setProxy 传 null = 清除（合法语义，
+//   对齐 set-note 空串清除先例）；checkProxy 按草稿值经该会话分区探测出口 IP，
+//   三态失败如实分类（unreachable / auth / fetch），不落盘不动当前生效配置；
+//   载荷校验与 proxyRules 映射单源 = normalizeProxyConfig / toProxyRules（主进程
+//   handler 守卫与探测请求共用，禁止各持字面量）
+// - 行原生菜单增量（2026-10-15 反馈轮四）：popup-row-menu（send）+ row-menu-action
+//   （推送，22 → 24）——会话行右键/⋮ 菜单从渲染层 antd Dropdown 迁主进程原生
+//   Menu.popup：OS 级绘制盖过页面 WebContentsView（DOM 菜单要么被面板宽度挤压、
+//   要么探出左栏被原生层裁切，两版均被否），且点任意位置（含页面区）关闭，找回
+//   2026-09-21 收起方案换掉的「全区域外点关闭」能力；菜单文案主进程经 main/i18n
+//   取既有键零新增字典，点击结论定向推回发起窗口由 renderer 既有编排闭环
+
+import { isRecord } from './guards'
 
 export const SESSIONS_CHANNELS = {
   list: 'sessions:list',
@@ -70,7 +86,15 @@ export const SESSIONS_CHANNELS = {
   workspaceMoveSession: 'workspaces:move-session',
   workspaceMoveSessionsBatch: 'workspaces:move-sessions-batch',
   workspaceReorder: 'workspaces:reorder',
-  workspaceSetActive: 'workspaces:set-active'
+  workspaceSetActive: 'workspaces:set-active',
+  /** 独立代理增量（2026-10-15）：保存（proxy 非空）/ 清除（proxy = null）会话代理 */
+  setProxy: 'sessions:set-proxy',
+  /** 独立代理增量（2026-10-15）：按草稿值探测该会话出口 IP（不落盘不动生效配置） */
+  checkProxy: 'sessions:check-proxy',
+  /** 行原生菜单增量（2026-10-15 反馈轮四）：renderer 请求主进程弹出系统原生菜单 */
+  popupRowMenu: 'sessions:popup-row-menu',
+  /** 行原生菜单增量（2026-10-15 反馈轮四）：菜单项点击结论定向推回发起窗口 */
+  rowMenuAction: 'sessions:row-menu-action'
 } as const
 
 /**
@@ -113,6 +137,77 @@ export const PAGE_TITLE_MAX = 200
  */
 export const SESSION_NOTE_MAX = 200
 
+/**
+ * 会话独立代理的协议闭集（PRD 4.14）。Chromium proxyRules 前缀映射见
+ * toProxyRules；PAC / auto_detect / system 模式明确不在二期范围（PRD 3.5）
+ */
+export type ProxyProtocol = 'http' | 'socks5'
+
+/**
+ * 会话独立代理配置（PRD 3.5 / 4.14）。username / password 空串 = 无认证；
+ * 凭据明文随会话元数据落盘 sessions.json（与该文件承载的登录态数据同机同权，
+ * PRD 4.14 如实声明，不做伪加密——界面不得宣称安全隔离）
+ */
+export interface SessionProxyConfig {
+  protocol: ProxyProtocol
+  /** 域名 / IPv4 字面量，或方括号 IPv6 字面量（如 [::1]）；trim 后非空 */
+  host: string
+  port: number
+  username: string
+  password: string
+}
+
+/** host / 凭据的长度与语法上限（IPC 入口与落盘重建共用；host 上限 = 域名 RFC 上限） */
+export const PROXY_HOST_MAX = 253
+export const PROXY_PORT_MIN = 1
+export const PROXY_PORT_MAX = 65535
+export const PROXY_CRED_MAX = 128
+
+/** host 语法白名单：域名 / IPv4（字母数字连字符点）；IPv6 走方括号字面量支线 */
+const PROXY_HOST_RE = /^[A-Za-z0-9.-]+$/
+const PROXY_IPV6_RE = /^\[[0-9A-Fa-f:.]+\]$/
+const PROXY_PROTOCOLS: readonly ProxyProtocol[] = ['http', 'socks5']
+
+/**
+ * 未知值 → 合法配置的归一化校验（IPC 守卫与 store 落盘重建共用的单一出口）。
+ * 任一项不过即整体判废返回 null：协议非闭集、host 空/超长/非法字符、端口非整数
+ * 或越界、凭据超长。username trim（惯例输入），password 不 trim（代理凭据可能
+ * 含空白，trim 会让「密码本有空格」的合法配置静默失效）
+ */
+export function normalizeProxyConfig(raw: unknown): SessionProxyConfig | null {
+  if (!isRecord(raw)) return null
+  if (!PROXY_PROTOCOLS.includes(raw.protocol as ProxyProtocol)) return null
+  const host = typeof raw.host === 'string' ? raw.host.trim() : ''
+  if (host.length === 0 || host.length > PROXY_HOST_MAX) return null
+  if (!PROXY_HOST_RE.test(host) && !PROXY_IPV6_RE.test(host)) return null
+  const port = raw.port
+  if (typeof port !== 'number' || !Number.isInteger(port)) return null
+  if (port < PROXY_PORT_MIN || port > PROXY_PORT_MAX) return null
+  const username = typeof raw.username === 'string' ? raw.username.trim() : ''
+  const password = typeof raw.password === 'string' ? raw.password : ''
+  if (username.length > PROXY_CRED_MAX || password.length > PROXY_CRED_MAX) return null
+  return { protocol: raw.protocol as ProxyProtocol, host, port, username, password }
+}
+
+/**
+ * 配置 → Chromium proxyRules 串（session.setProxy 消费）：http 无前缀（Chromium
+ * 缺省 scheme 为 http），socks5 带 socks5:// 前缀；IPv6 方括号字面量原样保留
+ * （`[::1]:8080` / `socks5://[::1]:1080` 均为合法 rules 语法）
+ */
+export function toProxyRules(config: SessionProxyConfig): string {
+  return config.protocol === 'socks5'
+    ? `socks5://${config.host}:${config.port}`
+    : `${config.host}:${config.port}`
+}
+
+/**
+ * 出口 IP 探测地址与超时（check-proxy 主进程 net.request 定向该会话分区发起）。
+ * 单一事实源，禁止散落字面量；探测地址以国内网络实测可达为准（候选 ip.3322.net /
+ * api.ip.sb/ip，冒烟定稿记录见计划步骤 2），响应体须为 IP 形态纯文本
+ */
+export const PROXY_PROBE_URL = 'https://ip.3322.net'
+export const PROXY_PROBE_TIMEOUT_MS = 8000
+
 /** 落盘的单个恢复用 Tab（仅 URL；页面运行态不持久化） */
 export interface StoredTab {
   url: string
@@ -145,6 +240,11 @@ export interface StoredSession {
   activeTabIndex: number
   /** 所属工作区 id；null = 未分组（归属独占制，PRD 4.8） */
   workspaceId: string | null
+  /**
+   * 独立代理配置（v5 增量，PRD 4.14）；null = 未配置（直连）。
+   * 克隆随元数据复制；修改/清除由 set-proxy 通道闭环（清除传 null）
+   */
+  proxy: SessionProxyConfig | null
 }
 
 /**
@@ -196,6 +296,61 @@ export interface RenameSessionPayload {
 export interface SetNotePayload {
   id: string
   note: string
+}
+
+/**
+ * 设置会话代理（PRD 4.14）：proxy 为 null = 清除该会话代理（合法提交回直连，
+ * 对齐 set-note 空串清除先例）；非空值经 normalizeProxyConfig 守卫，非法整单拒绝。
+ * 保存/清除成功后主进程内联动应用代理到该会话分区（编排见 registry/proxy.ts）
+ */
+export interface SetProxyPayload {
+  id: string
+  proxy: SessionProxyConfig | null
+}
+
+/**
+ * 按草稿值探测出口 IP：以 proxy 为探测配置、经 id 会话的分区发起（探测必须锚定
+ * 真实分区——凭据经该分区的认证链路供给）。不落盘、不改变该会话当前生效配置；
+ * id 不存在整单拒绝
+ */
+export interface CheckProxyPayload {
+  id: string
+  proxy: SessionProxyConfig
+}
+
+/**
+ * 探测结论（三态失败如实分类，不伪造生效）：ok = 代理可用且拿到出口 IP；
+ * unreachable = 连不上代理（地址错/端口无监听/本机网络不通——第①跳失败）；
+ * auth = 代理认证失败（账号密码错，407 链路）；fetch = 代理已连通但探测请求
+ * 本身失败（探测地址不可达/超时/响应非 IP——第②跳或探测面问题）
+ */
+export type ProxyCheckResult =
+  { ok: true; ip: string } | { ok: false; reason: 'unreachable' | 'auth' | 'fetch' }
+
+/**
+ * 会话行原生菜单变体（2026-10-15 反馈轮四，DOM 菜单退役）：full = 行右键全量菜单
+ * （重命名/编辑备注/克隆/移动/导入/代理设置/删除），dots = ⋮ 按钮短菜单
+ * （重命名/克隆/删除）。菜单由主进程 Menu.popup 绘制（OS 级，盖过页面原生层、
+ * 点任意位置关闭），文案主进程经 main/i18n 取既有键，零新增字典
+ */
+export type RowMenuVariant = 'full' | 'dots'
+
+/** renderer → 主进程：在 (x, y)（视口坐标 = 窗口内容坐标）弹出该会话的原生菜单 */
+export interface PopupRowMenuPayload {
+  id: string
+  x: number
+  y: number
+  variant: RowMenuVariant
+}
+
+/** 菜单项动作键（与 renderer 既有编排一一对应） */
+export type RowMenuActionKey =
+  'rename' | 'editNote' | 'clone' | 'move' | 'importChrome' | 'proxy' | 'delete'
+
+/** 主进程 → renderer：菜单项点击结论，定向推回发起 popup 的 webContents */
+export interface RowMenuActionPayload {
+  id: string
+  key: RowMenuActionKey
 }
 
 export interface DeleteSessionPayload {

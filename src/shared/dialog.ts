@@ -1,5 +1,6 @@
 // 原生弹层辅通道共享契约（主进程 / preload / renderer 三方共用）。
 import type { ChromeImportPolicy, ChromeImportScope, ChromeProfileInfo } from './chromeImport'
+import type { SessionProxyConfig } from './sessions'
 // 设计依据 PRD 4.10 / 4.11：破坏性确认走 showMessageBox（2026-09-18 增量，计划
 // notes/plans/20260918182549-删除会话原生确认框开发计划.md 第 2.4 节）；选择类
 // 「移动到工作区」走主进程模态子窗口（2026-09-21 增量，计划 notes/plans/
@@ -62,6 +63,14 @@ import type { ChromeImportPolicy, ChromeImportScope, ChromeProfileInfo } from '.
 //   「导入中…」+ 控件锁定），pending 立即收敛放行编排；sheet 的关闭改由 renderer
 //   编排在 dry-run/execute 完成点经 workspacePickerClose 显式触发，主进程另有 60s
 //   兜底自动关（编排异常不卡死模态）。workspace-picker 通道合计 4 → 5 条
+// - 独立代理增量（2026-10-15，计划 notes/plans/20261015025109-独立代理开发计划.md
+//   第 3 节）：session-proxy kind 扩入本 sheet 家族——「代理设置」表单（协议/
+//   地址/端口/账号/密码 + 出口 IP 检测），入口在会话行菜单；sheet 只返回结论
+//   （session-proxy-submitted 携 proxy 或 null = 清除），保存/清除执行由既有
+//   sessions:set-proxy 通道闭环（确认与执行两段解耦同先例）；检测不经 sheet 结论
+//   ——sheet 页面直接调 sessions:check-proxy 按草稿值探测（探测通道化，结论非
+//   模态产出；探测目标会话 id 经上下文 targetSessionId 下发，主进程快照现取）；
+//   取消（Esc/关框）零副作用。keepOpen 不使用（保存即关窗）
 // - 模态子窗口度量常量（与 WorkspacePickerWindow 组件、app.css、主进程建窗
 //   高度计算同源配对，omniboxSuggest 度量常量先例）
 
@@ -117,7 +126,8 @@ export const WORKSPACE_PICKER_WINDOW_ROLE = 'workspace-picker'
  * workspace-rename——重命名输入复用同一 sheet 机制，类型/通道/角色命名保持 Picker
  * 家族不改，语义扩围以头注与本注为准；2026-09-30 导入专项反馈轮扩 chrome-import-select /
  * chrome-import-conflict——「导入 Chrome 数据」选择与冲突裁决由同一原生 sheet 承载，
- * 替代渲染层 antd Modal 版 ImportChromeDialog（用户反馈：模态框用原生框））
+ * 替代渲染层 antd Modal 版 ImportChromeDialog（用户反馈：模态框用原生框）；
+ * 2026-10-15 独立代理专项扩 session-proxy——「代理设置」表单复用同一 sheet 机制）
  */
 export type WorkspacePickerKind =
   | 'workspace-move-single'
@@ -125,11 +135,15 @@ export type WorkspacePickerKind =
   | 'workspace-rename'
   | 'chrome-import-select'
   | 'chrome-import-conflict'
+  | 'session-proxy'
 
-/** show 通道载荷：只带数据参数——single 必填 sessionId、batch 必填非空 ids、rename 必填 workspaceId（守卫强制；各 kind 禁传彼此的数据参数） */
+/**
+ * show 通道载荷：只带数据参数——single 必填 sessionId、batch 必填非空 ids、rename
+ * 必填 workspaceId、session-proxy 必填 sessionId（守卫强制；各 kind 禁传彼此的数据参数）
+ */
 export interface ShowWorkspacePickerPayload {
   kind: WorkspacePickerKind
-  /** 单条移动的目标会话 id（workspace-move-single 必填，须过 SESSION_ID_RE） */
+  /** 单条移动的目标会话 id（workspace-move-single / session-proxy 必填，须过 SESSION_ID_RE） */
   sessionId?: string
   /** 批量移动的勾选会话 id 集（workspace-move-batch 必填非空，格式非法整单拒绝） */
   ids?: string[]
@@ -149,14 +163,16 @@ export interface ShowWorkspacePickerPayload {
  * （null = 移出未分组，仅选择场景）；submitted 携带过主进程守卫的新名（仅重命名
  * 场景）；chrome-import-picked 携带所选 profile 目录与内容勾选（仅导入选择场景，
  * scopes 经主进程闭集守卫重排）；chrome-import-policy 携带冲突裁决结论（仅导入
- * 冲突场景）；cancelled 覆盖 Esc / 关闭弹框 / 父窗缺失 / 建窗失败 / 目标已消失 /
- * 二次请求被拒等全部未提交路径
+ * 冲突场景）；session-proxy-submitted 携带过 normalizeProxyConfig 守卫的代理配置
+ * 或 null = 清除（仅代理设置场景，2026-10-15 增量）；cancelled 覆盖 Esc /
+ * 关闭弹框 / 父窗缺失 / 建窗失败 / 目标已消失 / 二次请求被拒等全部未提交路径
  */
 export type WorkspacePickerResult =
   | { status: 'picked'; workspaceId: string | null }
   | { status: 'submitted'; name: string }
   | { status: 'chrome-import-picked'; profileDir: string; scopes: ChromeImportScope[] }
   | { status: 'chrome-import-policy'; policy: ChromeImportPolicy }
+  | { status: 'session-proxy-submitted'; proxy: SessionProxyConfig | null }
   | { status: 'cancelled' }
 
 /** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点）；batch 场景含全部工作区 */
@@ -200,6 +216,17 @@ export interface WorkspacePickerContext {
    */
   chromeConflictKeys?: number
   chromeConflictOrigins?: number
+  /**
+   * session-proxy：预填的现有代理配置（主进程从权威快照现取；null = 未配置）；
+   * 其余 kind 不使用
+   */
+  currentProxy?: SessionProxyConfig | null
+  /**
+   * session-proxy：检测按钮的探测目标会话 id（sheet 页面按草稿值调
+   * sessions:check-proxy 须锚定该会话分区，2026-10-15 增量；主进程从权威快照
+   * 现取回填，渲染层不传）；其余 kind 不使用
+   */
+  targetSessionId?: string
 }
 
 /**
@@ -221,6 +248,12 @@ export interface WorkspacePickerPickPayload {
   scopes?: string[]
   /** chrome-import-conflict 必填：冲突裁决结论；其余 kind 禁传 */
   policy?: string
+  /**
+   * session-proxy 必填：过 sheet 页面本地校验的代理配置，或 null = 清除代理
+   * （主进程再过 normalizeProxyConfig 守卫，非法时 sheet 保持不关）；其余 kind
+   * 禁传（主进程按 pending kind 分流校验）
+   */
+  proxy?: SessionProxyConfig | null
   /**
    * chrome-import 两 kind 必传 true（反馈轮三：导入过程加载动画）——提交后 sheet
    * 不立即关闭，转入加载态（按钮「导入中…」+ 控件锁定，sheet 页本地态），由
@@ -265,6 +298,11 @@ export const CHROME_IMPORT_DESC_HEIGHT = 40
 export const CHROME_IMPORT_RADIO_HEIGHT = 28
 export const CHROME_IMPORT_SCOPE_HEIGHT = 28
 export const CHROME_IMPORT_SCOPES_GAP = 8
+/** 独立代理表单（2026-10-15）：协议分段行 / 输入行（地址·端口同行、账号、密码）/ 检测钮行 / 结果行 */
+export const SESSION_PROXY_PROTOCOL_HEIGHT = 28
+export const SESSION_PROXY_INPUT_HEIGHT = 36
+export const SESSION_PROXY_CHECK_HEIGHT = 28
+export const SESSION_PROXY_RESULT_HEIGHT = 20
 
 /** 由上下文合成窗口内容高度（主进程建窗用；与上述常量同源，公式变更只改此处） */
 export function pickerWindowHeight(context: WorkspacePickerContext): number {
@@ -302,6 +340,27 @@ export function pickerWindowHeight(context: WorkspacePickerContext): number {
       CHROME_IMPORT_RADIO_HEIGHT +
       CHROME_IMPORT_SCOPES_GAP +
       CHROME_IMPORT_RADIO_HEIGHT +
+      RENAME_FORM_GAP +
+      RENAME_FOOT_HEIGHT
+    )
+  }
+  // 独立代理表单（2026-10-15）：头部 + 协议行 + 地址端口行 + 账号行 + 密码行 +
+  // 检测钮行 + 结果行（固定占位防高度跳变——未检测/检测中/三态结论等高）+ 按钮行
+  if (context.kind === 'session-proxy') {
+    return (
+      PICKER_HEADER_HEIGHT_SINGLE +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_PROTOCOL_HEIGHT +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_INPUT_HEIGHT +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_INPUT_HEIGHT +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_INPUT_HEIGHT +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_CHECK_HEIGHT +
+      RENAME_FORM_GAP +
+      SESSION_PROXY_RESULT_HEIGHT +
       RENAME_FORM_GAP +
       RENAME_FOOT_HEIGHT
     )

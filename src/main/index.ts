@@ -9,7 +9,12 @@ import { registerWorkspacePickerIpc } from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
 import { createTabDragController } from './browser/dragging'
 import { createDragPreview } from './browser/dragPreview'
-import { createSessionBrowserRegistry, type SessionBrowserRegistry } from './browser/registry'
+import {
+  createSessionBrowserRegistry,
+  partitionFor,
+  type SessionBrowserRegistry
+} from './browser/registry'
+import { createSessionProxyEngine } from './browser/proxy'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import {
@@ -46,7 +51,12 @@ import { registerCaptureIpc } from './browser/capture'
 import { registerRecordingIpc, routeBrowserLifecycleToRecording } from './browser/recording'
 import collectorPageAsset from './browser/recording/capturePage.html?asset'
 import { getCurrentLanguage, initMainProcessLanguage, onMainLanguageChanged, t } from './i18n'
-import { SESSIONS_CHANNELS, type SessionStatusesPayload } from '../shared/sessions'
+import {
+  SESSIONS_CHANNELS,
+  type ProxyCheckResult,
+  type SessionProxyConfig,
+  type SessionStatusesPayload
+} from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
 import { WINDOW_ID_MAIN, browserViewFallbackBackground } from '../shared/browser'
 import type { TFunc } from '../shared/i18n'
@@ -97,9 +107,12 @@ let captureFeedbackWindows: CaptureFeedbackWindows | null = null
 let settingsWindowController: SettingsWindowController | null = null
 // 截图编辑子窗控制器（截图编辑器增量步骤 3）：单例编辑子窗的创建/聚焦/主窗级联——
 // 宿主 open-editor IPC 与反馈条「编辑」钮两入口都在 registerCaptureIpc 内经此引用
-// 触达（含编辑窗专属通道的 sender 白名单判据）；主窗 closed 钩子级联关闭、退出前
+// 触达（含编辑子窗专属通道的 sender 白名单判据）；主窗 closed 钩子级联关闭、退出前
 // 清理（whenReady 内创建，此前为 null）
 let captureEditorWindowController: CaptureEditorWindowController | null = null
+// 启动快照的全量会话 id 缓存（独立代理专项步骤 2）：注入代理引擎作 login 反查兜底集
+// （覆盖「会话存在但从未应用」的场景；运行期增量由 registry 的读盘应用点并入引擎）
+let knownSessionIds: readonly string[] = []
 const appearanceController = createAppearanceController({
   // WebContentsView 兜底底色随主题（2026-09-25 专项）：亮暗翻转即同步全部存量会话
   // 视图；registry 晚于外观控制器初始化（whenReady 内创建），启动窗口期空值静默跳过
@@ -378,6 +391,14 @@ app.whenReady().then(async () => {
   // 录制中锚定窗 holder（F''）：registry 构造在录制域之前，经可变引用回填——
   // manager 弹层收起按录制态分派「移出屏幕」应用矩形
   const recordedWindowIdHolder: { get: () => string | null } = { get: () => null }
+  // 会话代理引擎（独立代理专项步骤 2，browser/proxy.ts）：分区串经 registry 的
+  // partitionFor 单源注入（引擎不自拼分区字面量）；idsProvider 提供启动快照 id 集
+  // 作反查兜底。registry（应用/清登记）与 sessions 两通道（onProxyChanged /
+  // checkProxyExitIp）及下方 app 级 login 认证共用同一实例
+  const engine = createSessionProxyEngine({
+    partitionFor,
+    idsProvider: () => knownSessionIds
+  })
   const created = createSessionBrowserRegistry({
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
@@ -386,6 +407,7 @@ app.whenReady().then(async () => {
     // WebContentsView 兜底底色现取（外观快照派生 chrome surface 族，单源 shared/browser.ts）
     getFallbackBackground: () =>
       browserViewFallbackBackground(appearanceController.getSnapshot().resolvedTheme),
+    proxy: engine,
     getRecordingWindowId: () => recordedWindowIdHolder.get()
   })
   registry = created
@@ -456,6 +478,7 @@ app.whenReady().then(async () => {
     }
   })
   registerSessionIpc({
+    getMainWindow: () => mainWindow,
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)
     },
@@ -503,7 +526,15 @@ app.whenReady().then(async () => {
       }
     },
     // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
-    onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url)
+    onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url),
+    // 独立代理增量（步骤 2）：set-proxy 落盘成功后按落盘值应用到该会话分区（引擎幂等，
+    // proxy 传 null = 清除回直连）；handler 侧 await + 告警，失败由激活链兜底补应用
+    onProxyChanged: (id: string, proxy: SessionProxyConfig | null): Promise<void> =>
+      engine.applySessionProxy(id, proxy),
+    // 独立代理增量（步骤 2）：check-proxy 按草稿值经该会话分区探测出口 IP（引擎内
+    // 临时应用草稿值、结束恢复原状，不落盘不动生效配置）
+    checkProxyExitIp: (id: string, proxy: SessionProxyConfig): Promise<ProxyCheckResult> =>
+      engine.probeExitIpForId(id, proxy)
   })
   // Chrome 浏览数据导入（导入专项 20260930133553 步骤 5）：枚举 profile / dry-run 只读
   // 探测并暂存 / execute 经 registry 静默窗口写入目标分区；分区路径取自 registry 单源
@@ -562,12 +593,34 @@ app.whenReady().then(async () => {
 
   createWindow()
 
+  // 代理认证供给（独立代理专项步骤 2，PRD 4.14）：仅接管代理认证（authInfo.isProxy，
+  // 非代理认证不 preventDefault，走 Electron 默认取消）；按 webContents.session 对象
+  // 身份反查所属会话（fromPartition 同分区同实例），命中且凭据表有条目才供给；未命中
+  // （非本应用会话分区/会话未配凭据）放行默认取消并留痕。告警只打会话与原因，
+  // 凭据不落日志
+  app.on('login', (event, webContents, _details, authInfo, callback) => {
+    if (!authInfo.isProxy) return
+    const sessionId = engine.findSessionIdBySession(webContents.session)
+    const credentials = sessionId !== null ? engine.getCredentials(sessionId) : null
+    if (sessionId !== null && credentials !== null) {
+      event.preventDefault()
+      callback(credentials.username, credentials.password)
+      return
+    }
+    console.warn(
+      `[main] 代理认证未供给凭据（${
+        sessionId === null ? '来源非本应用会话分区' : `会话 ${sessionId} 未配置代理凭据`
+      }），按默认取消处理`
+    )
+  })
+
   // 启动恢复（PRD 3.1.4）：读盘取上次激活会话交注册表恢复（init 内部会再读一次盘缓存
   // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
   // 到达时 registry 的 initHandled 守卫已兜底（见 registry.ts 注释）。浏览器 Tab 结构
-  // 不持久化，重启每会话回到单 Tab
+  // 不持久化，重启每会话回到单 Tab。全量会话 id 同步缓存进引擎反查兜底集（独立代理）
   void loadSnapshot()
     .then((snapshot) => {
+      knownSessionIds = snapshot.sessions.map((item) => item.id)
       registry?.init(snapshot.activeId)
     })
     .catch(() => undefined)

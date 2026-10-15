@@ -15,10 +15,11 @@ import type {
   StoredWorkspace
 } from '../shared/sessions'
 import { cloneTabs, WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../shared/sessions'
+import { normalizeProxyConfig, type SessionProxyConfig } from '../shared/sessions'
 import { atomicWriteJson } from './fs-utils'
 
-/** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex；v4 增工作区三件）；读到不认识的版本一律按坏数据回退，v1—v3 读取时迁移 */
-const SNAPSHOT_VERSION = 4
+/** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex；v4 增工作区三件；v5 增会话 proxy）；读到不认识的版本一律按坏数据回退，v1—v4 读取时迁移 */
+const SNAPSHOT_VERSION = 5
 
 /** 回退用的空快照（每次新建，避免共享可变数组） */
 function emptySnapshot(): SessionsSnapshot {
@@ -38,8 +39,9 @@ function getStorePath(): string {
 
 /**
  * 元素级校验：id/name/note/pageTitle 四字段齐全且类型正确（多余字段容忍，读取时剔除）。
- * lastUrl/tabs/activeTabIndex 不参与此校验：老版本落盘元素可能缺这些字段，缺失或类型错
- * 一律在重建处按迁移/回退规则处理（lastUrl 补空串、tabs 由 lastUrl 派生、激活位钳制 0），
+ * lastUrl/tabs/activeTabIndex/workspaceId/proxy 不参与此校验：老版本落盘元素可能缺这些字段，缺失或类型错
+ * 一律在重建处按迁移/回退规则处理（lastUrl 补空串、tabs 由 lastUrl 派生、激活位钳制 0、
+ * workspaceId/proxy 见 parseSnapshot 各自净化段），
  * 不作坏数据回退（写入端恒出合法值，类型错只可能来自外力篡改，宽容处理）
  */
 function isStoredSession(value: unknown): value is StoredSession {
@@ -183,11 +185,12 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
 
 /**
  * 解析并校验快照。对抗性坏数据矩阵（阶段 1 步骤 7 逐项核对 + 阶段 6 扩写，2026-09-12；
- * v4 工作区三件扩写，2026-09-15）：
+ * v4 工作区三件扩写，2026-09-15；v5 会话 proxy 扩写，2026-10-15）：
  * - 非法 JSON（截断 / BOM / 二进制垃圾 / 空串）：JSON.parse 抛错 → 回退空快照并告警
  * - 根节点为数组 / 字符串 / null 等非普通对象：回退空快照（深嵌套数组即使解析成功也在此被拒）
- * - version 缺失或非 1/2/3/4（含 0、5、字符串 "1"）：回退空快照
- *   （v1/v2 按 lastUrl 派生单元素 tabs、v1—v3 按默认值迁工作区，写盘恒出 v4）
+ * - version 缺失或非 1/2/3/4/5（含 0、6、字符串 "1"）：回退空快照
+ *   （v1/v2 按 lastUrl 派生单元素 tabs、v1—v3 按默认值迁工作区、v1—v4 按未配置迁
+ *   proxy，写盘恒出 v5）
  * - sessions 为对象 / 字符串等非数组，或元素为 null / 嵌套数组 / 缺四硬字段 / 硬字段类型错：
  *   回退空快照（lastUrl/tabs/activeTabIndex/workspaceId 例外：缺失或类型错按各自迁移/回退
  *   规则处理，不回退）
@@ -196,6 +199,8 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
  *   activeTabIndex 非整数 / 负数 / 越上界：钳制到有效范围（空列表恒 0）并告警
  * - v4 元素 workspaceId 非法（非 string/null）或悬空（不指向任何工作区）：置 null 并告警，
  *   会话保留（v1—v3 元素无此字段，静默迁移 null）
+ * - v5 元素 proxy 缺失/类型错/结构非法（normalizeProxyConfig 不过）：置 null 并告警，
+ *   会话保留（v1—v4 元素无此字段，静默迁移 null；代理配置损坏不得丢会话，PRD 4.14）
  * - sessions 内重复 id：保留首个、剔除后续重复项并告警
  * - workspaces 缺失/非数组/元素缺 id 或 name 硬字段：回退空工作区并告警（**不回退会话**——
  *   工作区数据损坏不得丢会话列表，PRD 4.8）；元素 lastActiveSessionId 非法或悬空（不指向
@@ -224,11 +229,13 @@ function parseSnapshot(raw: string): SessionsSnapshot {
     fallback('根节点不是对象')
     return emptySnapshot()
   }
-  // v1（无 lastUrl）/v2（无 tabs）/v3（无工作区三件）与当前 v4 均接受，其余版本按坏数据回退
+  // v1（无 lastUrl）/v2（无 tabs）/v3（无工作区三件）与 v4（无 proxy）与当前 v5 均接受，
+  // 其余版本按坏数据回退
   if (
     data.version !== 1 &&
     data.version !== 2 &&
     data.version !== 3 &&
+    data.version !== 4 &&
     data.version !== SNAPSHOT_VERSION
   ) {
     fallback(`version 不认识: ${JSON.stringify(data.version)}`)
@@ -251,10 +258,12 @@ function parseSnapshot(raw: string): SessionsSnapshot {
   // 只保留契约字段，剔除可能被注入的多余字段，防止落盘文件原样保留未知字段。
   // lastUrl 迁移（v1 → v2+）：老落盘元素无此字段，缺失或类型错一律补空串；
   // tabs/activeTabIndex 重建（v1/v2 迁移 + v3 容错）统一走 restoreTabs 单一出口；
-  // workspaceId 原始值先并行带出，悬空净化在 workspaces 解析后统一处理（下方）
+  // workspaceId/proxy 原始值先并行带出，悬空净化 / 容错重建在各自解析段统一处理（下方）
   const rawWorkspaceIds: unknown[] = []
+  const rawProxies: unknown[] = []
   const sessions: StoredSession[] = data.sessions.map((item) => {
     rawWorkspaceIds.push(item.workspaceId)
+    rawProxies.push(item.proxy)
     return {
       id: item.id,
       name: item.name,
@@ -262,6 +271,7 @@ function parseSnapshot(raw: string): SessionsSnapshot {
       pageTitle: item.pageTitle,
       lastUrl: typeof item.lastUrl === 'string' ? item.lastUrl : '',
       workspaceId: null,
+      proxy: null,
       ...restoreTabs(item, version)
     }
   })
@@ -340,6 +350,29 @@ function parseSnapshot(raw: string): SessionsSnapshot {
       continue
     }
     sessions[i].workspaceId = raw
+  }
+
+  // 代理净化（v5 新增，独立代理专项）：与 workspaceId 同款宽容口径——v1—v4 元素无
+  // proxy 字段（rawProxies 全 undefined）按迁移静默处理；v5 缺字段告警；类型错或
+  // 结构非法（经 normalizeProxyConfig 单源校验不过）置 null 并告警，会话保留
+  // （代理配置损坏不得丢会话列表，PRD 4.14）
+  for (let i = 0; i < sessionCount; i++) {
+    const rawProxy = rawProxies[i]
+    if (rawProxy === undefined) {
+      if (version >= SNAPSHOT_VERSION) {
+        console.warn(`[store] 会话 ${sessions[i].id} 缺 proxy，已按未配置处理`)
+      }
+      continue
+    }
+    if (rawProxy === null) continue
+    const normalized: SessionProxyConfig | null = normalizeProxyConfig(rawProxy)
+    if (normalized === null) {
+      console.warn(
+        `[store] 会话 ${sessions[i].id} 的 proxy 非法（${summarize(rawProxy)}），已按未配置处理`
+      )
+      continue
+    }
+    sessions[i].proxy = normalized
   }
 
   // 重复 id 去重：保留首个、剔除后续重复项，防止重复条目进入列表与 id 索引

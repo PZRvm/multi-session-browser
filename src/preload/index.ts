@@ -63,6 +63,7 @@ import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
+  CheckProxyPayload,
   CloneSessionPayload,
   CreateSessionPayload,
   CreateWorkspacePayload,
@@ -72,7 +73,10 @@ import type {
   MoveSessionsBatchResult,
   MoveSessionsToWorkspacePayload,
   OkResult,
+  PopupRowMenuPayload,
+  ProxyCheckResult,
   RenameSessionPayload,
+  RowMenuActionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
   ReorderWorkspacesPayload,
@@ -81,6 +85,7 @@ import type {
   SetActiveSessionPayload,
   SetActiveWorkspacePayload,
   SetNotePayload,
+  SetProxyPayload,
   StoredSession,
   StoredWorkspace
 } from '../shared/sessions'
@@ -171,6 +176,26 @@ const api = {
     // 主进程整单校验拒绝制；纯重排不动视野/激活位/激活记忆
     workspaceReorder: (payload: ReorderWorkspacesPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceReorder, payload),
+    // 独立代理增量（2026-10-15）：保存（proxy 非空）/ 清除（null），返回更新后快照
+    setProxy: (payload: SetProxyPayload): Promise<StoredSession> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.setProxy, payload),
+    // 独立代理增量（2026-10-15）：按草稿值探测该会话出口 IP（三态失败如实分类，不落盘）
+    checkProxy: (payload: CheckProxyPayload): Promise<ProxyCheckResult> =>
+      ipcRenderer.invoke(SESSIONS_CHANNELS.checkProxy, payload),
+    // 行原生菜单增量（2026-10-15 反馈轮四）：请求主进程在指定视口坐标弹出系统原生菜单
+    popupRowMenu: (payload: PopupRowMenuPayload): void => {
+      ipcRenderer.send(SESSIONS_CHANNELS.popupRowMenu, payload)
+    },
+    // 行原生菜单增量（2026-10-15 反馈轮四）：订阅菜单项点击结论（定向推回发起窗口）
+    onRowMenuAction: (callback: (payload: RowMenuActionPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: RowMenuActionPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(SESSIONS_CHANNELS.rowMenuAction, listener)
+      return () => {
+        ipcRenderer.removeListener(SESSIONS_CHANNELS.rowMenuAction, listener)
+      }
+    },
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
     onStatusChanged: (callback: (payload: SessionStatusesPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: SessionStatusesPayload): void => {

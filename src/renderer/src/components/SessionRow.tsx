@@ -1,14 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { App, Checkbox, Dropdown, Input, Tooltip } from 'antd'
-import type { MenuProps } from 'antd'
+import { App, Checkbox, Input, Tooltip } from 'antd'
 import { MoreOutlined } from '@ant-design/icons'
 import { useT } from '../i18n'
 import { confirmDestructive } from '../dialogs'
 import { SESSION_NOTE_MAX } from '../../../shared/sessions'
 import { useSessionsStore } from '../stores/sessions'
-import { useDeferredMenuAction } from './useDeferredMenuAction'
-import { useOverlayWhenOpen } from './useOverlayWhenOpen'
 import type { SessionItem } from '../stores/sessions'
 
 type RowEditMode = 'none' | 'name' | 'note'
@@ -131,6 +128,8 @@ interface SessionRowProps {
   onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
   onMove: (session: SessionItem) => void
+  /** 打开该会话的代理设置原生 sheet（编排与失败反馈在 SessionPanel，onMove 同构） */
+  onProxySettings: (session: SessionItem) => void
   /** 打开「导入 Chrome 数据」对话框（导入专项 2026-09-30）：提升到面板持目标态 */
   onImportChrome: (session: SessionItem) => void
 }
@@ -147,6 +146,7 @@ function SessionRow({
   onToggleCheck,
   onClone,
   onMove,
+  onProxySettings,
   onImportChrome
 }: SessionRowProps): React.JSX.Element {
   const t = useT()
@@ -165,62 +165,30 @@ function SessionRow({
   } = useRowEditMode(session)
   const { noteRef, noteTip, measureNoteTruncated } = useNoteTip()
   const selected = activeId === session.id
-  // 右键菜单受控开关（antd contextMenu 触发不随菜单项点击自动关闭——受控 open
-  // 在 onClick 内显式收敛；外点/Esc 仍由 onOpenChange 收敛）
-  const [ctxOpen, setCtxOpen] = useState(false)
-  // ⋮ 菜单受控开关（与右键菜单互斥协调 + overlay 登记同步）
-  const [dotsOpen, setDotsOpen] = useState(false)
-
   // 状态字渲染期取词（i18n：模块级常量不得持有语言文案，原 statusText 常量随之入字典）
   const statusText: Record<SessionItem['status'], string> = {
     idle: t('sessions.sessionRow.status.idle'),
     loading: t('sessions.sessionRow.status.loading')
   }
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'rename',
-      label: t('sessions.sessionRow.menu.rename')
-    },
-    {
-      key: 'editNote',
-      label: t('sessions.sessionRow.menu.editNote')
-    },
-    {
-      key: 'clone',
-      label: t('sessions.sessionRow.menu.clone')
-    },
-    {
-      key: 'move',
-      label: t('sessions.sessionRow.menu.move')
-    },
-    {
-      // 导入 Chrome 数据（导入专项 2026-09-30）：非破坏管理操作，置于删除之前
-      key: 'importChrome',
-      label: t('chromeImport.menu.importChromeData')
-    },
-    {
-      key: 'delete',
-      label: t('sessions.sessionRow.menu.delete'),
-      danger: true
-    }
-  ]
+  // 行菜单 = 主进程系统原生菜单（2026-10-15 反馈轮四，antd Dropdown 退役）：DOM
+  // 菜单在壳层文档内，永远画在页面 WebContentsView 之下——锁进面板则被面板宽度
+  // 挤压换行、探出左栏则被原生层裁切，两版均被否。原生菜单 OS 级绘制可盖在页面
+  // 上方（用户裁决允许），且点任意位置（含页面区）关闭，找回全区域外点关闭能力。
+  // 触发条件与旧 trigger 口径一致：批量态/行内编辑态不弹。坐标 = 视口坐标（窗口
+  // 内容坐标，Menu.popup 直接消费）；⋮ 用按钮矩形左下角（键盘触发时点击坐标为 0）
+  const requestRowMenu = (variant: 'full' | 'dots', pos: { x: number; y: number }): void => {
+    // full（行右键）批量态/编辑态不弹（旧 trigger 置空口径）；dots（⋮ 短菜单）仅
+    // 批量态不弹（按钮本就隐藏）——编辑态可弹对齐旧 DOM 行为（审查低-4：静默
+    // 无响应不可接受）
+    if (batchMode) return
+    if (variant === 'full' && mode !== 'none') return
+    window.api.sessions.popupRowMenu({ id: session.id, x: pos.x, y: pos.y, variant })
+  }
 
-  // 行菜单/收起态会话名 Tooltip 开启期间登记 overlay（ui.ts 约束）：右区是
-  // WebContentsView 原生层，页面视图挂载时其点击事件永远进不了 shell 文档，
-  // rc-trigger 的「外部点击关闭」对页面区点击不生效、菜单会残留——登记后页面视图
-  // 收起、点击落进 shell 文档，外点关闭才全区域生效；关闭即恢复页面视图。
-  // ctx/dots 互斥不并存，计数式登记对称加减，卸载走 effect cleanup 兜底
-  // （登记/释放样板经 useOverlayWhenOpen 单源，审查 20260928165442 低 4）
-  useOverlayWhenOpen(ctxOpen || dotsOpen)
-
-  // 挂窗口模态弹层的菜单动作（移动 sheet / 删除确认框）统一经共享 hook 延迟：
-  // 先让菜单关闭动画走完再挂弹层（防窗口模态遮挡冻结动画致菜单卡显），宿主卸载
-  // 时取消未触发动作（机制与单源见 useDeferredMenuAction）
-  const deferWhileMenuCloses = useDeferredMenuAction()
-
-  const onMenuClick: MenuProps['onClick'] = ({ key, domEvent }) => {
-    domEvent.stopPropagation()
+  // 菜单项动作订阅：主进程推回 { id, key }（菜单关闭后到达——原生菜单无关闭动画，
+  // 无需 2026-09-21 的延迟挂弹层机制），id 命中本行才分派到既有编排
+  const dispatchRowMenuAction = (key: string): void => {
     if (key === 'rename') {
       startNameEdit()
     } else if (key === 'editNote') {
@@ -228,26 +196,31 @@ function SessionRow({
     } else if (key === 'clone') {
       void onClone(session.id)
     } else if (key === 'move') {
-      deferWhileMenuCloses(() => onMove(session))
+      onMove(session)
     } else if (key === 'importChrome') {
-      // 原生 sheet 为窗口模态（反馈轮原生化），挂出会冻结菜单关闭动画——统一延迟
-      // 先例（onMove 同款），宿主卸载时取消未触发动作
-      deferWhileMenuCloses(() => onImportChrome(session))
+      onImportChrome(session)
+    } else if (key === 'proxy') {
+      // 代理设置 sheet（独立代理专项 2026-10-15）：sheet 编排与失败反馈归属
+      // SessionPanel（板面反馈条先例，行内组件无反馈承载面）
+      onProxySettings(session)
     } else if (key === 'delete') {
-      // 破坏性确认走主进程原生对话框（PRD 4.10）：window-modal 模态阻塞输入，
-      // 弹框期间页面视图保持可见且内容原样——不经 overlay 悬挂登记收起右区
-      // （那是渲染层弹层换可见性的手段，原生框无遮挡问题）。只确认不执行：
-      // 确认后经既有 sessions:delete 链路删除；取消/Esc/关闭/调用失败零副作用
-      // （吞错按取消语义统一收敛在 renderer dialogs 薄封装）
-      deferWhileMenuCloses(() => {
-        void confirmDestructive({ kind: 'session-delete', name: session.name }).then(
-          (confirmed) => {
-            if (confirmed) void removeSession(session.id)
-          }
-        )
+      // 破坏性确认走主进程原生对话框（PRD 4.10）：只确认不执行，确认后经既有
+      // sessions:delete 链路删除；取消/Esc/关闭/调用失败零副作用
+      void confirmDestructive({ kind: 'session-delete', name: session.name }).then((confirmed) => {
+        if (confirmed) void removeSession(session.id)
       })
     }
   }
+  const dispatchRef = useRef(dispatchRowMenuAction)
+  useEffect(() => {
+    dispatchRef.current = dispatchRowMenuAction
+  })
+  useEffect(() => {
+    const off = window.api.sessions.onRowMenuAction((payload) => {
+      if (payload.id === session.id) dispatchRef.current(payload.key)
+    })
+    return off
+  }, [session.id])
 
   // 批量态行：勾选行背景常驻 raised；激活反白（selected）不渲染——反白语义专属
   // 单选激活，批量态不激活，当前激活会话由右侧浏览器表明
@@ -256,19 +229,7 @@ function SessionRow({
     : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
 
   return (
-    <Dropdown
-      open={!batchMode && mode === 'none' && ctxOpen}
-      onOpenChange={setCtxOpen}
-      menu={{
-        items: menuItems,
-        onClick: (info) => {
-          setCtxOpen(false)
-          onMenuClick(info)
-        }
-      }}
-      trigger={!batchMode && mode === 'none' ? ['contextMenu'] : []}
-      placement="bottomRight"
-    >
+    <>
       <li
         className={rowClass}
         // 拖拽排序：面板级 dragstart/dragover/drop/dragend 经事件委托挂在 ul 上，
@@ -283,11 +244,15 @@ function SessionRow({
         aria-current={!batchMode && selected ? 'true' : undefined}
         aria-checked={batchMode ? checked : undefined}
         onClick={() => {
-          // 行体在右键菜单的触发域内：左键点行不构成「外部点击」不会自动收菜单，
-          // 选会话/勾选前显式收起，防菜单残留（2026-09-21 反馈轮）
-          setCtxOpen(false)
           if (batchMode) onToggleCheck(session.id)
           else selectSession(session.id)
+        }}
+        onContextMenu={(e) => {
+          // 行右键 → 主进程系统原生菜单（2026-10-15 反馈轮四）：OS 级绘制盖过页面
+          // 原生层，可盖在浏览器区上方且点任意位置关闭；批量态/编辑态不弹（旧
+          // trigger 置空口径）
+          e.preventDefault()
+          requestRowMenu('full', { x: e.clientX, y: e.clientY })
         }}
         onKeyDown={(e) => {
           if (batchMode) {
@@ -338,6 +303,29 @@ function SessionRow({
         </div>
         <div className="session-row-sub">
           {wsTag !== null && <span className="ws-tag">{wsTag}</span>}
+          {session.proxy !== null && (
+            // 代理徽标（独立代理专项 2026-10-15）：已配置时渲染，对齐 ws-tag
+            // 「仅有值时渲染」零噪音先例——直接复用 .ws-tag 发丝线小标签（全灰阶
+            // 零琥珀，反白随既有 .session-row.selected 覆写，零 CSS 增量）。Tooltip
+            // 显「协议 · host:port」随界面语言（协议显 HTTP/SOCKS5 大写字面量）；
+            // 下方弹出对齐备注悬停裁决（上缘不盖会话名与上方行），弹层锁挂面板
+            // 防被右区 WebContentsView 原生层遮挡（note Tooltip 先例），0.2s 延迟
+            // 防鼠标扫行频闪
+            <Tooltip
+              title={t('sessions.sessionProxy.badgeTip', {
+                protocol: session.proxy.protocol.toUpperCase(),
+                host: session.proxy.host,
+                port: String(session.proxy.port)
+              })}
+              placement="bottomLeft"
+              mouseEnterDelay={0.2}
+              getPopupContainer={(triggerNode) =>
+                triggerNode.closest<HTMLElement>('.session-panel') ?? triggerNode.parentElement!
+              }
+            >
+              <span className="ws-tag">{t('sessions.sessionProxy.badge')}</span>
+            </Tooltip>
+          )}
           {mode === 'note' ? (
             // 编辑态与重命名 Input 同构：borderless 小号、autoFocus、点击不冒泡防触
             // 发行选中；Enter/失焦经 store 提交（trim 后空串 = 清除）、Esc 放回现值；
@@ -389,35 +377,24 @@ function SessionRow({
             {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
           </span>
           {!batchMode && (
-            <Dropdown
-              open={!batchMode && dotsOpen}
-              onOpenChange={setDotsOpen}
-              menu={{
-                items: menuItems,
-                onClick: (info) => {
-                  setDotsOpen(false)
-                  onMenuClick(info)
-                }
+            <button
+              type="button"
+              className="session-menu"
+              aria-label={t('sessions.sessionRow.menuAria')}
+              onClick={(e) => {
+                // ⋮ 短菜单（重命名/克隆/删除）：锚在按钮左下角（键盘激活时点击坐标
+                // 为 0，退回按钮矩形）；stopPropagation 防行级再切会话
+                e.stopPropagation()
+                const rect = e.currentTarget.getBoundingClientRect()
+                requestRowMenu('dots', { x: rect.left, y: rect.bottom })
               }}
-              trigger={['click']}
-              placement="bottomRight"
             >
-              <button
-                type="button"
-                className="session-menu"
-                aria-label={t('sessions.sessionRow.menuAria')}
-                // ⋮ 在右键菜单的触发域（整行）内：其按下不构成「外部点击」，rc-trigger
-                // 不会收右键菜单——显式关闭防两菜单并存（2026-09-21 反馈轮）
-                onMouseDown={() => setCtxOpen(false)}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreOutlined />
-              </button>
-            </Dropdown>
+              <MoreOutlined />
+            </button>
           )}
         </div>
       </li>
-    </Dropdown>
+    </>
   )
 }
 

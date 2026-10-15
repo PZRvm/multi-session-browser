@@ -50,6 +50,7 @@ function SessionPanel({
   const reorderSessions = useSessionsStore((s) => s.reorderSessions)
   const moveSessionToWorkspace = useSessionsStore((s) => s.moveSessionToWorkspace)
   const moveSessionsToWorkspace = useSessionsStore((s) => s.moveSessionsToWorkspace)
+  const setSessionProxy = useSessionsStore((s) => s.setSessionProxy)
   const openOverlay = useUiStore((s) => s.openOverlay)
   const closeOverlay = useUiStore((s) => s.closeOverlay)
   const refetchHistory = useBrowserStore((s) => s.refetchHistory)
@@ -185,6 +186,21 @@ function SessionPanel({
         if (result.status !== 'picked') return
         const ok = await moveSessionToWorkspace(session.id, result.workspaceId)
         if (!ok) message.error(t('sessions.panel.moveFailed'))
+      }
+    )
+  }
+
+  // 代理设置（独立代理专项 2026-10-15，PRD 4.11/4.14）：原生 sheet 只出结论，
+  // 保存/清除经既有 sessions:set-proxy 通道闭环（确认与执行两段解耦同 openMoveModal）；
+  // 失败反馈走主进程原生信息框（set-proxy handler 失败点内联弹出，chromeImport
+  // 完成点先例——审查中-1 定稿：batchFeedback 条只在批量模式板脚渲染，行菜单仅
+  // 普通模式可达，作为承载是死路径已废）。renderer 只消化结论：成功以返回快照
+  // 更新镜像（徽标随动），false（invoke 失败）时主进程已弹框、此处静默
+  const openProxySettings = (session: SessionItem): void => {
+    void showWorkspacePicker({ kind: 'session-proxy', sessionId: session.id }).then(
+      async (result) => {
+        if (result.status !== 'session-proxy-submitted') return
+        await setSessionProxy(session.id, result.proxy)
       }
     )
   }
@@ -367,6 +383,7 @@ function SessionPanel({
         onToggleCheck={toggleChecked}
         onClone={handleClone}
         onMove={openMoveModal}
+        onProxySettings={openProxySettings}
         onImportChrome={openImportChrome}
       />
     ))

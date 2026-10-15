@@ -72,6 +72,7 @@ import type {
 import type {
   BatchDeleteSessionsPayload,
   BatchOpenUrlPayload,
+  CheckProxyPayload,
   CloneSessionPayload,
   CreateSessionPayload,
   CreateWorkspacePayload,
@@ -80,7 +81,10 @@ import type {
   MoveSessionToWorkspacePayload,
   MoveSessionsBatchResult,
   MoveSessionsToWorkspacePayload,
+  PopupRowMenuPayload,
+  ProxyCheckResult,
   RenameSessionPayload,
+  RowMenuActionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
   ReorderWorkspacesPayload,
@@ -89,6 +93,7 @@ import type {
   SetActiveSessionPayload,
   SetActiveWorkspacePayload,
   SetNotePayload,
+  SetProxyPayload,
   StoredSession,
   StoredWorkspace
 } from '../shared/sessions'
@@ -125,6 +130,14 @@ declare global {
         ): Promise<MoveSessionsBatchResult>
         workspaceSetActive(payload: SetActiveWorkspacePayload): Promise<OkResult>
         workspaceReorder(payload: ReorderWorkspacesPayload): Promise<OkResult>
+        /** 独立代理增量（2026-10-15）：保存（非空）/ 清除（null），返回更新后会话 */
+        setProxy(payload: SetProxyPayload): Promise<StoredSession>
+        /** 独立代理增量（2026-10-15）：按草稿值探测该会话出口 IP（不落盘） */
+        checkProxy(payload: CheckProxyPayload): Promise<ProxyCheckResult>
+        /** 行原生菜单增量：请求主进程在指定视口坐标弹出系统原生菜单 */
+        popupRowMenu(payload: PopupRowMenuPayload): void
+        /** 行原生菜单增量：订阅菜单项点击结论（定向推回发起窗口） */
+        onRowMenuAction(callback: (payload: RowMenuActionPayload) => void): () => void
       }
       browser: {
         getState(): Promise<BrowserSnapshot>
