@@ -23,21 +23,23 @@ export type EditorToolId = 'rectangle' | 'ellipse' | 'arrow' | 'brush' | 'mosaic
 export const STROKE_TIERS = [2, 5, 10] as const
 
 /** 马赛克块径三档（Pixelate pixelSize；图像像素空间）——与粗细档共用同一选择器，
- *  工具激活时语义切换（2026-10-14 用户批复假设 8） */
-export const MOSAIC_PIXEL_TIERS = [8, 16, 24] as const
+ *  工具激活时语义切换（2026-10-14 用户批复假设 8；视觉轮同日校准：细档 8 遮挡
+ *  不充分升为 10，间距拉大档间区分） */
+export const MOSAIC_PIXEL_TIERS = [10, 18, 28] as const
 
 /** 文本字号三档（图像像素空间；反馈轮二续用户裁决 32/42/54——原 14/18/24 实测过小，
  *  工具条档名显示「小/中/大」不显数字） */
 export const FONT_SIZE_TIERS = [32, 42, 54] as const
 
-/** 微信系六色色板（首色默认红；具体色值可由步骤 7 视觉轮校准） */
+/** 标注六色色板（首色默认红；视觉轮 2026-10-14 校准定稿：以微信系色值为基，黄
+ *  降一档明度保浅底可读、黑提亮保深底可读——渲染台三底实测定值） */
 export const COLOR_PALETTE = [
   '#fa5151',
-  '#f7b500',
+  '#e6a700',
   '#07c160',
   '#10aeff',
   '#ffffff',
-  '#1a1a1a'
+  '#3d3d3d'
 ] as const
 
 /** 色板色值类型（受控色态与色板标签映射的键） */
@@ -46,9 +48,11 @@ export type AnnotationColor = (typeof COLOR_PALETTE)[number]
 /** 文本字体栈（对齐微信观感） */
 export const ANNOTATION_FONT_STACK = '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
 
-/** 箭头实心头比例（pointerLength/pointerWidth 随粗细档成比例；头 fill 同 stroke 色） */
-export const ARROW_POINTER_LENGTH_RATIO = 6
-export const ARROW_POINTER_WIDTH_RATIO = 4.5
+/** 箭头实心头比例（pointerLength/pointerWidth 随粗细档成比例；头 fill 同 stroke 色；
+ *  视觉轮 2026-10-14 校准：6/4.5 在粗档（10px）头面夸张失衡，降为 4/3——渲染台实
+ *  测三档协调） */
+export const ARROW_POINTER_LENGTH_RATIO = 4
+export const ARROW_POINTER_WIDTH_RATIO = 3
 
 /** 马赛克画笔涂抹带宽度 = 块径 × 此系数（带面显著宽于块径才有打码观感；反馈轮一
  *  实现取值，视觉轮可校准） */

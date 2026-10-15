@@ -51,11 +51,11 @@ const WEIGHT_LABEL_KEYS = [
 /** 色板六色 aria-label 键映射（与 COLOR_PALETTE 同序同源；字面量键经 DictKey 编译期校验） */
 const COLOR_LABEL_KEYS = {
   '#fa5151': 'browser.captureEditor.colors.red',
-  '#f7b500': 'browser.captureEditor.colors.orange',
+  '#e6a700': 'browser.captureEditor.colors.orange',
   '#07c160': 'browser.captureEditor.colors.green',
   '#10aeff': 'browser.captureEditor.colors.blue',
   '#ffffff': 'browser.captureEditor.colors.white',
-  '#1a1a1a': 'browser.captureEditor.colors.black'
+  '#3d3d3d': 'browser.captureEditor.colors.black'
 } as const
 
 /** 档位选择器圆点直径（显示像素，随档位递增） */
