@@ -91,6 +91,25 @@ export const browser: Dictionary['browser'] = {
     noSession: 'No session',
     noSessionHint: 'Create or select a session on the left to start isolated browsing'
   },
+  /** 页面加载失败错误卡（manager 注入 view 的自绘错误页，2026-10-20 交互修复专项） */
+  pageError: {
+    /** 兜底标题：错误码未映射到可读原因时显示（原码恒在技术细节行并列展示） */
+    title: 'This site can’t be reached',
+    /** 重新加载钮（重试失败的原导航） */
+    retry: 'Reload',
+    /** 错误码 → 可读原因（映射单源 shared/browser.ts pageErrorReasonKey） */
+    reasons: {
+      dns: 'Couldn’t find the server address of this site',
+      refused: 'The site refused the connection',
+      timeout: 'The site took too long to respond',
+      reset: 'The connection was reset midway',
+      offline: 'There is no network connection',
+      proxy: 'Couldn’t connect to the proxy server',
+      cert: 'The site’s security certificate has a problem',
+      empty: 'The site returned an empty response',
+      fileNotFound: 'The local file doesn’t exist or can’t be read'
+    }
+  },
   divider: {
     adjustWidth: 'Adjust panel width'
   }

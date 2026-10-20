@@ -128,6 +128,25 @@ export const browser = {
     /** 空态引导文案 */
     noSessionHint: '在左侧新建或选择会话，开始隔离浏览'
   },
+  /** 页面加载失败错误卡（manager 注入 view 的自绘错误页，2026-10-20 交互修复专项） */
+  pageError: {
+    /** 兜底标题：错误码未映射到可读原因时显示（原码恒在技术细节行并列展示） */
+    title: '无法访问此网站',
+    /** 重新加载钮（重试失败的原导航） */
+    retry: '重新加载',
+    /** 错误码 → 可读原因（映射单源 shared/browser.ts pageErrorReasonKey） */
+    reasons: {
+      dns: '找不到该网站的服务器地址',
+      refused: '网站拒绝了连接请求',
+      timeout: '网站响应超时',
+      reset: '连接被中途重置',
+      offline: '当前没有网络连接',
+      proxy: '无法连接到代理服务器',
+      cert: '网站的安全证书存在问题',
+      empty: '网站返回了空响应',
+      fileNotFound: '本地文件不存在或无法读取'
+    }
+  },
   /** 主窗 shell 分隔条（App.tsx，左栏与浏览器区之间） */
   divider: {
     /** role=separator 的 aria-label */

@@ -10,6 +10,9 @@ import { BrowserWindow, WebContentsView } from 'electron'
 import type { Input, WebContents } from 'electron'
 import {
   WINDOW_ID_MAIN,
+  browserErrorCardPalette,
+  pageErrorReasonKey,
+  type BrowserErrorCardPalette,
   type BrowserSnapshot,
   type BrowserTabState,
   type FoundInPageResult,
@@ -25,6 +28,7 @@ import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
 import { getScreenshotShortcut } from '../settings'
 import type { VisitFact } from './history'
+import { escapeHtml } from './html'
 import { isOpenableUrl } from './url'
 
 const BLANK_URL = 'about:blank'
@@ -64,6 +68,13 @@ interface TabEntry {
   title: string
   faviconUrl: string | null
   loading: boolean
+  /**
+   * 最近一次主 frame 加载失败（2026-10-20 交互修复专项瞬态）：did-fail-load 置位、
+   * did-start-loading 清位、did-stop-loading 据此注入错误卡（Electron 无内建错误页，
+   * 失败落 chrome-error 空白页，不自绘即与加载中不可区分的白屏）。仅主进程内存态，
+   * 不进快照不落盘
+   */
+  loadError: { code: number; description: string; url: string } | null
   /** 该 Tab 的 DevTools 开关态；快照 devtoolsOpen 取该窗口激活 Tab 的此字段 */
   devtoolsOpen: boolean
 }
@@ -218,6 +229,8 @@ export function createTabManager(
     getHomepageUrl: () => string
     /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：registry 注入外观快照派生——newTab 同步函数同上不容 await */
     getFallbackBackground: () => string
+    /** 当前解析主题（'light' | 'dark'）现取：registry 注入外观快照——错误卡配色派生（现取口径同上） */
+    getResolvedTheme: () => 'light' | 'dark'
     /**
      * 录制中锚定窗现取（录屏线 F''，可缺省）：该窗的弹层收起用「整尺寸移出屏幕」
      * 替代 1×1——被录 view 的合成输出尺寸不变（弹层期间捕获画面不出现缩小损坏段）；
@@ -427,6 +440,80 @@ export function createTabManager(
 
   /** 用户语义新标签页（PRD 3.8.2 修订）：主页非空加载主页、留空与 newTab() 同为空白；
    *  分流语义见 TabManager.newUserTab 注释 */
+  /**
+   * 构建错误卡注入 HTML（2026-10-20 交互修复专项）：Chrome 错误页同构的裸排版块，
+   * 视觉契约见 DESIGN.md「页面加载失败卡」。插值一律 escapeHtml——URL 与错误描述
+   * 是页面可控输入；重试 = location.reload()（Chromium 对主 frame 失败的 reload
+   * 语义即重试原导航，验收以 CDP 实证）
+   */
+  function buildErrorCardHtml(args: {
+    palette: BrowserErrorCardPalette
+    heading: string
+    retryLabel: string
+    url: string
+    code: string
+    codeNum: string
+  }): string {
+    const { palette, heading, retryLabel, url, code, codeNum } = args
+    return [
+      '<style>',
+      'html, body { margin: 0; padding: 0; }',
+      `body { background: ${palette.bg}; color: ${palette.ink}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; }`,
+      `::selection { background: ${palette.selectVeil}; }`,
+      '.msb-error-wrap { min-height: 100vh; display: flex; justify-content: center; }',
+      '.msb-error { max-width: 560px; box-sizing: border-box; padding: 15vh 32px 48px; }',
+      '.msb-error-icon { display: block; margin: 0 0 24px; }',
+      `.msb-error h1 { margin: 0 0 12px; font-size: 21px; line-height: 1.45; font-weight: 600; color: ${palette.ink}; }`,
+      `.msb-error-url { margin: 0; font-size: 13px; line-height: 1.6; color: ${palette.inkDim}; word-break: break-all; user-select: text; cursor: text; }`,
+      `.msb-error-code { margin: 16px 0 0; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; color: ${palette.inkDim}; user-select: text; cursor: text; }`,
+      `.msb-error button { margin-top: 28px; height: 34px; padding: 0 20px; border-radius: 8px; border: 1px solid ${palette.line}; background: transparent; color: ${palette.ink}; font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer; }`,
+      `.msb-error button:hover { background: ${palette.hoverVeil}; }`,
+      `.msb-error button:active { background: ${palette.activeVeil}; }`,
+      `.msb-error button:focus-visible { outline: 2px solid ${palette.inkDim}; outline-offset: 2px; }`,
+      '</style>',
+      '<div class="msb-error-wrap"><div class="msb-error">',
+      `<svg class="msb-error-icon" width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true"><circle cx="28" cy="28" r="25" stroke="${palette.inkDim}" stroke-width="2.5"/><line x1="28" y1="16" x2="28" y2="31" stroke="${palette.inkDim}" stroke-width="3" stroke-linecap="round"/><circle cx="28" cy="39.5" r="2" fill="${palette.inkDim}"/></svg>`,
+      `<h1>${escapeHtml(heading)}</h1>`,
+      `<p class="msb-error-url">${escapeHtml(url)}</p>`,
+      `<p class="msb-error-code">${escapeHtml(code)} · ${escapeHtml(codeNum)}</p>`,
+      `<button type="button" onclick="location.reload()">${escapeHtml(retryLabel)}</button>`,
+      '</div></div>'
+    ].join('')
+  }
+
+  /**
+   * 注入页面加载失败错误卡（2026-10-20 交互修复专项）：did-stop-loading 且失败置位
+   * 时调用——此刻页面已停在 chrome-error 空白页，写入自绘 DOM 即不再白屏。注入
+   * 表达式前置 chrome-error 位置自守卫（审查中-1）：「派发后、执行前」用户已发起新
+   * 导航且新页已提交的极窄交错下，防止陈旧注入覆盖新提交页面的 body——判定不满足
+   * 即空操作，语义零损失。注入失败（view 销毁等竞态）中文告警静默降级，不劣化于
+   * 现状白屏
+   */
+  function injectErrorCard(tab: TabEntry): void {
+    const loadError = tab.loadError
+    if (!loadError) return
+    const wc = tab.view.webContents
+    if (wc.isDestroyed()) return
+    const reasonKey = pageErrorReasonKey(loadError.code, loadError.description)
+    const html = buildErrorCardHtml({
+      palette: browserErrorCardPalette(opts.getResolvedTheme()),
+      heading: reasonKey
+        ? t(`browser.pageError.reasons.${reasonKey}`)
+        : t('browser.pageError.title'),
+      retryLabel: t('browser.pageError.retry'),
+      url: loadError.url,
+      code: loadError.description || 'ERR_UNKNOWN',
+      codeNum: String(loadError.code)
+    })
+    void wc
+      .executeJavaScript(
+        `if (location.href.startsWith('chrome-error://')) document.body.innerHTML = ${JSON.stringify(html)};`
+      )
+      .catch((injectError: unknown) => {
+        console.warn('[browser] 错误卡注入失败:', injectError)
+      })
+  }
+
   function newUserTab(windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
     return newTab(opts.getHomepageUrl() || undefined, windowId)
   }
@@ -451,6 +538,7 @@ export function createTabManager(
       title: '',
       faviconUrl: null,
       loading: false,
+      loadError: null,
       devtoolsOpen: false
     }
     tabs.set(id, tab)
@@ -458,11 +546,16 @@ export function createTabManager(
 
     // 任一加载/导航事件后重算快照并触发回调（含 canGoBack/canGoForward 现读）
     wc.on('did-start-loading', () => {
+      // 新导航开启即清失败态：错误卡随后续结果重新裁决（重试成功自然清除）
+      tab.loadError = null
       tab.loading = true
       emitChange()
     })
     wc.on('did-stop-loading', () => {
       tab.loading = false
+      // 失败置位时注入错误卡（2026-10-20 交互修复专项）：此刻页面已停在 chrome-error
+      // 空白页，写入自绘 DOM 即不再白屏
+      if (tab.loadError) injectErrorCard(tab)
       emitChange()
     })
     wc.on('did-navigate', (_event, navigatedUrl) => {
@@ -491,10 +584,18 @@ export function createTabManager(
     // 主 frame 失败导航的统一日志（单点）：覆盖地址栏/恢复/克隆等 loadURL 路径与页内
     // 链点击路径（loadURL 的 reject 本就由此事件驱动，原 url.ts logLoadFailure 已退役，
     // Electron C++ 对同一失败还有一条固定警告、已由 main/warnings.ts 接管吞掉）。
-    // ERR_ABORTED（停止加载/被新导航替换）属正常静默；用户侧失败呈现走 Chromium 内建错误页
+    // ERR_ABORTED（停止加载/被新导航替换）属正常静默；失败呈现走自绘错误卡（见下）
     wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (!isMainFrame || errorCode === NET_ERR_ABORTED) return
       console.warn(`[browser] 加载失败 ${validatedURL}: ${errorDescription} (${errorCode})`)
+      // 失败态置位（2026-10-20 交互修复专项）：did-stop-loading 时据此注入错误卡，
+      // 如实呈现可读原因 + 原码；Electron 无 Chromium 内建错误页资源（失败落
+      // chrome-error://chromewebdata 空白页），不再依赖「内建错误页呈现」
+      tab.loadError = {
+        code: errorCode,
+        description: errorDescription,
+        url: validatedURL || tab.url
+      }
     })
     // 页内查找计数回执：windowId 取 Tab 归属宿主窗口，ipc 层据此定向推送 find-result
     wc.on('found-in-page', (_event, result) => {
@@ -624,7 +725,10 @@ export function createTabManager(
     // 先激活（挂入 contentView、应用当前 bounds），再发起加载——保证首条快照已带 activeTabId
     activate(id, windowId)
 
-    // 导航失败（坏域名等）由 Chromium 内建错误页呈现，日志由 did-fail-load 单点承担
+    // 导航失败的呈现由本模块自绘错误卡承担（did-fail-load 置位 + did-stop-loading
+    // 注入，2026-10-20 交互修复专项）：Electron 无 Chromium 内建错误页资源，失败落
+    // chrome-error://chromewebdata 空白页（2026-10-20 探针实测），不自绘即白屏；
+    // 失败日志由 did-fail-load 单点承担
     void wc.loadURL(target).catch(() => {})
 
     emitChange()

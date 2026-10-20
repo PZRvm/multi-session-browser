@@ -407,6 +407,8 @@ app.whenReady().then(async () => {
     // WebContentsView 兜底底色现取（外观快照派生 chrome surface 族，单源 shared/browser.ts）
     getFallbackBackground: () =>
       browserViewFallbackBackground(appearanceController.getSnapshot().resolvedTheme),
+    // 解析主题现取（错误卡配色派生，2026-10-20 交互修复专项；设置窗/截图编辑窗同款注入先例）
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
     proxy: engine,
     getRecordingWindowId: () => recordedWindowIdHolder.get()
   })

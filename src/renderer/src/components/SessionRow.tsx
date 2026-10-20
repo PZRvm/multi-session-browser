@@ -175,15 +175,13 @@ function SessionRow({
   // 菜单在壳层文档内，永远画在页面 WebContentsView 之下——锁进面板则被面板宽度
   // 挤压换行、探出左栏则被原生层裁切，两版均被否。原生菜单 OS 级绘制可盖在页面
   // 上方（用户裁决允许），且点任意位置（含页面区）关闭，找回全区域外点关闭能力。
-  // 触发条件与旧 trigger 口径一致：批量态/行内编辑态不弹。坐标 = 视口坐标（窗口
-  // 内容坐标，Menu.popup 直接消费）；⋮ 用按钮矩形左下角（键盘触发时点击坐标为 0）
-  const requestRowMenu = (variant: 'full' | 'dots', pos: { x: number; y: number }): void => {
-    // full（行右键）批量态/编辑态不弹（旧 trigger 置空口径）；dots（⋮ 短菜单）仅
-    // 批量态不弹（按钮本就隐藏）——编辑态可弹对齐旧 DOM 行为（审查低-4：静默
-    // 无响应不可接受）
+  // 2026-10-20 统一裁决：右键与 ⋮ 弹同一全量菜单；触发口径逐字保留——批量态不弹，
+  // 行右键编辑态不弹（旧 trigger 置空口径，编辑态 gate 在调用点）、⋮ 编辑态可弹
+  //（审查低-4：静默无响应不可接受）。坐标 = 视口坐标（窗口内容坐标，Menu.popup
+  // 直接消费）；⋮ 用按钮矩形左下角（键盘触发时点击坐标为 0）
+  const requestRowMenu = (pos: { x: number; y: number }): void => {
     if (batchMode) return
-    if (variant === 'full' && mode !== 'none') return
-    window.api.sessions.popupRowMenu({ id: session.id, x: pos.x, y: pos.y, variant })
+    window.api.sessions.popupRowMenu({ id: session.id, x: pos.x, y: pos.y })
   }
 
   // 菜单项动作订阅：主进程推回 { id, key }（菜单关闭后到达——原生菜单无关闭动画，
@@ -250,9 +248,10 @@ function SessionRow({
         onContextMenu={(e) => {
           // 行右键 → 主进程系统原生菜单（2026-10-15 反馈轮四）：OS 级绘制盖过页面
           // 原生层，可盖在浏览器区上方且点任意位置关闭；批量态/编辑态不弹（旧
-          // trigger 置空口径）
+          // trigger 置空口径，preventDefault 恒生效压制系统默认菜单）
           e.preventDefault()
-          requestRowMenu('full', { x: e.clientX, y: e.clientY })
+          if (mode !== 'none') return
+          requestRowMenu({ x: e.clientX, y: e.clientY })
         }}
         onKeyDown={(e) => {
           if (batchMode) {
@@ -382,11 +381,11 @@ function SessionRow({
               className="session-menu"
               aria-label={t('sessions.sessionRow.menuAria')}
               onClick={(e) => {
-                // ⋮ 短菜单（重命名/克隆/删除）：锚在按钮左下角（键盘激活时点击坐标
-                // 为 0，退回按钮矩形）；stopPropagation 防行级再切会话
+                // ⋮ 全量菜单（2026-10-20 与右键统一）：锚在按钮左下角（键盘激活时
+                // 点击坐标为 0，退回按钮矩形）；stopPropagation 防行级再切会话
                 e.stopPropagation()
                 const rect = e.currentTarget.getBoundingClientRect()
-                requestRowMenu('dots', { x: rect.left, y: rect.bottom })
+                requestRowMenu({ x: rect.left, y: rect.bottom })
               }}
             >
               <MoreOutlined />

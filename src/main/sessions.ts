@@ -16,7 +16,6 @@ import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
   type RowMenuActionKey,
-  type RowMenuVariant,
   SESSION_NOTE_MAX,
   SESSIONS_CHANNELS,
   WORKSPACE_ID_RE,
@@ -878,7 +877,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 收起方案换掉的「全区域外点关闭」）。菜单项点击经 row-menu-action 定向推回发起
   // webContents，由 renderer 既有编排闭环（重命名/备注行内编辑、克隆/移动/导入/
   // 代理 sheet、删除确认框）。ipcMain.on 单向通道：守卫失败 warn 后静默返回。
-  // full 变体 = 行右键全量菜单；dots 变体 = ⋮ 按钮短菜单（重命名/克隆/删除）
+  // 行右键与 ⋮ 两触发器统一弹同一全量菜单（2026-10-20 用户裁决，dots 短菜单退役）
   ipcMain.on(SESSIONS_CHANNELS.popupRowMenu, (event, payload: unknown): void => {
     const fail = (reason: string): void => {
       console.warn(`[sessions] 行原生菜单请求被拒绝（${reason}）`)
@@ -903,10 +902,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       y < 0
     ) {
       return fail('坐标非法')
-    }
-    const variant: RowMenuVariant = payload.variant === 'dots' ? 'dots' : 'full'
-    if (payload.variant !== 'dots' && payload.variant !== 'full') {
-      return fail(`变体非法: ${String(payload.variant)}`)
     }
     const sender = event.sender
     const win = BrowserWindow.fromWebContents(sender)
@@ -933,37 +928,30 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           click: () => dispatch(key)
         })
       const menu = new Menu()
-      if (variant === 'full') {
-        menu.append(item('rename'))
-        menu.append(item('editNote'))
-        menu.append(new MenuItem({ type: 'separator' }))
-        menu.append(item('clone'))
-        menu.append(
-          new MenuItem({
-            label: t('sessions.sessionRow.menu.move'),
-            click: () => dispatch('move')
-          })
-        )
-        menu.append(
-          new MenuItem({
-            label: t('chromeImport.menu.importChromeData'),
-            click: () => dispatch('importChrome')
-          })
-        )
-        menu.append(
-          new MenuItem({
-            label: t('sessions.sessionProxy.menuEntry'),
-            click: () => dispatch('proxy')
-          })
-        )
-        menu.append(new MenuItem({ type: 'separator' }))
-        menu.append(item('delete'))
-      } else {
-        menu.append(item('rename'))
-        menu.append(item('clone'))
-        menu.append(new MenuItem({ type: 'separator' }))
-        menu.append(item('delete'))
-      }
+      menu.append(item('rename'))
+      menu.append(item('editNote'))
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(item('clone'))
+      menu.append(
+        new MenuItem({
+          label: t('sessions.sessionRow.menu.move'),
+          click: () => dispatch('move')
+        })
+      )
+      menu.append(
+        new MenuItem({
+          label: t('chromeImport.menu.importChromeData'),
+          click: () => dispatch('importChrome')
+        })
+      )
+      menu.append(
+        new MenuItem({
+          label: t('sessions.sessionProxy.menuEntry'),
+          click: () => dispatch('proxy')
+        })
+      )
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(item('delete'))
       menu.popup({ window: win, x: cx, y: cy })
     })()
   })

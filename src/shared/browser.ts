@@ -280,3 +280,77 @@ export const BROWSER_VIEW_FALLBACK_BACKGROUND = {
 export function browserViewFallbackBackground(resolved: 'light' | 'dark'): string {
   return BROWSER_VIEW_FALLBACK_BACKGROUND[resolved]
 }
+
+/**
+ * 页面加载失败错误卡配色（2026-10-20 交互修复专项）：主 frame 加载失败后 manager 向
+ * 该 Tab view 注入自绘错误卡——Electron 无 Chromium 内建错误页资源，失败落
+ * chrome-error 空白页（2026-10-20 探针实测），不自绘即与加载中不可区分的白屏。
+ * bg 复用兜底底色单源；墨色/线色/蒙版与 app.css chrome-* token、DESIGN.md「Chrome 侧」
+ * 色板三处字面量对账，改一处须同步其余两处。只随亮暗两态，主题色不入右区。
+ */
+export interface BrowserErrorCardPalette {
+  bg: string
+  ink: string
+  inkDim: string
+  line: string
+  hoverVeil: string
+  activeVeil: string
+  selectVeil: string
+}
+
+export function browserErrorCardPalette(resolved: 'light' | 'dark'): BrowserErrorCardPalette {
+  if (resolved === 'dark') {
+    return {
+      bg: BROWSER_VIEW_FALLBACK_BACKGROUND.dark,
+      ink: '#e8eaed',
+      inkDim: '#bdc1c6',
+      line: '#3c4043',
+      hoverVeil: 'rgba(232, 234, 237, 0.08)',
+      activeVeil: 'rgba(232, 234, 237, 0.14)',
+      selectVeil: 'rgba(232, 234, 237, 0.2)'
+    }
+  }
+  return {
+    bg: BROWSER_VIEW_FALLBACK_BACKGROUND.light,
+    ink: '#3c4043',
+    inkDim: '#5f6368',
+    line: '#c7cbd1',
+    hoverVeil: 'rgba(60, 64, 67, 0.08)',
+    activeVeil: 'rgba(60, 64, 67, 0.1)',
+    selectVeil: 'rgba(60, 64, 67, 0.14)'
+  }
+}
+
+/**
+ * 错误码 → 可读原因键的单源映射（2026-10-20 交互修复专项）：did-fail-load 的数字
+ * 错误码为主判据，描述串前缀为证书族兜底（ERR_CERT_* 区段不连续，数字表难穷举）；
+ * 未映射返回 null，调用方回退通用标题——不猜测不引申，原码恒并列展示。文案键对应
+ * shared/i18n browser.pageError.reasons.*。
+ */
+export type PageErrorReasonKey =
+  'dns' | 'refused' | 'timeout' | 'reset' | 'offline' | 'proxy' | 'cert' | 'empty' | 'fileNotFound'
+
+export function pageErrorReasonKey(
+  errorCode: number,
+  errorDescription: string
+): PageErrorReasonKey | null {
+  if (
+    errorDescription.startsWith('net::ERR_CERT_') ||
+    errorDescription.startsWith('net::ERR_SSL_')
+  ) {
+    return 'cert'
+  }
+  const BY_CODE: Record<number, PageErrorReasonKey> = {
+    [-105]: 'dns', // ERR_NAME_NOT_RESOLVED
+    [-102]: 'refused', // ERR_CONNECTION_REFUSED
+    [-7]: 'timeout', // ERR_CONNECTION_TIMED_OUT
+    [-118]: 'timeout', // ERR_TIMED_OUT
+    [-101]: 'reset', // ERR_CONNECTION_RESET
+    [-106]: 'offline', // ERR_INTERNET_DISCONNECTED
+    [-130]: 'proxy', // ERR_PROXY_CONNECTION_FAILED
+    [-107]: 'cert', // ERR_SSL_PROTOCOL_ERROR
+    [-324]: 'empty', // ERR_EMPTY_RESPONSE
+    [-6]: 'fileNotFound' // ERR_FILE_NOT_FOUND
+  }
+  return BY_CODE[errorCode] ?? null
+}

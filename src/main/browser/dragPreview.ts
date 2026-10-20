@@ -9,6 +9,7 @@
 
 import { BrowserWindow } from 'electron'
 import type { TabDragPreviewPayload } from '../../shared/browser'
+import { escapeHtml } from './html'
 
 export interface DragPreview {
   /** 建窗渲染虚影并定位到抓取点锚定位置（重复调用先销毁旧窗） */
@@ -17,16 +18,6 @@ export interface DragPreview {
   moveTo(at: { x: number; y: number }): void
   /** 销毁虚影窗（拖拽收口/无虚影拖拽时 no-op） */
   hide(): void
-}
-
-/** HTML 文本转义（title 来自页面标题，不可信任直插） */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 /** 虚影标题截断：页面标题理论无长度上限，超长标题经 encodeURIComponent 拼进

@@ -130,6 +130,25 @@ export const browser: Dictionary['browser'] = {
     /** 空态引导文案 */
     noSessionHint: '在左側新增或選擇會話，開始隔離瀏覽'
   },
+  /** 页面加载失败错误卡（manager 注入 view 的自绘错误页，2026-10-20 交互修复专项） */
+  pageError: {
+    /** 兜底标题：错误码未映射到可读原因时显示（原码恒在技术细节行并列展示） */
+    title: '無法存取此網站',
+    /** 重新加载钮（重试失败的原导航） */
+    retry: '重新載入',
+    /** 错误码 → 可读原因（映射单源 shared/browser.ts pageErrorReasonKey） */
+    reasons: {
+      dns: '找不到該網站的伺服器位址',
+      refused: '網站拒絕了連線請求',
+      timeout: '網站回應逾時',
+      reset: '連線被中途重設',
+      offline: '目前沒有網路連線',
+      proxy: '無法連線到代理伺服器',
+      cert: '網站的安全憑證存在問題',
+      empty: '網站回傳了空回應',
+      fileNotFound: '本機檔案不存在或無法讀取'
+    }
+  },
   /** 主窗 shell 分隔条（App.tsx，左栏与浏览器区之间） */
   divider: {
     /** role=separator 的 aria-label */

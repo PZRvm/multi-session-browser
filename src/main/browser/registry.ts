@@ -220,6 +220,8 @@ export function createSessionBrowserRegistry(deps: {
   getHomepageUrl: () => string
   /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：index.ts 注入外观快照派生——ensureManager 透传 createTabManager */
   getFallbackBackground: () => string
+  /** 当前解析主题（'light' | 'dark'）现取：index.ts 注入外观快照——ensureManager 透传 createTabManager（错误卡配色派生，2026-10-20 交互修复专项） */
+  getResolvedTheme: () => 'light' | 'dark'
   /**
    * 会话独立代理引擎（独立代理专项步骤 2，browser/proxy.ts 单源）：激活链/兜底/克隆
    * 预应用经其 applySessionProxy 落地，destroySession 经 dropSession 清凭据与登记；
@@ -229,7 +231,8 @@ export function createSessionBrowserRegistry(deps: {
   /** 录制中锚定窗现取（录屏线 F''）：ensureManager 透传 createTabManager——弹层收起按录制态分派应用矩形 */
   getRecordingWindowId?: () => string | null
 }): SessionBrowserRegistry {
-  const { getWindow, windows, getHomepageUrl, getFallbackBackground, proxy } = deps
+  const { getWindow, windows, getHomepageUrl, getFallbackBackground, getResolvedTheme, proxy } =
+    deps
 
   const managers = new Map<string, TearOffTabManager>()
   let activeSessionId: string | null = null
@@ -521,6 +524,7 @@ export function createSessionBrowserRegistry(deps: {
       initialBounds: globalBounds ?? undefined,
       getHomepageUrl,
       getFallbackBackground,
+      getResolvedTheme,
       getRecordingWindowId: deps.getRecordingWindowId
     })
     managers.set(id, manager)

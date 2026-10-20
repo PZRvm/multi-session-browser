@@ -61,7 +61,8 @@
 //   Menu.popup：OS 级绘制盖过页面 WebContentsView（DOM 菜单要么被面板宽度挤压、
 //   要么探出左栏被原生层裁切，两版均被否），且点任意位置（含页面区）关闭，找回
 //   2026-09-21 收起方案换掉的「全区域外点关闭」能力；菜单文案主进程经 main/i18n
-//   取既有键零新增字典，点击结论定向推回发起窗口由 renderer 既有编排闭环
+//   取既有键零新增字典，点击结论定向推回发起窗口由 renderer 既有编排闭环；
+//   2026-10-20 用户裁决：右键与 ⋮ 统一弹同一全量菜单，dots 短菜单变体退役
 
 import { isRecord } from './guards'
 
@@ -328,19 +329,18 @@ export type ProxyCheckResult =
   { ok: true; ip: string } | { ok: false; reason: 'unreachable' | 'auth' | 'fetch' }
 
 /**
- * 会话行原生菜单变体（2026-10-15 反馈轮四，DOM 菜单退役）：full = 行右键全量菜单
- * （重命名/编辑备注/克隆/移动/导入/代理设置/删除），dots = ⋮ 按钮短菜单
- * （重命名/克隆/删除）。菜单由主进程 Menu.popup 绘制（OS 级，盖过页面原生层、
- * 点任意位置关闭），文案主进程经 main/i18n 取既有键，零新增字典
+ * 会话行原生菜单（2026-10-15 反馈轮四 DOM 菜单退役；2026-10-20 用户裁决统一）：
+ * 行右键与 ⋮ 按钮两触发器弹出同一全量菜单（重命名/编辑备注/克隆/移动/导入
+ * Chrome 数据/代理设置/删除），dots 短菜单变体退役。菜单由主进程 Menu.popup
+ * 绘制（OS 级，盖过页面原生层、点任意位置关闭），文案主进程经 main/i18n 取既有键，
+ * 点击结论经 row-menu-action 推回 renderer 既有编排闭环
  */
-export type RowMenuVariant = 'full' | 'dots'
 
 /** renderer → 主进程：在 (x, y)（视口坐标 = 窗口内容坐标）弹出该会话的原生菜单 */
 export interface PopupRowMenuPayload {
   id: string
   x: number
   y: number
-  variant: RowMenuVariant
 }
 
 /** 菜单项动作键（与 renderer 既有编排一一对应） */
