@@ -1,6 +1,6 @@
 // 录屏分块落盘器（录屏专项，所属计划 notes/plans/20261009231903-录屏功能开发计划.md
 // 步骤 3；数据原则见计划 2.3、命名契约见第 3 节契约点 5）：
-// 职责——MediaRecorder 逐块 append 到临时区（deps 注入的 tmpDir 下 `<随机名>.webm.part`），
+// 职责——MediaRecorder 逐块 append 到临时区（deps 注入的 tmpDir 下 `<随机名>.mp4.part`），
 // finalize 时经 name.ts 的同名序号探测改名进下载目录（绝不覆盖既有文件），abort 丢弃
 // （删除临时 .part）。分块即落盘，不做整段驻内存，也不做原子写——录制中崩溃残留
 // 半截 .part 属预期语义（计划第 1 节「落盘工具现状」），只有显式 finalize 成功才算完成。
@@ -14,7 +14,7 @@
 
 import { appendFile, copyFile, mkdir, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { resolveDownloadPath } from './name'
+import { RECORDING_FILE_EXT, resolveDownloadPath } from './name'
 
 /** fileWriter 域注入契约（全部经装配点注入，本模块零 electron 依赖） */
 export interface RecordingFileWriterDeps {
@@ -55,7 +55,7 @@ export function createRecordingFileWriter(deps: RecordingFileWriterDeps): Record
   // 文件名时间戳与临时随机名都在创建时定死：文件名锚定录制开始时刻，重试不漂移
   const startedAt = deps.now()
   const makeTempId = deps.makeTempId ?? defaultTempId
-  const tempPath = join(deps.tmpDir, `${makeTempId()}.webm.part`)
+  const tempPath = join(deps.tmpDir, `${makeTempId()}${RECORDING_FILE_EXT}.part`)
   let phase: 'open' | 'finalized' | 'aborted' = 'open'
   // 是否收到过至少一个分块（.part 是首个 append 惰性创建）：零块 = 无任何已录制
   // 内容，finalize 如实抛错——不 rename 不存在的文件、不产出看似成功的空文件

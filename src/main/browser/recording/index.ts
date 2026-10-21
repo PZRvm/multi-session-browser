@@ -27,16 +27,21 @@ import { fileExists } from '../downloadNaming'
 import { createRecordingStateMachine } from './state'
 import { createRecordingFileWriter } from './fileWriter'
 import type { RecordingFileWriter } from './fileWriter'
+import { RECORDING_FILE_EXT } from './name'
 import { createCollector } from './captureView'
 import type { CollectorHandle } from './captureView'
 
 /** begin 后等待采集器就绪的窗口（超时整体回滚——采集页加载异常/getDisplayMedia 卡死） */
 const COLLECTOR_READY_TIMEOUT_MS = 10_000
-/** 停止兜底窗：sendCommand('stop') 后 onstopped 未达即强制收尾（代际比对防误杀新录制） */
+/** 停止兜底基础窗：无分块到达后等待 onstopped 的时长（代际比对防误杀新录制） */
 const STOP_FALLBACK_MS = 1_500
-/** 单块分片上限（复审低-4 纵深防御）：正常 500ms timeslice 块远小于此，超限只可能
- * 是异常通道数据，直接丢弃（发送方是内置受控采集页，此门为兜底而非信任前提） */
-const CHUNK_MAX_BYTES = 16 * 1024 * 1024
+/** 兜底顺延上限：分块持续到达（末块冲刷上行中）时的最长额外等待（10 窗 = 15s），
+ * 防异常流永不确定稿（MP4 化复审 20261021123907 中-2） */
+const STOP_FALLBACK_MAX_EXTENSIONS = 10
+/** 单块分片上限（复审低-4 纵深防御）：原 16MB 按 webm 周期小分块标定，MP4 化专项
+ * 放宽至 64MB——末块 stop 冲刷可显著变大；超限只可能是异常通道数据，告警后丢弃
+ * （发送方是内置受控采集页，此门为兜底而非信任前提） */
+const CHUNK_MAX_BYTES = 64 * 1024 * 1024
 /** 停止原因（settle 反馈文案选择）：用户停止 / 关被录 Tab / 切走（切 Tab、切会话、销毁） */
 type StopReason = 'user' | 'tab-closed' | 'tab-moved' | 'auto'
 
@@ -89,7 +94,8 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
   /** 录制中锚定窗（F''：manager 弹层收起按录制态分派应用矩形）；idle 为 null */
   getRecordedWindowId: () => string | null
 } {
-  // 启动期清扫（复审低-5）：上轮崩溃/失败保留下来的半截 .webm.part 孤儿——应用启动
+  // 启动期清扫（复审低-5）：上轮崩溃/失败保留下来的半截 .part 孤儿——现行 .mp4.part
+  // 加旧版 .webm.part 遗留一次性兼容（MP4 化专项 20261020184445）——应用启动
   // 期无并发录制，恒安全；逐个 unlink 不清目录本身，目录不存在静默跳过，单个删除
   // 失败仅告警。fire-and-forget 不阻塞下方 IPC 注册
   void (async () => {
@@ -104,7 +110,7 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
       return
     }
     for (const name of entries) {
-      if (!name.endsWith('.webm.part')) continue
+      if (!name.endsWith(`${RECORDING_FILE_EXT}.part`) && !name.endsWith('.webm.part')) continue
       try {
         await unlink(join(deps.tmpDir, name))
       } catch (error) {
@@ -127,6 +133,13 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
   let pendingStopReason: StopReason = 'user'
   // 被录锚定窗（begin 时的发起窗作用域）：Tab 级生命周期事件仅响应同窗（审查中-9）
   let recordedWindowId: string | null = null
+  // 最近分块到达时刻（begin 置起点、onChunk 顺延）：停止兜底「分块仍在到达即顺延」的判据
+  let lastChunkAt = 0
+  // 落盘统计（begin 复位、settle 成功点单行输出）：分块数/总字节/最大单块——MP4 化
+  // 复审中-2 的实证面，长录分块尺寸分布无需插桩即可追溯
+  let statsCount = 0
+  let statsBytes = 0
+  let statsMax = 0
 
   const broadcast = (state: CaptureState): void => {
     for (const win of BrowserWindow.getAllWindows()) {
@@ -162,6 +175,12 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
     try {
       await w.drain()
       const { path } = await w.finalize()
+      // 落盘统计单行留痕（MP4 化复审中-2 实证面）：长录分块尺寸分布可追溯
+      console.log(
+        '[recording] 落盘完成:',
+        path,
+        `（${statsCount} 块 / 共 ${statsBytes} 字节 / 最大单块 ${statsMax} 字节）`
+      )
       if (!suppressDialog) showInfoBox(deps.getMainWindow, messageForReason(reason)(path))
     } catch (error) {
       console.warn('[recording] finalize 失败:', error)
@@ -212,14 +231,24 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
     pendingStopReason = reason
     const gen = generation
     collector?.sendCommand('stop')
-    setTimeout(() => {
-      // 兜底：onstopped 未达（被录页销毁连带流终止/采集器渲染进程死）强制收尾；
-      // 代际比对（新 begin 已递增）+ 残留判据（collector/writer 已被正常路径清空则跳过）
-      if (generation === gen && (collector !== null || writer !== null)) {
-        console.warn('[recording] onstopped 未达，兜底强制收尾')
-        void settle()
+    // 兜底（MP4 化复审中-2 改造）：onstopped 未达（被录页销毁连带流终止/采集器渲染
+    // 进程死）强制收尾。分块仍在到达（idle < 窗口）说明末块冲刷上行进行中，顺延再查
+    // ——chunkChain 使 stopped 晚于分块上行，固定短窗会抢跑截尾；顺延次数封顶防异常
+    // 流永不确定稿。代际比对（新 begin 已递增）+ 残留判据（已正常收尾则跳过）
+    let fallbackExtensions = 0
+    const fallbackCheck = (): void => {
+      if (generation !== gen) return
+      if (collector === null && writer === null) return
+      const idleMs = Date.now() - lastChunkAt
+      if (idleMs < STOP_FALLBACK_MS && fallbackExtensions < STOP_FALLBACK_MAX_EXTENSIONS) {
+        fallbackExtensions += 1
+        setTimeout(fallbackCheck, STOP_FALLBACK_MS - idleMs)
+        return
       }
-    }, STOP_FALLBACK_MS)
+      console.warn('[recording] onstopped 未达，兜底强制收尾（顺延', fallbackExtensions, '次）')
+      void settle()
+    }
+    setTimeout(fallbackCheck, STOP_FALLBACK_MS)
   }
 
   ipcMain.handle(
@@ -289,6 +318,10 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
       generation += 1
       pendingStopReason = 'user'
       recordedWindowId = scope.windowId
+      lastChunkAt = Date.now()
+      statsCount = 0
+      statsBytes = 0
+      statsMax = 0
       collector?.destroy()
       for (const ch of Object.values(COLLECTOR_CHANNELS)) ipcMain.removeHandler(ch)
       // 会话名锚定（复审中-2）：命名是尽力而为语义，读盘失败不让其击穿录制流程——
@@ -324,9 +357,16 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
             },
             onChunk: (buf) => {
               if (!(buf instanceof ArrayBuffer)) return
-              // 复审低-4 纵深防御：单块超上限直接丢弃（正常 500ms timeslice 块远
-              // 小于此，超限只可能是异常通道数据）
-              if (buf.byteLength > CHUNK_MAX_BYTES) return
+              lastChunkAt = Date.now()
+              // 复审低-4 纵深防御：单块超上限告警后丢弃（MP4 化后末块 stop 冲刷可
+              // 显著变大，超限只可能是异常通道数据，但丢失必须留痕——复审中-1/低-4）
+              if (buf.byteLength > CHUNK_MAX_BYTES) {
+                console.warn('[recording] 单块超上限丢弃:', buf.byteLength, '字节')
+                return
+              }
+              statsCount += 1
+              statsBytes += buf.byteLength
+              if (buf.byteLength > statsMax) statsMax = buf.byteLength
               void writer?.append(new Uint8Array(buf)).catch((error: unknown) => {
                 console.warn('[recording] 分块写入失败:', error)
               })

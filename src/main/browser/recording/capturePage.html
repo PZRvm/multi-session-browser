@@ -13,6 +13,12 @@
       // 本页与主进程的全部通信经 preload 暴露的 window.__msbCapture（capturePreload.ts）。
       ;(() => {
         const cap = window.__msbCapture
+        // 上行 invoke 的拒绝只发生在通道已注销（主进程已回收采集器）场景——届时无上报
+        // 对象，统一静默豁免防 unhandledrejection 噪音（MP4 化复审 20261021123907 低-5）；
+        // saveChunk 不经此豁免：其拒绝是链内上报 reportError 的信号
+        const ignore = (p) => {
+          if (p && typeof p.catch === 'function') p.catch(() => {})
+        }
         let recorder = null
         // 就绪前指令排队（审查高-2① + 二审中-1 修复）：页面加载/getDisplayMedia 握手
         // 窗口内到达的指令不丢弃——stop 排队后不再 start（该录制被取消）；pause 排队
@@ -36,7 +42,7 @@
               recorder.stop()
             }
           } catch (err) {
-            cap.reportError('command ' + cmd + ': ' + String(err))
+            ignore(cap.reportError('command ' + cmd + ': ' + String(err)))
           }
         })
         ;(async () => {
@@ -48,28 +54,41 @@
             if (pendingStop) {
               // 排队中的 stop：不 start，直接收尾上报（tracks 释放 + stopped）
               stream.getTracks().forEach((t) => t.stop())
-              cap.reportStopped()
+              ignore(cap.reportStopped())
               return
             }
-            recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' })
-            recorder.ondataavailable = async (e) => {
+            // 封装 MP4（2026-10-20 用户裁决，计划 20261020184445）：Chromium 126+ 起
+            // MediaRecorder 原生 MP4（H.264），Electron 39/Chromium 142 实测 isTypeSupported
+            // 为 true；不支持环境构造即抛，经 reportError 走既有启动失败路径如实报错，
+            // 不做 webm 回退（回退需把所选容器上行主进程同步扩展名，见计划 2.2）
+            recorder = new MediaRecorder(stream, { mimeType: 'video/mp4;codecs=avc1' })
+            // 分块上行串行链（MP4 化专项 20261020184445 修复）：saveChunk 原为未 await
+            // 的浮动 Promise，MP4 封装把数据留到 stop 冲刷，末块会与 onstop 的
+            // reportStopped 竞速——主进程 settle 见 stopped 即 finalize，晚到的分块
+            // 落空即整段丢失（静态页全部分块都在 stop 冲刷，竞态必输）。链式串行 +
+            // onstop 等链排空后再上报，保证分块恒先于 stopped 到达主进程
+            let chunkChain = Promise.resolve()
+            recorder.ondataavailable = (e) => {
               if (e.data && e.data.size > 0) {
-                try {
-                  // Blob → ArrayBuffer：contextBridge 结构化克隆对二进制缓冲稳定
-                  cap.saveChunk(await e.data.arrayBuffer())
-                } catch (err) {
-                  cap.reportError('chunk: ' + String(err))
-                }
+                chunkChain = chunkChain.then(async () => {
+                  try {
+                    // Blob → ArrayBuffer：contextBridge 结构化克隆对二进制缓冲稳定
+                    await cap.saveChunk(await e.data.arrayBuffer())
+                  } catch (err) {
+                    ignore(cap.reportError('chunk: ' + String(err)))
+                  }
+                })
               }
             }
             recorder.onerror = () => {
-              cap.reportError('mediarecorder error')
+              ignore(cap.reportError('mediarecorder error'))
             }
             recorder.onstop = () => {
               stream.getTracks().forEach((t) => t.stop())
-              cap.reportStopped()
+              // chunkChain 链内已把错误转 reportError、自身永不 reject，排空即末块已上行
+              void chunkChain.then(() => ignore(cap.reportStopped()))
             }
-            cap.ready()
+            ignore(cap.ready())
             recorder.start(500)
             if (pendingPause) {
               // 排队的 pause：start 后立即暂停（首帧后即停），暂停段不落帧
@@ -77,7 +96,7 @@
               pendingPause = false
             }
           } catch (err) {
-            cap.reportError('start: ' + String(err))
+            ignore(cap.reportError('start: ' + String(err)))
           }
         })()
       })()

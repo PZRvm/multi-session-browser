@@ -8,7 +8,7 @@
 // 故障不该被当成「名字可用」，且 POSIX rename 会静默覆盖既有目标，误判有覆盖
 // 风险）。时间戳格式两线本就相同（YYYYMMDD-HHmmss 本地时区）。
 // 调用方保留各自的命名源策略与时间锚点语义（截图 = 保存时刻 / .png，录屏 =
-// 开始时刻 / .webm）。纯 Node 无 electron 依赖（chromeImport 纯模块先例）。
+// 开始时刻 / .mp4）。纯 Node 无 electron 依赖（chromeImport 纯模块先例）。
 
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
