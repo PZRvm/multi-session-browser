@@ -3,7 +3,8 @@ appId: com.pzrvm.multisessionbrowser
 # 三语言本地化名由 afterPack 钩子注入 .lproj/InfoPlist.strings（改名三处同步）
 productName: 多会话浏览器
 # 打包钩子：macOS 注入本地化显示名（zh_CN/zh_TW/en .lproj），系统按用户语言偏好
-# 自动挑选 Dock/菜单栏名；Windows/Linux 消费上方 productName 与运行期窗口标题
+# 自动挑选 Dock/菜单栏名；签名前为 macOS 主程序派生独立稳定 UUID，避免本地网络权限串用。
+# Windows/Linux 消费上方 productName 与运行期窗口标题
 afterPack: scripts/patch-mac-display-names.js
 directories:
   buildResources: build
