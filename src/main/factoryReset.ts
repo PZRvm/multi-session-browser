@@ -112,12 +112,20 @@ export function registerFactoryResetIpc(deps: FactoryResetDeps): void {
 
       // ⑤ 偏好重置：外观 → 设置（语言态回默认在后者内闭环）；两域失败共用同一
       //    中止文案（「恢复默认设置落盘失败」），底层错误留在主进程日志
-      await runStep('外观偏好重置落盘失败', 'errors.factoryResetPreferenceWriteFailed', async () => {
-        await deps.resetAppearancePreferences()
-      })
-      await runStep('设置偏好重置落盘失败', 'errors.factoryResetPreferenceWriteFailed', async () => {
-        await resetSettingsToDefaults()
-      })
+      await runStep(
+        '外观偏好重置落盘失败',
+        'errors.factoryResetPreferenceWriteFailed',
+        async () => {
+          await deps.resetAppearancePreferences()
+        }
+      )
+      await runStep(
+        '设置偏好重置落盘失败',
+        'errors.factoryResetPreferenceWriteFailed',
+        async () => {
+          await resetSettingsToDefaults()
+        }
+      )
 
       console.log(`[factoryReset] 恢复出厂完成（销毁会话 ${ids.length} 个，工作区与偏好已重置）`)
       return { ok: true }

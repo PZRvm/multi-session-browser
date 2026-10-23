@@ -168,7 +168,11 @@ export default function SettingsWindow(): React.JSX.Element {
       }}
     >
       <div
-        className={HIDDEN_TITLEBAR_CHROME ? 'settings-window settings-window-chrome-custom' : 'settings-window'}
+        className={
+          HIDDEN_TITLEBAR_CHROME
+            ? 'settings-window settings-window-chrome-custom'
+            : 'settings-window'
+        }
         data-role="settings"
       >
         {HIDDEN_TITLEBAR_CHROME && (
