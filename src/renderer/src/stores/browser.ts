@@ -108,7 +108,8 @@ interface BrowserState {
 
 let initialized = false
 
-// 截图反馈条自动消退定时器（batchFeedback 时序先例）：success 6000ms 后置 fading
+// 截图反馈条自动消退定时器（两段时序：先置 fading 淡出态、过渡结束再摘除）：
+// success 6000ms 后置 fading
 //（2026-10-10 用户反馈：原 2400ms 偏短，需留足点「下载」的时间），再 260ms 卸载；
 // 截图反馈显隐编排（反馈轮三：反馈条由原生子窗承载——全宽贴宿主内容区顶缘、
 // 覆盖在网页上方、宿主布局零压缩〔消失即整窗 hide，无布局回弹空白〕；用户定稿：

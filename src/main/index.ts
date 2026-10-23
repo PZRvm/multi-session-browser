@@ -45,7 +45,6 @@ import {
   getBootLanguage
 } from './settings'
 import { registerFactoryResetIpc } from './factoryReset'
-import { registerShellIpc } from './shell'
 import { registerChromeImportIpc } from './browser/chromeImport'
 import { registerCaptureIpc } from './browser/capture'
 import { registerRecordingIpc, routeBrowserLifecycleToRecording } from './browser/recording'
@@ -201,8 +200,8 @@ function createWindow(): void {
   // 保留原生三灯并经 trafficLightPosition 定位到左侧板头行左端（x 与板头内边距对齐，
   // y 居中于板头行：板头契约高 40px、灯高 16px，(40-16)/2=12——魔法数与板头高度强
   // 耦合（app.css .board-head 头注登记对账），板头内容高度变化时须连本校准复核，
-  // review 20260920161302 低-3 留痕；侧边栏收起态经 shell:set-native-window-buttons-
-  // visible 整组隐藏、展开恢复，见 shared/shell.ts）；
+  // review 20260920161302 低-3 留痕；侧边栏收起态的三灯整组隐藏联动已随 2026-10-23
+  // 收起功能退役删除，三灯恒显）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）。
   // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担。Windows/Linux 不携带
   // query、保持系统框原形态（平台惯例沿用）
@@ -442,7 +441,8 @@ app.whenReady().then(async () => {
   // 注册表；会话侧编排回调在此注入（签名按计划第 3 节契约点 3/4 冻结，内联声明）——
   // 切换会话即切换浏览器（视图交换保活），删除先级联切换再异步销毁清分区，
   // 状态拉取（get-statuses）兜底启动期推送竞态；阶段 5 增量：克隆分区复制（close-then-copy）、
-  // 批量关闭选中（一次切到级联激活 + 逐会话销毁）、批量打开测试地址（逐会话新 Tab，后台摘 view）
+  // 批量关闭选中（一次切到级联激活 + 逐会话销毁——2026-10-23 批量模式退役后由工作区
+  // 删除「删除全部会话」处置触发）；batch-open-url 编排已随批量退役删除
   registerBrowserIpc(created, {
     getMainWindow: () => mainWindow,
     windows: independentWindows,
@@ -451,10 +451,7 @@ app.whenReady().then(async () => {
   })
   registerAppearanceIpc(appearanceController)
   registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
-  // 窗口壳域（侧边栏收起态专项）：whenReady 一次性注册、独立于 createWindow 重入
-  // （macOS 关窗重开时 createWindow 会再跑，固定 win 引用二次注册即抛）；sender
-  // 白名单 = 现取主窗，收起态隐藏/展开恢复原生三灯
-  registerShellIpc({ getMainWindow: () => mainWindow })
+  // 窗口壳域（shell.ts）已随 2026-10-23 侧边栏收起态退役整体删除
   // 设置值域四通道（阶段四 get/changed/set-homepage + 阶段六 set-language）：无 sender
   // 白名单（对齐外观域先例，入参值守卫承担），changed 经 getAllWindows 全推；
   // set-language 成功链在 settings.ts 内闭环（落盘 + 语言缓存 + 主进程语言态——菜单
@@ -527,8 +524,6 @@ app.whenReady().then(async () => {
         })
       }
     },
-    // 批量打开测试地址：逐会话懒创建 manager 并新建 Tab（后台会话摘 view 保活后台加载）
-    onBatchOpenUrl: (ids: string[], url: string): void => created.openUrlInSessions(ids, url),
     // 独立代理增量（步骤 2）：set-proxy 落盘成功后按落盘值应用到该会话分区（引擎幂等，
     // proxy 传 null = 清除回直连）；handler 侧 await + 告警，失败由激活链兜底补应用
     onProxyChanged: (id: string, proxy: SessionProxyConfig | null): Promise<void> =>

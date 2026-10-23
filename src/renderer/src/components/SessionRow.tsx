@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { App, Checkbox, Input, Tooltip } from 'antd'
+import { App, Input, Tooltip } from 'antd'
 import { MoreOutlined } from '@ant-design/icons'
 import { useT } from '../i18n'
 import { confirmDestructive } from '../dialogs'
@@ -114,18 +114,14 @@ function useNoteTip(): NoteTipApi {
 
 interface SessionRowProps {
   session: SessionItem
-  batchMode: boolean
-  checked: boolean
   cloning: boolean
-  // 拖拽排序（面板级手势的面注入）：dragEnabled = 普通态（批量态整列禁拖）；
-  // 行内编辑态由本组件并入 draggable；isDragSource/dropPos 只驱视觉
-  dragEnabled: boolean
+  // 拖拽排序（面板级手势的面注入）：isDragSource/dropPos 只驱视觉，可拖性由本组件
+  // 按行内编辑态收敛（编辑中禁拖）
   isDragSource: boolean
   dropPos: 'before' | 'after' | null
   // 「全部会话」视野下在第二行行首显示归属标记（工作区名或「未分组」）；
   // 工作区视野内全员同归属，不渲染标记
   wsTag: string | null
-  onToggleCheck: (id: string) => void
   onClone: (id: string) => Promise<void>
   onMove: (session: SessionItem) => void
   /** 打开该会话的代理设置原生 sheet（编排与失败反馈在 SessionPanel，onMove 同构） */
@@ -136,14 +132,10 @@ interface SessionRowProps {
 
 function SessionRow({
   session,
-  batchMode,
-  checked,
   cloning,
-  dragEnabled,
   isDragSource,
   dropPos,
   wsTag,
-  onToggleCheck,
   onClone,
   onMove,
   onProxySettings,
@@ -175,12 +167,11 @@ function SessionRow({
   // 菜单在壳层文档内，永远画在页面 WebContentsView 之下——锁进面板则被面板宽度
   // 挤压换行、探出左栏则被原生层裁切，两版均被否。原生菜单 OS 级绘制可盖在页面
   // 上方（用户裁决允许），且点任意位置（含页面区）关闭，找回全区域外点关闭能力。
-  // 2026-10-20 统一裁决：右键与 ⋮ 弹同一全量菜单；触发口径逐字保留——批量态不弹，
-  // 行右键编辑态不弹（旧 trigger 置空口径，编辑态 gate 在调用点）、⋮ 编辑态可弹
-  //（审查低-4：静默无响应不可接受）。坐标 = 视口坐标（窗口内容坐标，Menu.popup
+  // 2026-10-20 统一裁决：右键与 ⋮ 弹同一全量菜单；触发口径——行右键编辑态不弹
+  //（旧 trigger 置空口径，编辑态 gate 在调用点）、⋮ 编辑态可弹（审查低-4：静默
+  // 无响应不可接受）。坐标 = 视口坐标（窗口内容坐标，Menu.popup
   // 直接消费）；⋮ 用按钮矩形左下角（键盘触发时点击坐标为 0）
   const requestRowMenu = (pos: { x: number; y: number }): void => {
-    if (batchMode) return
     window.api.sessions.popupRowMenu({ id: session.id, x: pos.x, y: pos.y })
   }
 
@@ -220,11 +211,8 @@ function SessionRow({
     return off
   }, [session.id])
 
-  // 批量态行：勾选行背景常驻 raised；激活反白（selected）不渲染——反白语义专属
-  // 单选激活，批量态不激活，当前激活会话由右侧浏览器表明
-  const rowClass = batchMode
-    ? `session-row${checked ? ' batch-checked' : ''}`
-    : `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
+  // 激活反白（selected）语义专属单选激活
+  const rowClass = `session-row${selected ? ' selected' : ''}${isDragSource ? ' drag-source' : ''}`
 
   return (
     <>
@@ -234,37 +222,23 @@ function SessionRow({
         // 行只携带身份属性与瞬态视觉态（data-drop-pos 驱动伪元素插入线）
         data-session-id={session.id}
         data-drop-pos={dropPos ?? undefined}
-        draggable={dragEnabled && mode === 'none'}
+        draggable={mode === 'none'}
         tabIndex={0}
-        // 批量态声明 checkbox 语义（aria-checked 才对辅助技术可达）；非批量态保持
-        // 默认 listitem + aria-current 的激活语义
-        role={batchMode ? 'checkbox' : undefined}
-        aria-current={!batchMode && selected ? 'true' : undefined}
-        aria-checked={batchMode ? checked : undefined}
+        aria-current={selected ? 'true' : undefined}
         onClick={() => {
-          if (batchMode) onToggleCheck(session.id)
-          else selectSession(session.id)
+          selectSession(session.id)
         }}
         onContextMenu={(e) => {
           // 行右键 → 主进程系统原生菜单（2026-10-15 反馈轮四）：OS 级绘制盖过页面
-          // 原生层，可盖在浏览器区上方且点任意位置关闭；批量态/编辑态不弹（旧
+          // 原生层，可盖在浏览器区上方且点任意位置关闭；编辑态不弹（旧
           // trigger 置空口径，preventDefault 恒生效压制系统默认菜单）
           e.preventDefault()
           if (mode !== 'none') return
           requestRowMenu({ x: e.clientX, y: e.clientY })
         }}
         onKeyDown={(e) => {
-          if (batchMode) {
-            // 复选框等内部控件自带键盘语义，行级不再处理，避免双切抵消
-            if (e.target !== e.currentTarget) return
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              onToggleCheck(session.id)
-            }
-            return
-          }
           // 编辑态/内部控件按键不归行级：Input 内 Enter/Space 会冒泡至此，无守卫会
-          // 吞空格字符并顺带切换会话（审查高 1）——镜像批量态分支的 target 守卫
+          // 吞空格字符并顺带切换会话（审查高 1）——target 守卫
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -273,12 +247,6 @@ function SessionRow({
         }}
       >
         <div className="session-row-main">
-          {batchMode && (
-            // 复选框自身点击/空格即切勾选，阻止冒泡防止行级再切一次
-            <span className="session-check" onClick={(e) => e.stopPropagation()}>
-              <Checkbox checked={checked} onChange={() => onToggleCheck(session.id)} />
-            </span>
-          )}
           <span className={`session-dot ${session.status}`} />
           {mode === 'name' ? (
             <Input
@@ -375,22 +343,20 @@ function SessionRow({
           <span className={`session-status ${cloning ? 'loading' : session.status}`}>
             {cloning ? t('sessions.sessionRow.status.cloning') : statusText[session.status]}
           </span>
-          {!batchMode && (
-            <button
-              type="button"
-              className="session-menu"
-              aria-label={t('sessions.sessionRow.menuAria')}
-              onClick={(e) => {
-                // ⋮ 全量菜单（2026-10-20 与右键统一）：锚在按钮左下角（键盘激活时
-                // 点击坐标为 0，退回按钮矩形）；stopPropagation 防行级再切会话
-                e.stopPropagation()
-                const rect = e.currentTarget.getBoundingClientRect()
-                requestRowMenu({ x: rect.left, y: rect.bottom })
-              }}
-            >
-              <MoreOutlined />
-            </button>
-          )}
+          <button
+            type="button"
+            className="session-menu"
+            aria-label={t('sessions.sessionRow.menuAria')}
+            onClick={(e) => {
+              // ⋮ 全量菜单（2026-10-20 与右键统一）：锚在按钮左下角（键盘激活时
+              // 点击坐标为 0，退回按钮矩形）；stopPropagation 防行级再切会话
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              requestRowMenu({ x: rect.left, y: rect.bottom })
+            }}
+          >
+            <MoreOutlined />
+          </button>
         </div>
       </li>
     </>

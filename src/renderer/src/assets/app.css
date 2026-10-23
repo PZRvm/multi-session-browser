@@ -1129,9 +1129,10 @@ select.picker-input {
   background: var(--accent-press);
 }
 
-/* ---------- 批量模式 ---------- */
+/* ---------- 板头控件带 ---------- */
 
-/* 板头右端分组：外观 / 批量入口与会话计数同组靠右 */
+/* 板头右端分组：外观入口与会话计数同组靠右
+   （批量入口已于 2026-10-23 随批量多选功能退役删除） */
 .board-head-right {
   display: inline-flex;
   align-items: center;
@@ -1142,9 +1143,8 @@ select.picker-input {
   -webkit-app-region: no-drag;
 }
 
-/* 两枚板头入口共享 20×20 度量；批量激活态才使用琥珀点级信号 */
-.appearance-toggle,
-.batch-toggle {
+/* 板头外观入口：20×20 度量 */
+.appearance-toggle {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -1163,24 +1163,17 @@ select.picker-input {
   transition: background-color 0.12s ease;
 }
 
-.appearance-toggle:not(:disabled):hover,
-.batch-toggle:not(:disabled):hover {
+.appearance-toggle:not(:disabled):hover {
   background: var(--board-bg-raised);
 }
 
-.batch-toggle.active {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-/* 外观保存中与零会话批量入口的禁用态 */
-.appearance-toggle:disabled,
-.batch-toggle:disabled {
+/* 外观保存中的禁用态 */
+.appearance-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
 
-/* 板头设置齿轮（设置专项阶段一）：度量镜像上方两枚板头入口（20×20 / 4px 圆角 /
+/* 板头设置齿轮（设置专项阶段一）：度量镜像板头外观入口（20×20 / 4px 圆角 /
    12px 图标字阶），hover 走蒙版抬升 + 主墨（设置专项定稿态：次墨 → hover
    board-hover-veil + board-ink）；无禁用态——入口恒可用（单例开窗无失效场景，
    亦不随左栏宽度降级），:focus-visible 走全局强调色外框规则 */
@@ -1273,143 +1266,8 @@ select.picker-input {
   white-space: nowrap;
 }
 
-/* 行首复选框：行整列即勾选热区，复选框自身点击/空格亦切 */
-.session-check {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* 勾选行背景常驻 raised；未勾选行维持 board-bg（默认透明叠底）。
-   批量态不渲染 .selected 反白——激活语义专属单选模式 */
-.session-row.batch-checked {
-  background: var(--board-bg-raised);
-}
-
-/* 板脚批量操作栏（整体替换新建按钮区） */
-.batch-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.batch-bar-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.batch-bar-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.batch-count {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--board-ink-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.batch-select-all,
-.batch-move-btn {
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  padding: 0 6px;
-  height: 20px;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--board-ink);
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-
-.batch-select-all:hover {
-  background: var(--board-bg-raised);
-}
-
-/* 批量移动次级钮（2026-09-17 增量，形态契约见 DESIGN「批量模式」条目）：与
-   select-all 同族文字钮（12px board-ink、hover 抬升）；窄栏图标变体收 20×20
-   居中（响应式降级由 panelWidth 驱动切 class，非媒体查询） */
-.batch-move-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.batch-move-btn:hover:not(:disabled) {
-  background: var(--board-bg-raised);
-}
-
-.batch-move-btn:disabled {
-  color: var(--board-ink-dim);
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.batch-move-btn.batch-move-icon {
-  width: 20px;
-  padding: 0;
-  font-size: 12px;
-}
-
-/* 批量移动反馈条（板脚操作栏底部一行）：成功次墨短暂显示（JS 2.4s 后移除）、
-   失败 danger 持续至下一次操作；min-height 防出现/消失时操作栏跳动 */
-.batch-feedback {
-  min-height: 16px;
-  font-size: 11px;
-  color: var(--board-ink-dim);
-  padding: 0 2px;
-  transition: opacity 0.24s ease;
-}
-
-.batch-feedback-fading {
-  opacity: 0;
-}
-
-.batch-feedback-danger {
-  color: var(--danger);
-}
-
-/* 批量移动弹层（同一 Modal 器件的批量变体）：说明行 + 目标行右端计数徽标。
-   .ws-move-item 挂在 antd Button 根上（自有类名，不触 .ant-* 内部）——flex
-   两端对齐让名称与「n / N 在此」徽标分列左右 */
-.batch-move-sub {
-  margin: 0 0 12px;
-  font-size: 11px;
-  color: var(--board-ink-dim);
-}
-
-.ws-move-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* antd 以 .css-hash.ant-btn（0,2,0）注入按钮内容对齐——列表组合选择器（0,2,1）
-   压过它实现「名称左 / 计数右」两端对齐（审查修复轮中 2），不引用 .ant-* 类名 */
-.ws-move-list button.ws-move-item {
-  justify-content: space-between;
-}
-
-.ws-move-count {
-  font-size: 11px;
-  color: var(--board-ink-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.batch-move-error {
-  margin: 12px 0 0;
-  font-size: 11px;
-  color: var(--danger);
-}
+/* 批量态行（.session-check/.session-row.batch-checked/.batch-bar 族/.ws-move 旧弹层）
+   样式已于 2026-10-23 随批量多选功能退役删除 */
 
 /* 导入 Chrome 数据 sheet（导入专项反馈轮原生化，chrome-import-select/conflict kind）：
    复用 picker-form/foot/btn 语系；纵向度量与 shared/dialog.ts CHROME_IMPORT_* 常量
@@ -3111,149 +2969,12 @@ body[data-role='capture-feedback'] {
   color: var(--chrome-ink-dim);
 }
 
-/* URL 弹层行内错误提示（整单拒绝时保持弹层开启）：12px 次墨级红字提示，
-   无新色 token 之外的颜色——antd error 语义由 Input status=error 承担，此处仅排版 */
-.batch-url-invalid {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--board-ink-dim);
-}
+/* .batch-url-invalid（URL 弹层行内错误提示）已于 2026-10-23 随批量多选退役删除 */
 
-/* ---------- 侧边栏收起态（2026-09-28 专项，契约冻结于
-   notes/plans/20260928143655 2.4 节；反馈轮二定稿）：48px 窄轨——收起态原生三灯
-   整组隐藏、左上角仅剩自绘关闭点，板头右侧留展开/收起钮，工作区条整条不渲染
-   （JSX 层），列表退化为状态点行，板脚为撑满的小图标新建钮。布局态（collapsed）
-   由 App.tsx MainShell 持有，本节只管轨道内的视觉；瞬切无过渡（离散跳变先例） */
-
-/* 收起态解除可拖宽的 220/420 钳制：内联宽度即轨道宽 48px（App.tsx
-   PANEL_COLLAPSED_WIDTH），min-width 不放开则内联值被钳到 220 */
-.panel-left-collapsed {
-  min-width: 0;
-  max-width: none;
-}
-
-/* 板头收起/展开钮：度量与交互镜像 settings-toggle 族（20×20 / 4px 圆角 /
-   12px 图标字阶 / hover 蒙版抬升 + 主墨）；布局级控件不参与琥珀信号 */
-.collapse-toggle {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--board-ink-dim);
-  font-size: 12px;
-  cursor: pointer;
-  /* 板头内使用处自带 no-drag（同 .batch-toggle 注）；.collapse-row 使用处不在拖拽带，声明冗余无害 */
-  -webkit-app-region: no-drag;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-.collapse-toggle:hover {
-  background: var(--board-hover-veil);
-  color: var(--board-ink);
-}
-
-/* 自绘关闭点（收起态 macOS 专属，2026-09-28 反馈轮二「左上角只保留关闭按钮」）：
-   原生三灯整组隐藏（shell:set-native-window-buttons-visible）后的窗口关闭口——
-   12px 圆点复刻 macOS 关闭灯（#ff5f57 为平台常量非主题 token，昼夜同值），
-   hover 显 ×（双 45° 渐变细线），点击 window.close() 直关自身（a49bcae 先例） */
-.self-close {
-  position: relative;
-  flex: none;
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 50%;
-  background: #ff5f57;
-  cursor: pointer;
-  /* 板头整行是拖拽带（.board-head app-region: drag），本钮是其直接子元素——不豁免
-     则点击/悬停全被窗口拖拽吞掉（反馈轮五：收起态关闭点无法点击根因），对齐
-     .board-head-right 的 no-drag 豁免惯例 */
-  -webkit-app-region: no-drag;
-}
-
-.self-close::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  opacity: 0;
-  background:
-    linear-gradient(
-      45deg,
-      transparent 44%,
-      rgba(77, 0, 0, 0.6) 44%,
-      rgba(77, 0, 0, 0.6) 56%,
-      transparent 56%
-    ),
-    linear-gradient(
-      -45deg,
-      transparent 44%,
-      rgba(77, 0, 0, 0.6) 44%,
-      rgba(77, 0, 0, 0.6) 56%,
-      transparent 56%
-    );
-  transition: opacity 0.12s ease;
-}
-
-.self-close:hover::after {
-  opacity: 1;
-}
-
-/* 收起态展开钮所在行（反馈轮三：占原工作区条槽位——板头下方 40px 行、底部发丝线
-   收边与工作区条同节奏；下拉框隐藏后展开钮占其位，双平台一致）。反馈轮四：钮撑满
-   行容器（父容器无内距，48×40 整格热区，直角——与板脚撑满新建钮同语言） */
-.collapse-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  border-bottom: 1px solid var(--board-hairline);
-}
-
-.collapse-row .collapse-toggle {
-  width: 100%;
-  height: 40px;
-  border-radius: 0;
-}
-
-/* 状态点行：40px 方热区、点居中；行间发丝线在窄轨上是逐行噪音（hover 蒙版
-   与反白已足以划行），摘除 */
-.session-row-collapsed {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0;
-  border-bottom: none;
-}
-
-/* 激活轨道行 = 琥珀反白整条（.session-row.selected 既有底色生效）；反白底上
-   空闲点转强调墨（展开态 .session-row.selected .session-dot.idle 同款），加载
-   点的 loading 信号色与琥珀底同族对比不足，一并转强调墨、脉冲动画保留 */
-.session-row-collapsed.selected .session-dot.idle,
-.session-row-collapsed.selected .session-dot.loading {
-  background: var(--accent-ink);
-}
-
-/* 板脚小图标新建钮（反馈轮二「宽度撑满」+ 反馈轮三「父容器 padding 归零」+
-   反馈轮四「弧度去掉」）：.new-session 的全宽 34px 琥珀与三态 hover 全量继承
-   （板脚唯一大面积琥珀惯例原样），仅图标形态去文字间距、字阶微升、直角贴边 */
-.session-panel.collapsed .board-foot {
-  padding: 0;
-}
-
-.new-session.new-session-icon {
-  gap: 0;
-  border-radius: 0;
-  font-size: 15px;
-}
+/* ---------- 侧边栏收起态（2026-09-28 专项）已于 2026-10-23 用户裁决整体退役删除 ----------
+   原 48px 窄轨段（.panel-left-collapsed/.collapse-toggle/.self-close/.collapse-row/
+   .session-row-collapsed/.new-session-icon 与 shell:set-native-window-buttons-visible
+   联动）全部移除；展开态恒态（.traffic-spacer 等不受影响） */
 
 /* ============================================================
    截图编辑子窗（.chrome-capture-editor-* 系，截图编辑器专项步骤 5/6 新增段；

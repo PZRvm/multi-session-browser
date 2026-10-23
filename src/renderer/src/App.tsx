@@ -13,39 +13,18 @@ import { applyThemeTokens } from './theme'
 const PANEL_MIN = 220
 const PANEL_MAX = 420
 const PANEL_DEFAULT = 280
-/* 收起态轨道宽（2026-09-28 侧边栏收起专项，契约冻结于
-   notes/plans/20260928143655 2.4 节；反馈轮二定稿 48px——收起态原生三灯整组隐藏
-   （shell:set-native-window-buttons-visible，左上角仅剩自绘关闭点），灯组宽度不再
-   是轨道下限） */
-const PANEL_COLLAPSED_WIDTH = 48
 
 // 主窗口 shell：左会话面板 + 分隔条 + 右浏览器区；面板拖拽逻辑内聚于此——
 // 独立窗口形态不渲染本组件，分隔条与其全局指针监听也随之不挂接。
 // HTML 全屏（视频全屏等）期间左栏与分隔条不渲染（Chrome 对齐，快照 htmlFullscreen
 // 驱动）；panel-right flex:1 自然占满整宽，退出后随快照回落复原。
-// 收起态（collapsed）为渲染层瞬态 UI 态：不持久化，重启恢复展开态（与 panelWidth
-// 不落盘同口径）；收起只换轨道宽，panelWidth 原值保留、展开即原宽恢复；
-// 收起期间分隔条不渲染（轨道恒宽不可拖，展开/收起只经板头按钮）
+// 侧边栏收起态（collapsed，2026-09-28 专项）已于 2026-10-23 用户裁决整体退役删除，
+// 左栏宽度回归 panelWidth 单源。
 function MainShell(): React.JSX.Element {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
-  const [collapsed, setCollapsed] = useState(false)
   const dragging = useRef(false)
   const t = useT()
-  const { message } = AntdApp.useApp()
   const htmlFullscreen = useBrowserStore((s) => s.htmlFullscreen)
-
-  // 收起/展开切换：先以当前渲染闭包的 collapsed 定序再提交——IPC 副作用不进
-  // setState updater（updater 须纯，StrictMode dev 双调用会重复发 IPC——审查
-  // 20260928165442 中 2）；失败经 message.warning 反馈（审查低 6，原 console.warn
-  // 为不可感知的静默）
-  const toggleCollapsed = (): void => {
-    const next = !collapsed
-    setCollapsed(next)
-    window.api.shell.setNativeWindowButtonsVisible({ visible: !next }).catch(() => {
-      console.warn('收起态原生三灯显隐切换失败:', next)
-      message.warning(t('sessions.panel.shellToggleFailed'))
-    })
-  }
 
   const onPointerMove = useCallback((e: PointerEvent): void => {
     if (!dragging.current) return
@@ -81,18 +60,11 @@ function MainShell(): React.JSX.Element {
   return (
     <div className="app-shell">
       {!htmlFullscreen && (
-        <div
-          className={`panel-left${collapsed ? ' panel-left-collapsed' : ''}`}
-          style={{ width: collapsed ? PANEL_COLLAPSED_WIDTH : panelWidth }}
-        >
-          <SessionPanel
-            panelWidth={panelWidth}
-            collapsed={collapsed}
-            onToggleCollapse={toggleCollapsed}
-          />
+        <div className="panel-left" style={{ width: panelWidth }}>
+          <SessionPanel panelWidth={panelWidth} />
         </div>
       )}
-      {!htmlFullscreen && !collapsed && (
+      {!htmlFullscreen && (
         <div
           className="panel-divider"
           role="separator"

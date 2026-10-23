@@ -35,7 +35,6 @@ interface SessionsState {
   // set-note 空串清除先例）；返回是否成功（false = IPC 失败，徽标态保持原样）
   setSessionProxy: (id: string, proxy: SessionProxyConfig | null) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
-  batchOpenUrl: (ids: string[], url: string) => Promise<boolean>
   // 返回是否成功：整单拒绝或 IPC 失败返回 false，供调用方呈现中文失败反馈
   reorderSessions: (ids: string[]) => Promise<boolean>
   // 工作区列表排序（拖动排序专项）：全序整单提交；返回是否成功（失败回主进程权威序）
@@ -47,10 +46,6 @@ interface SessionsState {
   renameWorkspace: (id: string, name: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
   moveSessionToWorkspace: (sessionId: string, workspaceId: string | null) => Promise<boolean>
-  moveSessionsToWorkspace: (
-    sessionIds: string[],
-    workspaceId: string | null
-  ) => Promise<{ moved: number; skipped: number } | null>
 }
 
 let initialized = false
@@ -255,7 +250,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  // 批量关闭选中：主进程整单校验，成功即本地按同一集合原子移除。级联切换的快照推送
+  // 删除选中会话集（原批量关闭；2026-10-23 批量模式退役后由工作区删除「删除全部会话」
+  // 处置编排消费）：主进程整单校验，成功即本地按同一集合原子移除。级联切换的快照推送
   // 在 deleteBatch 回复之前到达（推送时本地 activeId 仍旧值，被守卫丢弃），故本地更新
   // 后必须重拉浏览器快照对齐（模式照 removeSession）；activeId 级联规则与主进程一致——
   // 选中集含激活会话时指向剩余首项（无剩余则 null）
@@ -362,18 +358,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  // 批量打开测试地址：无本地快照变更——各会话新 Tab 的快照经 statusChanged 推送
-  // 与激活路径自然到达。url 非空由调用方（弹层确定钮）保证；与 navigate 同规，
-  // 失败不吞错返回 false，供弹层展示行内错误提示（整单拒绝时无部分打开）
-  batchOpenUrl: async (ids, url) => {
-    try {
-      await window.api.sessions.batchOpenUrl({ ids, url })
-      return true
-    } catch (error) {
-      console.error('批量打开测试地址失败', error)
-      return false
-    }
-  },
+  // 批量打开测试地址动作（batchOpenUrl）已于 2026-10-23 随批量多选功能退役删除
 
   // 拖拽排序：只接受与当前本地列表相同 ID 集合的全序（防陈旧顺序覆盖并发新建/删除）。
   // 无变化直接短路返回 true（相邻无位移/拖回原位零 IPC）；有效变化乐观换序（元素对象
@@ -556,42 +541,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } catch (error) {
       console.error('移动会话失败', error)
       return false
-    }
-  },
-
-  // 批量移动归属（批量模式板脚入口）：非乐观（主进程整单校验 + 幂等计数为真值源，
-  // moved/skipped 透传给反馈条不自算口径）；成功后逐会话镜像 workspaceId，并镜像
-  // 源工作区记忆清理——仅「确实被移出」的会话（prev != 目标）清其源工作区记忆，
-  // 已在目标的跳过项记忆不动（对齐单会话移动的镜像侧先例）。视野过滤随之自然变化
-  // （工作区视野内被移出的行消失、右侧不变）；失败返回 null，调用方 danger 呈现
-  moveSessionsToWorkspace: async (sessionIds, workspaceId) => {
-    try {
-      const result = await window.api.sessions.workspaceMoveSessionsBatch({
-        ids: sessionIds,
-        workspaceId
-      })
-      set((state) => {
-        const idSet = new Set(sessionIds)
-        const movedFrom = new Map<string, string | null>()
-        for (const s of state.sessions) {
-          if (idSet.has(s.id) && s.workspaceId !== workspaceId) {
-            movedFrom.set(s.id, s.workspaceId)
-          }
-        }
-        return {
-          sessions: state.sessions.map((s) => (idSet.has(s.id) ? { ...s, workspaceId } : s)),
-          workspaces: state.workspaces.map((w) => {
-            if (w.lastActiveSessionId != null && movedFrom.get(w.lastActiveSessionId) === w.id) {
-              return { ...w, lastActiveSessionId: null }
-            }
-            return w
-          })
-        }
-      })
-      return { moved: result.moved, skipped: result.skipped }
-    } catch (error) {
-      console.error('批量移动会话失败', error)
-      return null
     }
   }
 }))

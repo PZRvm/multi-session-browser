@@ -11,8 +11,9 @@
 //   statusChanged 全量 map 推送；renderer 先订阅后拉取（getStatuses）防启动竞态
 // - setActive 通道在主进程内附带副作用：触发浏览器切换到目标会话（编排见 registry）
 // - 阶段 5 增量：clone（分区数据+元数据复制）、deleteBatch（批量关闭=彻底删除
-//   选中会话，替代早期 delete-all）、batchOpenUrl（选中会话统一开测试地址）；
-//   通道整单校验拒绝制，无部分成功
+//   选中会话，替代早期 delete-all）；通道整单校验拒绝制，无部分成功。
+//   2026-10-23 用户裁决批量多选功能整体退役：batch-open-url 通道随功能删除；
+//   delete-batch 保留——工作区删除「删除全部会话」处置复用（WorkspaceSwitcher 编排）
 // - 阶段 6 增量：tabs（恢复用 URL 列表，顺序即创建序）+ activeTabIndex（激活位）；
 //   恢复是 URL 级——页面运行态与 DevTools 开关态不持久化（PRD 3.6.4）
 // - 会话列表排序增量（2026-09-18 专项）：reorder（全序 ids 整单校验拒绝制——格式
@@ -26,12 +27,8 @@
 //   workspaceId（undefined = create 落未分组 / clone 落源会话归属）；归属独占制，
 //   会话 workspaceId 为 string | null（null = 未分组）；删除工作区必留会话（降级
 //   未分组）；视野与激活正交——除 workspaceSetActive 级联外 activeId 不因视野变化
-// - 批量移动增量（2026-09-17，计划 notes/plans/20260917154344-批量移动会话到
-//   工作区开发计划.md 第 2.4 节）：workspaces:move-sessions-batch（16 → 17）——
-//   批量模式将选中会话移动到指定工作区或移出未分组；已在目标的会话幂等 no-op
-//   计入 skipped（合法语义非拒绝），sessionIds/workspaceId 非法或不存在则整单
-//   拒绝（零部分成功、磁盘不变）；单 mutateSnapshot 临界区一次落盘，返回真实
-//   moved/skipped 计数（renderer 反馈条不自算口径）；不动 activeId
+// - 批量移动增量（2026-09-17）已于 2026-10-23 随批量多选退役整体删除
+//   （move-sessions-batch 通道与 MoveSessionsBatch 载荷/结果类型同撤）
 // - 恢复出厂增量（2026-09-18，计划 notes/plans/20260918010928-设置阶段七恢复
 //   出厂设置开发计划.md 第 2.4 节）：changed（17 → 18，推送通道）——跨窗口发起
 //   的会话事实变更通知：payload = 完整 SessionsSnapshot，主进程定向推送主窗口
@@ -78,14 +75,13 @@ export const SESSIONS_CHANNELS = {
   /** 会话事实变更推送（恢复出厂增量）：payload = 完整快照，定向主窗，收方权威接管 */
   changed: 'sessions:changed',
   clone: 'sessions:clone',
+  /** 批量关闭选中（2026-10-23 批量模式退役后仅工作区删除「删除全部会话」处置消费） */
   deleteBatch: 'sessions:delete-batch',
-  batchOpenUrl: 'sessions:batch-open-url',
   reorder: 'sessions:reorder',
   workspaceCreate: 'workspaces:create',
   workspaceRename: 'workspaces:rename',
   workspaceDelete: 'workspaces:delete',
   workspaceMoveSession: 'workspaces:move-session',
-  workspaceMoveSessionsBatch: 'workspaces:move-sessions-batch',
   workspaceReorder: 'workspaces:reorder',
   workspaceSetActive: 'workspaces:set-active',
   /** 独立代理增量（2026-10-15）：保存（proxy 非空）/ 清除（proxy = null）会话代理 */
@@ -371,18 +367,10 @@ export interface CloneSessionPayload {
 }
 
 /**
- * 批量打开测试地址：全部选中会话各新建一个 Tab 加载该 URL。
- * 整单校验拒绝制——ids 任一不存在或 URL 不合法时整单拒绝，无部分成功
- */
-export interface BatchOpenUrlPayload {
-  ids: string[]
-  url: string
-}
-
-/**
  * 批量关闭选中会话：彻底删除勾选会话（与单条删除同一标准：销毁 webContents +
  * 清分区数据 + 删分区目录）。
- * 整单校验拒绝制——ids 任一不存在时整单拒绝，无部分成功
+ * 整单校验拒绝制——ids 任一不存在时整单拒绝，无部分成功。
+ * 2026-10-23 批量模式退役后由工作区删除「删除全部会话」处置编排消费
  */
 export interface BatchDeleteSessionsPayload {
   ids: string[]
@@ -433,25 +421,6 @@ export interface DeleteWorkspacePayload {
 export interface MoveSessionToWorkspacePayload {
   sessionId: string
   workspaceId: string | null
-}
-
-/**
- * 批量移动选中会话到工作区（独占归属；批量模式板脚入口）：workspaceId 传
- * null = 全部移出到未分组。
- * 语义二分（通道头注同步）：已在目标的会话幂等 no-op 计入 skipped（合法）；
- * sessionIds 非法（格式/重复）或任一会话/目标工作区不存在则整单拒绝（零部分
- * 成功、磁盘不变）。单临界区一次落盘，moved/skipped 为真实计数，不动 activeId
- */
-export interface MoveSessionsToWorkspacePayload {
-  /** 勾选会话 id 集（batch 家族载荷同款字段名；重复 id 去重容忍——对齐 delete-batch/batch-open-url） */
-  ids: string[]
-  workspaceId: string | null
-}
-
-/** 批量移动结果：moved = 归属发生变化的会话数；skipped = 已在目标被跳过的会话数 */
-export interface MoveSessionsBatchResult {
-  moved: number
-  skipped: number
 }
 
 /**

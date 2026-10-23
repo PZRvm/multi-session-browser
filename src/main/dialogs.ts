@@ -22,8 +22,9 @@ import { isRecord } from '../shared/guards'
 import { t } from './i18n'
 import { logFailureAsync } from './ipc-utils'
 
-/** kind 白名单（对齐 isAppearanceMode allowlist 先例），白名单外整单拒绝 */
-const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete', 'sessions-batch-close']
+/** kind 白名单（对齐 isAppearanceMode allowlist 先例），白名单外整单拒绝；
+ * sessions-batch-close 已于 2026-10-23 随批量多选退役删除 */
+const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete']
 
 /** 守卫失败业务错误工厂（ipc-utils 惯例键，两 parse 共用） */
 const invalidError = (): Error => new Error(t('errors.invalidSessionParams'))
@@ -33,7 +34,8 @@ function clampDisplayName(name: string): string {
   return name.slice(0, DISPLAY_NAME_MAX)
 }
 
-/** 显示面 clamp：count 取整封顶（正常路径不超会话总数，跨 IPC 载荷不可信任口径兜底） */
+/** 显示面 clamp：count 取整封顶（正常路径不超会话总数，跨 IPC 载荷不可信任口径兜底；
+ * confirmWorkspaceDelete 的 count 消费——sessions-batch-close 退役后仅存此用） */
 function clampDisplayCount(count: number): number {
   return Math.min(Math.floor(count), DISPLAY_COUNT_MAX)
 }
@@ -67,13 +69,8 @@ function parseConfirmPayload(payload: unknown): ConfirmDestructivePayload {
   const kind = payload.kind
   if (typeof kind !== 'string' || !CONFIRM_KINDS.includes(kind as ConfirmKind)) throw invalidError()
   const name = payload.name
-  const count = payload.count
-  if (kind === 'session-delete') {
-    if (typeof name !== 'string' || name.length === 0) throw invalidError()
-    return { kind: 'session-delete', name: clampDisplayName(name) }
-  }
-  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) throw invalidError()
-  return { kind: 'sessions-batch-close', count: clampDisplayCount(count) }
+  if (typeof name !== 'string' || name.length === 0) throw invalidError()
+  return { kind: 'session-delete', name: clampDisplayName(name) }
 }
 
 /** confirmWorkspaceDelete 入参守卫：name 非空 + count 有限数 ≥0（显示面 clamp 兜底，惯例同 parseConfirmPayload） */
@@ -86,17 +83,13 @@ function parseWorkspaceDeletePayload(payload: unknown): ConfirmWorkspaceDeletePa
   return { name: clampDisplayName(name), count: clampDisplayCount(count) }
 }
 
-/** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案；workspace-delete 分支已随 2026-09-24 三态通道退役删除） */
+/** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案；workspace-delete 分支
+ * 已随 2026-09-24 三态通道退役、sessions-batch-close 分支已随 2026-10-23 批量退役删除，
+ * 现仅 session-delete 一值） */
 function composeText(payload: ConfirmDestructivePayload): { title: string; detail: string } {
-  if (payload.kind === 'session-delete') {
-    return {
-      title: t('sessions.sessionRow.deleteConfirm.title'),
-      detail: t('sessions.sessionRow.deleteConfirm.content', { name: payload.name ?? '' })
-    }
-  }
   return {
-    title: t('sessions.batchBar.closeConfirm.title'),
-    detail: t('sessions.batchBar.closeConfirm.content', { n: payload.count ?? 0 })
+    title: t('sessions.sessionRow.deleteConfirm.title'),
+    detail: t('sessions.sessionRow.deleteConfirm.content', { name: payload.name ?? '' })
   }
 }
 

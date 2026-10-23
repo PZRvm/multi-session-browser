@@ -62,7 +62,6 @@ import type {
 import { SESSIONS_CHANNELS } from '../shared/sessions'
 import type {
   BatchDeleteSessionsPayload,
-  BatchOpenUrlPayload,
   CheckProxyPayload,
   CloneSessionPayload,
   CreateSessionPayload,
@@ -70,8 +69,6 @@ import type {
   DeleteSessionPayload,
   DeleteWorkspacePayload,
   MoveSessionToWorkspacePayload,
-  MoveSessionsBatchResult,
-  MoveSessionsToWorkspacePayload,
   OkResult,
   PopupRowMenuPayload,
   ProxyCheckResult,
@@ -98,8 +95,6 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
-import { SHELL_CHANNELS } from '../shared/shell'
-import type { NativeWindowButtonsVisiblePayload } from '../shared/shell'
 import { DIALOG_CHANNELS } from '../shared/dialog'
 import type {
   ConfirmDestructivePayload,
@@ -147,15 +142,14 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.getStatuses),
     clone: (payload: CloneSessionPayload): Promise<StoredSession> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.clone, payload),
+    // delete-batch 由工作区删除「删除全部会话」处置编排消费（2026-10-23 批量模式退役）
     deleteBatch: (payload: BatchDeleteSessionsPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.deleteBatch, payload),
-    batchOpenUrl: (payload: BatchOpenUrlPayload): Promise<OkResult> =>
-      ipcRenderer.invoke(SESSIONS_CHANNELS.batchOpenUrl, payload),
     // 会话列表排序：只接收当前全部会话 id 的完整顺序（全序），主进程整单校验拒绝制
     reorder: (payload: ReorderSessionsPayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.reorder, payload),
-    // 工作区六通道（2026-09-15 专项五条 + 2026-09-17 增量批量移动一条）：全部
-    // invoke、零推送（工作区仅主窗左栏操作）
+    // 工作区六通道（2026-09-15 专项五条；批量移动通道已随 2026-10-23 批量退役删除）：
+    // 全部 invoke、零推送（工作区仅主窗左栏操作）
     workspaceCreate: (payload: CreateWorkspacePayload): Promise<StoredWorkspace> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceCreate, payload),
     workspaceRename: (payload: RenameWorkspacePayload): Promise<StoredWorkspace> =>
@@ -164,11 +158,6 @@ const api = {
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceDelete, payload),
     workspaceMoveSession: (payload: MoveSessionToWorkspacePayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceMoveSession, payload),
-    // 批量移动（2026-09-17 增量）：幂等跳过计数返回真值，renderer 反馈条不自算口径
-    workspaceMoveSessionsBatch: (
-      payload: MoveSessionsToWorkspacePayload
-    ): Promise<MoveSessionsBatchResult> =>
-      ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceMoveSessionsBatch, payload),
     // 视野切换：id 为 'all'（WORKSPACE_VIEW_ALL 单源）或工作区 id；主进程原子级联
     workspaceSetActive: (payload: SetActiveWorkspacePayload): Promise<OkResult> =>
       ipcRenderer.invoke(SESSIONS_CHANNELS.workspaceSetActive, payload),
@@ -487,13 +476,7 @@ const api = {
       }
     }
   },
-  // 窗口壳域（契约见 shared/shell.ts）：主窗窗体 chrome 的 renderer 请求口——
-  // 收起态隐藏/展开恢复 macOS 原生三灯（自绘关闭点在 renderer，window.close()
-  // 直关自身不经此桥）
-  shell: {
-    setNativeWindowButtonsVisible: (payload: NativeWindowButtonsVisiblePayload): Promise<void> =>
-      ipcRenderer.invoke(SHELL_CHANNELS.setNativeWindowButtonsVisible, payload)
-  },
+  // 窗口壳域（shell 命名空间）已随 2026-10-23 侧边栏收起态退役整体删除
   // 破坏性确认域（契约见 shared/dialog.ts）：删除类二次确认走主进程原生对话框
   // （PRD 4.10），弹框期间页面视图保持可见、不经 overlay 登记收起右区。载荷只带
   // 数据参数，文案由主进程经 main/i18n 语言态复用既有字典键组装；返回 true 仅当

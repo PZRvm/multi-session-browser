@@ -58,16 +58,9 @@ export interface SessionPersistence {
    * - 激活位按跳过坏值后的有效长度钳制，末尾 switchTab 到位
    */
   applyRestore(manager: TabManager, id: string, hasLiveBlankTab: boolean): void
-  /**
-   * L4 批量打开叠加标记：批量打开落在"补载待定"（恢复集缓存未命中）的刚懒创建会话上时
-   * 置位——批量 Tab 先叠加，补载读盘后据此调整守卫（关初始空白 Tab 全量恢复，不丢弃恢复集）
-   */
-  markBatchOpened(id: string): void
-  /** 取走叠加标记（补载消费，恒清除） */
-  takeBatchOpened(id: string): boolean
-  /** destroySession：清全部条目（恢复集/上报判据/去抖定时器/叠加标记） */
+  /** destroySession：清全部条目（恢复集/上报判据/去抖定时器） */
   dropSession(id: string): void
-  /** closeSession：冲刷待写（关窗级联之前——捕获完整归并集）+ 清上报判据/定时器/叠加标记；恢复集保留（落盘元数据仍存活）。返回写盘 promise——closeSession await 之，保证克隆读 restoreSets 缓存时写盘与缓存前移均已落定（审查 B：原 fire-and-forget 仅靠 kill 慢于写盘的时序事实） */
+  /** closeSession：冲刷待写（关窗级联之前——捕获完整归并集）+ 清上报判据/定时器；恢复集保留（落盘元数据仍存活）。返回写盘 promise——closeSession await 之，保证克隆读 restoreSets 缓存时写盘与缓存前移均已落定（审查 B：原 fire-and-forget 仅靠 kill 慢于写盘的时序事实） */
   settleSession(id: string): Promise<void>
 }
 
@@ -85,8 +78,6 @@ export function createSessionPersistence(deps: {
   /** 会话 → 最近一次写盘的 {url,title,tabsKey}，上报去抖的变化判据 */
   const reported = new Map<string, { url: string; title: string; tabsKey: string }>()
   const reportTimers = new Map<string, ReturnType<typeof setTimeout>>()
-  /** L4：批量打开落在补载待定会话上的标记（补载消费后清除） */
-  const batchOpenedWhileBackfill = new Set<string>()
   /** 共享的读盘 promise（preload 复用同一 in-flight，防重复读盘） */
   let preloadPromise: Promise<SessionsSnapshot | null> | null = null
   /**
@@ -311,19 +302,9 @@ export function createSessionPersistence(deps: {
       if (target && target.id !== snap.activeTabId) manager.switchTab(target.id)
     },
 
-    markBatchOpened(id) {
-      batchOpenedWhileBackfill.add(id)
-    },
-
-    takeBatchOpened(id) {
-      const marked = batchOpenedWhileBackfill.delete(id)
-      return marked
-    },
-
     dropSession(id) {
       restoreSets.delete(id)
       reported.delete(id)
-      batchOpenedWhileBackfill.delete(id)
       clearTimer(id)
     },
 
@@ -333,7 +314,6 @@ export function createSessionPersistence(deps: {
       // 级联之前调用：此刻独立窗全部存活，flushReport 捕获完整归并集（克隆恢复集语义
       // = 关闭发起时刻的归并快照；随后的级联收缩因 manager 摘除而无法再写盘）
       reported.delete(id)
-      batchOpenedWhileBackfill.delete(id)
       clearTimer(id)
       await flushReport(id)
     }

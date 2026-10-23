@@ -39,7 +39,6 @@ export const sessions: Dictionary['sessions'] = {
   },
   panel: {
     countLabel: 'Sessions',
-    batchToggle: 'Batch mode',
     settings: 'Settings',
     emptyAll: {
       title: 'No sessions yet',
@@ -54,52 +53,22 @@ export const sessions: Dictionary['sessions'] = {
       desc: 'New sessions will join Ungrouped'
     },
     newSession: 'New session',
-    collapseSidebar: 'Collapse sidebar',
-    expandSidebar: 'Expand sidebar',
-    closeWindow: 'Close window',
-    shellToggleFailed: 'Failed to update window controls',
+    // collapseSidebar/expandSidebar/closeWindow/shellToggleFailed keys were
+    // removed on 2026-10-23 along with the sidebar collapse feature
     reorderFailed: 'Reorder failed; list order restored',
     moveFailed: 'Failed to move session'
   },
   countTiles: {
     aria: '{n} sessions'
   },
-  batchBar: {
-    selectedCount: '{n} selected',
-    selectAll: 'Select all',
-    selectNone: 'Deselect all',
-    moveToWorkspace: 'Move to workspace…',
-    moveToWorkspaceIcon: 'Move to workspace',
-    closeSelected: 'Close selected',
-    openTestUrl: 'Open test URL',
-    closeConfirm: {
-      title: 'Close selected sessions',
-      content:
-        '{n} selected sessions and all of their local data will be permanently deleted. This cannot be undone.',
-      failed: 'Failed to close selected sessions: the selection has changed. Please retry.'
-    }
-  },
-  urlModal: {
-    title: 'Open test URL',
-    okText: 'OK',
-    placeholder: 'Enter a URL to open in a new tab of every selected session',
-    invalid:
-      'Failed to open: the URL is invalid or the selection has changed. Please correct it and retry.'
-  },
+  // batchBar / urlModal / batchFeedback sections were removed on 2026-10-23
+  // along with the batch multi-select feature
   moveModal: {
     title: 'Move "{name}" to workspace',
     titleFallback: 'Move to workspace',
     moveOut: 'Move out (ungrouped)',
     currentTag: 'Current',
-    batchTitle: 'Move {n} sessions to workspace',
-    batchSub: 'Membership updates after the move; session data and login states are unaffected.',
-    inTargetCount: '{here} / {total} here',
     emptyNone: 'No workspaces yet. Create one in the workspace switcher first.'
-  },
-  batchFeedback: {
-    moveFailed: 'Batch move failed: some sessions or workspaces have changed. Please retry.',
-    moved: 'Moved {n} to "{name}"',
-    movedSkipped: 'Moved {n} to "{name}" ({skipped} already in target, skipped)'
   },
   /** Per-session proxy (PRD 4.14, 2026-10-15): session row menu entry / settings sheet / inline badge */
   sessionProxy: {

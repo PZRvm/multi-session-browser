@@ -1,5 +1,5 @@
-// 左栏信息板命名空间（源语言 zh-CN）：会话面板/工作区切换框/批量模式/拖拽排序反馈/
-// 外观三态入口文案。阶段六步骤 4 簇 A 填充
+// 左栏信息板命名空间（源语言 zh-CN）：会话面板/工作区切换框/拖拽排序反馈/
+// 外观三态入口文案。阶段六步骤 4 簇 A 填充；批量模式段已于 2026-10-23 随功能退役删除
 export const sessions = {
   /** 簇内多组件复用词（防同词多键漂移） */
   shared: {
@@ -44,7 +44,6 @@ export const sessions = {
   /** 信息板骨架（SessionPanel）：板头/空态/板脚新建/整面板失败反馈 */
   panel: {
     countLabel: '会话',
-    batchToggle: '批量操作',
     settings: '设置',
     emptyAll: {
       title: '尚无会话',
@@ -59,10 +58,8 @@ export const sessions = {
       desc: '新建会话将加入未分组'
     },
     newSession: '新建会话',
-    collapseSidebar: '收起侧边栏',
-    expandSidebar: '展开侧边栏',
-    closeWindow: '关闭窗口',
-    shellToggleFailed: '窗口控制按钮状态切换失败',
+    // collapseSidebar/expandSidebar/closeWindow/shellToggleFailed 四键已随
+    // 2026-10-23 侧边栏收起态退役删除
     reorderFailed: '会话排序失败，列表顺序已恢复',
     moveFailed: '移动会话失败'
   },
@@ -70,44 +67,15 @@ export const sessions = {
   countTiles: {
     aria: '{n} 个会话'
   },
-  /** 批量操作栏（板脚） */
-  batchBar: {
-    selectedCount: '已选 {n}',
-    selectAll: '全选',
-    selectNone: '取消全选',
-    moveToWorkspace: '移动到工作区…',
-    moveToWorkspaceIcon: '移动到工作区',
-    closeSelected: '关闭选中会话',
-    openTestUrl: '打开测试地址',
-    closeConfirm: {
-      title: '关闭选中会话',
-      content: '将永久删除选中的 {n} 个会话及其全部本地数据，且不可恢复。',
-      failed: '关闭选中会话失败：选中会话已发生变化，请重试'
-    }
-  },
-  /** 打开测试地址弹层 */
-  urlModal: {
-    title: '打开测试地址',
-    okText: '确定',
-    placeholder: '输入测试地址，将打开在每个选中会话的新标签页',
-    invalid: '打开失败：地址无效或选中会话已变化，请修正后重试'
-  },
-  /** 移动到工作区弹层（单会话 + 批量） */
+  /** 批量操作栏（batchBar）/打开测试地址弹层（urlModal）/批量移动反馈条（batchFeedback）
+   * 三段已于 2026-10-23 随批量多选功能退役删除 */
+  /** 移动到工作区弹层（单会话） */
   moveModal: {
     title: '移动「{name}」到工作区',
     titleFallback: '移动到工作区',
     moveOut: '移出（未分组）',
     currentTag: '当前所在',
-    batchTitle: '移动 {n} 个会话到工作区',
-    batchSub: '移动后归属更新，会话数据与登录态不受影响',
-    inTargetCount: '{here} / {total} 在此',
     emptyNone: '尚无工作区，先在工作区切换框新建一个'
-  },
-  /** 批量移动反馈条（板脚，~2.4s 淡出/danger 持续） */
-  batchFeedback: {
-    moveFailed: '批量移动失败：部分会话或工作区已变化，请重试',
-    moved: '已移动 {n} 个到「{name}」',
-    movedSkipped: '已移动 {n} 个到「{name}」（{skipped} 个已在目标，已跳过）'
   },
   /** 独立代理（PRD 4.14，2026-10-15 增量）：会话行菜单入口 / 设置 sheet / 行内徽标 */
   sessionProxy: {

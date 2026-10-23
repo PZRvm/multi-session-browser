@@ -283,9 +283,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
         ? t('chromeImport.dialog.title')
         : isProxySheet
           ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
-          : context.kind === 'workspace-move-single'
-            ? t('sessions.moveModal.title', { name: context.sessionName ?? '' })
-            : t('sessions.moveModal.batchTitle', { n: context.count ?? 0 })
+          : t('sessions.moveModal.title', { name: context.sessionName ?? '' })
     : t('sessions.moveModal.titleFallback')
 
   // 导入选择形态（chrome-import-select）：profile 下拉 + 内容勾选 + 导入/取消；未
@@ -620,9 +618,6 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
     <div className="picker-body" role="dialog" aria-label={title}>
       <header className="picker-head">
         <h1 className="picker-title">{title}</h1>
-        {context?.kind === 'workspace-move-batch' && (
-          <p className="picker-sub">{t('sessions.moveModal.batchSub')}</p>
-        )}
       </header>
       <div
         className="picker-list"
@@ -646,14 +641,6 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
             <span className="picker-option-name">{option.name}</span>
             {option.current && (
               <span className="picker-option-tag">{t('sessions.moveModal.currentTag')}</span>
-            )}
-            {option.hereCount !== undefined && (
-              <span className="picker-option-count">
-                {t('sessions.moveModal.inTargetCount', {
-                  here: option.hereCount,
-                  total: context.count ?? 0
-                })}
-              </span>
             )}
           </button>
         ))}

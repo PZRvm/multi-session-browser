@@ -183,8 +183,6 @@ export interface SessionBrowserRegistry extends TabManager {
   runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T>
   /** 分区落盘目录解析（chromeImport 编排写 LS 用）：partitionDir 单源与读入口守卫不旁路 */
   getPartitionDir(id: string): string
-  /** 批量打开测试地址：逐会话懒创建 manager 并新建 Tab 加载；后台会话摘 view 保活后台加载 */
-  openUrlInSessions(ids: string[], url: string): void
   /** 启动恢复：读盘缓存各会话 lastUrl，恢复上次激活会话并重载其上次打开页 */
   init(activeId: string | null): void
   /** 订阅会话运行状态（idle/loading）全量 map；状态 map 有变化时回调，返回退订函数 */
@@ -328,7 +326,7 @@ export function createSessionBrowserRegistry(deps: {
   const cloningIds = new Set<string>()
   /**
    * 导入静默窗口占用（Chrome 导入专项）：runImportQuiesced 进入/退出，语义同 cloningIds
-   * ——窗口期对守卫入口（switch/openUrlInSessions/destroy/clonePartition）拒绝触达该会话，
+   * ——窗口期对守卫入口（switch/destroy/clonePartition）拒绝触达该会话，
    * 防导入写分区落盘期间重建 manager（活库）产生脏写
    */
   const importingIds = new Set<string>()
@@ -513,8 +511,8 @@ export function createSessionBrowserRegistry(deps: {
     // 默认自动批准；同一分区重建 manager 时 install 幂等且保留本次运行内的站点决定。
     cameraPermissions.install(id, session.fromPartition(partition))
     // 代理兜底应用（独立代理专项）：主路径（下方激活链 await / 克隆预应用）已覆盖
-    // switchSession/init/clone，此处兜住未列举的直接调用方（openUrlInSessions 等）——
-    // 异步幂等，落地前已建的连接由引擎配置变更时的 closeAllConnections 收尾重路由
+    // switchSession/init/clone，此处兜住未列举的直接调用方——异步幂等，落地前已建的
+    // 连接由引擎配置变更时的 closeAllConnections 收尾重路由
     void applyProxyFromStore(id).catch((error: unknown) => {
       console.warn(`[registry] 会话 ${id} 兜底应用代理失败:`, error)
     })
@@ -586,15 +584,7 @@ export function createSessionBrowserRegistry(deps: {
           persistence.ingest(snapshot)
           const item = snapshot.sessions.find((entry) => entry.id === id)
           if (!item || item.tabs.length === 0) return
-          // L4 定案叠加径：批量打开已在补载待定期叠加了 Tab——初始空白 Tab 由系统创建、
-          // 非用户接管，关掉后全量恢复（恢复集不因批量打开而丢弃）
-          if (persistence.takeBatchOpened(id)) {
-            const snap = manager.getSnapshot()
-            const blank = snap.tabs.find((tab) => tab.url === BLANK_URL)
-            if (blank && snap.tabs.length > 1) manager.closeTab(blank.id)
-            persistence.applyRestore(manager, id, false)
-            return
-          }
+          // L4 叠加径（takeBatchOpened）已随 2026-10-23 批量多选退役删除
           // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
           // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
           const current = manager.getSnapshot()
@@ -934,73 +924,7 @@ export function createSessionBrowserRegistry(deps: {
     }
   }
 
-  /**
-   * 批量打开测试地址：逐会话懒创建 manager 并新建 Tab 加载 url（url 已在 handler 层过
-   * normalizeInput 白名单规范化）。newTab 会把该 manager 激活 Tab 的 view 挂入窗口——
-   * 对非当前激活的后台会话，newTab 后立即用 detachActiveView 摘回其 view（webContents
-   * 保活后台加载，加载态经既有 statusChanged 推送如实驱动）；仅当前激活会话的 view 保持挂入
-   */
-  function openUrlInSessions(ids: string[], url: string): void {
-    // 批量打开是页面首航来源之一：懒创建/加载前 await 落盘代理应用（审查中 4——
-    // ensureManager 的兜底是 fire-and-forget，本运行期未激活过且配了代理的会话其
-    // 首请求可能先于 setProxy 直连泄漏）。await 失败如实告警后继续（代理缺失不应
-    // 阻断批量打开），应用幂等由引擎承担。接口签名维持同步 void（调用方不感知时序）
-    void (async () => {
-      // 整批读盘一次（审查低-6）：N 会话共用同一快照做代理应用，避免 N 次整文件读
-      let proxySnapshot: SessionsSnapshot | undefined
-      try {
-        proxySnapshot = await loadSnapshot()
-      } catch (error) {
-        console.warn('[registry] 批量打开前读取快照失败（按无代理配置继续）:', error)
-      }
-      for (const id of ids) {
-        // 克隆窗口期守卫：正被复制的分区若在此懒创建 manager，副本会落入活库
-        if (cloningIds.has(id)) continue
-        // 导入静默窗口守卫：写入中的分区不开 Tab。与克隆的静默跳过不同——批量打开是
-        // 显式用户动作，静默丢事件难排查，告警留痕
-        if (importingIds.has(id)) {
-          console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次批量打开已跳过`)
-          continue
-        }
-        try {
-          await applyProxyFromStore(id, proxySnapshot)
-        } catch (error) {
-          console.warn(`[registry] 会话 ${id} 批量打开前应用代理失败（按既有配置继续）:`, error)
-        }
-        const existed = managers.has(id)
-        const manager = ensureManager(id)
-        if (!existed) {
-          // 刚懒创建会话的三分支（L4 定案：批量打开绝不丢弃恢复集）：
-          // ① 缓存有恢复集（ensureManager 已多开恢复）→ 直接叠加批量 Tab；
-          // ② 缓存明确无恢复集（空数组，无补载待定）且初始 Tab 空白 → 复用该 Tab 直接
-          //    加载目标地址，避免"新标签页 + 目标页"双 Tab；
-          // ③ 缓存未命中（补载待定，落盘可能有恢复集）→ 不撤销补载、置叠加标记，批量 Tab
-          //    先叠加；补载读盘后关掉系统创建的初始空白 Tab 全量恢复（见 ensureManager）
-          const snap = manager.getSnapshot()
-          const activeTab = snap.tabs.find((tab) => tab.id === snap.activeTabId)
-          const restore = persistence.getRestore(id)
-          if (restore && restore.tabs.length > 0) {
-            // 分支 ①：落到末尾 newTab(url)
-          } else if (activeTab && activeTab.url === BLANK_URL && restore) {
-            const wc = manager.getActiveWebContents()
-            if (wc && !wc.isDestroyed()) {
-              // 失败日志由 manager 挂的 did-fail-load 单点承担
-              void wc.loadURL(url).catch(() => {})
-              if (id !== activeSessionId) detachActiveView(manager)
-              continue
-            }
-          } else if (activeTab && activeTab.url === BLANK_URL) {
-            persistence.markBatchOpened(id)
-          }
-        }
-        manager.newTab(url)
-        if (id !== activeSessionId) detachActiveView(manager)
-      }
-    })().catch((error: unknown) => {
-      // 循环体内部各步已各自吞错留痕，此处仅兜未预期异常防 unhandled rejection
-      console.warn('[registry] 批量打开执行异常:', error)
-    })
-  }
+  // openUrlInSessions（批量打开测试地址编排）已于 2026-10-23 随批量多选功能退役删除
 
   function init(activeId: string | null): void {
     // 读盘一次缓存各会话恢复集（与 ensureManager 的补载共享同一 in-flight promise）：
@@ -1308,7 +1232,6 @@ export function createSessionBrowserRegistry(deps: {
     clonePartition,
     runImportQuiesced,
     getPartitionDir,
-    openUrlInSessions,
     init,
     onSessionStatus,
     getStatuses,

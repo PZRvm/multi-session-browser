@@ -59,7 +59,6 @@ import type {
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
-import type { NativeWindowButtonsVisiblePayload } from '../shared/shell'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -71,7 +70,6 @@ import type {
 } from '../shared/dialog'
 import type {
   BatchDeleteSessionsPayload,
-  BatchOpenUrlPayload,
   CheckProxyPayload,
   CloneSessionPayload,
   CreateSessionPayload,
@@ -79,8 +77,6 @@ import type {
   DeleteSessionPayload,
   DeleteWorkspacePayload,
   MoveSessionToWorkspacePayload,
-  MoveSessionsBatchResult,
-  MoveSessionsToWorkspacePayload,
   PopupRowMenuPayload,
   ProxyCheckResult,
   RenameSessionPayload,
@@ -119,15 +115,11 @@ declare global {
         onChanged(callback: (snapshot: SessionsSnapshot) => void): () => void
         clone(payload: CloneSessionPayload): Promise<StoredSession>
         deleteBatch(payload: BatchDeleteSessionsPayload): Promise<OkResult>
-        batchOpenUrl(payload: BatchOpenUrlPayload): Promise<OkResult>
         reorder(payload: ReorderSessionsPayload): Promise<OkResult>
         workspaceCreate(payload: CreateWorkspacePayload): Promise<StoredWorkspace>
         workspaceRename(payload: RenameWorkspacePayload): Promise<StoredWorkspace>
         workspaceDelete(payload: DeleteWorkspacePayload): Promise<OkResult>
         workspaceMoveSession(payload: MoveSessionToWorkspacePayload): Promise<OkResult>
-        workspaceMoveSessionsBatch(
-          payload: MoveSessionsToWorkspacePayload
-        ): Promise<MoveSessionsBatchResult>
         workspaceSetActive(payload: SetActiveWorkspacePayload): Promise<OkResult>
         workspaceReorder(payload: ReorderWorkspacesPayload): Promise<OkResult>
         /** 独立代理增量（2026-10-15）：保存（非空）/ 清除（null），返回更新后会话 */
@@ -212,9 +204,6 @@ declare global {
         setScreenshotShortcut(payload: SetScreenshotShortcutPayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
-      }
-      shell: {
-        setNativeWindowButtonsVisible(payload: NativeWindowButtonsVisiblePayload): Promise<void>
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>

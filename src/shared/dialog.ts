@@ -50,7 +50,7 @@ import type { SessionProxyConfig } from './sessions'
 // - 结果按 kind 分流：选择场景 picked（workspaceId 为目标工作区 id，null = 移出
 //   未分组）；重命名场景 submitted（name 为过守卫的新名）；cancelled 覆盖 Esc /
 //   关闭弹框 / 父窗缺失 / 建窗失败 / 二次请求被拒等全部未提交路径；移动与重命名
-//   执行仍由既有 workspaces:move-session / move-sessions-batch / rename 通道闭环
+//   执行仍由既有 workspaces:move-session / rename 通道闭环
 // - 导入场景（2026-09-30 导入专项反馈轮原生化，用户反馈「模态框用原生框」）：两 kind
 //   复用同一 sheet 机制——select（profile 选择 + 内容勾选，上下文 profiles 由主进程
 //   探测现取）与 conflict（localStorage 冲突裁决，计数经 show 载荷数据参数回传）；
@@ -85,17 +85,16 @@ export const DIALOG_CHANNELS = {
 
 /**
  * 破坏性确认的场景白名单（kind，主进程 switch 分支组文案）；workspace-delete 已于
- * 2026-09-24 退役迁 confirmWorkspaceDelete 三态通道（其结论非二值，不复用本类型）
+ * 2026-09-24 退役迁 confirmWorkspaceDelete 三态通道（其结论非二值，不复用本类型）；
+ * sessions-batch-close 已于 2026-10-23 随批量多选功能退役删除
  */
-export type ConfirmKind = 'session-delete' | 'sessions-batch-close'
+export type ConfirmKind = 'session-delete'
 
 export interface ConfirmDestructivePayload {
   /** 确认场景；白名单外的 kind 守卫整单拒绝 */
   kind: ConfirmKind
   /** 会话名：session-delete 必填（正文 {name} 插值），仅展示用不落盘 */
   name?: string
-  /** 会话计数：sessions-batch-close 必填（正文 {n} 插值）；session-delete 忽略 */
-  count?: number
 }
 
 /**
@@ -131,22 +130,20 @@ export const WORKSPACE_PICKER_WINDOW_ROLE = 'workspace-picker'
  */
 export type WorkspacePickerKind =
   | 'workspace-move-single'
-  | 'workspace-move-batch'
   | 'workspace-rename'
   | 'chrome-import-select'
   | 'chrome-import-conflict'
   | 'session-proxy'
 
 /**
- * show 通道载荷：只带数据参数——single 必填 sessionId、batch 必填非空 ids、rename
- * 必填 workspaceId、session-proxy 必填 sessionId（守卫强制；各 kind 禁传彼此的数据参数）
+ * show 通道载荷：只带数据参数——single 必填 sessionId、rename 必填 workspaceId、
+ * session-proxy 必填 sessionId（守卫强制；各 kind 禁传彼此的数据参数）。
+ * workspace-move-batch 已于 2026-10-23 随批量多选功能退役删除
  */
 export interface ShowWorkspacePickerPayload {
   kind: WorkspacePickerKind
   /** 单条移动的目标会话 id（workspace-move-single / session-proxy 必填，须过 SESSION_ID_RE） */
   sessionId?: string
-  /** 批量移动的勾选会话 id 集（workspace-move-batch 必填非空，格式非法整单拒绝） */
-  ids?: string[]
   /** 重命名的目标工作区 id（workspace-rename 必填，须过 WORKSPACE_ID_RE；现名由主进程从快照现取，渲染层不传名） */
   workspaceId?: string
   /**
@@ -175,12 +172,10 @@ export type WorkspacePickerResult =
   | { status: 'session-proxy-submitted'; proxy: SessionProxyConfig | null }
   | { status: 'cancelled' }
 
-/** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点）；batch 场景含全部工作区 */
+/** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点） */
 export interface WorkspacePickerOption {
   id: string
   name: string
-  /** batch 场景：「勾选中已在该工作区数」（{here} 插值），主进程从快照现取 */
-  hereCount?: number
   /** single 场景：该行是会话当前归属（目标不可再选，sheet 呈「当前所在」禁用态） */
   current?: boolean
 }
@@ -190,17 +185,14 @@ export interface WorkspacePickerContext {
   /** show 时刻生成的请求 id，pick 回传须一致（陈旧窗口迟到提交不命中即拒绝） */
   requestId: string
   kind: WorkspacePickerKind
-  /** 单条场景：目标会话名（title {name} 插值）；批量场景缺省 */
+  /** 单条场景：目标会话名（title {name} 插值） */
   sessionName?: string
-  /** 批量场景：勾选总数（title {n} 插值与徽标分母 {total}）；单条场景缺省 */
-  count?: number
   /**
    * single：全部工作区（会话当前归属行带 current 标记——用户反馈 2026-09-21：
-   * 当前行不再隐藏，sheet 呈「当前所在」禁用态作位置指示）；batch：全部工作区 +
-   * hereCount 计数徽标；rename：不使用（无选项行）
+   * 当前行不再隐藏，sheet 呈「当前所在」禁用态作位置指示）；rename：不使用（无选项行）
    */
   options: WorkspacePickerOption[]
-  /** 是否显示「移出（未分组）」行：single = 当前已分组；batch = 勾选中存在非未分组归属；rename 不使用 */
+  /** 是否显示「移出（未分组）」行：single = 当前已分组；rename 不使用 */
   showMoveOut: boolean
   /** 重命名场景：预填的当前名称（主进程从权威快照现取）；选择场景缺省 */
   currentName?: string
@@ -287,7 +279,6 @@ export const PICKER_ROW_GAP = 4
 export const PICKER_LIST_PAD_TOP = 4
 export const PICKER_MAX_VISIBLE_ROWS = 6
 export const PICKER_HEADER_HEIGHT_SINGLE = 68
-export const PICKER_HEADER_HEIGHT_BATCH = 88
 export const PICKER_EMPTY_HEIGHT = 48
 export const RENAME_FORM_GAP = 12
 export const RENAME_INPUT_HEIGHT = 36
@@ -365,15 +356,11 @@ export function pickerWindowHeight(context: WorkspacePickerContext): number {
       RENAME_FOOT_HEIGHT
     )
   }
-  const headerHeight =
-    context.kind === 'workspace-move-batch'
-      ? PICKER_HEADER_HEIGHT_BATCH
-      : PICKER_HEADER_HEIGHT_SINGLE
   const rows = context.options.length + (context.showMoveOut ? 1 : 0)
   let listHeight = PICKER_EMPTY_HEIGHT
   if (rows > 0) {
     const visible = Math.min(rows, PICKER_MAX_VISIBLE_ROWS)
     listHeight = visible * PICKER_ROW_HEIGHT + (visible - 1) * PICKER_ROW_GAP
   }
-  return headerHeight + PICKER_LIST_PAD_TOP + listHeight
+  return PICKER_HEADER_HEIGHT_SINGLE + PICKER_LIST_PAD_TOP + listHeight
 }

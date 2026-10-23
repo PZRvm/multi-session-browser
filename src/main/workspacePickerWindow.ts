@@ -50,13 +50,10 @@ import { logFailureAsync } from './ipc-utils'
 import type { ResolvedTheme } from '../shared/appearance'
 import type { ThemeSystemId } from '../shared/themeSystems'
 
-/** batch ids 长度上限（审查低 6：跨 IPC 载荷防御面，正常路径 ≤ 会话总数） */
-const PICKER_IDS_MAX = 100_000
-
-/** kind 白名单（对齐 CONFIRM_KINDS allowlist 先例），白名单外整单拒绝 */
+/** kind 白名单（对齐 CONFIRM_KINDS allowlist 先例），白名单外整单拒绝；
+ * workspace-move-batch 已于 2026-10-23 随批量多选退役删除 */
 const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'workspace-move-single',
-  'workspace-move-batch',
   'workspace-rename',
   'chrome-import-select',
   'chrome-import-conflict',
@@ -151,19 +148,7 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
     return { kind, sessionId }
   }
-  if (kind === 'workspace-move-batch') {
-    if (payload.sessionId !== undefined || payload.workspaceId !== undefined) throw invalidParams()
-    const raw = payload.ids
-    if (
-      !Array.isArray(raw) ||
-      raw.length === 0 ||
-      raw.length > PICKER_IDS_MAX ||
-      !raw.every((item): item is string => typeof item === 'string' && SESSION_ID_RE.test(item))
-    ) {
-      throw invalidParams()
-    }
-    return { kind, ids: raw }
-  }
+  // workspace-move-batch 分支已于 2026-10-23 随批量多选退役删除（kind 已出白名单）
   if (kind === 'session-proxy') {
     // 独立代理设置：sessionId 必填过格式单源；禁传其余 kind 的数据参数与 keepOpen
     //（互斥校验风格同先例——keepOpen 属导入加载态语义，本 kind 保存即关窗）
@@ -193,9 +178,8 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
  * rename 按目标工作区回填预填现名（currentName），工作区已不存在（弹层窗口期内被
  * 并发删除）返回 null 交由调用方按取消收敛——过期目标不做拒绝式报错；single 列全部
  * 工作区、当前归属行带 current 标记（2026-09-21 用户反馈：当前行不再隐藏，sheet 呈
- * 「当前所在」禁用态作位置指示），showMoveOut = 当前已分组；batch 列全部工作区
- * （混合归属不排除——移动是幂等赋值）并带 hereCount 计数徽标，showMoveOut = 勾选中
- * 存在非未分组归属
+ * 「当前所在」禁用态作位置指示），showMoveOut = 当前已分组。
+ * workspace-move-batch 分支已于 2026-10-23 随批量多选退役删除
  */
 async function buildContext(
   request: ShowWorkspacePickerPayload,
@@ -271,18 +255,15 @@ async function buildContext(
       showMoveOut: false
     }
   }
-  const checked = new Set(request.ids)
-  return {
-    requestId,
-    kind: request.kind,
-    count: checked.size,
-    options: snapshot.workspaces.map((w) => ({
-      id: w.id,
-      name: w.name,
-      hereCount: snapshot.sessions.filter((s) => checked.has(s.id) && s.workspaceId === w.id).length
-    })),
-    showMoveOut: snapshot.sessions.some((s) => checked.has(s.id) && s.workspaceId !== null)
-  }
+  // 类型穷尽守卫（审查 20261023145932 低-5）：五 kind 全覆盖后 request.kind 收敛为
+  // never——新增 WorkspacePickerKind 漏分支时下方调用编译报错（早于运行时暴露）
+  return assertUnhandledPickerKind(request.kind)
+}
+
+/** never 参数 = kind 分支全覆盖的类型证明；到达即理论不可达，留痕后抛业务错误 */
+function assertUnhandledPickerKind(kind: never): never {
+  console.warn('[dialog] 工作区选择框上下文组装遭遇未覆盖 kind（理论不可达）:', kind)
+  throw invalidParams()
 }
 
 /** pending 兜底收敛：取消路径（Esc/关窗/父窗级联/重复请求）一律 cancelled（契约二值诚实） */
@@ -522,7 +503,7 @@ function openSheet(
           ? t('chromeImport.dialog.title')
           : context.kind === 'session-proxy'
             ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
-            : t('sessions.batchBar.moveToWorkspace'),
+            : t('sessions.moveModal.titleFallback'),
     autoHideMenuBar: true,
     ...(process.platform === 'darwin' ? { frame: false as const } : {}),
     backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme(), deps.getThemeColor()),

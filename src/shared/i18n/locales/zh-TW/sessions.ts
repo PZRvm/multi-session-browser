@@ -45,7 +45,6 @@ export const sessions: Dictionary['sessions'] = {
   /** 信息板骨架（SessionPanel）：板头/空态/板脚新建/整面板失败反馈 */
   panel: {
     countLabel: '會話',
-    batchToggle: '批次操作',
     settings: '設定',
     emptyAll: {
       title: '尚無會話',
@@ -60,10 +59,8 @@ export const sessions: Dictionary['sessions'] = {
       desc: '新建會話將加入未分組'
     },
     newSession: '新增會話',
-    collapseSidebar: '收起側邊欄',
-    expandSidebar: '展開側邊欄',
-    closeWindow: '關閉視窗',
-    shellToggleFailed: '視窗控制按鈕狀態切換失敗',
+    // collapseSidebar/expandSidebar/closeWindow/shellToggleFailed 四鍵已隨
+    // 2026-10-23 側邊欄收起態退役刪除
     reorderFailed: '會話排序失敗，列表順序已恢復',
     moveFailed: '移動會話失敗'
   },
@@ -71,44 +68,15 @@ export const sessions: Dictionary['sessions'] = {
   countTiles: {
     aria: '{n} 個會話'
   },
-  /** 批量操作栏（板脚） */
-  batchBar: {
-    selectedCount: '已選 {n}',
-    selectAll: '全選',
-    selectNone: '取消全選',
-    moveToWorkspace: '移動到工作區…',
-    moveToWorkspaceIcon: '移動到工作區',
-    closeSelected: '關閉所選會話',
-    openTestUrl: '開啟測試網址',
-    closeConfirm: {
-      title: '關閉所選會話',
-      content: '將永久刪除所選的 {n} 個會話及其全部本機資料，且不可恢復。',
-      failed: '關閉所選會話失敗：所選會話已發生變化，請重試'
-    }
-  },
-  /** 打开测试地址弹层 */
-  urlModal: {
-    title: '開啟測試網址',
-    okText: '確定',
-    placeholder: '輸入測試網址，將開啟在每個所選會話的新標籤頁',
-    invalid: '開啟失敗：網址無效或所選會話已變化，請修正後重試'
-  },
-  /** 移动到工作区弹层（单会话 + 批量） */
+  /** 批量操作栏（batchBar）/打开测试地址弹层（urlModal）/批量移动反馈条（batchFeedback）
+   * 三段已于 2026-10-23 随批量多选功能退役删除 */
+  /** 移动到工作区弹层（单会话） */
   moveModal: {
     title: '移動「{name}」到工作區',
     titleFallback: '移動到工作區',
     moveOut: '移出（未分組）',
     currentTag: '當前所在',
-    batchTitle: '移動 {n} 個會話到工作區',
-    batchSub: '移動後歸屬更新，會話資料與登入狀態不受影響',
-    inTargetCount: '{here} / {total} 在此',
     emptyNone: '尚無工作區，先在工作區切換框新增一個'
-  },
-  /** 批量移动反馈条（板脚，~2.4s 淡出/danger 持续） */
-  batchFeedback: {
-    moveFailed: '批次移動失敗：部分會話或工作區已變化，請重試',
-    moved: '已移動 {n} 個到「{name}」',
-    movedSkipped: '已移動 {n} 個到「{name}」（{skipped} 個已在目標，已跳過）'
   },
   /** 獨立代理（PRD 4.14，2026-10-15 增量）：會話行選單入口 / 設定 sheet / 行內徽標 */
   sessionProxy: {

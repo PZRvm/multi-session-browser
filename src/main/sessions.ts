@@ -1,14 +1,16 @@
-// 会话 IPC handlers：二十条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch /
-// batch-open-url 三条 + 排序专项 reorder 一条 + 工作区专项七条 create/rename/delete/
-// move-session/move-sessions-batch/reorder/set-active + 备注编辑 set-note 一条 + 独立
-//代理 set-proxy / check-proxy 两条，2026-10-15 增量）的业务实现，读写一律经 store.ts
+// 会话 IPC handlers：十八条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch
+// 两条 + 排序专项 reorder 一条 + 工作区专项六条 create/rename/delete/move-session/
+// reorder/set-active + 备注编辑 set-note 一条 + 独立代理 set-proxy / check-proxy
+// 两条，2026-10-15 增量）的业务实现，读写一律经 store.ts
 // 的快照接口；status-changed 推送不经本文件（index.ts 直连 registry）。通道名一律取自
 // shared/sessions 的
 // SESSIONS_CHANNELS，禁止手写字符串。快照读-改-写一律经 mutateSnapshot 串行执行；
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 // 浏览器编排（切换/销毁联动、状态数据源）经 deps 注入回调触达，本文件不 import registry
-// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区七通道纯元数据：唯一
+// （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区六通道纯元数据：唯一
 // 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
+// 2026-10-23 批量多选退役：batch-open-url 与 move-sessions-batch 两通道删除；
+// delete-batch 保留（工作区删除「删除全部会话」处置复用）
 
 import { BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron'
 import { isRecord } from '../shared/guards'
@@ -24,7 +26,6 @@ import {
   WORKSPACE_VIEW_UNGROUPED,
   cloneTabs,
   normalizeProxyConfig,
-  type MoveSessionsBatchResult,
   type OkResult,
   type ProxyCheckResult,
   type SessionProxyConfig,
@@ -34,7 +35,6 @@ import {
   type StoredTab,
   type StoredWorkspace
 } from '../shared/sessions'
-import { normalizeInput } from './browser/url'
 import { dialogIconForDarwin } from './dialogs'
 import { t } from './i18n'
 import { loadSnapshot, mutateSnapshot, summarize } from './store'
@@ -50,7 +50,7 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  *   closeSession 冲刷（settle 时点）后的归并集缓存值，不重读盘；缓存未命中（源从未
  *   激活过）返回 undefined，调用方回退落盘值
  * - onBatchDeleted：deleteBatch 落盘成功后通知编排层一次切换到级联 activeId + 逐会话销毁清分区
- * - onBatchOpenUrl：batchOpenUrl 整单校验通过后通知编排层逐会话新建 Tab 加载
+ *   （delete-batch 由工作区删除「删除全部会话」处置触发）
  * - onProxyChanged：set-proxy 落盘成功后把（清除后的）代理配置应用到该会话分区（独立
  *   代理增量，引擎幂等；本文件不 import registry/proxy，装配在 index.ts）
  * - checkProxyExitIp：check-proxy 按草稿值经该会话分区探测出口 IP（不落盘不动生效配置）
@@ -64,7 +64,6 @@ interface SessionIpcDeps {
   clonePartition(srcId: string, dstId: string): Promise<void>
   getRestoreSet(srcId: string): { tabs: StoredTab[]; activeTabIndex: number } | undefined
   onBatchDeleted(ids: string[], nextActiveId: string | null): void
-  onBatchOpenUrl(ids: string[], url: string): void
   /** set-proxy 落盘成功后的分区应用入口（proxy 传 null = 清除回直连） */
   onProxyChanged(id: string, proxy: SessionProxyConfig | null): Promise<void>
   /** check-proxy 的探测入口：按草稿值经该会话分区探测，返回三态结论 */
@@ -86,8 +85,8 @@ function invalidParams(): Error {
 
 /**
  * 从 IPC payload 中解析 ids：必须为非空数组且逐项 string，否则判为非法入参。
- * batch-delete、batch-open-url 与 reorder 三条通道共用同一校验（规则演进只改此处；
- * 上层各自决定重复 id 的处置——批量通道去重容忍，reorder 整单拒绝）
+ * delete-batch 与 reorder 两条通道共用同一校验（规则演进只改此处；
+ * 上层各自决定重复 id 的处置——delete-batch 去重容忍，reorder 整单拒绝）
  */
 function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
   const raw = payload.ids
@@ -104,7 +103,7 @@ function parseNonEmptyStringIds(payload: Record<string, unknown>): string[] {
 /**
  * id 格式预校验（整单拒绝）：任一 id 不满足 SESSION_ID_RE 即抛错——被篡改的
  * 落盘 id 须在存在性/集合校验前拒绝（阶段 5 R4 定案）。delete-batch、
- * batch-open-url 与 reorder 三条通道共用（与 parseNonEmptyStringIds 同为共用
+ * move-session 与 reorder 等通道共用（与 parseNonEmptyStringIds 同为共用
  * 守卫，文案与规则演进只改此处）
  */
 function assertSessionIdFormat(ids: string[]): void {
@@ -527,7 +526,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // webContents + 清分区数据 + 删分区目录）；整单校验拒绝制——ids 不合法或任一不存在
   // 整单拒绝，无部分成功。同一快照互斥期内完成存在性校验与原子移除（无校验/执行竞态
   // 窗口），级联规则与单条删除一致：选中集含激活会话时指向剩余首项（无剩余则 null）；
-  // 落盘成功后经 onBatchDeleted 一次切换到级联 activeId + 逐会话异步销毁
+  // 落盘成功后经 onBatchDeleted 一次切换到级联 activeId + 逐会话异步销毁。
+  // 2026-10-23 批量模式退役后由工作区删除「删除全部会话」处置编排消费（消费面唯一）
   ipcMain.handle(
     SESSIONS_CHANNELS.deleteBatch,
     async (_event, payload: unknown): Promise<OkResult> =>
@@ -554,32 +554,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // batch-open-url：对全部选中会话各新建一个 Tab 加载指定测试地址；整单校验拒绝制——
-  // payload 不合法 / ids 任一不存在 / URL 规范化失败，任一不满足整单拒绝，无部分成功
-  ipcMain.handle(
-    SESSIONS_CHANNELS.batchOpenUrl,
-    async (_event, payload: unknown): Promise<OkResult> =>
-      logFailure(SESSIONS_CHANNELS.batchOpenUrl, payload, async () => {
-        // payload 必须为 record；ids 经共用校验，url 必须为 string
-        if (!isRecord(payload)) throw invalidParams()
-        const ids = parseNonEmptyStringIds(payload)
-        if (typeof payload.url !== 'string') throw invalidParams()
-        // id 格式预校验（共用守卫）：被篡改的落盘 id 能通过存在性检查（isStoredSession
-        // 只查非空 string），若放行到 registry 的逐会话开 Tab，会在中途抛错前已对
-        // 前序合法会话产生副作用——违背整单拒绝契约。格式校验前置，非法即整单拒绝
-        assertSessionIdFormat(ids)
-        // 逐 id 存在性校验（读盘）；校验通过后立即触发编排——校验与执行间的毫秒级
-        // 竞态窗口（窗口内被并发删除的会话）按已通过处理，不在此二次设防
-        const snapshot = await loadSnapshot()
-        const known = new Set(snapshot.sessions.map((s) => s.id))
-        if (!ids.every((id) => known.has(id))) throw new Error(t('errors.sessionNotFound'))
-        // 地址栏输入规范化（scheme 白名单 + 缺省补 https://），失败整单拒绝
-        const normalized = normalizeInput(payload.url)
-        if (!normalized) throw new Error(t('errors.invalidUrl'))
-        deps.onBatchOpenUrl(ids, normalized)
-        return { ok: true }
-      })
-  )
+  // batch-open-url 通道已于 2026-10-23 随批量多选功能退役删除
 
   // reorder：会话列表拖拽排序——只接受当前全部会话 id 的无重复全序（纯重排）；
   // 格式非法、重复、缺项、多项或未知 id 时整单拒绝且磁盘不变。集合相等校验与
@@ -725,52 +700,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       })
   )
 
-  // workspaces:move-sessions-batch：批量移动选中会话（2026-09-17 增量，批量模式板脚
-  // 入口）。语义二分：已在目标的会话幂等 no-op 计入 skipped（合法——批量勾选可含
-  // 混合归属，demo 裁决静默跳过）；ids 格式非法或任一会话/目标工作区不存在则整单
-  // 拒绝（零部分成功、磁盘不变，对齐 batch 家族先例；重复 id 去重容忍）。单
-  // mutateSnapshot 临界区逐会话赋值 + 源工作区记忆清理、一次落盘；moved/skipped
-  // 为真实计数返回（renderer 反馈条不自算口径）；不动 activeId、零编排回调
-  ipcMain.handle(
-    SESSIONS_CHANNELS.workspaceMoveSessionsBatch,
-    async (_event, payload: unknown): Promise<MoveSessionsBatchResult> =>
-      logFailure(SESSIONS_CHANNELS.workspaceMoveSessionsBatch, payload, async () => {
-        if (!isRecord(payload)) throw invalidParams()
-        if (payload.workspaceId !== null && typeof payload.workspaceId !== 'string') {
-          throw invalidParams()
-        }
-        const target = payload.workspaceId
-        if (target !== null) assertWorkspaceIdFormat(target)
-        const ids = [...new Set(parseNonEmptyStringIds(payload))]
-        assertSessionIdFormat(ids)
-        let moved = 0
-        let skipped = 0
-        await mutateSnapshot((snapshot) => {
-          if (target !== null && !snapshot.workspaces.some((w) => w.id === target)) {
-            throw new Error(t('errors.workspaceNotFound'))
-          }
-          for (const id of ids) {
-            const session = snapshot.sessions.find((item) => item.id === id)
-            if (!session) throw new Error(t('errors.sessionNotFound'))
-            if (session.workspaceId === target) {
-              skipped++
-              continue
-            }
-            const prevWorkspaceId = session.workspaceId
-            session.workspaceId = target
-            moved++
-            if (prevWorkspaceId !== null) {
-              const source = snapshot.workspaces.find((w) => w.id === prevWorkspaceId)
-              if (source && source.lastActiveSessionId === id) {
-                source.lastActiveSessionId = null
-              }
-            }
-          }
-          return { ok: true }
-        })
-        return { moved, skipped }
-      })
-  )
+  // move-sessions-batch 通道已于 2026-10-23 随批量多选功能退役删除
 
   // workspaces:reorder：工作区列表拖拽排序（拖动排序专项 2026-09-21）——只接受
   // 当前全部工作区 id 的无重复全序（纯重排），与 sessions:reorder 同口径：格式
@@ -956,6 +886,6 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     })()
   })
 
-  // 本文件注册 20 条 invoke 通道 + popup-row-menu 一条 on 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），row-menu-action 推送由本文件 popup handler 定向回推，合计 24 条
+  // 本文件注册 18 条 invoke 通道 + popup-row-menu 一条 on 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），row-menu-action 推送由本文件 popup handler 定向回推，合计 22 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

@@ -101,7 +101,7 @@ export default function SettingsWindow(): React.JSX.Element {
   }, [])
   const factoryReset = useSettingsStore((s) => s.factoryReset)
   const confirmReset = useCallback(async (): Promise<void> => {
-    // 在途守卫（批量移动 batchMoveInFlight 同款）：禁用态渲染前的极速连点防重复 IPC
+    // 在途守卫（极速连点防重复 IPC 先例）：禁用态渲染前的极速连点防重复 IPC
     if (resetInFlight.current) return
     resetInFlight.current = true
     setExecuting(true)
