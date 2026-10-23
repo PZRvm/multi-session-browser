@@ -3,11 +3,9 @@ import {
   CameraOutlined,
   CloseOutlined,
   HomeOutlined,
-  LeftOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
-  RightOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
@@ -17,6 +15,33 @@ import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
+
+/** 导航圆头 chevron（2026-10-23 用户裁决）：antd 图标库全系直角折线描边、无圆头箭头，
+ * 自绘替换 Left/RightOutlined——1em 度量随 .chrome-nav 按钮 16px 字阶（与 antd 图标同
+ * 尺寸机制），currentColor 继承按钮禁用/hover 色链，2px 圆头圆角描边对齐 Chrome 观感。
+ * 左右仅 path 镜像差异，单源组件按 direction 派生（审查 20261023145932 低-2 收敛） */
+const NAV_CHEVRON_PATHS = {
+  left: 'M15 6 9 12 15 18',
+  right: 'M9 6 15 12 9 18'
+} as const
+
+function NavChevron({
+  direction
+}: {
+  direction: keyof typeof NAV_CHEVRON_PATHS
+}): React.JSX.Element {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d={NAV_CHEVRON_PATHS[direction]}
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
 const INVALID_HINT_MS = 2500
 
@@ -300,7 +325,7 @@ function Toolbar(): React.JSX.Element {
           disabled={!activeTab?.canGoBack}
           onClick={goBack}
         >
-          <LeftOutlined />
+          <NavChevron direction="left" />
         </button>
         <button
           type="button"
@@ -309,7 +334,7 @@ function Toolbar(): React.JSX.Element {
           disabled={!activeTab?.canGoForward}
           onClick={goForward}
         >
-          <RightOutlined />
+          <NavChevron direction="right" />
         </button>
         {activeTab?.loading ? (
           <button
