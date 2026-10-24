@@ -16,6 +16,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white)
 ![Ant Design](https://img.shields.io/badge/Ant_Design-6-1677ff?style=flat-square&logo=antd&logoColor=white)
 ![Zustand](https://img.shields.io/badge/Zustand-5-453d39?style=flat-square)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
 
 [简体中文](README.md) ｜ **繁體中文** ｜ [English](README.en-US.md)
 
@@ -68,7 +69,7 @@
 安裝檔將隨首個 Release 提供，目前請從原始碼執行：
 
 ```bash
-git clone https://github.com/<owner>/multi-session-browser.git
+git clone https://github.com/PZRvm/multi-session-browser.git
 cd multi-session-browser
 npm install   # 僅支援 npm
 npm run dev

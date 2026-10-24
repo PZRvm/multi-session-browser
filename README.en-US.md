@@ -16,6 +16,7 @@ _多会话测试浏览器_ — a desktop multi-account browser built for QA engi
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white)
 ![Ant Design](https://img.shields.io/badge/Ant_Design-6-1677ff?style=flat-square&logo=antd&logoColor=white)
 ![Zustand](https://img.shields.io/badge/Zustand-5-453d39?style=flat-square)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
 
 [简体中文](README.md) ｜ [繁體中文](README.zh-TW.md) ｜ **English**
 
@@ -68,7 +69,7 @@ A typical day of multi-role testing: sign in to account A, and account B gets ki
 Installers will ship with the first Release — run from source for now:
 
 ```bash
-git clone https://github.com/<owner>/multi-session-browser.git
+git clone https://github.com/PZRvm/multi-session-browser.git
 cd multi-session-browser
 npm install   # npm only
 npm run dev
