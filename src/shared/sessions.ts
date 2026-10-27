@@ -60,6 +60,13 @@
 //   2026-09-21 收起方案换掉的「全区域外点关闭」能力；菜单文案主进程经 main/i18n
 //   取既有键零新增字典，点击结论定向推回发起窗口由 renderer 既有编排闭环；
 //   2026-10-20 用户裁决：右键与 ⋮ 统一弹同一全量菜单，dots 短菜单变体退役
+// - 工作区原生菜单增量（2026-10-27，计划 notes/plans/20261027150209-工作区右键
+//   菜单原生化开发计划.md）：workspacePopupMenu（send）+ workspaceMenuAction
+//   （推送，22 → 24）——工作区行右键菜单「重命名/删除工作区」同款迁主进程原生
+//   Menu.popup（复刻行菜单先例，渲染层 antd Dropdown 与其 workaround 链退役：
+//   portal 锁挂/overlay 登记/.ant-dropdown 豁免/延迟挂弹层——原生菜单无关闭
+//   动画，useDeferredMenuAction 末位消费者消失随之退役）；i18n 零新增
+//   （rowRename/rowDelete 既有键）
 
 import { isRecord } from './guards'
 
@@ -91,7 +98,11 @@ export const SESSIONS_CHANNELS = {
   /** 行原生菜单增量（2026-10-15 反馈轮四）：renderer 请求主进程弹出系统原生菜单 */
   popupRowMenu: 'sessions:popup-row-menu',
   /** 行原生菜单增量（2026-10-15 反馈轮四）：菜单项点击结论定向推回发起窗口 */
-  rowMenuAction: 'sessions:row-menu-action'
+  rowMenuAction: 'sessions:row-menu-action',
+  /** 工作区原生菜单增量（2026-10-27）：renderer 请求主进程弹出工作区右键系统原生菜单 */
+  workspacePopupMenu: 'workspaces:popup-menu',
+  /** 工作区原生菜单增量（2026-10-27）：菜单项点击结论定向推回发起窗口 */
+  workspaceMenuAction: 'workspaces:menu-action'
 } as const
 
 /**
@@ -347,6 +358,30 @@ export type RowMenuActionKey =
 export interface RowMenuActionPayload {
   id: string
   key: RowMenuActionKey
+}
+
+/**
+ * 工作区原生菜单（2026-10-27，渲染层 antd Dropdown 退役）：工作区行右键弹
+ * 主进程 Menu.popup 绘制的系统原生菜单（重命名/删除工作区两项，机制与载荷
+ * 形态复刻会话行菜单先例——OS 级绘制盖过页面原生层、点任意位置关闭），文案
+ * 主进程经 main/i18n 取既有键，点击结论经 workspaceMenuAction 推回 renderer
+ * 既有编排闭环（原生 sheet 重命名 / 原生确认框删除）
+ */
+
+/** renderer → 主进程：在 (x, y)（视口坐标 = 窗口内容坐标）弹出该工作区的原生菜单 */
+export interface PopupWorkspaceMenuPayload {
+  id: string
+  x: number
+  y: number
+}
+
+/** 菜单项动作键（与 renderer 既有编排一一对应） */
+export type WorkspaceMenuActionKey = 'rename' | 'delete'
+
+/** 主进程 → renderer：菜单项点击结论，定向推回发起 popup 的 webContents */
+export interface WorkspaceMenuActionPayload {
+  id: string
+  key: WorkspaceMenuActionKey
 }
 
 export interface DeleteSessionPayload {

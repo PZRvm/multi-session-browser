@@ -10,7 +10,10 @@
 // （装配在 index.ts，契约见开发计划第 3 节契约点 3/4）。工作区六通道纯元数据：唯一
 // 编排触点是 workspaceSetActive 的激活位级联（复用 onActiveChanged），其余零回调。
 // 2026-10-23 批量多选退役：batch-open-url 与 move-sessions-batch 两通道删除；
-// delete-batch 保留（工作区删除「删除全部会话」处置复用）
+// delete-batch 保留（工作区删除「删除全部会话」处置复用）。
+// 另注册两条 on 单向通道：popup-row-menu（行原生菜单，2026-10-15）与
+// workspace-popup-menu（工作区行原生菜单，2026-10-27，渲染层 antd Dropdown 退役），
+// 点击结论分别经 row-menu-action / workspace-menu-action 定向回推发起窗口
 
 import { BrowserWindow, dialog, ipcMain, Menu, MenuItem } from 'electron'
 import { isRecord } from '../shared/guards'
@@ -18,6 +21,7 @@ import {
   PAGE_TITLE_MAX,
   SESSION_ID_RE,
   type RowMenuActionKey,
+  type WorkspaceMenuActionKey,
   SESSION_NOTE_MAX,
   SESSIONS_CHANNELS,
   WORKSPACE_ID_RE,
@@ -886,6 +890,71 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
     })()
   })
 
-  // 本文件注册 18 条 invoke 通道 + popup-row-menu 一条 on 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），row-menu-action 推送由本文件 popup handler 定向回推，合计 22 条
+  // workspaces:popup-menu：工作区行原生菜单（2026-10-27，渲染层 antd Dropdown 退役，
+  // 复刻 popup-row-menu 先例）。renderer 传工作区 id + 视口坐标；主进程经 main/i18n
+  // 取既有键组装两项 Menu（重命名/删除工作区）并 popup——OS 级绘制盖过页面
+  // WebContentsView，点任意位置关闭（含页面区）。菜单项点击经 workspace-menu-action
+  // 定向推回发起 webContents，由 renderer 既有编排闭环（重命名原生 sheet / 删除
+  // 原生确认框三选）。ipcMain.on 单向通道：守卫失败 warn 后静默返回
+  ipcMain.on(SESSIONS_CHANNELS.workspacePopupMenu, (event, payload: unknown): void => {
+    const fail = (reason: string): void => {
+      console.warn(`[sessions] 工作区原生菜单请求被拒绝（${reason}）`)
+    }
+    // sender 白名单：工作区切换框只存在于主窗左栏，其余来源（独立窗/sheet 子窗/
+    // 被攻陷页面）一律拒绝——对齐 popup-row-menu 的主窗来源判据先例
+    const mainWindow = deps.getMainWindow()
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      return fail('非主窗来源')
+    }
+    if (!isRecord(payload)) return fail('载荷非法')
+    const id = typeof payload.id === 'string' ? payload.id : ''
+    if (!WORKSPACE_ID_RE.test(id)) return fail('工作区 id 非法')
+    const x = payload.x
+    const y = payload.y
+    if (
+      typeof x !== 'number' ||
+      typeof y !== 'number' ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      x < 0 ||
+      y < 0
+    ) {
+      return fail('坐标非法')
+    }
+    const sender = event.sender
+    const win = BrowserWindow.fromWebContents(sender)
+    if (!win || win.isDestroyed()) return fail('发起窗口缺失')
+    // 工作区存在性：幻影 id 静默返回（对齐 popup-row-menu 的会话存在性守卫语义）
+    void (async () => {
+      const known = (await loadSnapshot()).workspaces.some((w) => w.id === id)
+      if (!known) return fail('工作区不存在')
+      // 坐标 clamp：越界锚点交给窗口内容尺寸收口，防原生菜单定位到屏幕外不可见
+      const [contentW, contentH] = win.getContentSize()
+      const cx = Math.min(Math.max(Math.round(x), 0), Math.max(contentW - 1, 0))
+      const cy = Math.min(Math.max(Math.round(y), 0), Math.max(contentH - 1, 0))
+      const dispatch = (key: WorkspaceMenuActionKey): void => {
+        if (!sender.isDestroyed()) {
+          sender.send(SESSIONS_CHANNELS.workspaceMenuAction, { id, key })
+        }
+      }
+      const menu = new Menu()
+      menu.append(
+        new MenuItem({
+          // 菜单标签经 main/i18n 取既有键（与渲染层 antd 菜单同键，i18n 零新增）
+          label: t('sessions.workspaceSwitcher.rowRename'),
+          click: () => dispatch('rename')
+        })
+      )
+      menu.append(
+        new MenuItem({
+          label: t('sessions.workspaceSwitcher.rowDelete'),
+          click: () => dispatch('delete')
+        })
+      )
+      menu.popup({ window: win, x: cx, y: cy })
+    })()
+  })
+
+  // 本文件注册 18 条 invoke 通道 + popup-row-menu / workspace-popup-menu 两条 on 通道；status-changed 与 changed（恢复出厂增量，2026-09-18）两条推送通道由 index.ts 接线（registry / factoryReset → renderer），row-menu-action / workspace-menu-action 推送由本文件两 popup handler 定向回推，合计 24 条
   console.log(`[sessions] IPC handlers 已注册（${Object.keys(SESSIONS_CHANNELS).length} 条通道）`)
 }

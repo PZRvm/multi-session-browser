@@ -78,9 +78,11 @@ import type {
   DeleteWorkspacePayload,
   MoveSessionToWorkspacePayload,
   PopupRowMenuPayload,
+  PopupWorkspaceMenuPayload,
   ProxyCheckResult,
   RenameSessionPayload,
   RowMenuActionPayload,
+  WorkspaceMenuActionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
   ReorderWorkspacesPayload,
@@ -130,6 +132,10 @@ declare global {
         popupRowMenu(payload: PopupRowMenuPayload): void
         /** 行原生菜单增量：订阅菜单项点击结论（定向推回发起窗口） */
         onRowMenuAction(callback: (payload: RowMenuActionPayload) => void): () => void
+        /** 工作区原生菜单增量（2026-10-27）：请求主进程在指定视口坐标弹出工作区原生菜单 */
+        popupWorkspaceMenu(payload: PopupWorkspaceMenuPayload): void
+        /** 工作区原生菜单增量（2026-10-27）：订阅菜单项点击结论（定向推回发起窗口） */
+        onWorkspaceMenuAction(callback: (payload: WorkspaceMenuActionPayload) => void): () => void
       }
       browser: {
         getState(): Promise<BrowserSnapshot>

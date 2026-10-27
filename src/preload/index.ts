@@ -71,9 +71,11 @@ import type {
   MoveSessionToWorkspacePayload,
   OkResult,
   PopupRowMenuPayload,
+  PopupWorkspaceMenuPayload,
   ProxyCheckResult,
   RenameSessionPayload,
   RowMenuActionPayload,
+  WorkspaceMenuActionPayload,
   RenameWorkspacePayload,
   ReorderSessionsPayload,
   ReorderWorkspacesPayload,
@@ -183,6 +185,22 @@ const api = {
       ipcRenderer.on(SESSIONS_CHANNELS.rowMenuAction, listener)
       return () => {
         ipcRenderer.removeListener(SESSIONS_CHANNELS.rowMenuAction, listener)
+      }
+    },
+    // 工作区原生菜单增量（2026-10-27）：请求主进程在指定视口坐标弹出工作区原生菜单
+    popupWorkspaceMenu: (payload: PopupWorkspaceMenuPayload): void => {
+      ipcRenderer.send(SESSIONS_CHANNELS.workspacePopupMenu, payload)
+    },
+    // 工作区原生菜单增量（2026-10-27）：订阅菜单项点击结论（定向推回发起窗口）
+    onWorkspaceMenuAction: (
+      callback: (payload: WorkspaceMenuActionPayload) => void
+    ): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: WorkspaceMenuActionPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(SESSIONS_CHANNELS.workspaceMenuAction, listener)
+      return () => {
+        ipcRenderer.removeListener(SESSIONS_CHANNELS.workspaceMenuAction, listener)
       }
     },
     // 推送订阅：剥离 ipc 事件对象，回调只收全量状态 map；退订必须 removeListener 同一 listener
