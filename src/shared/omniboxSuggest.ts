@@ -89,7 +89,10 @@ export const OMNIBOX_SUGGEST_CHANNELS = {
   pick: 'omnibox-suggest:pick',
   data: 'omnibox-suggest:data',
   hovered: 'omnibox-suggest:hovered',
-  picked: 'omnibox-suggest:picked'
+  picked: 'omnibox-suggest:picked',
+  /** 阴影环带鼠标穿通（2026-10-29 终态）：渲染端按光标是否在面板实域切换
+   *  setIgnoreMouseEvents——环带（纯阴影像素）点击穿透回工具栏/页面 */
+  setMousePassthrough: 'omnibox-suggest:set-mouse-passthrough'
 } as const
 
 /** 建议子窗载荷文本上限：title/query 超限在主进程守卫层截断归一（与 dragPreview 的标题截断先例同值） */
@@ -116,9 +119,10 @@ export const SUGGEST_PANEL_GAP = -1
 /** 面板最大高度（.chrome-omnibox-suggest max-height: 298px，超出子窗内滚动） */
 export const SUGGEST_PANEL_MAX_HEIGHT = 298
 /**
- * 融合体阴影环带边距（2026-10-29 修订退役，恒 0）：CSS box-shadow 环带方案在亮色
- * 页面上呈浅灰/暖灰带（18% 黑 × 白页 = 读作白边/黄边）——面板阴影改由 macOS 原生
- * 窗口阴影承担（hasShadow: true，跟随内容形状 + 系统色彩管理），窗口恢复面板精确
- * 边界；常量保留为度量口径锚（渲染端布局公式与历史 DESIGN 对账用）
+ * 融合体阴影环带边距（2026-10-29 终态 = 18）：面板阴影由子窗渲染端
+ * filter: drop-shadow 承担（跟随 CSS 圆角形状——roundedCorners:false 的方角原生
+ * 阴影会在 CSS 圆角内留下无投影的透明角落三角透出页面〔白角〕、且上缘 ambient
+ * 分量在接缝外形成投影线，均由 drop-shadow 方案根除）；窗口左右下各扩本值供阴影
+ * 绘制，环带经 set-mouse-passthrough 通道点击穿透
  */
-export const SUGGEST_SHADOW_MARGIN = 0
+export const SUGGEST_SHADOW_MARGIN = 18

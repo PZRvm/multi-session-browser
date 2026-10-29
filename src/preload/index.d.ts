@@ -173,6 +173,7 @@ declare global {
         hide(): Promise<OkResult>
         hover(payload: OmniboxSuggestHoverPayload): Promise<OkResult>
         pick(payload: OmniboxSuggestPickPayload): Promise<OkResult>
+        setMousePassthrough(enabled: boolean): Promise<OkResult>
         onData(callback: (payload: OmniboxSuggestDataPayload) => void): () => void
         onHovered(callback: (payload: OmniboxSuggestHoverPayload) => void): () => void
         onPicked(callback: (payload: OmniboxSuggestPickPayload) => void): () => void

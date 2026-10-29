@@ -590,6 +590,19 @@ export function registerBrowserIpc(
     })
   )
 
+  // suggest-set-mouse-passthrough（阴影环带 2026-10-29 终态）：子窗渲染端按光标位置
+  // 切换环带点击穿透——sender 必须是池内子窗本人（requireChildOwner 白名单）
+  ipcMain.handle(
+    OMNIBOX_SUGGEST_CHANNELS.setMousePassthrough,
+    (event, payload: unknown): OkResult =>
+      logFailure(OMNIBOX_SUGGEST_CHANNELS.setMousePassthrough, payload, () => {
+        const windowId = requireChildOwner(event)
+        if (!isRecord(payload) || typeof payload.enabled !== 'boolean') throw invalidParams()
+        suggestWindows.setMousePassthrough(windowId, payload.enabled)
+        return { ok: true }
+      })
+  )
+
   // suggest-pick：子窗点选行上报 → 转发宿主 shell（导航与失败提示走 shell 既有链）
   ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.pick, (event, payload: unknown): OkResult =>
     logFailure(OMNIBOX_SUGGEST_CHANNELS.pick, payload, () => {

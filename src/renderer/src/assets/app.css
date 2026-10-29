@@ -78,7 +78,7 @@
   --chrome-tab-insert: #3c4043;
   /* 地址栏融合体阴影（2026-10-28 阴影专项·方案 A 双层拼合影）：输入框侧（shell CSS）
      与建议面板侧（子窗 CSS）严格同参数，接缝连续；亮暗两档 */
-  --chrome-omnibox-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  --chrome-omnibox-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -135,7 +135,7 @@
     /* 拖拽插入指示线 · 暗：同值源亮墨（drag-target 底 #444548 上清晰可读） */
     --chrome-tab-insert: #e8eaed;
     /* 地址栏融合体阴影 · 暗：深底上加深一档保持可辨 */
-    --chrome-omnibox-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+    --chrome-omnibox-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -2509,9 +2509,9 @@ img.chrome-tab-favicon {
    与零间距上角直角的面板拼合为连续整体；面板收起/拒绝展示即摘类恢复四角药丸 */
 .chrome-omnibox.chrome-omnibox-fused {
   border-radius: 14px 14px 0 0;
-  /* 融合体阴影（输入框侧半场）：与子窗面板侧同参数 box-shadow——上/左右在工具栏
-   * 背景上可见；下方溢出工具栏的部分被页面原生层遮挡，由子窗侧阴影从接缝处
-   * 无缝续接（方案 A 双层拼合影） */
+  /* 融合体阴影（输入框侧半场）：与子窗面板侧 drop-shadow 观感对齐——上/左右在
+   * 工具栏背景上可见；下方溢出工具栏的部分被页面原生层遮挡，由子窗侧阴影从
+   * 接缝处无缝续接 */
   box-shadow: var(--chrome-omnibox-shadow);
   /* 边框整体隐去（2026-10-28 用户裁决修订：融合态下输入框与建议面板浑然一体、
      不再保留输入框自身描边——先前「三边着色 + 底边发丝线接缝」方案退役）。
@@ -2572,10 +2572,17 @@ body[data-role='omnibox-suggest'] {
 
 body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   position: fixed;
-  inset: 0;
+  /* 阴影环带布局（2026-10-29 终态）：子窗边界已含 SUGGEST_SHADOW_MARGIN=18 环带，
+     面板缩进同值锚回输入框正下方——filter: drop-shadow 跟随 CSS 圆角形状绘制阴影
+     （方角窗内的角落三角被阴影填充，根除白角；原生窗口阴影在 roundedCorners:false
+     下跟方角轮廓且上缘有 ambient 线，退役）；向上阴影被窗口上缘（= 输入框下缘 −1）
+     裁掉，不在融合体内部投影 */
+  top: 0;
+  left: 18px; /* SUGGEST_SHADOW_MARGIN */
+  right: 18px;
+  bottom: 18px;
   max-height: none;
-  /* 阴影由 macOS 原生窗口阴影承担（2026-10-29 修订：hasShadow: true 跟随内容
-     形状/系统色彩管理；CSS 环带方案在亮色页面呈浅灰/暖灰带被读作白边/黄边，退役） */
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.32));
 }
 
 .chrome-omnibox-suggest::-webkit-scrollbar {

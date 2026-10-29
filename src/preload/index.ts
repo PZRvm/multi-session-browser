@@ -347,6 +347,8 @@ const api = {
       ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.hover, payload),
     pick: (payload: OmniboxSuggestPickPayload): Promise<BrowserOkResult> =>
       ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.pick, payload),
+    setMousePassthrough: (enabled: boolean): Promise<BrowserOkResult> =>
+      ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.setMousePassthrough, { enabled }),
     onData: (callback: (payload: OmniboxSuggestDataPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: OmniboxSuggestDataPayload): void => {
         callback(payload)
