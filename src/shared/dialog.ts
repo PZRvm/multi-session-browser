@@ -1,5 +1,10 @@
 // 原生弹层辅通道共享契约（主进程 / preload / renderer 三方共用）。
-import type { ChromeImportPolicy, ChromeImportScope, ChromeProfileInfo } from './chromeImport'
+import type {
+  ChromeImportPolicy,
+  ChromeImportScope,
+  ChromeImportScopePlan,
+  ChromeProfileInfo
+} from './chromeImport'
 import type { SessionProxyConfig } from './sessions'
 // 设计依据 PRD 4.10 / 4.11：破坏性确认走 showMessageBox（2026-09-18 增量，计划
 // notes/plans/20260918182549-删除会话原生确认框开发计划.md 第 2.4 节）；选择类
@@ -147,12 +152,11 @@ export interface ShowWorkspacePickerPayload {
   /** 重命名的目标工作区 id（workspace-rename 必填，须过 WORKSPACE_ID_RE；现名由主进程从快照现取，渲染层不传名） */
   workspaceId?: string
   /**
-   * chrome-import-conflict 必填（须为 ≥0 整数，渲染层不传整单拒绝）：localStorage
-   * 冲突键数与涉及站点数（dry-run 实测值经 renderer 原样回传，sheet 副行插值展示）；
-   * chrome-import-select 禁传
+   * chrome-import-conflict 必填（string；2026-10-28 站点数据专项改 planId 制）：冲突
+   * 摘要不再由 renderer 自报计数——主进程按 planId 从导入暂存现取权威的按类型/单位
+   * 摘要数组（未命中 planId 整单拒绝）；chrome-import-select 禁传
    */
-  keys?: number
-  origins?: number
+  planId?: string
 }
 
 /**
@@ -203,11 +207,16 @@ export interface WorkspacePickerContext {
   chromeDetected?: boolean
   chromeProfiles?: ChromeProfileInfo[]
   /**
-   * chrome-import-conflict：冲突摘要（dry-run 实测值，主进程经 show 载荷守卫后
-   * 原样组装，sheet 副行插值展示）；其余 kind 不使用
+   * chrome-import-select：可选内容类型集（2026-10-28 四类型：主进程按引擎就绪度给出，
+   * sheet 据此渲染勾选行与初始勾选——未就绪类型不出现）；其余 kind 不使用
    */
-  chromeConflictKeys?: number
-  chromeConflictOrigins?: number
+  chromeScopes?: ChromeImportScope[]
+  /**
+   * chrome-import-conflict：冲突摘要数组（2026-10-28 改主进程权威制——按 show 载荷
+   * planId 从导入暂存现取，只含 conflicts > 0 的 scope，每项带单位与计数；renderer
+   * 不自报破坏范围）；其余 kind 不使用
+   */
+  chromeConflictScopes?: ChromeImportScopePlan[]
   /**
    * session-proxy：预填的现有代理配置（主进程从权威快照现取；null = 未配置）；
    * 其余 kind 不使用
@@ -267,11 +276,13 @@ export interface WorkspacePickerPickPayload {
  * 重命名场景高度 = 头部（与单条同解剖，复用 SINGLE 档）+ 表单间距 + 输入行高 +
  * 表单间距 + 按钮行高（2026-09-21 重命名增量，输入行/按钮行样式见 app.css
  * picker-form 段）。
- * 导入场景（2026-09-30 导入专项反馈轮原生化）：select = 头部 + label 行 + 表单间距
+ * 导入场景（2026-09-30 导入专项反馈轮原生化；2026-10-28 修正补入表单 border-top 1px
+ * + padding-top 12px——此前遗漏致窗口低 11px、底部内距被挤压至 5px）：select = 头部 + 表单顶结构 + label 行 + 表单间距
  * + profile 下拉行（RENAME_INPUT_HEIGHT 同款）+ 表单间距 + 勾选行×2（SCOPES_GAP
- * 间距）+ 表单间距 + 按钮行；notDetected = 头部 + 空态句；conflict = 头部 + 冲突
- * 标题 + 副行间距 + 描述（两行封顶）+ 表单间距 + 单选×2 + 表单间距 + 按钮行——
- * 页面样式 .picker-label/.picker-check/.picker-conflict 系与此公式同源配对
+ * 间距，行数随 chromeScopes 伸缩）+ 表单间距 + 按钮行；notDetected = 头部 + 空态句；
+ * conflict = 头部 + 冲突标题 + 副行间距 + 基础句 + 逐冲突类型摘要行（行数随
+ * chromeConflictScopes 伸缩，2026-10-28 权威制）+ 表单间距 + 单选×2 + 表单间距 +
+ * 按钮行——页面样式 .picker-label/.picker-check/.picker-conflict 系与此公式同源配对
  */
 export const PICKER_WINDOW_WIDTH = 360
 export const PICKER_ROW_HEIGHT = 40
@@ -283,9 +294,17 @@ export const PICKER_EMPTY_HEIGHT = 48
 export const RENAME_FORM_GAP = 12
 export const RENAME_INPUT_HEIGHT = 36
 export const RENAME_FOOT_HEIGHT = 32
+/** 导入/冲突/代理三类表单的 .picker-form 顶部结构（border-top 发丝线 1px + 内距 12px）——
+ *  2026-10-28 修正：该 13px 此前未入高度公式，窗口每低 11px、底部内距被挤压至 5px
+ *  （勾选行扩到四行后可见）；rename 类因公式实测推导期已含折算不受影响 */
+export const PICKER_FORM_BORDER_TOP = 1
+export const PICKER_FORM_PAD_TOP = 12
 export const CHROME_IMPORT_LABEL_HEIGHT = 20
 export const CHROME_IMPORT_TITLE_HEIGHT = 20
-export const CHROME_IMPORT_DESC_HEIGHT = 40
+/** 冲突裁决基础句行高（.picker-conflict-desc 单行 11px 档） */
+export const CHROME_IMPORT_BASE_DESC_HEIGHT = 20
+/** 冲突裁决逐类型摘要行高（2026-10-28 四类型：每冲突类型一行，11px 单行档） */
+export const CHROME_IMPORT_SUMMARY_LINE_HEIGHT = 18
 export const CHROME_IMPORT_RADIO_HEIGHT = 28
 export const CHROME_IMPORT_SCOPE_HEIGHT = 28
 export const CHROME_IMPORT_SCOPES_GAP = 8
@@ -308,25 +327,34 @@ export function pickerWindowHeight(context: WorkspacePickerContext): number {
   }
   if (context.kind === 'chrome-import-select') {
     if (!context.chromeDetected) return PICKER_HEADER_HEIGHT_SINGLE + PICKER_EMPTY_HEIGHT
+    // 勾选行数随可用 scope 集伸缩（2026-10-28 四类型；缺省两行 = 兼容旧上下文防御面）
+    const scopeCount = Math.max(1, context.chromeScopes?.length ?? 2)
     return (
       PICKER_HEADER_HEIGHT_SINGLE +
+      PICKER_FORM_BORDER_TOP +
+      PICKER_FORM_PAD_TOP +
       CHROME_IMPORT_LABEL_HEIGHT +
       RENAME_FORM_GAP +
       RENAME_INPUT_HEIGHT +
       RENAME_FORM_GAP +
-      CHROME_IMPORT_SCOPE_HEIGHT +
-      CHROME_IMPORT_SCOPES_GAP +
-      CHROME_IMPORT_SCOPE_HEIGHT +
+      scopeCount * CHROME_IMPORT_SCOPE_HEIGHT +
+      (scopeCount - 1) * CHROME_IMPORT_SCOPES_GAP +
       RENAME_FORM_GAP +
       RENAME_FOOT_HEIGHT
     )
   }
   if (context.kind === 'chrome-import-conflict') {
+    // 摘要行数随冲突类型数伸缩（2026-10-28 权威制：chromeConflictScopes 每冲突类型
+    // 一行；缺省一行 = 旧单类型防御面）
+    const lineCount = Math.max(1, context.chromeConflictScopes?.length ?? 1)
     return (
       PICKER_HEADER_HEIGHT_SINGLE +
+      PICKER_FORM_BORDER_TOP +
+      PICKER_FORM_PAD_TOP +
       CHROME_IMPORT_TITLE_HEIGHT +
       CHROME_IMPORT_SCOPES_GAP +
-      CHROME_IMPORT_DESC_HEIGHT +
+      CHROME_IMPORT_BASE_DESC_HEIGHT +
+      lineCount * CHROME_IMPORT_SUMMARY_LINE_HEIGHT +
       RENAME_FORM_GAP +
       CHROME_IMPORT_RADIO_HEIGHT +
       CHROME_IMPORT_SCOPES_GAP +
@@ -340,6 +368,8 @@ export function pickerWindowHeight(context: WorkspacePickerContext): number {
   if (context.kind === 'session-proxy') {
     return (
       PICKER_HEADER_HEIGHT_SINGLE +
+      PICKER_FORM_BORDER_TOP +
+      PICKER_FORM_PAD_TOP +
       RENAME_FORM_GAP +
       SESSION_PROXY_PROTOCOL_HEIGHT +
       RENAME_FORM_GAP +

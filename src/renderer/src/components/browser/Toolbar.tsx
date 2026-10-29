@@ -45,6 +45,14 @@ function NavChevron({
 
 const INVALID_HINT_MS = 2500
 
+/** 地址栏瞬态作用域键 (sessionId, activeTabId)：Tab id 是每会话独立计数器，跨会话
+ * 同名（新会话首 Tab 与旧会话 Tab 同名 tab-1），判据必须双维度才可靠（融合专项
+ * 步骤 1 复现 S2/S3b 的根因）；null = 零会话或无激活 Tab。窗口维度由 renderer
+ * 实例天然限定，不进键 */
+function omniboxScopeKey(sessionId: string | null, tabId: string | null): string | null {
+  return sessionId !== null && tabId !== null ? `${sessionId}::${tabId}` : null
+}
+
 // 工具栏：导航四键 + 可编辑地址栏；零会话（快照 sessionId === null）时地址栏禁用，
 // 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/主页/DevTools 钮
 // 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖。
@@ -169,21 +177,25 @@ function Toolbar(): React.JSX.Element {
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
   const mainUrl = activeTab && activeTab.url !== 'about:blank' ? activeTab.url : ''
 
+  // 地址栏瞬态作用域（融合专项）：下方 draft/pending/无效提示/建议高亮与抑制的归属键
+  const scope = omniboxScopeKey(sessionId, activeTabId)
+
   const inputRef = useRef<HTMLInputElement>(null)
   // null 表示非编辑态：显示主进程 URL；聚焦编辑期间改用本地草稿，失焦/回车成功后回归
   const [draft, setDraft] = useState<string | null>(null)
-  // 提交锁定（用户反馈修复）：回车成功那一刻导航刚开始、主进程 URL 还是旧值（新标签页
-  // 为 about:blank → 显示空串），直接回归快照会让加载期间文本框被清空/显示旧 URL。
-  // 提交时记「提交 Tab + 提交文本 + 当时快照 URL 基线」，渲染期比对判断是否仍在加载中
-  // ——快照 URL 离开基线（导航提交/重定向落地）或换 Tab（tabId 比对，防同 URL 双 Tab
-  // 串显——审查 C）后即过期，无需 effect 清理
+  // 提交锁定（用户反馈修复 + 融合专项作用域化）：回车成功那一刻导航刚开始、主进程
+  // URL 还是旧值（新标签页为 about:blank → 显示空串），直接回归快照会让加载期间
+  // 文本框被清空/显示旧 URL。提交时记「发起作用域 + 提交文本 + 当时快照 URL 基线」，
+  // 渲染期比对判断是否仍在加载中——快照 URL 离开基线（导航提交/重定向落地）或换
+  // 会话/Tab（(sessionId, activeTabId) 双维度比对，防跨会话同名 Tab 串显——审查 C
+  // 与步骤 1 复现 S2/S3b）后即过期，无需 effect 清理
   const [pending, setPending] = useState<{
-    tabId: string | null
+    scope: string
     baselineUrl: string
     locked: string
   } | null>(null)
   const pendingShown =
-    pending !== null && pending.tabId === activeTabId && pending.baselineUrl === mainUrl
+    pending !== null && pending.scope === scope && pending.baselineUrl === mainUrl
       ? pending.locked
       : null
   const [invalid, setInvalid] = useState(false)
@@ -199,6 +211,23 @@ function Toolbar(): React.JSX.Element {
   const normalizedQuery = useMemo(() => (draft === null ? '' : normalizeForMatch(draft)), [draft])
   const [suggestIndex, setSuggestIndex] = useState(-1)
   const [suggestDismissed, setSuggestDismissed] = useState(false)
+
+  // 作用域漂移即拍清零（渲染期状态调整，无 effect 二段帧——旧值不会有一帧落入新
+  // 会话/Tab 的提交）：draft/pending/无效提示/建议高亮与抑制都随新作用域归零，输入
+  // 仍聚焦也不显示旧值（步骤 1 复现 S1 无 blur 切换泄漏与 S2/S3b 同名 Tab 粘滞的
+  // 统一收口；React「渲染期调账」惯例，重渲染即按新值出帧）。invalid 的自动消失
+  // 定时器不在此清理（渲染期禁触 ref）：其回调只会把 invalid 幂等置回 false、与
+  // 作用域无关，新作用域的下一次 showInvalid 也会先清旧定时器再挂新的
+  const [prevScope, setPrevScope] = useState<string | null>(scope)
+  if (prevScope !== scope) {
+    setPrevScope(scope)
+    setDraft(null)
+    setPending(null)
+    setSuggestIndex(-1)
+    setSuggestDismissed(false)
+    setInvalid(false)
+  }
+
   // 建议集缩短后的高亮位钳制（渲染期派生而非 effect 内 setState——防级联渲染）：
   // 越界（输入变化/镜像更新条数变少）视为无高亮
   const activeSuggestIndex = suggestIndex < suggestions.length ? suggestIndex : -1
@@ -252,11 +281,20 @@ function Toolbar(): React.JSX.Element {
   }
 
   // 提交统一出口（手输回车与建议选中共用）：导航成功后锁定显示提交文本（等快照 URL
-  // 落地解除）；失败保留编辑态供修改并给出行内提示
+  // 落地解除）；失败保留编辑态供修改并给出行内提示。navigate 是 IPC 往返——回填前
+  // 核对发起作用域是否仍当前（在途切会话/Tab 时晚到的 Promise 不向新作用域写
+  // pending/错误提示，步骤 1 S2 的异步面）
   const submitUrl = async (url: string): Promise<void> => {
-    if (await navigate(url)) {
+    // 零会话/无激活 Tab（输入本已禁用）无锁定语义可写，防御性短路
+    if (scope === null) return
+    const originScope = scope
+    const baselineUrl = mainUrl
+    const ok = await navigate(url)
+    const { sessionId: sid, activeTabId: tabId } = useBrowserStore.getState()
+    if (omniboxScopeKey(sid, tabId) !== originScope) return
+    if (ok) {
       setDraft(null)
-      setPending({ tabId: activeTabId, baselineUrl: mainUrl, locked: url })
+      setPending({ scope: originScope, baselineUrl, locked: url })
     } else {
       showInvalid()
     }
@@ -272,16 +310,21 @@ function Toolbar(): React.JSX.Element {
     void submitUrl(raw)
   }
 
-  // 选中建议：清高亮后走统一提交出口（pending 锁定机制原样生效）
+  // 选中建议（键盘 Enter 与子窗点选共用）：清高亮后走统一提交出口（pending 锁定机制
+  // 原样生效）；面板已收（作用域漂移后子窗转发的晚到点选）不提交——不给新作用域
+  // 导入旧会话的历史地址。onPick 经 latest-ref 透传，闭包内 panelOpen 恒为最新渲染值
   const pickSuggestion = (url: string): void => {
+    if (!panelOpen) return
     setSuggestIndex(-1)
     void submitUrl(url)
   }
 
   // 子窗编排（锚点采集/show 幂等全量推送/hide 收合/悬停点选转发消费）整体下沉
   // useOmniboxSuggestWindow hook；onHover/onPick 每渲染透传最新闭包由 hook 内
-  // latest-ref 兜底，onPick 闭包含 pending 基线（当前 Tab/URL）不惧陈旧
-  useOmniboxSuggestWindow({
+  // latest-ref 兜底，onPick 闭包含 pending 基线（当前作用域/URL）不惧陈旧。返回值
+  // = 主进程裁定的面板呈现态（show 回执 canPresent）——融合态 class 的唯一依据，
+  // 面板收起或空间不足拒绝展示即拍收回
+  const suggestPresented = useOmniboxSuggestWindow({
     hostRef,
     panelOpen,
     items,
@@ -293,11 +336,14 @@ function Toolbar(): React.JSX.Element {
 
   // 输入法组合中的回车（isComposing）只用于候选确认，不触发提交；建议面板的键盘
   // 语义分层（Chrome 对齐）：Enter 高亮项优先、Esc 先关面板（编辑态保留，再按才还原
-  // 主进程 URL）、↑↓ 环形移动高亮并吞默认（防 caret 跳到输入首尾）
+  // 主进程 URL）、↑↓ 环形移动高亮并吞默认（防 caret 跳到输入首尾）。Enter 的高亮
+  // 提交只在面板实际呈现时生效——空间不足被主进程拒绝展示期间（suggestPresented
+  // false）建议不可见，Enter 按输入原文提交，不提交不可见建议（审查 20261028170000
+  // 低-6）；aria-expanded 同随呈现态，不虚报弹开列表
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
-      if (panelOpen && activeSuggestIndex >= 0) {
+      if (panelOpen && suggestPresented && activeSuggestIndex >= 0) {
         pickSuggestion(suggestions[activeSuggestIndex].entry.url)
       } else void submitDraft()
     } else if (e.key === 'Escape') {
@@ -373,7 +419,9 @@ function Toolbar(): React.JSX.Element {
         <input
           ref={inputRef}
           type="text"
-          className={`chrome-omnibox${invalid ? ' chrome-omnibox-invalid' : ''}`}
+          className={`chrome-omnibox${invalid ? ' chrome-omnibox-invalid' : ''}${
+            suggestPresented ? ' chrome-omnibox-fused' : ''
+          }`}
           placeholder={t('browser.toolbar.addressPlaceholder')}
           spellCheck={false}
           autoComplete="off"
@@ -382,7 +430,7 @@ function Toolbar(): React.JSX.Element {
           disabled={sessionId === null || !activeTab}
           value={draft ?? pendingShown ?? mainUrl}
           aria-invalid={invalid}
-          aria-expanded={panelOpen}
+          aria-expanded={panelOpen && suggestPresented}
           role="combobox"
           title={invalid ? t('browser.toolbar.addressInvalid') : undefined}
           onChange={(e) => {

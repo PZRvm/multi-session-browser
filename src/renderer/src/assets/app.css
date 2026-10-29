@@ -1304,10 +1304,28 @@ select.picker-input {
 
 .picker-conflict-desc {
   margin: 8px 0 0; /* CHROME_IMPORT_SCOPES_GAP（标题与描述间距，入高度公式） */
-  height: 40px; /* CHROME_IMPORT_DESC_HEIGHT（两行封顶，插值模板定长） */
+  height: 20px; /* CHROME_IMPORT_BASE_DESC_HEIGHT（基础句单行定长） */
   line-height: 20px;
   font-size: 11px;
   color: var(--board-ink-dim);
+}
+
+/* 冲突摘要逐类型行（2026-10-28 四类型权威制）：每冲突类型一行，行高与
+   CHROME_IMPORT_SUMMARY_LINE_HEIGHT 同源配对（入建窗高度公式），列表区禁纵向增量 */
+.picker-conflict-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.picker-conflict-line {
+  height: 18px; /* CHROME_IMPORT_SUMMARY_LINE_HEIGHT */
+  line-height: 18px;
+  font-size: 11px;
+  color: var(--board-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 独立代理设置 sheet（独立代理专项 2026-10-15，session-proxy kind）：复用
@@ -2481,6 +2499,27 @@ img.chrome-tab-favicon {
   border-color: var(--chrome-error);
 }
 
+/* 融合态（2026-10-28 融合专项，DESIGN「地址栏历史建议」融合态契约）：建议面板呈现
+   期由 shell 按 show 回执 canPresent 加持 .chrome-omnibox-fused——输入框下角归零、
+   与零间距上角直角的面板拼合为连续整体；面板收起/拒绝展示即摘类恢复四角药丸 */
+.chrome-omnibox.chrome-omnibox-fused {
+  border-radius: 14px 14px 0 0;
+  /* 边框整体隐去（2026-10-28 用户裁决修订：融合态下输入框与建议面板浑然一体、
+     不再保留输入框自身描边——先前「三边着色 + 底边发丝线接缝」方案退役）。
+     border-color 透明而非去 border：占位不变、高度公式与融合几何不受扰动 */
+  border-color: transparent;
+}
+
+/* 聚焦/无效态在融合态下一并保持无边框（面板展开本身即聚焦指示；无效提示仍由
+   title 与收起后的整框红显承担） */
+.chrome-omnibox.chrome-omnibox-fused:focus-visible {
+  border-color: transparent;
+}
+
+.chrome-omnibox.chrome-omnibox-fused.chrome-omnibox-invalid {
+  border-color: transparent;
+}
+
 /* 地址栏历史建议下拉（impeccable 定稿）：Chrome 灰阶语系——surface 底 + line 发丝线
    分层（无阴影，发丝线规则）、hover/active 蒙版阶梯（选中态升一档 hover-veil →
    active-veil，与导航钮同阶梯）、亮暗成对。行 = favicon + 标题 + 网址（标题缺失时
@@ -2488,26 +2527,36 @@ img.chrome-tab-favicon {
    版）。显隐瞬切（离散跳变对齐插入指示器先例，不引入位移动效）。承载：主进程
    原生子窗口渲染（原生子窗口化专项定稿，替代 overlayDepth 整页收起）——面板打开
    期间页面保持可见；下方 body[data-role] 作用域为子窗满窗承载态，shell 内不再
-   内联渲染本面板 */
+   内联渲染本面板。融合态（2026-10-28 融合专项）：面板紧贴输入框下沿零间距拼合为
+   连续整体——上角直角（0 0 8px 8px）、不绘顶边框（接缝线由输入框底边框单独承担，
+   纵向边框合计 1px 与 shared/omniboxSuggest.ts 高度公式同源配对） */
 .chrome-omnibox-suggest {
   position: absolute;
-  top: calc(100% + 6px);
+  top: 100%;
   left: 0;
   right: 0;
   z-index: 30;
   max-height: 298px;
   overflow-y: auto;
-  border: 1px solid var(--chrome-line);
-  border-radius: 8px;
+  /* 无边框（2026-10-28 用户裁决：下拉面板整体去边框——与输入框融合态无边框一致，
+     面板以 surface 底色 + 蒙版分层自明边界；高度公式 SUGGEST_PANEL_BORDER 同步归零） */
+  border: 0;
+  /* 上角显式直角（2026-10-28 用户裁决：融合态无上圆弧）；下角与输入框圆角同值
+     14px（2026-10-28 用户裁决：融合体上下端弧度统一，单源对齐 .chrome-omnibox） */
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
   background: var(--chrome-surface);
   scrollbar-width: thin;
   scrollbar-color: var(--chrome-line) transparent;
 }
 
 /* 建议子窗承载态（原生子窗口化专项）：窗口边界即面板边界（宽 = omnibox host 宽、
-   高 = 行数 × 30 + 2 封顶 298，由主进程按 shared/omniboxSuggest.ts 同源常量确定性
-   计算）；透明窗体 + 8px 圆角透出页面，主题随 nativeTheme 的 prefers-color-scheme
-   自动亮暗。子窗渲染端为 OmniboxSuggestWindow（纯展示零自治） */
+   高 = 行数 × 30 + 1 封顶 298，由主进程按 shared/omniboxSuggest.ts 同源常量确定性
+   计算，工作区下方不足时按整行收窄）；透明窗体 + 底部 8px 圆角透出页面，主题随
+   nativeTheme 的 prefers-color-scheme 自动亮暗。子窗渲染端为
+   OmniboxSuggestWindow（纯展示零自治） */
 body[data-role='omnibox-suggest'] {
   background: transparent;
 }

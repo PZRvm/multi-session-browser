@@ -5,18 +5,20 @@
 // 恒在宿主地址栏）、接鼠标（hover/pick 上报，ipc.ts 白名单校验后转发宿主 shell）、
 // 不进任务栏、无阴影（发丝线规则）；parent 归属宿主使其浮于宿主（含 WebContentsView
 // 原生层）之上——面板打开期间页面保持可见可交互，原生层零触碰。
-// 定位：宿主 getContentBounds() 原点 + shell 上报的 omnibox host 内容系锚点 + 面板
-// 间距，高度按行数确定性计算（度量常量与 CSS 同源配对）；宿主 move/resize 期间以
-// 缓存锚点重算跟随（监听随 show 挂、hide/dispose 摘），零 renderer 参与。
+// 定位（2026-10-28 融合专项）：宿主 getContentBounds() 原点 + shell 上报的 omnibox
+// host 内容系锚点 + 面板间距（恒 0），x/y 严格锚定输入框下沿不错位（融合连续整体，
+// 不做逐轴 clamp 独立移位），高度按行数确定性计算（度量常量与 CSS 同源配对）；工作
+// 区下方空间不足时保持锚定按整行收窄，连一行都放不下时拒绝展示（show 返回
+// canPresent=false，shell 收回融合态恢复输入框独立形态）。宿主 move/resize 期间以
+// 缓存锚点重算跟随并重估可呈现性（监听随 show 挂、hide/dispose 摘），零 renderer 参与。
 // 本模块不含任何 IPC handler（通道装配在 ipc.ts，分层同 manager/registry 惯例）。
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import type { WebContents } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { installShellInputGuard } from '../inputGuard'
 import { getCurrentLanguage } from '../i18n'
-import { clampRectIntoWorkArea } from './screen'
 import {
   OMNIBOX_SUGGEST_CHANNELS,
   SUGGEST_PANEL_BORDER,
@@ -32,8 +34,13 @@ import type {
 import type { ThemeSystemId } from '../../shared/themeSystems'
 
 export interface OmniboxSuggestWindows {
-  /** 开/更新面板（幂等全量）：懒创建子窗、重定位、data 推送、显窗（不夺焦） */
-  show(windowId: string, payload: OmniboxSuggestShowPayload): void
+  /**
+   * 开/更新面板（幂等全量）：懒创建子窗、重定位、data 推送、显窗（不夺焦）。
+   * 返回 canPresent（2026-10-28 融合契约）：锚点所在显示器工作区下方空间按整行收窄
+   * 后仍放不下「一行 + 底边框」时拒绝展示（不建不显），false 由 ipc.ts 回传 shell
+   * 收回融合态
+   */
+  show(windowId: string, payload: OmniboxSuggestShowPayload): boolean
   /** 收起面板：隐藏子窗（不销毁，复用）；建窗就绪前到达的 hide 撤销未决的显窗 */
   hide(windowId: string): void
   /** 销毁子窗并出池（宿主窗口 closed 级联；已不在池时 no-op） */
@@ -48,18 +55,33 @@ function panelHeight(itemCount: number): number {
   return Math.min(rows, SUGGEST_PANEL_MAX_HEIGHT)
 }
 
-/** 合成子窗屏幕位并 clamp 进宿主所在显示器工作区（贴底/贴边时按共享工具逐轴收窄，永不越出可点区） */
+/**
+ * 合成子窗屏幕位并裁定可呈现性（融合态契约）：x/y 严格锚定 omnibox 下沿——融合
+ * 连续整体不允许独立移位，故不做逐轴 clamp；高度优先全量，锚点所在显示器工作区
+ * 下方不足时保持锚定按整行收窄（高度 = 整行数 × 行高 + 底边框），连一行都放不下
+ * （可用高度 < 一行 + 底边框）时 canPresent=false 拒绝展示
+ */
 function computeBounds(
   owner: BrowserWindow,
   anchor: OmniboxSuggestAnchorPayload,
   itemCount: number
-): Electron.Rectangle {
+): { bounds: Electron.Rectangle; canPresent: boolean } {
   const content = owner.getContentBounds()
   const width = Math.max(0, Math.round(anchor.width))
-  const height = panelHeight(itemCount)
   const x = Math.round(content.x + anchor.x)
   const y = Math.round(content.y + anchor.y + anchor.height + SUGGEST_PANEL_GAP)
-  return clampRectIntoWorkArea({ x, y, width, height })
+  // 显示器按锚点线矩形取（重叠面积最近者）：面板归属 omnibox 所在屏，不因全量高度
+  // 越界而漂移到邻屏
+  const area = screen.getDisplayMatching({ x, y, width, height: SUGGEST_ROW_HEIGHT }).workArea
+  const full = panelHeight(itemCount)
+  const available = area.y + area.height - y
+  if (available >= full) return { bounds: { x, y, width, height: full }, canPresent: true }
+  const rows = Math.floor((available - SUGGEST_PANEL_BORDER) / SUGGEST_ROW_HEIGHT)
+  if (rows < 1) return { bounds: { x, y, width, height: 0 }, canPresent: false }
+  return {
+    bounds: { x, y, width, height: rows * SUGGEST_ROW_HEIGHT + SUGGEST_PANEL_BORDER },
+    canPresent: true
+  }
 }
 
 export function createOmniboxSuggestWindows(deps: {
@@ -94,13 +116,28 @@ export function createOmniboxSuggestWindows(deps: {
     console.log(`[omnibox-suggest] 子窗已销毁（宿主 ${windowId}）`)
   }
 
-  function show(windowId: string, payload: OmniboxSuggestShowPayload): void {
+  function show(windowId: string, payload: OmniboxSuggestShowPayload): boolean {
     const owner = deps.getWindow(windowId)
-    if (!owner || owner.isDestroyed()) return
+    if (!owner || owner.isDestroyed()) return false
     const data: OmniboxSuggestDataPayload = {
       items: payload.items,
       query: payload.query,
       activeIndex: payload.activeIndex
+    }
+    const { bounds, canPresent } = computeBounds(owner, payload.anchor, payload.items.length)
+    if (!canPresent) {
+      // 屏幕下方无可呈现区域：拒绝展示（不建新窗；已建子窗就地隐藏不销毁）。同步置
+      // visible=false——本次裁定的结论是「未呈现」，follow 跟随不得以陈旧锚点/条目
+      // 自行复活（审查 20261028170000 中-1：宿主移回有空间处后，复活只能由 shell 的
+      // 下一次 show 接受驱动，届时锚点/条目/数据整包更新）；follow 期间的空间不足
+      // 同样只隐藏不移位
+      const starved = children.get(windowId)
+      if (starved) starved.visible = false
+      if (starved && !starved.win.isDestroyed() && starved.win.isVisible()) {
+        starved.win.hide()
+        console.log(`[omnibox-suggest] 工作区空间不足，面板拒绝展示（宿主 ${windowId}）`)
+      }
+      return false
     }
     const existing = children.get(windowId)
     if (existing) {
@@ -108,7 +145,7 @@ export function createOmniboxSuggestWindows(deps: {
       existing.itemCount = payload.items.length
       existing.visible = true
       if (!existing.win.isDestroyed()) {
-        existing.win.setBounds(computeBounds(owner, payload.anchor, payload.items.length))
+        existing.win.setBounds(bounds)
         if (existing.ready) {
           existing.win.webContents.send(OMNIBOX_SUGGEST_CHANNELS.data, data)
           if (!existing.win.isVisible()) existing.win.showInactive()
@@ -116,12 +153,12 @@ export function createOmniboxSuggestWindows(deps: {
           existing.pendingData = data
         }
       }
-      return
+      return true
     }
 
     // 懒创建：隐藏建窗，ready-to-show 后 flush 数据并 showInactive（不夺焦）
     const win = new BrowserWindow({
-      ...computeBounds(owner, payload.anchor, payload.items.length),
+      ...bounds,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -134,6 +171,10 @@ export function createOmniboxSuggestWindows(deps: {
       focusable: false,
       skipTaskbar: true,
       show: false,
+      // macOS 窗口服务层圆角归零（2026-10-28 用户裁决）：透明无框窗默认带系统级
+      // 圆角——CSS 的 border-top-*-radius: 0 管不到窗口本身的像素圆化，融合态
+      // 面板上角须直角必须在此关闭（Windows/Linux 无此行为，参数无副作用）
+      roundedCorners: false,
       parent: owner,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -153,10 +194,17 @@ export function createOmniboxSuggestWindows(deps: {
     children.set(windowId, entry)
 
     // 宿主 move/resize 跟随：以缓存锚点 + 现取内容区原点重算（监听随 show 挂、
-    // hide/dispose 摘；监听挂在宿主上，宿主销毁时随之失效）
+    // hide/dispose 摘；监听挂在宿主上，宿主销毁时随之失效）。同步重估可呈现性：
+    // 空间不足只隐藏不移位（融合不错开），空间恢复即随下一次事件回显
     const follow = (): void => {
       if (win.isDestroyed()) return
-      win.setBounds(computeBounds(owner, entry.anchor, entry.itemCount))
+      const { bounds: next, canPresent } = computeBounds(owner, entry.anchor, entry.itemCount)
+      if (!canPresent) {
+        if (win.isVisible()) win.hide()
+        return
+      }
+      win.setBounds(next)
+      if (entry.ready && entry.visible && !win.isVisible()) win.showInactive()
     }
     owner.on('move', follow)
     owner.on('resize', follow)
@@ -209,6 +257,7 @@ export function createOmniboxSuggestWindows(deps: {
         .catch(() => undefined)
     }
     console.log(`[omnibox-suggest] 子窗已创建（宿主 ${windowId}）`)
+    return true
   }
 
   function hide(windowId: string): void {

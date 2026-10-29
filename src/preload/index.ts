@@ -27,10 +27,13 @@ import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
   OmniboxSuggestPickPayload,
-  OmniboxSuggestShowPayload
+  OmniboxSuggestShowPayload,
+  OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
 import { CHROME_IMPORT_CHANNELS } from '../shared/chromeImport'
 import type {
+  ChromeImportCancelPayload,
+  ChromeImportCancelResult,
   ChromeImportOptions,
   ChromeImportPlan,
   ChromeImportResolution,
@@ -335,7 +338,9 @@ const api = {
   // 用 show/hide 编排开合 + onHovered/onPicked 消费子窗鼠标转发；子窗用 hover/pick
   // 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需
   omniboxSuggest: {
-    show: (payload: OmniboxSuggestShowPayload): Promise<BrowserOkResult> =>
+    /** show 返回 canPresent（2026-10-28 融合契约）：主进程裁定面板可否呈现——false
+     *  表示工作区空间不足拒绝展示，shell 据此收回融合态（旧回复按当前有效请求核对） */
+    show: (payload: OmniboxSuggestShowPayload): Promise<OmniboxSuggestShowResult> =>
       ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.show, payload),
     hide: (): Promise<BrowserOkResult> => ipcRenderer.invoke(OMNIBOX_SUGGEST_CHANNELS.hide),
     hover: (payload: OmniboxSuggestHoverPayload): Promise<BrowserOkResult> =>
@@ -379,7 +384,11 @@ const api = {
     dryRun: (payload: ChromeImportOptions): Promise<ChromeImportPlan> =>
       ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.dryRun, payload),
     execute: (payload: ChromeImportResolution): Promise<ChromeImportResult> =>
-      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.execute, payload)
+      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.execute, payload),
+    /** 取消尚未执行的暂存计划（2026-10-28 四类型契约）：释放暂存资源；无此计划返回
+     *  cancelled:false（非错误）；写盘中的 execute 不受影响 */
+    cancel: (payload: ChromeImportCancelPayload): Promise<ChromeImportCancelResult> =>
+      ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.cancel, payload)
   },
   // 快速截图域（契约见 shared/capture.ts）：截图入剪贴板 + 最近一次落盘两 invoke，
   // request 为页面聚焦态快捷键触发的回程推送（find-request 同构，renderer 汇流

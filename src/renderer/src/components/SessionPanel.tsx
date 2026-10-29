@@ -111,10 +111,12 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
   // 批量移动编排（openBatchMoveModal/pickBatchMoveTarget）已于 2026-10-23 随批量
   // 多选功能退役删除（单条移动入口 openMoveModal 保留）
 
-  // 导入 Chrome 数据编排（反馈轮原生化）：结论经原生 sheet（picker 通道）两段闭环——
-  // select（profile + 勾选）→ dry-run → 无冲突直接 execute；有冲突二次弹 conflict
-  // sheet 裁决 → execute。结果/错误的原生框由主进程完成点弹出（chromeImport/index.ts
-  // 内联 showMessageBox），此处只消化拒绝与驱动历史镜像重拉。确认与执行两段解耦同
+  // 导入 Chrome 数据编排（反馈轮原生化；2026-10-28 四类型契约迁移）：结论经原生 sheet
+  // （picker 通道）两段闭环——select（profile + 勾选）→ dry-run → 无冲突直接 execute；
+  // 有冲突二次弹 conflict sheet 裁决（摘要由主进程按 planId 从暂存现取，此处只传
+  // planId 不自报计数）→ execute（统一 policy）。取消/失败路径发 cancel 清尚未执行的
+  // 暂存（幂等）。结果/错误的原生框由主进程完成点弹出（chromeImport/index.ts 内联
+  // showMessageBox），此处只消化拒绝与驱动历史镜像重拉。确认与执行两段解耦同
   // showWorkspacePicker 先例（移动/重命名的执行均走既有通道）
   const openImportChrome = (session: SessionItem): void => {
     void (async () => {
@@ -123,30 +125,31 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         sessionId: session.id
       })
       if (picked.status !== 'chrome-import-picked') return
+      let planId: string | null = null
       try {
         const plan = await window.api.chromeImport.dryRun({
           sessionId: session.id,
           profileDir: picked.profileDir,
           scopes: picked.scopes
         })
+        planId = plan.planId
         // dry-run 完成：关掉加载态选择 sheet（反馈轮三）；冲突则二次弹裁决 sheet
         await closeWorkspacePicker()
-        const lsPlan = plan.scopes.find((item) => item.scope === 'localStorage')
         let policy: ChromeImportPolicy = 'session'
-        if (lsPlan !== undefined && lsPlan.conflictKeys > 0) {
+        if (plan.scopes.some((item) => item.conflicts > 0)) {
           const verdict = await showWorkspacePicker({
             kind: 'chrome-import-conflict',
             sessionId: session.id,
-            keys: lsPlan.conflictKeys,
-            origins: lsPlan.conflictOrigins
+            planId: plan.planId
           })
-          if (verdict.status !== 'chrome-import-policy') return
+          if (verdict.status !== 'chrome-import-policy') {
+            // 用户放弃裁决：清暂存（快照/资源即时释放，不等 TTL）
+            void window.api.chromeImport.cancel({ planId: plan.planId }).catch(() => {})
+            return
+          }
           policy = verdict.policy
         }
-        const result = await window.api.chromeImport.execute({
-          planId: plan.planId,
-          localStoragePolicy: policy
-        })
+        const result = await window.api.chromeImport.execute({ planId: plan.planId, policy })
         // 导入不经 recordVisit 链路（无逐条推送），完成后重拉镜像使建议即时可用；
         // 原生结果框已由主进程弹出
         if (result.results.some((item) => item.scope === 'history' && item.status === 'done')) {
@@ -154,8 +157,11 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         }
         await closeWorkspacePicker()
       } catch {
-        // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝并
-        // 关掉可能残留的加载态 sheet
+        // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝、清
+        // 尚未执行的暂存并关掉可能残留的加载态 sheet
+        if (planId !== null) {
+          void window.api.chromeImport.cancel({ planId }).catch(() => {})
+        }
         await closeWorkspacePicker()
       }
     })()

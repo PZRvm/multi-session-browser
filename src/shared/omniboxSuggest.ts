@@ -34,6 +34,15 @@ export interface OmniboxSuggestAnchorPayload {
   height: number
 }
 
+/** show 命令返回结果（2026-10-28 融合专项契约）：canPresent = 主进程按锚点与
+ * 显示器工作区实际裁定后面板可否呈现——false 表示空间不足拒绝展示（shell 据此
+ * 收回融合态并恢复输入框独立形态，不独立移位面板）；面板已呈现的正常路径恒
+ * true。旧回复不得复活已关闭/已切换的建议（shell 消费时按当前有效请求核对） */
+export interface OmniboxSuggestShowResult {
+  ok: boolean
+  canPresent: boolean
+}
+
 /** show 命令载荷（幂等全量语义：面板打开期间状态任一变化即重发整包，主进程转发并重定位） */
 export interface OmniboxSuggestShowPayload {
   anchor: OmniboxSuggestAnchorPayload
@@ -87,16 +96,22 @@ export const OMNIBOX_SUGGEST_CHANNELS = {
 export const SUGGEST_TEXT_MAX = 200
 
 /** 建议子窗确定性度量（与 app.css 的 .chrome-omnibox-suggest 系同源配对，
- * DESIGN.md「地址栏历史建议」条目注明配对关系——改 CSS 必须同步改这里，反之亦然）：
- * 子窗高度 = min(items.length, SUGGEST_MAX_RESULTS) × SUGGEST_ROW_HEIGHT
- *   + SUGGEST_PANEL_BORDER，超 SUGGEST_PANEL_MAX_HEIGHT 封顶（子窗内滚动）；
- * 子窗 y = anchor.y + anchor.height + SUGGEST_PANEL_GAP
+ * DESIGN.md「地址栏历史建议」条目注明配对关系——改 CSS 必须同步改这里，反之亦然；
+ * 2026-10-28 融合专项修订：建议展开时输入框与面板融合为连续整体——面板紧贴输入框
+ * 下沿零间距、面板上角直角、输入框下角直角，接缝线由输入框底边框单独承担、面板
+ * 不再绘顶边框）：
+ * 子窗高度 = min(items.length, SUGGEST_MAX_RESULTS) × SUGGEST_ROW_HEIGHT（无边框
+ *   补加项），超 SUGGEST_PANEL_MAX_HEIGHT 封顶（子窗内滚动）；
+ * 子窗 y = anchor.y + anchor.height + SUGGEST_PANEL_GAP（-1 上叠消缝）
  */
 /** 建议行高（.chrome-omnibox-suggest-item height: 30px） */
 export const SUGGEST_ROW_HEIGHT = 30
-/** 面板上下边框合计（.chrome-omnibox-suggest border 1px × 2） */
-export const SUGGEST_PANEL_BORDER = 2
-/** 面板与输入框下缘间距（.chrome-omnibox-suggest top: calc(100% + 6px)） */
-export const SUGGEST_PANEL_GAP = 6
+/** 面板纵向边框合计（2026-10-28 用户裁决修订：面板整体无边框——恒 0；高度公式
+ *  = 行数 × 行高，主进程定位消费本常量单源） */
+export const SUGGEST_PANEL_BORDER = 0
+/** 面板与输入框下缘间距（2026-10-28 用户裁决修订：-1px 上叠——融合态输入框
+ *  border-color 透明后其底边框 1px 占位行会露出工具栏底色形成可见缝隙，面板上叠
+ *  1px 盖掉该占位行实现真无缝；主进程定位与高度公式消费本常量单源） */
+export const SUGGEST_PANEL_GAP = -1
 /** 面板最大高度（.chrome-omnibox-suggest max-height: 298px，超出子窗内滚动） */
 export const SUGGEST_PANEL_MAX_HEIGHT = 298

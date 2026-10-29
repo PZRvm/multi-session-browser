@@ -34,7 +34,10 @@ import {
 import { HISTORY_CHANNELS, SUGGEST_MAX_RESULTS } from '../../shared/history'
 import type { HistoryEntry } from '../../shared/history'
 import { OMNIBOX_SUGGEST_CHANNELS, SUGGEST_TEXT_MAX } from '../../shared/omniboxSuggest'
-import type { OmniboxSuggestShowPayload } from '../../shared/omniboxSuggest'
+import type {
+  OmniboxSuggestShowPayload,
+  OmniboxSuggestShowResult
+} from '../../shared/omniboxSuggest'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
 import { t } from '../i18n'
 import type { TabDragController } from './dragging'
@@ -545,13 +548,17 @@ export function registerBrowserIpc(
     return windowId
   }
 
-  // suggest-show：开/更新面板（幂等全量）。宿主解析 → 守卫 → 子窗池承载
-  ipcMain.handle(OMNIBOX_SUGGEST_CHANNELS.show, (event, payload: unknown): OkResult =>
-    logFailure(OMNIBOX_SUGGEST_CHANNELS.show, payload, () => {
-      const windowId = requireOwnerWindow(event)
-      suggestWindows.show(windowId, parseSuggestShow(payload))
-      return { ok: true }
-    })
+  // suggest-show：开/更新面板（幂等全量）。宿主解析 → 守卫 → 子窗池承载；返回
+  // canPresent（2026-10-28 融合契约：主进程按锚点与工作区空间裁定可否呈现——空间
+  // 不足拒绝展示时 shell 收回融合态并恢复输入框独立形态）
+  ipcMain.handle(
+    OMNIBOX_SUGGEST_CHANNELS.show,
+    (event, payload: unknown): OmniboxSuggestShowResult =>
+      logFailure(OMNIBOX_SUGGEST_CHANNELS.show, payload, () => {
+        const windowId = requireOwnerWindow(event)
+        const canPresent = suggestWindows.show(windowId, parseSuggestShow(payload))
+        return { ok: true, canPresent }
+      })
   )
 
   // suggest-hide：收起面板（无 payload，隐藏不销毁）

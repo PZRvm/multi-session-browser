@@ -6,6 +6,7 @@ import {
   PICKER_ROW_HEIGHT,
   type WorkspacePickerContext
 } from '../../../shared/dialog'
+import { chromeImportScopeLabelKey } from '../../../shared/chromeImport'
 import type { ChromeImportPolicy, ChromeImportScope } from '../../../shared/chromeImport'
 import {
   normalizeProxyConfig,
@@ -50,6 +51,12 @@ type ProxyCheckState =
  * 等，i18n 零新增）；列表封顶高度由 shared 度量常量合成（与主进程建窗高度同源
  * 配对）；亮暗随 CSS 媒体查询
  */
+/** 导入内容类型显示名（键名经 shared 单源映射 chromeImportScopeLabelKey，与主进程
+ *  结果框同源——审查 20261028170000 低-4） */
+function scopeLabel(t: ReturnType<typeof useT>, scope: ChromeImportScope): string {
+  return t(chromeImportScopeLabelKey(scope) as Parameters<ReturnType<typeof useT>>[0])
+}
+
 export default function WorkspacePickerWindow(): React.JSX.Element {
   const t = useT()
   const [context, setContext] = useState<WorkspacePickerContext | null>(null)
@@ -92,6 +99,11 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
           if (payload.currentName !== undefined) setDraft(payload.currentName)
           if (payload.chromeProfiles !== undefined) {
             setProfileDir(payload.chromeProfiles[0]?.dir ?? '')
+          }
+          if (payload.chromeScopes !== undefined && payload.chromeScopes.length > 0) {
+            // 可用类型集同点初始化勾选（默认全选；2026-10-28 四类型——主进程按引擎
+            // 就绪度给出，未就绪类型不出现）
+            setScopesDraft(payload.chromeScopes)
           }
           if (payload.kind === 'session-proxy' && payload.currentProxy) {
             const current = payload.currentProxy
@@ -319,24 +331,17 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
               <span className="picker-select-chevron" aria-hidden />
             </div>
             <div className="picker-check-row">
-              <label className="picker-check">
-                <input
-                  type="checkbox"
-                  checked={scopesDraft.includes('history')}
-                  disabled={importing}
-                  onChange={(e) => toggleScope('history', e.target.checked)}
-                />
-                {t('chromeImport.dialog.scopeHistory')}
-              </label>
-              <label className="picker-check">
-                <input
-                  type="checkbox"
-                  checked={scopesDraft.includes('localStorage')}
-                  disabled={importing}
-                  onChange={(e) => toggleScope('localStorage', e.target.checked)}
-                />
-                {t('chromeImport.dialog.scopeLocalStorage')}
-              </label>
+              {(context.chromeScopes ?? []).map((scope) => (
+                <label key={scope} className="picker-check">
+                  <input
+                    type="checkbox"
+                    checked={scopesDraft.includes(scope)}
+                    disabled={importing}
+                    onChange={(e) => toggleScope(scope, e.target.checked)}
+                  />
+                  {scopeLabel(t, scope)}
+                </label>
+              ))}
             </div>
             <div className="picker-foot">
               <button
@@ -373,18 +378,31 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
     )
   }
 
-  // 导入冲突裁决形态（chrome-import-conflict）：冲突摘要插值 + 会话级一次二选一
+  // 导入冲突裁决形态（chrome-import-conflict）：冲突摘要 + 会话级一次二选一。摘要为
+  // 主进程按 planId 从暂存现取的按类型/单位权威数组（2026-10-28 四类型）——基础句 +
+  // 逐冲突类型一行（记录类按条数/站点数、IndexedDB 按站点快照数并明示整份替换语义）
   if (context?.kind === 'chrome-import-conflict') {
     return (
       <div className="picker-body" role="dialog" aria-label={title}>
         <header className="picker-head">
           <h1 className="picker-title">{t('chromeImport.conflict.title')}</h1>
-          <p className="picker-conflict-desc">
-            {t('chromeImport.conflict.desc', {
-              keys: context.chromeConflictKeys ?? 0,
-              origins: context.chromeConflictOrigins ?? 0
-            })}
-          </p>
+          <p className="picker-conflict-desc">{t('chromeImport.conflict.baseDesc')}</p>
+          <ul className="picker-conflict-lines">
+            {(context.chromeConflictScopes ?? []).map((item) => (
+              <li key={item.scope} className="picker-conflict-line">
+                {item.unit === 'sites'
+                  ? t('chromeImport.conflict.lineSites', {
+                      scope: scopeLabel(t, item.scope),
+                      count: item.conflicts
+                    })
+                  : t('chromeImport.conflict.lineRecords', {
+                      scope: scopeLabel(t, item.scope),
+                      count: item.conflicts,
+                      sites: item.conflictSites
+                    })}
+              </li>
+            ))}
+          </ul>
         </header>
         <div className="picker-form">
           <div

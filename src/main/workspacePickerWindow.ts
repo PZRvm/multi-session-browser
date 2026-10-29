@@ -41,7 +41,7 @@ import {
 } from '../shared/sessions'
 import { CHROME_IMPORT_POLICIES, CHROME_IMPORT_SCOPES } from '../shared/chromeImport'
 import { isRecord } from '../shared/guards'
-import { chromeDetector } from './browser/chromeImport'
+import { AVAILABLE_IMPORT_SCOPES, chromeDetector, peekStagedScopes } from './browser/chromeImport'
 import { getAppearanceBackgroundColor } from './appearance'
 import { installShellInputGuard } from './inputGuard'
 import { getCurrentLanguage, t } from './i18n'
@@ -87,8 +87,10 @@ let pending: PendingPicker | null = null
 let managedSheet: BrowserWindow | null = null
 let managedTimer: ReturnType<typeof setTimeout> | null = null
 
-/** keepOpen 加载态兜底时长（与导入暂存 TTL 同值口径：编排正常远快于此） */
-const MANAGED_SHEET_FALLBACK_MS = 60_000
+/** keepOpen 加载态兜底时长（对齐 dry-run 最坏路径：钥匙串授权等待上限 20s + 大体量
+ *  源快照复制 + 四类型探测——审查 20261028170000 低-8；编排正常远快于此，兜底只防
+ *  编排异常卡死模态） */
+const MANAGED_SHEET_FALLBACK_MS = 120_000
 
 /** 释放 keepOpen 引用与兜底定时器（关闭路径统一收口） */
 function releaseManagedSheet(): void {
@@ -112,35 +114,21 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     throw invalidParams()
   }
   if (kind === 'chrome-import-select' || kind === 'chrome-import-conflict') {
-    // 导入两 kind：sessionId 必填过格式单源；select 禁传冲突计数、conflict 必填
-    // 非负整数计数（dry-run 实测值原样回传，sheet 副行插值展示——审查载荷防御口径）
+    // 导入两 kind：sessionId 必填过格式单源；select 禁传 planId、conflict 必填 planId
+    // （2026-10-28 权威制：冲突摘要按 planId 从导入暂存现取，renderer 不自报计数）
     if (payload.ids !== undefined || payload.workspaceId !== undefined) throw invalidParams()
     const sessionId = payload.sessionId
     if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) throw invalidParams()
     if (kind === 'chrome-import-select') {
-      if (
-        payload.keys !== undefined ||
-        payload.origins !== undefined ||
-        payload.keepOpen !== undefined
-      ) {
+      if (payload.planId !== undefined || payload.keepOpen !== undefined) {
         throw invalidParams()
       }
       return { kind, sessionId }
     }
-    const keys = payload.keys
-    const origins = payload.origins
-    if (
-      typeof keys !== 'number' ||
-      !Number.isInteger(keys) ||
-      keys < 0 ||
-      typeof origins !== 'number' ||
-      !Number.isInteger(origins) ||
-      origins < 0
-    ) {
-      throw invalidParams()
-    }
+    const planId = payload.planId
+    if (typeof planId !== 'string' || planId === '') throw invalidParams()
     if (payload.keepOpen !== undefined) throw invalidParams()
-    return { kind, sessionId, keys, origins }
+    return { kind, sessionId, planId }
   }
   if (kind === 'workspace-move-single') {
     if (payload.ids !== undefined || payload.workspaceId !== undefined) throw invalidParams()
@@ -155,8 +143,7 @@ function parsePickerPayload(payload: unknown): ShowWorkspacePickerPayload {
     if (
       payload.ids !== undefined ||
       payload.workspaceId !== undefined ||
-      payload.keys !== undefined ||
-      payload.origins !== undefined ||
+      payload.planId !== undefined ||
       payload.keepOpen !== undefined
     ) {
       throw invalidParams()
@@ -199,16 +186,27 @@ async function buildContext(
         sessionName: session.name,
         chromeDetected: detected,
         chromeProfiles: profiles,
+        // 可选内容类型集：主进程引擎就绪度单源（2026-10-28 四类型；sheet 据此渲染
+        // 勾选行，未就绪类型不出现不占位）
+        chromeScopes: [...AVAILABLE_IMPORT_SCOPES],
         options: [],
         showMoveOut: false
       }
     }
+    // 冲突摘要权威制（2026-10-28）：按 planId 从导入暂存只读现取（只含 conflicts > 0
+    // 的 scope，逐类型带单位与计数）；planId 未命中（过期/已消费）返回 null 按取消收敛
+    // （parse 已保证 conflict kind 必填 planId，此处类型守卫为防御面）
+    const planId = request.planId
+    const conflictScopes =
+      typeof planId === 'string'
+        ? peekStagedScopes(planId)?.filter((item) => item.conflicts > 0)
+        : undefined
+    if (!conflictScopes || conflictScopes.length === 0) return null
     return {
       requestId,
       kind: request.kind,
       sessionName: session.name,
-      chromeConflictKeys: request.keys,
-      chromeConflictOrigins: request.origins,
+      chromeConflictScopes: conflictScopes,
       options: [],
       showMoveOut: false
     }
@@ -441,7 +439,7 @@ export function registerWorkspacePickerIpc(deps: {
     resolve(result)
     if (payload.keepOpen === true) {
       // 导入加载动画（反馈轮三）：提交后转加载态不关窗（sheet 页本地锁定控件），关闭
-      // 权移交 renderer 编排（workspacePickerClose）；60s 兜底自动关防编排异常卡死模态
+      // 权移交 renderer 编排（workspacePickerClose）；120s 兜底自动关防编排异常卡死模态（对齐 dry-run 最坏路径）
       managedSheet = sheet
       managedTimer = setTimeout(() => {
         console.warn('[dialog] 导入加载态 sheet 超时未关闭，兜底自动关')

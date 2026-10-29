@@ -13,14 +13,21 @@ export const chromeImport: Dictionary['chromeImport'] = {
     profileLabel: 'Chrome Profile',
     scopeHistory: 'Browsing history (address bar suggestions)',
     scopeLocalStorage: 'localStorage (site data)',
+    scopeCookies: 'Cookies (login state)',
+    scopeIndexedDB: 'IndexedDB (site storage snapshots)',
     importBtn: 'Import',
     importing: 'Importing…',
     cancelBtn: 'Cancel',
     loadFailed: 'Detection failed'
   },
   conflict: {
-    title: 'localStorage conflicts detected',
-    desc: '{keys} entries differ from existing session data across {origins} sites. Choose which side wins:',
+    title: 'Import conflicts detected',
+    baseDesc:
+      'The following content differs from existing session data. Choose which side wins (applies to all types in this import):',
+    lineRecords:
+      '{scope}: {count} entries differ from the current session ({sites} sites involved)',
+    lineSites:
+      '{scope}: storage snapshots of {count} sites differ from existing ones; full replacement removes target-only data within those sites',
     useChrome: 'Use Chrome',
     useSession: 'Keep current session',
     confirmBtn: 'Import'
@@ -29,8 +36,25 @@ export const chromeImport: Dictionary['chromeImport'] = {
     historyDone: 'History imported: {added} added, {merged} merged',
     localStorageDone:
       'localStorage imported: {added} added, {merged} merged, {conflicts} conflicts resolved by your choice',
+    cookiesDone:
+      'Cookies imported: {added} added, {merged} merged, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
+    indexedDbDone:
+      'IndexedDB imported: {added} sites, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
+    partial:
+      '{scope} partially completed: {added} succeeded, the rest restored or skipped ({skipped})',
+    unsupported:
+      '{scope} unsupported: source data format or version is not supported by the current engine',
+    rollbackFailed:
+      '{scope} failed and rollback did not fully succeed: the target may be partially written, manual inspection required (recovery backup kept)',
     skipped: '{scope} not imported',
-    failed: '{scope} import failed: {error}'
+    failed: '{scope} import failed: {error}',
+    failedReason: '{scope} import failed: ',
+    reasonSourceVersionNewer: 'source IndexedDB version is newer than this engine supports',
+    reasonAuth: 'system keychain authorization for decryption was not granted',
+    reasonTargetChanged: 'target session data changed, start the import again',
+    reasonIo: 'file system error',
+    reasonRollback: 'failure rollback did not succeed',
+    reasonUnsupported: 'unsupported data format'
   },
   errors: {
     chromeLocked: 'Chrome data files are locked. Quit Google Chrome and try again',

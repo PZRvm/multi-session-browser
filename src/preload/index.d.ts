@@ -19,6 +19,8 @@ import type {
 import type { BrowserSnapshot } from '../shared/browser'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import type {
+  ChromeImportCancelPayload,
+  ChromeImportCancelResult,
   ChromeImportOptions,
   ChromeImportPlan,
   ChromeImportResolution,
@@ -44,7 +46,8 @@ import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
   OmniboxSuggestPickPayload,
-  OmniboxSuggestShowPayload
+  OmniboxSuggestShowPayload,
+  OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
 import type {
   AppearanceSnapshot,
@@ -166,7 +169,7 @@ declare global {
         onFindResult(callback: (result: FoundInPageResult) => void): () => void
       }
       omniboxSuggest: {
-        show(payload: OmniboxSuggestShowPayload): Promise<OkResult>
+        show(payload: OmniboxSuggestShowPayload): Promise<OmniboxSuggestShowResult>
         hide(): Promise<OkResult>
         hover(payload: OmniboxSuggestHoverPayload): Promise<OkResult>
         pick(payload: OmniboxSuggestPickPayload): Promise<OkResult>
@@ -178,6 +181,7 @@ declare global {
         listProfiles(): Promise<ChromeProfilesPayload>
         dryRun(payload: ChromeImportOptions): Promise<ChromeImportPlan>
         execute(payload: ChromeImportResolution): Promise<ChromeImportResult>
+        cancel(payload: ChromeImportCancelPayload): Promise<ChromeImportCancelResult>
       }
       /** 快速截图 + 快速录屏（契约 shared/capture.ts 两线融合：截图执行/反馈条编排 + 录制四意图与状态订阅） */
       capture: {
