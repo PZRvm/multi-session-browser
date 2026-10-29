@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import OmniboxSuggestPanel from './OmniboxSuggestPanel'
-import { SUGGEST_SHADOW_MARGIN } from '../../../../shared/omniboxSuggest'
 import type { OmniboxSuggestDataPayload } from '../../../../shared/omniboxSuggest'
 
 // 建议子窗渲染端（原生子窗口化专项）：纯展示零自治——宿主 shell 经 show 命令全量
@@ -42,32 +41,6 @@ export default function OmniboxSuggestWindow(): React.JSX.Element | null {
   const [data, setData] = useState<OmniboxSuggestDataPayload | null>(latest)
 
   useEffect(() => subscribe(setData), [])
-
-  // 阴影边距环带鼠标穿通（2026-10-28 阴影专项）：光标落在边距环带（纯阴影像素，
-  // 无可交互内容）时整窗 setIgnoreMouseEvents(forward)——环带点击穿透回工具栏按钮/
-  // 页面；forward 使忽略态下 mousemove 仍达本页，光标回到面板实域即切回接收态。
-  // 主进程侧按宿主复显兜底重置，本侧以声明式状态差异发送（去重）
-  const passthroughRef = useRef(false)
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent): void => {
-      const m = SUGGEST_SHADOW_MARGIN
-      const inMargin =
-        e.clientX < m || e.clientX > window.innerWidth - m || e.clientY > window.innerHeight - m
-      if (inMargin !== passthroughRef.current) {
-        passthroughRef.current = inMargin
-        void window.api.omniboxSuggest.setMousePassthrough(inMargin).catch(() => {})
-      }
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      // 卸载（子窗隐藏/销毁）复位接收态，防隐藏期停在忽略态影响复显
-      if (passthroughRef.current) {
-        passthroughRef.current = false
-        void window.api.omniboxSuggest.setMousePassthrough(false).catch(() => {})
-      }
-    }
-  }, [])
 
   // 子窗显窗前必有数据推送（ready-to-show 先 flush 再 showInactive），空态仅为防御
   if (!data) return null

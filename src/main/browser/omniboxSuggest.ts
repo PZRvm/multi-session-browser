@@ -24,8 +24,7 @@ import {
   SUGGEST_PANEL_BORDER,
   SUGGEST_PANEL_GAP,
   SUGGEST_PANEL_MAX_HEIGHT,
-  SUGGEST_ROW_HEIGHT,
-  SUGGEST_SHADOW_MARGIN
+  SUGGEST_ROW_HEIGHT
 } from '../../shared/omniboxSuggest'
 import type {
   OmniboxSuggestAnchorPayload,
@@ -48,10 +47,6 @@ export interface OmniboxSuggestWindows {
   dispose(windowId: string): void
   /** sender 身份判别：sender 属池内子窗时返回宿主 windowId，否则 null（ipc 白名单校验用） */
   resolveOwnerOf(sender: WebContents): string | null
-  /** 阴影边距环带鼠标穿通切换（渲染端按光标位置驱动）：enabled=true 时整窗
-   *  setIgnoreMouseEvents(forward)——环带点击穿透回工具栏/页面，光标移回面板
-   *  实域由 forward 的 mousemove 重新接管 */
-  setMousePassthrough(windowId: string, enabled: boolean): void
 }
 
 /** 子窗高度 = 行数 × 行高 + 边框，封顶面板最大高度（子窗内滚动由 CSS overflow 承担） */
@@ -72,12 +67,10 @@ function computeBounds(
   itemCount: number
 ): { bounds: Electron.Rectangle; canPresent: boolean } {
   const content = owner.getContentBounds()
-  // 阴影边距（方案 A 双层拼合影）：窗口左右各扩 M、下扩 M——面板 div 在子窗内缩进
-  // 同值后绘 box-shadow，三边阴影完整；y 不变（窗口上缘即融合体上缘 = 输入框下缘
-  // −1 上叠，向上阴影被窗口边界天然裁掉，不在融合体内部投影）
-  const m = SUGGEST_SHADOW_MARGIN
-  const width = Math.max(0, Math.round(anchor.width)) + m * 2
-  const x = Math.round(content.x + anchor.x - m)
+  // 窗口 = 面板精确边界（2026-10-29 修订：环带方案退役——透明环带在亮色页面上呈
+  // 浅灰/暖灰带读作白边/黄边；阴影改由 macOS 原生窗口阴影承担，跟随内容形状）
+  const width = Math.max(0, Math.round(anchor.width))
+  const x = Math.round(content.x + anchor.x)
   const y = Math.round(content.y + anchor.y + anchor.height + SUGGEST_PANEL_GAP)
   // 显示器按锚点线矩形取（重叠面积最近者）：面板归属 omnibox 所在屏，不因全量高度
   // 越界而漂移到邻屏
@@ -86,12 +79,12 @@ function computeBounds(
   const full = panelHeight(itemCount)
   const available = area.y + area.height - y
   if (available >= full) {
-    return { bounds: { x, y, width, height: full + m }, canPresent: true }
+    return { bounds: { x, y, width, height: full }, canPresent: true }
   }
   const rows = Math.floor((available - SUGGEST_PANEL_BORDER) / SUGGEST_ROW_HEIGHT)
   if (rows < 1) return { bounds: { x, y, width, height: 0 }, canPresent: false }
   return {
-    bounds: { x, y, width, height: rows * SUGGEST_ROW_HEIGHT + SUGGEST_PANEL_BORDER + m },
+    bounds: { x, y, width, height: rows * SUGGEST_ROW_HEIGHT + SUGGEST_PANEL_BORDER },
     canPresent: true
   }
 }
@@ -115,8 +108,6 @@ export function createOmniboxSuggestWindows(deps: {
     pendingData: OmniboxSuggestDataPayload | null
     /** 宿主 move/resize 跟随监听挂摘（show 挂、hide/dispose 摘，防泄漏） */
     detachFollow: () => void
-    /** 鼠标穿通态镜像（去重用） */
-    passthrough: boolean
   }
 
   const children = new Map<string, ChildEntry>()
@@ -158,12 +149,6 @@ export function createOmniboxSuggestWindows(deps: {
       existing.anchor = payload.anchor
       existing.itemCount = payload.items.length
       existing.visible = true
-      // 复显重置穿通态：隐藏时若停在忽略态，复显后鼠标会落在面板实域却无 mousemove
-      // 接管（forward 只在忽略态投递）——恢复接收态兜底
-      if (existing.passthrough) {
-        existing.passthrough = false
-        if (!existing.win.isDestroyed()) existing.win.setIgnoreMouseEvents(false)
-      }
       if (!existing.win.isDestroyed()) {
         existing.win.setBounds(bounds)
         if (existing.ready) {
@@ -182,7 +167,6 @@ export function createOmniboxSuggestWindows(deps: {
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
-      hasShadow: false,
       resizable: false,
       movable: false,
       minimizable: false,
@@ -195,6 +179,10 @@ export function createOmniboxSuggestWindows(deps: {
       // 圆角——CSS 的 border-top-*-radius: 0 管不到窗口本身的像素圆化，融合态
       // 面板上角须直角必须在此关闭（Windows/Linux 无此行为，参数无副作用）
       roundedCorners: false,
+      // 原生窗口阴影（2026-10-29 融合体阴影修订）：macOS 阴影跟随透明窗的不透明
+      // 内容形状（含 CSS 圆角轮廓）、系统级色彩管理与主题适配——取代 CSS box-shadow
+      // 环带方案（环带在亮色页面上呈浅灰/暖灰带，被读作白边/黄边而非阴影）
+      hasShadow: true,
       parent: owner,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -209,7 +197,6 @@ export function createOmniboxSuggestWindows(deps: {
       anchor: payload.anchor,
       itemCount: payload.items.length,
       pendingData: data,
-      passthrough: false,
       detachFollow: () => undefined
     }
     children.set(windowId, entry)
@@ -296,15 +283,5 @@ export function createOmniboxSuggestWindows(deps: {
     return null
   }
 
-  function setMousePassthrough(windowId: string, enabled: boolean): void {
-    const entry = children.get(windowId)
-    if (!entry || entry.win.isDestroyed()) return
-    if (entry.passthrough === enabled) return
-    entry.passthrough = enabled
-    // forward: true——忽略态下仍向渲染端投递 mousemove，光标回到面板实域时渲染端
-    // 能感知并切回接收态（穿通环带与面板实域的双向切换闭环）
-    entry.win.setIgnoreMouseEvents(enabled, { forward: true })
-  }
-
-  return { show, hide, dispose: destroy, resolveOwnerOf, setMousePassthrough }
+  return { show, hide, dispose: destroy, resolveOwnerOf }
 }

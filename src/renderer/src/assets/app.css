@@ -2572,15 +2572,10 @@ body[data-role='omnibox-suggest'] {
 
 body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   position: fixed;
-  /* 阴影边距布局（2026-10-28 阴影专项）：子窗边界已含 SUGGEST_SHADOW_MARGIN 环带，
-     面板缩进同值锚回输入框正下方——box-shadow 三边（左右下）在环带内完整呈现，
-     向上阴影被窗口上缘（= 输入框下缘 − 1）天然裁掉，不在融合体内部投影 */
-  top: 0;
-  left: 18px; /* SUGGEST_SHADOW_MARGIN */
-  right: 18px;
-  bottom: 18px;
+  inset: 0;
   max-height: none;
-  box-shadow: var(--chrome-omnibox-shadow);
+  /* 阴影由 macOS 原生窗口阴影承担（2026-10-29 修订：hasShadow: true 跟随内容
+     形状/系统色彩管理；CSS 环带方案在亮色页面呈浅灰/暖灰带被读作白边/黄边，退役） */
 }
 
 .chrome-omnibox-suggest::-webkit-scrollbar {
