@@ -1,16 +1,17 @@
 // Chrome Cookie 密文口令获取与 v10 加解密（导入专项步骤 4，算法事实出自步骤 1 技术
 // 验证 §2.2——notes/accept/20261028112040-…/20261028123936-步骤1技术验证记录.md）。
 //
-// Mac 密文结构（Chromium os_crypt 已验证派生，全部为本文件实现依据）：
-//   encrypted_value = 'v10'(3B) + AES-128-CBC 密文(PKCS7) + 32B HMAC
-//   密钥 = PBKDF2-HMAC-SHA1(口令 = 钥匙串「Chrome Safe Storage」（账号 Chrome）密码，
-//          盐 'saltysalt'，1003 轮，16 字节)；IV = 16 × 0x20
-//   解密跳过前 3B 与尾 32B（HMAC 不校验——无法可靠校验，如实取舍）
-// 长度自检锚点：11 字符明文 → 51B（3+16+32）、21 字符 → 67B（3+32+32）。
+// Mac 密文结构（2026-10-28 定案修正，结构细节单源见下方 V10_DOMAIN_HASH_BYTES 注释）：
+//   encrypted_value = 'v10'(3B) + AES-128-CBC 密文(PKCS7)，明文 = SHA-256(host_key)
+//   32B ‖ cookie 值（无尾部 HMAC——初版误判的「尾 32B」实为头部域名哈希的长度投影）
+//   密钥 = PBKDF2-HMAC-SHA1(口令 = 钥匙串「Chrome Safe Storage」（账号 Chrome）原始
+//          字节，盐 'saltysalt'，1003 轮，16 字节)；IV = 16 × 0x20
+//   解密后头部 32B 与 host_key 的 SHA-256 比对即密钥正确性自校验
+// 长度自检锚点：值 8 字符 → 51B、11 字符 → 67B（32B 哈希头后的 PKCS7 阶梯）。
 //
 // 实现坑（步骤 1 已踩定案）：Node webcrypto 的 AES-CBC 自带 PKCS7 填充/校验——
-// 加密侧勿手工预填充（双重 padding），解密侧填充校验失败即抛错（天然作为密钥不对/
-// 密文损坏的探测面：CBC 无完整性，HMAC 又跳过，PKCS7 校验是唯一廉价反证）。
+// 加密侧勿手工预填充（双重 padding），解密侧填充校验失败即抛错（与域名哈希校验
+// 共同构成密钥不对/密文损坏的双探测面）。
 //
 // 口令获取：`security find-generic-password -w -a Chrome -s "Chrome Safe Storage"`——
 // child_process execFile 固定参数数组、不经 shell 拼接（计划契约 6），超时上限约 20s，
@@ -21,8 +22,7 @@
 import { execFile as realExecFile } from 'child_process'
 import { createHash } from 'crypto'
 
-/** 口令获取器：成功 resolve 口令字符串；拒绝/超时抛 KeychainAuthError */
-/** 钥匙串口令的原始字节（已剥离行尾换行；不 trim 其余空白） */
+/** 钥匙串口令的原始字节（已剥离行尾换行；不 trim 其余空白）；拒绝/超时抛 KeychainAuthError */
 export type SafeStoragePasswordGetter = () => Promise<Uint8Array>
 
 /**

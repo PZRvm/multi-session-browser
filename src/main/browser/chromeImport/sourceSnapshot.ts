@@ -149,6 +149,13 @@ export function createChromeSourceSnapshot(deps: {
         }
         if (!hasDataFile) {
           await rm(siteDir, { recursive: true, force: true }).catch(() => {})
+          // 配对 .blob 目录同步剔除（审查 20261029181900 低-3）：引擎对孤立 .blob
+          // 跳过不计故无行为影响，但同步清理保持快照「成对目录」单位口径对称、不留
+          // 可能含站点 Blob 数据的孤儿目录
+          const blobDir = siteDir.replace(/\.indexeddb\.leveldb$/, '.indexeddb.blob')
+          if (blobDir !== siteDir) {
+            await rm(blobDir, { recursive: true, force: true }).catch(() => {})
+          }
         }
       }
     }

@@ -313,11 +313,18 @@ export function createCookieImportEngine(deps: {
           recordFailures.push(`${write.host} ${write.name}: ${describe(err)}`)
           if (write.intent === 'add') failedAdds += 1
           else failedConflicts += 1
-          console.warn(
-            '[chromeImport] 单条 Cookie 写入失败，按不支持计数继续:',
-            recordFailures.at(-1)
-          )
         }
+      }
+      // 失败汇总一行（循环内不逐条打——批量失败时逐条 warn 会刷屏淹没关键日志；
+      // 首末样例定位形态，全量明细仅在 ≤3 条时直接展示避免截断丢信息）
+      if (recordFailures.length > 0) {
+        const sample =
+          recordFailures.length <= 3
+            ? recordFailures.join(' | ')
+            : `${recordFailures[0]} … ${recordFailures[recordFailures.length - 1]}`
+        console.warn(
+          `[chromeImport] ${recordFailures.length} 条 Cookie 写入失败（按不支持计数继续）: ${sample}`
+        )
       }
       try {
         if (plannedWrites.length > 0 && writtenGroups.size > 0) await session.cookies.flushStore()

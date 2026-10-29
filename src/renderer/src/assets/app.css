@@ -959,7 +959,8 @@ select.picker-input {
 }
 
 /* 备注悬停 Tooltip（2026-09-18 增量）：板面弹层语系（.ws-panel 同源）——抬升层底 +
-   发丝线 + 圆角 + 无阴影（Hairline Rule：全应用 0 box-shadow）；token 随主题系统
+   发丝线 + 圆角 + 无阴影（Hairline Rule：全应用 0 box-shadow；例外：地址栏融合体
+   阴影——2026-10-29 用户裁决，见 .chrome-omnibox-fused / 建议面板双层 box-shadow）；token 随主题系统
    注入，暗色自动跟随。弹层经 getPopupContainer 锁挂 .session-panel 内（外观入口
    惯例），不越左栏即不被右区 WebContentsView 原生层遮挡。
    注意 antd 6 正文类名是 -container（-inner 是 v5 旧名，选择器落空即退回默认黑）。
