@@ -2508,8 +2508,8 @@ img.chrome-tab-favicon {
    * 工具栏背景上可见；下方溢出工具栏的部分被页面原生层遮挡，由子窗侧阴影从
    * 接缝处无缝续接 */
   box-shadow:
-    0 10px 12px rgba(0, 0, 0, 0.28),
-    0 3px 6px rgba(0, 0, 0, 0.18);
+    0 10px 12px rgba(0, 0, 0, 0.16),
+    0 3px 6px rgba(0, 0, 0, 0.1);
   /* 边框整体隐去（2026-10-28 用户裁决修订：融合态下输入框与建议面板浑然一体、
      不再保留输入框自身描边——先前「三边着色 + 底边发丝线接缝」方案退役）。
      border-color 透明而非去 border：占位不变、高度公式与融合几何不受扰动 */
@@ -2581,8 +2581,8 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   bottom: 24px;
   max-height: none;
   box-shadow:
-    0 10px 12px rgba(0, 0, 0, 0.28),
-    0 3px 6px rgba(0, 0, 0, 0.18);
+    0 10px 12px rgba(0, 0, 0, 0.16),
+    0 3px 6px rgba(0, 0, 0, 0.1);
 }
 
 .chrome-omnibox-suggest::-webkit-scrollbar {
