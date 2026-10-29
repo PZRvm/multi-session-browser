@@ -119,10 +119,11 @@ export const SUGGEST_PANEL_GAP = -1
 /** 面板最大高度（.chrome-omnibox-suggest max-height: 298px，超出子窗内滚动） */
 export const SUGGEST_PANEL_MAX_HEIGHT = 298
 /**
- * 融合体阴影环带边距（2026-10-29 终态 = 18）：面板阴影由子窗渲染端
- * filter: drop-shadow 承担（跟随 CSS 圆角形状——roundedCorners:false 的方角原生
- * 阴影会在 CSS 圆角内留下无投影的透明角落三角透出页面〔白角〕、且上缘 ambient
- * 分量在接缝外形成投影线，均由 drop-shadow 方案根除）；窗口左右下各扩本值供阴影
- * 绘制，环带经 set-mouse-passthrough 通道点击穿透
+ * 融合体阴影环带边距（2026-10-29 终态 = 24）：面板阴影由子窗渲染端**双层短模糊
+ * box-shadow** 承担（跟随 CSS 圆角形状——roundedCorners:false 的方角原生阴影会在
+ * CSS 圆角内留下无投影的透明角落三角透出页面〔白角〕、且上缘 ambient 分量在接缝
+ * 外形成投影线；**blur 必须短**：长尾模糊〔如 drop-shadow blur 16 → σ8〕衰减极慢，
+ * 环带边缘的残余亮度被窗口边界硬切出水平亮线——双层 12/6 blur 在 24px 内自然
+ * 归零，无切线）；环带经 set-mouse-passthrough 通道点击穿透
  */
-export const SUGGEST_SHADOW_MARGIN = 18
+export const SUGGEST_SHADOW_MARGIN = 24

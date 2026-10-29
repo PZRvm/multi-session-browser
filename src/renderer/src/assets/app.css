@@ -76,9 +76,6 @@
      分开命名（先例：--loading 与 --accent 同值异名）——须从常态 tabbar 与 drag-target
      高亮底上双双立得住 */
   --chrome-tab-insert: #3c4043;
-  /* 地址栏融合体阴影（2026-10-28 阴影专项·方案 A 双层拼合影）：输入框侧（shell CSS）
-     与建议面板侧（子窗 CSS）严格同参数，接缝连续；亮暗两档 */
-  --chrome-omnibox-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -134,8 +131,6 @@
     --chrome-tabbar-drag-target: #444548;
     /* 拖拽插入指示线 · 暗：同值源亮墨（drag-target 底 #444548 上清晰可读） */
     --chrome-tab-insert: #e8eaed;
-    /* 地址栏融合体阴影 · 暗：深底上加深一档保持可辨 */
-    --chrome-omnibox-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -2512,7 +2507,9 @@ img.chrome-tab-favicon {
   /* 融合体阴影（输入框侧半场）：与子窗面板侧 drop-shadow 观感对齐——上/左右在
    * 工具栏背景上可见；下方溢出工具栏的部分被页面原生层遮挡，由子窗侧阴影从
    * 接缝处无缝续接 */
-  box-shadow: var(--chrome-omnibox-shadow);
+  box-shadow:
+    0 10px 12px rgba(0, 0, 0, 0.28),
+    0 3px 6px rgba(0, 0, 0, 0.18);
   /* 边框整体隐去（2026-10-28 用户裁决修订：融合态下输入框与建议面板浑然一体、
      不再保留输入框自身描边——先前「三边着色 + 底边发丝线接缝」方案退役）。
      border-color 透明而非去 border：占位不变、高度公式与融合几何不受扰动 */
@@ -2572,17 +2569,20 @@ body[data-role='omnibox-suggest'] {
 
 body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   position: fixed;
-  /* 阴影环带布局（2026-10-29 终态）：子窗边界已含 SUGGEST_SHADOW_MARGIN=18 环带，
-     面板缩进同值锚回输入框正下方——filter: drop-shadow 跟随 CSS 圆角形状绘制阴影
-     （方角窗内的角落三角被阴影填充，根除白角；原生窗口阴影在 roundedCorners:false
-     下跟方角轮廓且上缘有 ambient 线，退役）；向上阴影被窗口上缘（= 输入框下缘 −1）
+  /* 阴影环带布局（2026-10-29 终态）：子窗边界已含 SUGGEST_SHADOW_MARGIN=24 环带，
+     面板缩进同值锚回输入框正下方——双层短模糊 box-shadow 跟随 CSS 圆角形状绘制
+     阴影（方角窗内的角落三角被阴影填充，根除白角；blur 12/6 的 3σ 衰减在环带
+     24px 内自然归零，不产生边界硬切亮线；原生窗口阴影 roundedCorners:false 下跟
+     方角轮廓且上缘有 ambient 线，退役）；向上阴影被窗口上缘（= 输入框下缘 −1）
      裁掉，不在融合体内部投影 */
   top: 0;
-  left: 18px; /* SUGGEST_SHADOW_MARGIN */
-  right: 18px;
-  bottom: 18px;
+  left: 24px; /* SUGGEST_SHADOW_MARGIN（双层短模糊 3σ ≤ 24px，环带内归零无切线） */
+  right: 24px;
+  bottom: 24px;
   max-height: none;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.32));
+  box-shadow:
+    0 10px 12px rgba(0, 0, 0, 0.28),
+    0 3px 6px rgba(0, 0, 0, 0.18);
 }
 
 .chrome-omnibox-suggest::-webkit-scrollbar {
