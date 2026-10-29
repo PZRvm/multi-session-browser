@@ -89,7 +89,11 @@ export const OMNIBOX_SUGGEST_CHANNELS = {
   pick: 'omnibox-suggest:pick',
   data: 'omnibox-suggest:data',
   hovered: 'omnibox-suggest:hovered',
-  picked: 'omnibox-suggest:picked'
+  picked: 'omnibox-suggest:picked',
+  /** 融合体阴影边距下的鼠标穿通开关（2026-10-28 阴影专项）：子窗渲染端按光标是否
+   *  在面板实域内切换 setIgnoreMouseEvents——边距环带（纯阴影像素）点击穿透回
+   *  工具栏/页面，防阴影边距吃掉工具栏按钮边缘点击 */
+  setMousePassthrough: 'omnibox-suggest:set-mouse-passthrough'
 } as const
 
 /** 建议子窗载荷文本上限：title/query 超限在主进程守卫层截断归一（与 dragPreview 的标题截断先例同值） */
@@ -115,3 +119,11 @@ export const SUGGEST_PANEL_BORDER = 0
 export const SUGGEST_PANEL_GAP = -1
 /** 面板最大高度（.chrome-omnibox-suggest max-height: 298px，超出子窗内滚动） */
 export const SUGGEST_PANEL_MAX_HEIGHT = 298
+/**
+ * 融合体阴影边距（2026-10-28 阴影专项，方案 A 双层拼合影）：子窗边界向左右下各扩
+ * 本值，面板 div 在子窗内缩进同值后绘制 CSS box-shadow——左右下三边阴影完整；上方
+ * 阴影由窗口上边界（= 输入框下缘 − 1 上叠）天然裁掉，不在融合体内部投影；输入框
+ * 侧阴影由 shell CSS 同参数 box-shadow 承担（工具栏背景上可见），接缝处两侧参数
+ * 严格一致保证连续。边距环带经 set-mouse-passthrough 通道点击穿透
+ */
+export const SUGGEST_SHADOW_MARGIN = 18
