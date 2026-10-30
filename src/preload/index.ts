@@ -96,7 +96,6 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
-  SetScreenshotShortcutPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -392,9 +391,9 @@ const api = {
     cancel: (payload: ChromeImportCancelPayload): Promise<ChromeImportCancelResult> =>
       ipcRenderer.invoke(CHROME_IMPORT_CHANNELS.cancel, payload)
   },
-  // 快速截图域（契约见 shared/capture.ts）：截图入剪贴板 + 最近一次落盘两 invoke，
-  // request 为页面聚焦态快捷键触发的回程推送（find-request 同构，renderer 汇流
-  // 同一 capture 动作）；悬浮反馈条通道（反馈轮三起建，关闭钮增量随 2026-10-14）：
+  // 快速截图域（契约见 shared/capture.ts）：截图入剪贴板 + 最近一次落盘两 invoke。
+  // 原页面聚焦态快捷键触发的回程推送 request 已随 2026-10-29 截图快捷键退役删除。
+  // 悬浮反馈条通道（反馈轮三起建，关闭钮增量随 2026-10-14）：
   // show/hide 归宿主 shell（显隐编排），data 归反馈子窗（内容推送），action 归反馈
   // 子窗（「下载」/关闭钮点击上报），downloadRequest / dismissRequest 归宿主 shell
   // （点击回程：汇流 saveLast / 携内容指纹比对镜像后收起）。
@@ -423,15 +422,6 @@ const api = {
     pause: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.pause),
     resume: (): Promise<CaptureState> => ipcRenderer.invoke(CAPTURE_CHANNELS.resume),
     stop: (): Promise<CaptureStopResult> => ipcRenderer.invoke(CAPTURE_CHANNELS.stop),
-    onRequest: (callback: () => void): (() => void) => {
-      const listener = (): void => {
-        callback()
-      }
-      ipcRenderer.on(CAPTURE_CHANNELS.request, listener)
-      return () => {
-        ipcRenderer.removeListener(CAPTURE_CHANNELS.request, listener)
-      }
-    },
     // 反馈子窗消费：内容推送（主进程 show 时全量发，纯展示零自治）
     onFeedbackData: (callback: (payload: CaptureFeedbackDataPayload) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, payload: CaptureFeedbackDataPayload): void => {
@@ -489,9 +479,6 @@ const api = {
     // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
     setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
-    // 截图快捷键（快速截图专项）：null = 清除恢复「无」；校验/冲突拒绝在主进程
-    setScreenshotShortcut: (payload: SetScreenshotShortcutPayload): Promise<SettingsSnapshot> =>
-      ipcRenderer.invoke(SETTINGS_CHANNELS.setScreenshotShortcut, payload),
     // 恢复出厂（阶段七）：两步确认通过后调用；无 payload，sender 白名单 = 设置窗
     factoryReset: (): Promise<SettingsOkResult> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.factoryReset),

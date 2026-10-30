@@ -72,32 +72,6 @@ export function matchBrowserShortcut(input: ShortcutInput): BrowserShortcutId | 
   return null
 }
 
-/**
- * 自定义截图快捷键的按键事件判定（快速截图专项，契约核对第 4 条判定单源）：
- * accel 为 validateShortcut 归一输出的加速键串（settings.screenshotShortcut），
- * 修饰语义 ctrl||meta ≙ CmdOrCtrl（与 matchBrowserShortcut 同族）、Shift/Alt 精确
- * 等值、键大小写不敏感；accel 为 null 或不可解析（盘值损坏等）恒 false，触发链路
- * 不激活。before-input-event（页面聚焦态）与 renderer keydown（shell 聚焦态）两侧
- * 共用本实现，作用域互斥不重复触发。
- */
-export function matchConfiguredShortcut(input: ShortcutInput, accel: string | null): boolean {
-  if (!accel) return false
-  const parts = accel.split('+')
-  const keyToken = parts[parts.length - 1].toLowerCase()
-  let cmdOrCtrl = false
-  let shift = false
-  let alt = false
-  for (const modifier of parts.slice(0, -1)) {
-    const token = modifier.toLowerCase()
-    if (token === 'cmdorctrl') cmdOrCtrl = true
-    else if (token === 'shift') shift = true
-    else if (token === 'alt') alt = true
-    else return false
-  }
-  return (
-    input.key.toLowerCase() === keyToken &&
-    (input.ctrl || input.meta) === cmdOrCtrl &&
-    input.shift === shift &&
-    input.alt === alt
-  )
-}
+// 退役记录（2026-10-29 用户裁决）：自定义截图快捷键的按键判定 matchConfiguredShortcut
+// 已随截图快捷键全链退役删除（消费方 = 主进程 manager 页面聚焦态分支与 renderer
+// useBrowserShortcuts shell 聚焦态分支，均同批拆除）。

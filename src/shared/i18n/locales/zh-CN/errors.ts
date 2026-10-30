@@ -33,9 +33,8 @@ export const errors = {
   invalidHomepageUrl: '无效的主页地址',
   invalidHomepageParams: '无效的主页设置参数',
   invalidLanguageParams: '无效的语言设置参数',
-  invalidShortcut: '快捷键格式不正确',
-  invalidShortcutParams: '无效的快捷键设置参数',
-  shortcutConflict: '快捷键与既有功能冲突：{shortcut}',
+  // invalidShortcut / invalidShortcutParams / shortcutConflict 三键已随 2026-10-29
+  // 截图快捷键退役删除（原设置域 set-screenshot-shortcut handler 消费）
 
   /** 快速截图域 handler（browser/capture.ts，快速截图专项） */
   captureNoTab: '当前没有可截图的标签页',

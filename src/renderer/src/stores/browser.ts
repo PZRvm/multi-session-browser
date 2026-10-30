@@ -463,7 +463,6 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     let offHistoryChanged: (() => void) | null = null
     let offFindRequest: (() => void) | null = null
     let offFindResult: (() => void) | null = null
-    let offCaptureRequest: (() => void) | null = null
     let offCaptureDownload: (() => void) | null = null
     let offCaptureDismiss: (() => void) | null = null
     try {
@@ -487,11 +486,6 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       // 汇合同一 openFind（tick 信号驱动 FindBar 聚焦/全选）；计数控 find-result 推送
       offFindRequest = window.api.browser.onFindRequest(() => {
         get().openFind()
-      })
-      // 页面聚焦态自定义截图快捷键（capture:request 定向推送，快速截图专项）：与
-      // 工具栏钮、shell 侧快捷键三路汇流同一 capture（反馈条随动）
-      offCaptureRequest = window.api.capture.onRequest(() => {
-        void get().capture()
       })
       // 「下载」点击回程（反馈轮三：反馈子窗 action 上报经主进程转发本窗）：与
       // 工具栏钮/快捷键同作用域，汇流同一 saveLastCapture（in-flight 锁防回程连点）
@@ -544,7 +538,6 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
       offHistoryChanged?.()
       offFindRequest?.()
       offFindResult?.()
-      offCaptureRequest?.()
       offCaptureDownload?.()
       offCaptureDismiss?.()
       initialized = false

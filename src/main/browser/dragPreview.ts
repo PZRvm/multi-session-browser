@@ -46,7 +46,7 @@ export function createDragPreview(): DragPreview {
 
   function renderHtml(payload: TabDragPreviewPayload): string {
     const dark = payload.theme === 'dark'
-    const bg = dark ? '#292a2d' : '#ffffff'
+    const bg = dark ? '#292a2d' : '#f1f3f4'
     const ink = dark ? '#e8eaed' : '#3c4043'
     const dot = dark ? '#9aa0a6' : '#5f6368'
     const favicon = safeFavicon(payload.faviconUrl)

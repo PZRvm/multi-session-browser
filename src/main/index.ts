@@ -542,9 +542,9 @@ app.whenReady().then(async () => {
     getMainWindow: () => mainWindow
   })
   // 快速截图（快速截图专项 20261009232146 步骤 5）：capture 截来源窗口作用域激活
-  // Tab 入剪贴板 + save-last 最近一次截图落盘下载目录（captureId 单槽对账）；
-  // 页面聚焦态快捷键的 capture:request 定向推挂在 manager before-input-event 分支
-  // （快捷键链路），不经本装配。编辑器增量（2026-10-14 步骤 3）：编辑子窗控制器一并
+  // Tab 入剪贴板 + save-last 最近一次截图落盘下载目录（captureId 单槽对账）。原页面
+  // 聚焦态快捷键的 capture:request 定向推已随 2026-10-29 截图快捷键退役删除。
+  // 编辑器增量（2026-10-14 步骤 3）：编辑子窗控制器一并
   // 注入——open-editor 开窗 / 反馈条 edit 动作直连 / get-edit-image 等三通道 sender
   // 白名单判据（控制器创建先于本注册，非空断言对齐上方 captureFeedbackWindows!）
   registerCaptureIpc({

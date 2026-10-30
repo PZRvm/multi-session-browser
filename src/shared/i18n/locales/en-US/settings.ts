@@ -51,7 +51,7 @@ export const settings: Dictionary['settings'] = {
   },
   homepageRow: {
     label: 'Homepage',
-    desc: 'Default address for the toolbar Home button and new tabs',
+    desc: 'Default address for new tabs',
     placeholder: 'Leave empty to use the default start page',
     savingInFlight: 'Saving homepage setting',
     saveFailed: 'Failed to save homepage setting'
@@ -65,19 +65,8 @@ export const settings: Dictionary['settings'] = {
     toggleDevtools: 'Toggle Developer Tools',
     closeDevtools: 'Close Developer Tools'
   },
-  // Screenshot shortcut customization row (quick-screenshot feature — the only
-  // customizable shortcut in the speed-check table)
-  screenshotShortcutRow: {
-    label: 'Screenshot',
-    desc: 'Capture the current tab to the clipboard; no shortcut by default',
-    none: 'None',
-    record: 'Record',
-    recording: 'Press a key combination; Esc to cancel',
-    clear: 'Clear',
-    conflict: 'Conflicts with an existing shortcut: {shortcut}',
-    invalid: 'This key combination is not available',
-    saveFailed: 'Failed to save the screenshot shortcut'
-  },
+  // The screenshotShortcutRow key family (screenshot shortcut customization row) was
+  // removed with the 2026-10-29 screenshot-shortcut retirement
   about: {
     version: 'Version {v}',
     versionPending: 'Version …',

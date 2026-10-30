@@ -62,7 +62,9 @@
   --chrome-ink-dim: #5f6368;
   --chrome-disabled: #b0b4b9;
   --chrome-surface: #ffffff;
-  --chrome-tab-active: #ffffff;
+  /* 选中 Tab 底色（2026-10-29 融合裁决）：改与工具栏同值连成连续面（原 #ffffff）；
+     暗色块本就与 --chrome-toolbar 同值不动 */
+  --chrome-tab-active: #f1f3f4;
   --chrome-omnibox-bg: #ffffff;
   --chrome-hover-veil: rgba(60, 64, 67, 0.08);
   --chrome-active-veil: rgba(60, 64, 67, 0.1);
@@ -2105,11 +2107,12 @@ select.picker-input {
   align-items: flex-end;
   gap: 4px;
   /* 顶区对齐契约（2026-09-28）：高 40px 与左栏板头（.board-head 40px）同高——
-     栏底 = 板头底线；tab 30px 底部对齐不变，加高全部让给栏顶呼吸位 */
+     栏底 = 板头底线；tab 30px 底部对齐不变，加高全部让给栏顶呼吸位。
+     2026-10-29 融合裁决：栏底横向发丝线退役（选中 Tab 改色后与工具栏连成同色
+     连续面，线会切断融合；左栏板头底线与右区工具栏底线不受影响），几何 40px 不变 */
   height: 40px;
   padding: 6px 10px 0;
   background: var(--chrome-tabbar);
-  border-bottom: 1px solid var(--chrome-line);
   /* 插入指示竖线（阶段 10）的绝对定位锚；不影响弹层锚——那由 .browser-frame 承担 */
   position: relative;
   /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
@@ -2158,8 +2161,47 @@ select.picker-input {
   background: var(--chrome-tab-separator);
 }
 
+/* 选中 Tab（2026-10-29 融合终态）：底色与工具栏同值连成连续面；z-index 提层防
+   后邻 Tab 悬停蒙版盖住下角外延（伪元素随宿主 Tab 参与层叠）。重排拖动态
+   .reordering z-index: 2 仍在其上，drag-target/dragging 态不受影响 */
 .chrome-tab.active {
   background: var(--chrome-tab-active);
+  z-index: 1;
+}
+
+/* 选中 Tab 左右下角的裙边衔接（Chrome 同构，2026-10-30 参考图定稿）：以 active 底色
+   在 Tab 外侧下角画凹向内的相切圆弧——填充方块外上角为圆心、8px 半径（与顶部圆角
+   同量级），径向渐变内圈透明挖空：弧线在 Tab 侧边处切线垂直、在工具栏顶边处切线
+   水平，两侧都平滑相接（初版 border-radius 方案的弧线两端均为直角相交，读作突兀
+   小鼓包，用户判不对已替换）。外延 8px 越过 4px 栏内间隙的部分压在邻 Tab 下，
+   由上方 .active z-index:1 提层兜住；pointer-events 关闭不扰点击与拖拽手势。
+   自身 ::before/::after 空闲可用（分隔线伪元素只挂在非活动 Tab 上，见上） */
+.chrome-tab.active::before,
+.chrome-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+
+.chrome-tab.active::before {
+  left: -8px;
+  background: radial-gradient(
+    circle 8px at 0 0,
+    transparent 7.5px,
+    var(--chrome-tab-active) 8px
+  );
+}
+
+.chrome-tab.active::after {
+  right: -8px;
+  background: radial-gradient(
+    circle 8px at 100% 0,
+    transparent 7.5px,
+    var(--chrome-tab-active) 8px
+  );
 }
 
 /* 栏内重排拖动中：与 tear-off 拖出（.dragging）同款半透明跟手语系；跟手位移由
