@@ -22,8 +22,8 @@
 //
 // 结构分层：清洗/时间戳/同名序号探测的单源在 downloadNaming.ts（两线合并修复轮，
 // 与录屏线 recording/name.ts 合订，行为裁决见该模块头注）；本模块保留截图域命名源
-// 策略（resolveNameSource/fileNameBase）。capture:request 定向推送不经本模块（manager
-// before-input-event 分派链持有，快捷键链路另行接线）。IPC 装配面仅
+// 策略（resolveNameSource/fileNameBase）。原页面聚焦态快捷键的 capture:request 定向
+// 推送已随 2026-10-29 截图快捷键退役删除。IPC 装配面仅
 // registerCaptureIpc（src/main/index.ts 步骤 5 装配，registerChromeImportIpc 先例）。
 
 import { app, clipboard, ipcMain, nativeImage } from 'electron'

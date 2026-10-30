@@ -19,7 +19,7 @@ export const browser: Dictionary['browser'] = {
     forward: '前進',
     reload: '重新整理',
     stop: '停止載入',
-    home: '首頁',
+    // home（首頁鈕文案）已隨工具列首頁按鈕 2026-10-30 退役刪除
     /** 地址栏 placeholder */
     addressPlaceholder: '輸入網址',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */

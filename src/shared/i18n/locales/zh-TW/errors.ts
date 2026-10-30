@@ -31,9 +31,8 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: '無效的首頁網址',
   invalidHomepageParams: '無效的首頁設定參數',
   invalidLanguageParams: '無效的語言設定參數',
-  invalidShortcut: '快捷鍵格式不正確',
-  invalidShortcutParams: '無效的快捷鍵設定參數',
-  shortcutConflict: '快捷鍵與既有功能衝突：{shortcut}',
+  // invalidShortcut / invalidShortcutParams / shortcutConflict 三键已随 2026-10-29
+  // 截图快捷键退役删除（原设置域 set-screenshot-shortcut handler 消费）
 
   /** 快速截图域 handler（browser/capture.ts，快速截图专项） */
   captureNoTab: '目前沒有可截圖的分頁',

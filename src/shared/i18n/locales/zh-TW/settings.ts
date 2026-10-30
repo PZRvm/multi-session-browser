@@ -68,7 +68,7 @@ export const settings: Dictionary['settings'] = {
   /** 浏览版面：主页行 */
   homepageRow: {
     label: '首頁',
-    desc: '工具列「首頁」按鈕與新增標籤頁的預設網址',
+    desc: '新增標籤頁的預設網址',
     placeholder: '留空使用預設起始頁',
     /** store 串行守卫的在途提示（行内 danger 红显） */
     savingInFlight: '正在儲存首頁設定',
@@ -87,25 +87,7 @@ export const settings: Dictionary['settings'] = {
     closeDevtools: '關閉開發人員工具'
   },
 
-  /** 快捷键版面：截图快捷键自定义行（快速截图专项——速查表唯一可自定义键位） */
-  screenshotShortcutRow: {
-    label: '截圖',
-    desc: '擷取目前分頁到剪貼簿，預設無快捷鍵',
-    /** 未设置时的键帽占位 */
-    none: '無',
-    /** 录入态按钮文案 */
-    record: '錄入',
-    /** 录入态提示（Esc 取消） */
-    recording: '按下組合鍵，Esc 取消',
-    /** 清除按钮（恢复「无」） */
-    clear: '清除',
-    /** 冲突拒绝行内错误（{shortcut} 为尝试录入的键位串） */
-    conflict: '與既有快捷鍵衝突：{shortcut}',
-    /** 非法组合键行内错误 */
-    invalid: '該組合鍵不可用',
-    /** 保存失败兜底（主进程已本地化的具体错误优先） */
-    saveFailed: '儲存截圖快捷鍵失敗'
-  },
+  // screenshotShortcutRow 键族（截图快捷键自定义行）已随 2026-10-29 截图快捷键退役删除
 
   /** 关于版面：签名区与数据目录行 */
   about: {

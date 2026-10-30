@@ -30,9 +30,8 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: 'Invalid homepage URL',
   invalidHomepageParams: 'Invalid homepage settings parameters',
   invalidLanguageParams: 'Invalid language settings parameters',
-  invalidShortcut: 'Invalid shortcut format',
-  invalidShortcutParams: 'Invalid shortcut settings parameters',
-  shortcutConflict: 'Shortcut conflicts with an existing feature: {shortcut}',
+  // invalidShortcut / invalidShortcutParams / shortcutConflict were removed with the
+  // 2026-10-29 screenshot-shortcut retirement (settings set-screenshot-shortcut handler)
 
   // Quick capture handlers (browser/capture.ts, quick-screenshot feature)
   captureNoTab: 'No tab available to capture',

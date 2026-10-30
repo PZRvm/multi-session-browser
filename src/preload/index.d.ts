@@ -58,7 +58,6 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
-  SetScreenshotShortcutPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -199,7 +198,6 @@ declare global {
         pause(): Promise<CaptureState>
         resume(): Promise<CaptureState>
         stop(): Promise<CaptureStopResult>
-        onRequest(callback: () => void): () => void
         onFeedbackData(callback: (payload: CaptureFeedbackDataPayload) => void): () => void
         onDownloadRequest(callback: () => void): () => void
         onDismissRequest(callback: (payload: CaptureDismissRequestPayload) => void): () => void
@@ -212,7 +210,6 @@ declare global {
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
-        setScreenshotShortcut(payload: SetScreenshotShortcutPayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }

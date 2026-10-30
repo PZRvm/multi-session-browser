@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CameraOutlined,
-  CloseOutlined,
-  HomeOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
-  ReloadOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
 import { useBrowserStore } from '../../stores/browser'
-import { useSettingsStore } from '../../stores/settings'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
+import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -24,6 +21,25 @@ const NAV_CHEVRON_PATHS = {
   left: 'M15 6 9 12 15 18',
   right: 'M9 6 15 12 9 18'
 } as const
+
+/** 刷新/停止自绘 glyph 路径（2026-10-29 步骤 2）：antd Reload/Close 观感偏大偏重，
+ * 统一换 chevron 同语言——几何 extent 收在约 13px 内对齐轻量语系。刷新 = 缺口圆弧 +
+ * 箭头（lucide rotate-cw 缩放 0.7 定居中）；停止 = 收小 X（原 CloseOutlined 显大）。
+ * 主页屋形 glyph 已随工具栏主页按钮 2026-10-30 用户裁决退役删除 */
+const TOOL_GLYPH_PATHS = {
+  reloadArc: 'M18.3 12a6.3 6.3 0 1 1-6.3-6.3c1.76 0 3.45 0.7 4.72 1.92L18.3 9.2',
+  reloadHead: 'M18.3 5.7v3.5h-3.5',
+  stopA: 'M8.5 8.5 15.5 15.5',
+  stopB: 'M15.5 8.5 8.5 15.5'
+} as const
+
+/** 刷新键帽键位单源（步骤 2）：BROWSER_SHORTCUTS reload 首键位（字母键）拼
+ * CmdOrCtrl 加速键串，经 shortcutDisplay 平台派生（⌘R / Ctrl+R）；F5 次键位不进
+ * 键帽（悬停提示只显主键位，Chrome 同口径） */
+const RELOAD_ACCEL = (() => {
+  const first = BROWSER_SHORTCUTS.find((shortcut) => shortcut.id === 'reload')
+  return first !== undefined && first.key.length === 1 ? `CmdOrCtrl+${first.key}` : null
+})()
 
 function NavChevron({
   direction
@@ -43,6 +59,25 @@ function NavChevron({
   )
 }
 
+/** 多 path 自绘 glyph（刷新/主页/停止）：描边参数与 NavChevron 逐字相同，path 组
+ * 由调用方按图标拼装 */
+function ToolGlyph({ paths }: { paths: readonly string[] }): React.JSX.Element {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      {paths.map((d) => (
+        <path
+          key={d}
+          d={d}
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  )
+}
+
 const INVALID_HINT_MS = 2500
 
 /** 地址栏瞬态作用域键 (sessionId, activeTabId)：Tab id 是每会话独立计数器，跨会话
@@ -53,9 +88,10 @@ function omniboxScopeKey(sessionId: string | null, tabId: string | null): string
   return sessionId !== null && tabId !== null ? `${sessionId}::${tabId}` : null
 }
 
-// 工具栏：导航四键 + 可编辑地址栏；零会话（快照 sessionId === null）时地址栏禁用，
-// 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/主页/DevTools 钮
-// 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖。
+// 工具栏：导航三键 + 可编辑地址栏；零会话（快照 sessionId === null）时地址栏禁用，
+// 无激活 tab（store 初始为空）时导航全禁用、地址栏留空；导航/刷新/DevTools 钮
+// 沿用 !activeTab 禁用链，零会话（tabs 恒空）时自然覆盖。工具栏主页按钮已于
+// 2026-10-30 用户裁决退役删除（主页设置此后仅作用于新建标签页默认地址）。
 // 地址栏历史建议（Chrome omnibox 对齐）：编辑态按当前会话历史镜像本地过滤（编辑期
 // 检索零 IPC），下拉面板由主进程原生子窗口承载（原生子窗口化专项——面板打开期间
 // 页面保持可见，不再经 overlayDepth 收起原生层）；子窗开合/锚点/数据推送/鼠标转发
@@ -68,7 +104,6 @@ function Toolbar(): React.JSX.Element {
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
-  const homepageUrl = useSettingsStore((s) => s.homepageUrl)
   const goBack = useBrowserStore((s) => s.goBack)
   const goForward = useBrowserStore((s) => s.goForward)
   const reload = useBrowserStore((s) => s.reload)
@@ -80,17 +115,24 @@ function Toolbar(): React.JSX.Element {
   // 双窗共用本组件，两窗各自 attach 订阅同一广播（appearance 广播式先例）
   const recordLabel = t('browser.toolbar.record')
   const screenshotLabel = t('browser.toolbar.screenshot')
+  // 导航三键气泡文案（步骤 2；主页钮文案随按钮 2026-10-30 退役删除）：
+  // aria-label 与气泡同词（browser.toolbar.* 既有键零新增）
+  const backLabel = t('browser.toolbar.back')
+  const forwardLabel = t('browser.toolbar.forward')
+  const reloadLabel = t('browser.toolbar.reload')
+  const stopLabel = t('browser.toolbar.stop')
 
   // 悬停提示（两线融合终态，用户裁决轮六）：上方自绘轻量层 .chrome-tools-pop——
   // fixed 定位于 DOM 渲染层内、不跨页面原生层、零 overlay 登记与零 antd 弹层；
-  // keyText 键帽槽由截图钮消费（shortcutDisplay 平台派生），录屏面各钮恒 null
+  // keyText 键帽槽由刷新钮消费（RELOAD_ACCEL 单源派生），其余钮恒 null。
+  // 步骤 2 起导航三键同槽接线（原生 title 退役；主页槽随按钮 2026-10-30 退役删除）
   const [toolsPop, setToolsPop] = useState<{
     x: number
     y: number
     label: string
     keyText: string | null
     /** 暂停钮场景：label 渲染期动态取（hover 中点击切换录制状态时文案即时跟随） */
-    kind?: 'pause-toggle'
+    kind?: 'pause-toggle' | 'reload-toggle'
   } | null>(null)
   const popDelayTimer = useRef<number | null>(null)
   useEffect(
@@ -117,7 +159,7 @@ function Toolbar(): React.JSX.Element {
     anchor: HTMLElement,
     label: string,
     keyText: string | null,
-    kind?: 'pause-toggle'
+    kind?: 'pause-toggle' | 'reload-toggle'
   ): void => {
     if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
     const rect = anchor.getBoundingClientRect()
@@ -134,9 +176,9 @@ function Toolbar(): React.JSX.Element {
     setToolsPop(null)
   }
 
-  // 截图快捷键键帽（截图线合并融合）：settings 镜像 + 平台信息一次拉取——
-  // screenshotKeyText 进截图钮气泡 keyText 槽（未设置快捷键为 null 只显功能名）
-  const screenshotShortcut = useSettingsStore((s) => s.screenshotShortcut)
+  // 刷新键帽（步骤 2）：平台信息一次拉取（get-app-info 主进程单源，不自建 navigator
+  // 推断副本），RELOAD_ACCEL 键位单源经 shortcutDisplay 平台派生（⌘R / Ctrl+R）。
+  // 原截图快捷键键帽已随 2026-10-29 截图快捷键退役删除——截图钮气泡恒 null 键帽
   const [platform, setPlatform] = useState<SettingsAppInfo['platform'] | null>(null)
   useEffect(() => {
     void window.api.settings
@@ -144,10 +186,8 @@ function Toolbar(): React.JSX.Element {
       .then((info) => setPlatform(info.platform))
       .catch(() => {})
   }, [])
-  const screenshotKeyText =
-    screenshotShortcut !== null && platform !== null
-      ? shortcutDisplay(screenshotShortcut, platform)
-      : null
+  const reloadKeyText =
+    platform !== null && RELOAD_ACCEL !== null ? shortcutDisplay(RELOAD_ACCEL, platform) : null
   // 截图动作（截图线）：store.capture 直连（剪贴板 + 悬浮反馈条编排全在 store）
   const capture = useBrowserStore((s) => s.capture)
 
@@ -363,57 +403,62 @@ function Toolbar(): React.JSX.Element {
 
   return (
     <div className="chrome-toolbar">
+      {/* 导航三键（步骤 2：自绘 glyph + 悬停气泡 span 槽，.chrome-tools 同构——
+          disabled 钮不派发鼠标事件且不可聚焦，span 槽承接 hover；React 焦点事件按
+          focusin/focusout 冒泡，内层 button 聚焦即达 span；span 为 flex 项紧包按钮，
+          rect 与按钮等值。原生 title 提示退役，气泡 label 渲染期经 kind 动态取——
+          刷新/停止共用一槽，加载态翻转时按钮与文案即时跟随） */}
       <div className="chrome-nav">
-        <button
-          type="button"
-          aria-label={t('browser.toolbar.back')}
-          title={t('browser.toolbar.back')}
-          disabled={!activeTab?.canGoBack}
-          onClick={goBack}
+        <span
+          onMouseEnter={(e) => showToolsPop(e.currentTarget, backLabel, null)}
+          onMouseLeave={hideToolsPop}
+          onFocus={(e) => showToolsPop(e.currentTarget, backLabel, null)}
+          onBlur={hideToolsPop}
         >
-          <NavChevron direction="left" />
-        </button>
-        <button
-          type="button"
-          aria-label={t('browser.toolbar.forward')}
-          title={t('browser.toolbar.forward')}
-          disabled={!activeTab?.canGoForward}
-          onClick={goForward}
-        >
-          <NavChevron direction="right" />
-        </button>
-        {activeTab?.loading ? (
           <button
             type="button"
-            aria-label={t('browser.toolbar.stop')}
-            title={t('browser.toolbar.stop')}
-            onClick={stop}
+            aria-label={backLabel}
+            disabled={!activeTab?.canGoBack}
+            onClick={goBack}
           >
-            <CloseOutlined />
+            <NavChevron direction="left" />
           </button>
-        ) : (
+        </span>
+        <span
+          onMouseEnter={(e) => showToolsPop(e.currentTarget, forwardLabel, null)}
+          onMouseLeave={hideToolsPop}
+          onFocus={(e) => showToolsPop(e.currentTarget, forwardLabel, null)}
+          onBlur={hideToolsPop}
+        >
           <button
             type="button"
-            aria-label={t('browser.toolbar.reload')}
-            title={t('browser.toolbar.reload')}
-            disabled={!activeTab}
-            onClick={reload}
+            aria-label={forwardLabel}
+            disabled={!activeTab?.canGoForward}
+            onClick={goForward}
           >
-            <ReloadOutlined />
+            <NavChevron direction="right" />
           </button>
-        )}
-        <button
-          type="button"
-          aria-label={t('browser.toolbar.home')}
-          title={t('browser.toolbar.home')}
-          disabled={!activeTab}
-          // 主页按钮（阶段四对接）：跳设置窗自定义主页，留空维持既有默认起始页
-          // about:blank；值来自主进程快照的 settings 镜像（changed 推送即时跟随，
-          // 主窗与独立窗共用本组件，双窗同步）
-          onClick={() => navigate(homepageUrl || 'about:blank')}
+        </span>
+        <span
+          onMouseEnter={(e) =>
+            showToolsPop(e.currentTarget, reloadLabel, reloadKeyText, 'reload-toggle')
+          }
+          onMouseLeave={hideToolsPop}
+          onFocus={(e) =>
+            showToolsPop(e.currentTarget, reloadLabel, reloadKeyText, 'reload-toggle')
+          }
+          onBlur={hideToolsPop}
         >
-          <HomeOutlined />
-        </button>
+          {activeTab?.loading ? (
+            <button type="button" aria-label={stopLabel} onClick={stop}>
+              <ToolGlyph paths={[TOOL_GLYPH_PATHS.stopA, TOOL_GLYPH_PATHS.stopB]} />
+            </button>
+          ) : (
+            <button type="button" aria-label={reloadLabel} disabled={!activeTab} onClick={reload}>
+              <ToolGlyph paths={[TOOL_GLYPH_PATHS.reloadArc, TOOL_GLYPH_PATHS.reloadHead]} />
+            </button>
+          )}
+        </span>
       </div>
       <div className="chrome-omnibox-host" ref={hostRef}>
         <input
@@ -458,9 +503,9 @@ function Toolbar(): React.JSX.Element {
           （flex 项紧包按钮，rect 与按钮等值，无需 querySelector 取钮） */}
       <div className="chrome-tools">
         <span
-          onMouseEnter={(e) => showToolsPop(e.currentTarget, screenshotLabel, screenshotKeyText)}
+          onMouseEnter={(e) => showToolsPop(e.currentTarget, screenshotLabel, null)}
           onMouseLeave={hideToolsPop}
-          onFocus={(e) => showToolsPop(e.currentTarget, screenshotLabel, screenshotKeyText)}
+          onFocus={(e) => showToolsPop(e.currentTarget, screenshotLabel, null)}
           onBlur={hideToolsPop}
         >
           <button
@@ -573,9 +618,15 @@ function Toolbar(): React.JSX.Element {
                     ? 'capture.resumeRecording'
                     : 'capture.pauseRecording'
                 )
-              : toolsPop.label}
+              : toolsPop.kind === 'reload-toggle'
+                ? activeTab?.loading
+                  ? stopLabel
+                  : reloadLabel
+                : toolsPop.label}
           </span>
-          {toolsPop.keyText && <span className="chrome-tools-pop-key">{toolsPop.keyText}</span>}
+          {(toolsPop.kind !== 'reload-toggle' || !activeTab?.loading) && toolsPop.keyText && (
+            <span className="chrome-tools-pop-key">{toolsPop.keyText}</span>
+          )}
         </div>
       )}
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}

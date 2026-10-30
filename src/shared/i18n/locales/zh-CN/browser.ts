@@ -16,7 +16,7 @@ export const browser = {
     forward: '前进',
     reload: '刷新',
     stop: '停止加载',
-    home: '主页',
+    // home（主页钮文案）已随工具栏主页按钮 2026-10-30 退役删除
     /** 地址栏 placeholder */
     addressPlaceholder: '输入网址',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
