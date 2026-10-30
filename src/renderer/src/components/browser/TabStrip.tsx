@@ -415,6 +415,8 @@ function TabStrip(): React.JSX.Element {
   // 推送不进 React 渲染通道；插入位变化才上报 dragInsert hint（尽力而为，失败
   // 静默丢弃，主进程末位回退兜底）
   const tabsElRef = useRef<HTMLDivElement | null>(null)
+  // Tab 序列裁切层（审查 20261030135910 低-3 修复）：插入位测量基准随结构下沉到本层
+  const listElRef = useRef<HTMLDivElement | null>(null)
   const insertElRef = useRef<HTMLDivElement | null>(null)
   // Tab 栏矩形上报（拖出裁决修订）：ResizeObserver + rAF 节流（useRectObserver 骨架，
   // 与内容锚点上报同款），主进程据此缓存本窗 Tab 栏视口矩形做「Tab 栏命中」裁决。
@@ -433,7 +435,9 @@ function TabStrip(): React.JSX.Element {
     }
   }, [])
   useEffect(() => {
-    const container = tabsElRef.current
+    // 插入位测量基准 = Tab 序列裁切层（低-3 修复结构下沉：Tab 的直系父级由本栏改为此
+    // 层，':scope > .chrome-tab' 随之；层无 padding/margin，barX 与原值同位）
+    const container = listElRef.current
     const indicator = insertElRef.current
     if (!container || !indicator) return
     // 上次已上报的插入位：仅变化时发 IPC；隐藏即复位——再悬停即使同位也须重报
@@ -509,19 +513,33 @@ function TabStrip(): React.JSX.Element {
       role="tablist"
       aria-label={t('browser.tabs.listAria')}
     >
-      {renderTabs.map((tab) => (
-        <TabItem
-          key={tab.id}
-          tab={tab}
-          active={tab.id === activeTabId}
-          lastOne={lastOne}
-          reorderApi={reorder}
-          reordering={reorder.reorderTabId === tab.id}
-          dragOffsetX={reorder.reorderTabId === tab.id ? reorder.dragOffsetX : 0}
-        />
-      ))}
-      {/* 插入指示竖线：纯视觉元素（不进可达树），显隐与位置由上方 effect 写入 */}
-      <div className="chrome-tab-insert" ref={insertElRef} hidden aria-hidden="true" />
+      {/* Tab 序列裁切层（审查 20261030135910 低-3 修复）：窄窗 + 多 Tab 时 Tab 压至
+          内容下限（favicon + 关闭钮）后仍溢出，溢出尾段会钻进右上角 WCO 按钮区——
+          Tab 序列收进本独立裁切容器（横向滚动 + 纵轮转横滚，Chrome tabstrip 同构），
+          新建钮留外层恒显于避让线内。重排/拖出判定的 closest('.chrome-tabs') 与
+          栏矩形上报（tabsElRef 仍指外层）不受影响 */}
+      <div
+        className="chrome-tabs-list"
+        ref={listElRef}
+        onWheel={(e) => {
+          // 纵轮转横滚（Chrome tabstrip 同款）；栏属壳层无页面滚动语义，无需吞默认
+          if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY
+        }}
+      >
+        {renderTabs.map((tab) => (
+          <TabItem
+            key={tab.id}
+            tab={tab}
+            active={tab.id === activeTabId}
+            lastOne={lastOne}
+            reorderApi={reorder}
+            reordering={reorder.reorderTabId === tab.id}
+            dragOffsetX={reorder.reorderTabId === tab.id ? reorder.dragOffsetX : 0}
+          />
+        ))}
+        {/* 插入指示竖线：纯视觉元素（不进可达树），显隐与位置由上方 effect 写入 */}
+        <div className="chrome-tab-insert" ref={insertElRef} hidden aria-hidden="true" />
+      </div>
       <button
         type="button"
         className="chrome-newtab"

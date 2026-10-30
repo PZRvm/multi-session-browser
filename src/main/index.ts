@@ -58,6 +58,7 @@ import {
 } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
 import { WINDOW_ID_MAIN, browserViewFallbackBackground } from '../shared/browser'
+import { chromeOverlaySymbol, chromeTabbarSurface } from '../shared/themeSystems'
 import type { TFunc } from '../shared/i18n'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
@@ -117,6 +118,25 @@ const appearanceController = createAppearanceController({
   // 视图；registry 晚于外观控制器初始化（whenReady 内创建），启动窗口期空值静默跳过
   onResolvedThemeChanged: (resolved) => {
     registry?.applyFallbackBackground(browserViewFallbackBackground(resolved))
+    // win32 WCO overlay 配色同步（2026-10-30 专项）：亮暗翻转即改主窗 overlay 底/
+    // 符号色（chrome-tabbar/chrome-ink 单源派生，只随亮暗不随主题色三系——与回调
+    // 粒度一致）。仅主窗有 overlay：独立窗与子窗均系统框，setTitleBarOverlay 对无
+    // overlay 窗口会抛错，不可进 appearance 的全窗 setBackgroundColor 循环；主窗
+    // 不存在（未建/macOS 关窗期）静默跳过，重开由 createWindow 现取快照回填初值
+    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
+      // 原生 API 边界调用包 try-catch（dock.setIcon 同款先例，审查 20261030135910
+      // 中-1）：overlay 配色是纯视觉增益，失败仅中文告警——不得阻断主题切换（路径一
+      // 经 setMode/setThemeColor 上抛即 IPC 拒绝），更不得沿 nativeTheme updated 事件
+      // 路径（handleNativeThemeUpdated → syncSnapshot → 本回调）以未捕获异常崩进程
+      try {
+        mainWindow.setTitleBarOverlay({
+          color: chromeTabbarSurface(resolved),
+          symbolColor: chromeOverlaySymbol(resolved)
+        })
+      } catch (error) {
+        console.warn('[main] WCO overlay 配色同步失败（不影响主题切换）:', error)
+      }
+    }
   }
 })
 
@@ -203,8 +223,16 @@ function createWindow(): void {
   // review 20260920161302 低-3 留痕；侧边栏收起态的三灯整组隐藏联动已随 2026-10-23
   // 收起功能退役删除，三灯恒显）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）。
-  // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担。Windows/Linux 不携带
-  // query、保持系统框原形态（平台惯例沿用）
+  // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担（无门控恒生效——去栏平台
+  // 自动升级为主拖拽带，零改动）。
+  // Windows WCO（2026-10-30 专项，调研 notes/think-report/20261030130138 / DESIGN
+  // 主窗窗体条目）：win32 同去系统标题条，窗口控制改 Windows 原生 overlay 按钮
+  //（最小化/最大化/关闭，Win11 Snap Layouts 可用）浮于窗口右上角；overlay height
+  // 与顶区对齐契约（板头/Tab 栏 40px）强耦，改值须连校（mac 三灯 y=12 同款警示）；
+  // 配色单源 themeSystems（实色——Electron #48193 透明色 hover 渲染 bug），亮暗
+  // 翻转经 onResolvedThemeChanged 桥接 setTitleBarOverlay 同步，建窗初值此处现取
+  //（themeBoardBackground 先例）；renderer 侧 Tab 栏以 env(titlebar-area-width)
+  // 避让（app.css，fallback 天然平台门控），无 query。Linux 保持系统框原形态
   const darwin = process.platform === 'darwin'
   const win = new BrowserWindow({
     width: 1280,
@@ -216,6 +244,16 @@ function createWindow(): void {
     title: displayTitle,
     backgroundColor: getAppearanceBackgroundColor(appearance.resolvedTheme, appearance.themeColor),
     ...(darwin ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 14, y: 12 } } : {}),
+    ...(process.platform === 'win32'
+      ? {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            height: 40,
+            color: chromeTabbarSurface(appearance.resolvedTheme),
+            symbolColor: chromeOverlaySymbol(appearance.resolvedTheme)
+          }
+        }
+      : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -226,9 +264,24 @@ function createWindow(): void {
   // 回填主窗口显式引用（多窗口后此引用是 'main' 作用域的唯一身份判据）
   mainWindow = win
 
-  win.on('ready-to-show', () => {
+  // 显示兜底（Electron #42409，2026-10-30 WCO 专项引入）：show:false +
+  // titleBarOverlay + 打包 loadFile 下 ready-to-show 有概率不触发（窗口永不显示），
+  // 39.x 未修、43.7.4+ 含修复——升级后本兜底可移除（DESIGN 主窗窗体条目登记）。
+  // did-finish-load 同样触发显示，先到先显；shown 标志保幂等（每次导航都会
+  // did-finish-load，重复 show 抢前台）。三平台统一启用：无 overlay 窗口两事件
+  // 均正常到达，行为不变，保持一处逻辑不分叉
+  let shown = false
+  // 触发源留痕（审查 20261030135910 低-2）：两事件竞达、首个触发者记日志——
+  // 双事件皆未达（加载彻底失败等极端路径）时窗口不显示，正常路径的可观测性
+  // 让该场景可从日志侧排查定位
+  const showOnce = (via: string): void => {
+    if (shown || win.isDestroyed()) return
+    shown = true
+    console.log(`[main] 主窗显示（经 ${via}）`)
     win.show()
-  })
+  }
+  win.on('ready-to-show', () => showOnce('ready-to-show'))
+  win.webContents.on('did-finish-load', () => showOnce('did-finish-load'))
 
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

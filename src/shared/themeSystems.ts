@@ -298,3 +298,16 @@ export function themeCssVariables(
 export function themeBoardBackground(id: ThemeSystemId, resolved: 'light' | 'dark'): string {
   return THEME_SYSTEMS[id][resolved].bg
 }
+
+/** Chrome 表面色（主进程 WCO overlay 消费，2026-10-30 Windows 去标题栏专项）：
+ *  Tab 栏底与墨色符号，亮暗两值全局常量不随主题色三系。单源对账三处——本文件 /
+ *  app.css 的 --chrome-tabbar、--chrome-ink 字面量 / DESIGN.md Colors 块，改一处须
+ *  同步另两处（themeBoardBackground 同款纪律）。overlay 只取实色（Electron #48193
+ *  透明色 hover 渲染 bug） */
+export function chromeTabbarSurface(resolved: 'light' | 'dark'): string {
+  return resolved === 'dark' ? '#202124' : '#dee1e6'
+}
+
+export function chromeOverlaySymbol(resolved: 'light' | 'dark'): string {
+  return resolved === 'dark' ? '#e8eaed' : '#3c4043'
+}

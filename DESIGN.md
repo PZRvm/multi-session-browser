@@ -237,7 +237,7 @@ Chrome 侧（右侧世界专用，禁入板面）：
 
 骨架（`.app-shell`，flex 行）：左栏 `flex: none`，宽 220–420px，默认 280px；5px 拖拽分隔条（视觉上是 1px #0b0e11 发丝线，hover/拖拽中变 2px 琥珀）；右区 `flex: 1`，`min-width: 0`。
 
-左栏内律（`SessionPanel`）：板头高 40px（border-box 含底部发丝线，横向内距 14px——**顶区对齐契约**（2026-09-28 用户三裁决：两线全对齐/压左栏/跨平台统一；同日二次裁决：板头与 Tab 条各加高 4px）：板头底线 = 右区 Tab 条底线，顶区总高两栏 40+40=80px 封口；红绿灯 trafficLightPosition y=12 与板头高强耦，改值连校）；会话行 `padding: 10px 12px 9px 14px`，第二行 `margin-top: 3px; padding-left: 15px`（对齐在 7px 状态点 + 8px 间隙之后的会话名下）；板脚 `padding: 12px` 包全宽按钮。列表滚动条 8px，thumb 用 `--board-tile-line`。
+左栏内律（`SessionPanel`）：板头高 40px（border-box 含底部发丝线，横向内距 14px——**顶区对齐契约**（2026-09-28 用户三裁决：两线全对齐/压左栏/跨平台统一；同日二次裁决：板头与 Tab 条各加高 4px）：板头底线对齐右区 Tab 条底几何位——Tab 条底线已于 2026-10-30 WCO 专项随用户裁决退役（右上角窗口控制区遮断线右端，Tab/工具栏改色差分界），发丝线仅板头侧存续；顶区总高两栏 40+40=80px 封口；红绿灯 trafficLightPosition y=12 与板头高强耦，改值连校）；会话行 `padding: 10px 12px 9px 14px`，第二行 `margin-top: 3px; padding-left: 15px`（对齐在 7px 状态点 + 8px 间隙之后的会话名下）；板脚 `padding: 12px` 包全宽按钮。列表滚动条 8px，thumb 用 `--board-tile-line`。
 
 右侧 Chrome 布局惯例：tab 栏高 40px（tab 30px，底部对齐，间隙 4px——2026-09-28 顶区对齐契约随板头由 36px 加高至 40px，加高全部让给栏顶呼吸位）；工具栏高 40px，内导航组间隙 2px、控件间 10px；药丸地址栏高 28px、`flex: 1` 占满导航组与右侧控件之间的剩余宽度（左右各留 10px 间隙，不设 max-width）；内容区留白空态 `padding: 32px`。
 
@@ -313,6 +313,10 @@ Chrome 侧（右侧世界专用，禁入板面）：
 ### 空态（Empty State）
 
 两侧各有其形：左栏空态居中「尚无会话」+「新建第一个隔离环境，并行测试多账号」（板面墨/次墨两级）；右侧零会话空态（阶段 4 起）——Chrome 侧语法，chrome-surface 底上居中两级文字：标题「尚无会话」（Title 字槽，15/600 chrome-ink）+ 提示「在左侧新建或选择会话，开始隔离浏览」（12px chrome-ink-dim），gap 8px、padding 32px，无图标、无按钮、无动效（左栏板脚已有唯一的新建入口，右侧不重复；空态是静态事实陈述）。零会话时 Tab 栏与工具栏常驻渲染但控件禁用（Chrome 框体不消失）。
+
+### 主窗窗体（Main Window Chrome）— Windows WCO 专项新增（2026-10-30）
+
+平台分流单源在主进程 `createWindow`（src/main/index.ts）：**win32 用 `titleBarStyle: 'hidden'` + `titleBarOverlay: { height: 40 }`（Window Controls Overlay）**——系统标题条隐藏，最小化/最大化/关闭由 Windows 系统绘制浮于窗口右上角（Win11 悬停最大化钮可弹原生 Snap Layouts），overlay 高度与顶区对齐契约（板头/Tab 栏 40px）强耦，改值须连校（mac 三灯 y=12 同款警示）；配色走实色（禁透明——Electron #48193 hover 渲染 bug）：底 = chrome-tabbar、符号 = chrome-ink，单源 `src/shared/themeSystems.ts`（chromeTabbarSurface/chromeOverlaySymbol，与 app.css token、本文 Colors 块三处对账），亮暗翻转经既有 onResolvedThemeChanged 回调 setTitleBarOverlay 同步、建窗初值现取外观快照（themeBoardBackground 先例）。**Tab 栏避让**：`.chrome-tabs` 右侧 padding 按 `calc(10px + 100vw - env(titlebar-area-width, 100vw))` 动态预留（基准用 100vw 视口宽而非 100%——本栏在右列，百分比相对列宽会少避让左栏整宽；env 值浏览器维护、最大化/拖宽自动跟随；fallback 100vw 使 mac/Linux/独立窗恒为原 10px，天然平台门控不新增 query）——Tab 溢出靠既有 flex 收缩在避让线内完成，无一 Tab 钻入按钮区；**Tab 栏底线随本专项退役**（2026-10-30 用户裁决：窗口控制区把线右端遮断、残线观感不完整，整条退役，Tab 栏与工具栏改由色差灰阶分界，几何 40px 契约不变）。**窗口拖动**：板头与 Tab 栏空白区既有 `app-region: drag` 恒生效（去栏后自动升级主拖拽带，零改动），drag 区双击最大化为 Windows 系统内建。**显示兜底**：`ready-to-show` 与 `did-finish-load` 双触发只显一次（Electron #42409——`show:false` + overlay + 打包 `loadFile` 下 ready-to-show 有概率不触发，39.x 未修、43.7.4+ 含修复，升级后兜底可移除）。mac（darwin 分支三灯方案）与 Linux（系统框）零改动；一切子窗保持既有形态；Windows 板头页内标题保留（左上角无系统控件，标题即窗口身份标识）。需求来源：2026-10-30 用户需求，调研报告 `notes/think-report/20261030130138-Windows主窗去标题栏窗口控制右上角.md` 定稿。
 
 ### Chrome 框架（BrowserFrame）— 阶段 2 起为真实现
 

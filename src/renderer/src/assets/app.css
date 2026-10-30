@@ -52,7 +52,9 @@
      白同源；暗 = raised 层同值） */
   --settings-confirm-card-bg: #ffffff;
 
-  /* Chrome 右侧 · 亮色（chrome-* 全族：全局常量，不随主题系统——右区恒中性灰阶） */
+  /* Chrome 右侧 · 亮色（chrome-* 全族：全局常量，不随主题系统——右区恒中性灰阶）。
+     --chrome-tabbar/--chrome-ink 另被主进程 WCO overlay 消费：单源对账
+     src/shared/themeSystems.ts（chromeTabbarSurface/chromeOverlaySymbol），改值两处同步 */
   --chrome-tabbar: #dee1e6;
   --chrome-toolbar: #f1f3f4;
   --chrome-line: #c7cbd1;
@@ -111,7 +113,8 @@
     /* 两步确认卡片底 · 暗：主题配置族（= raised 层同值） */
     --settings-confirm-card-bg: #1a2026;
 
-    /* Chrome 右侧 · Chromium 深色灰阶（chrome-* 全族：全局常量，不随主题系统） */
+    /* Chrome 右侧 · Chromium 深色灰阶（chrome-* 全族：全局常量，不随主题系统）。
+       --chrome-tabbar/--chrome-ink 单源对账同亮色块头注（themeSystems.ts） */
     --chrome-tabbar: #202124;
     --chrome-toolbar: #292a2d;
     --chrome-line: #3c4043;
@@ -255,9 +258,10 @@ body.col-resizing {
   gap: 8px;
   /* 顶区对齐契约（2026-09-28 用户三裁决：两线全对齐/压左栏/跨平台统一；同日二次
      裁决：板头与 Tab 条各加高 4px → 40px）：高 40px 与右区 Tab 条（.chrome-tabs
-     40px）同高——板头底线 = Tab 条底线；顶区总高 40+40=80 两栏一致由
-     .workspace-bar 40px 封口对齐工具栏底线；红绿灯 trafficLightPosition y=12 与
-     本值强耦（main/index.ts，(40-16)/2），改值须连校 */
+     40px）同高——板头底线对齐 Tab 条底几何位（Tab 条底线已于 2026-10-30 WCO
+     专项退役，见 .chrome-tabs 头注；底线仅在板头侧存续）；顶区总高 40+40=80 两栏
+     一致由 .workspace-bar 40px 封口对齐工具栏底线；红绿灯 trafficLightPosition
+     y=12 与本值强耦（main/index.ts，(40-16)/2），改值须连校 */
   height: 40px;
   padding: 0 14px;
   border-bottom: 1px solid var(--board-hairline);
@@ -2107,9 +2111,20 @@ select.picker-input {
   /* 顶区对齐契约（2026-09-28）：高 40px 与左栏板头（.board-head 40px）同高——
      栏底 = 板头底线；tab 30px 底部对齐不变，加高全部让给栏顶呼吸位 */
   height: 40px;
-  padding: 6px 10px 0;
+  /* WCO 避让（2026-10-30 Windows 去标题栏专项）：右侧按窗口控制 overlay 宽度动态
+     预留。基准必须用 100vw（视口宽，与 env 同基准）而非 100%——本栏在右列，padding
+     百分比相对列宽（窗口宽 - 左栏 - 分隔条），会少避让左栏整宽；100vw -
+     env(titlebar-area-width) 恰为 overlay 占宽（env 值浏览器维护，最大化/拖宽自动
+     跟随），外加原 10px 呼吸位。Tab 溢出靠既有 flex 收缩在避让线内完成，无一 Tab
+     钻入按钮区。fallback 100vw 时 calc 恒为 10px——mac/Linux/独立窗（无 overlay）
+     零行为变化，天然平台门控不新增 query */
+  padding: 6px calc(10px + 100vw - env(titlebar-area-width, 100vw)) 0 10px;
   background: var(--chrome-tabbar);
-  border-bottom: 1px solid var(--chrome-line);
+  /* Tab 栏底线退役（2026-10-30 用户裁决，WCO 专项收尾）：右上角窗口控制区把线的
+     右端遮断、残线观感不完整，整条退役——Tab 栏与工具栏改由色差分界（tabbar →
+     toolbar 灰阶阶梯，Chrome 原生同法）；几何 40px 不变，Tab 底缘对齐板头底线
+     反而更精确（原内容底 39 + 1px 线）；左栏板头底线（board-hairline）另属板面
+     发丝线语系、保持不动（板头块对齐契约注释随改） */
   /* 插入指示竖线（阶段 10）的绝对定位锚；不影响弹层锚——那由 .browser-frame 承担 */
   position: relative;
   /* 悬停落点高亮经背景色阶切换，沿用 0.12s 背景色过渡惯例 */
@@ -2118,6 +2133,25 @@ select.picker-input {
      拖拽行不破版）；Tab/新建钮/窗口控制钮 no-drag 保持交互。drag 区吞鼠标事件，
      子元素必须逐个 no-drag 才可点 */
   -webkit-app-region: drag;
+}
+
+/* Tab 序列裁切层（2026-10-30 WCO 修复轮，审查 20261030135910 低-3）：Tab 压至内容
+   下限（favicon + 关闭钮）后仍溢出的尾段在本层内横向滚动裁切，不再钻入右上角 WCO
+   按钮区；新建钮在外层恒显于避让线内。滚动条全隐（Chrome tabstrip 无滚动条观感，
+   滚轮横滚）；min-width: 0 允许本层在右列布局中收缩让位新建钮；对齐与 Tab 间距
+   同外栏（flex-end 底对齐 + gap 4，包层前后视觉不变——层无 padding/margin） */
+.chrome-tabs-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chrome-tabs-list::-webkit-scrollbar {
+  display: none;
 }
 
 .chrome-tab {
