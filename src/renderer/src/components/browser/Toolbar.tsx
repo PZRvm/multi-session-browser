@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   CameraOutlined,
   PauseCircleOutlined,
@@ -122,8 +122,8 @@ function Toolbar(): React.JSX.Element {
   const reloadLabel = t('browser.toolbar.reload')
   const stopLabel = t('browser.toolbar.stop')
 
-  // 悬停提示（两线融合终态，用户裁决轮六）：上方自绘轻量层 .chrome-tools-pop——
-  // fixed 定位于 DOM 渲染层内、不跨页面原生层、零 overlay 登记与零 antd 弹层；
+  // 悬停提示：导航、截图与录屏统一为图标下方原生子窗气泡，
+  // 避免 Windows 窗口控制区遮挡，也不被网页原生视图盖住；不登记 overlay、不收起网页。
   // keyText 键帽槽由刷新钮消费（RELOAD_ACCEL 单源派生），其余钮恒 null。
   // 步骤 2 起导航三键同槽接线（原生 title 退役；主页槽随按钮 2026-10-30 退役删除）
   const [toolsPop, setToolsPop] = useState<{
@@ -135,6 +135,7 @@ function Toolbar(): React.JSX.Element {
     kind?: 'pause-toggle' | 'reload-toggle'
   } | null>(null)
   const popDelayTimer = useRef<number | null>(null)
+  const toolsPopRef = useRef<HTMLDivElement | null>(null)
   useEffect(
     () => () => {
       if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
@@ -165,7 +166,13 @@ function Toolbar(): React.JSX.Element {
     const rect = anchor.getBoundingClientRect()
     popDelayTimer.current = window.setTimeout(() => {
       popDelayTimer.current = null
-      setToolsPop({ x: rect.left + rect.width / 2, y: rect.top, label, keyText, kind })
+      setToolsPop({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 6,
+        label,
+        keyText,
+        kind
+      })
     }, 300)
   }
   const hideToolsPop = (): void => {
@@ -214,6 +221,37 @@ function Toolbar(): React.JSX.Element {
   }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+  const toolsPopLabel =
+    toolsPop?.kind === 'pause-toggle'
+      ? t(recState.status === 'paused' ? 'capture.resumeRecording' : 'capture.pauseRecording')
+      : toolsPop?.kind === 'reload-toggle'
+        ? activeTab?.loading
+          ? stopLabel
+          : reloadLabel
+        : (toolsPop?.label ?? '')
+  const toolsPopKeyText =
+    toolsPop?.kind === 'reload-toggle' && activeTab?.loading ? null : (toolsPop?.keyText ?? null)
+  useLayoutEffect(() => {
+    const pop = toolsPopRef.current
+    if (!pop || !toolsPop) return
+    // 隐藏的 DOM 气泡只负责精确测量；真正可见的原生子窗不受网页视图遮挡。
+    const { width, height } = pop.getBoundingClientRect()
+    void window.api.toolbarTooltip
+      .show({
+        x: toolsPop.x,
+        y: toolsPop.y,
+        width,
+        height,
+        label: toolsPopLabel,
+        keyText: toolsPopKeyText
+      })
+      .catch((error: unknown) => console.warn('显示工具栏气泡失败:', error))
+    return () => {
+      void window.api.toolbarTooltip
+        .hide()
+        .catch((error: unknown) => console.warn('隐藏工具栏气泡失败:', error))
+    }
+  }, [toolsPop, toolsPopLabel, toolsPopKeyText])
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
   const mainUrl = activeTab && activeTab.url !== 'about:blank' ? activeTab.url : ''
 
@@ -610,23 +648,14 @@ function Toolbar(): React.JSX.Element {
         )}
       </div>
       {toolsPop && (
-        <div className="chrome-tools-pop" style={{ left: toolsPop.x, top: toolsPop.y - 30 }}>
-          <span>
-            {toolsPop.kind === 'pause-toggle'
-              ? t(
-                  recState.status === 'paused'
-                    ? 'capture.resumeRecording'
-                    : 'capture.pauseRecording'
-                )
-              : toolsPop.kind === 'reload-toggle'
-                ? activeTab?.loading
-                  ? stopLabel
-                  : reloadLabel
-                : toolsPop.label}
-          </span>
-          {(toolsPop.kind !== 'reload-toggle' || !activeTab?.loading) && toolsPop.keyText && (
-            <span className="chrome-tools-pop-key">{toolsPop.keyText}</span>
-          )}
+        <div
+          ref={toolsPopRef}
+          className="chrome-tools-pop"
+          style={{ left: toolsPop.x, top: toolsPop.y }}
+          aria-hidden="true"
+        >
+          <span>{toolsPopLabel}</span>
+          {toolsPopKeyText && <span className="chrome-tools-pop-key">{toolsPopKeyText}</span>}
         </div>
       )}
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}

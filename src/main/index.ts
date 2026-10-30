@@ -7,6 +7,7 @@ import { registerSessionIpc } from './sessions'
 import { registerDialogIpc } from './dialogs'
 import { registerWorkspacePickerIpc } from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
+import { registerToolbarTooltipIpc } from './browser/toolbarTooltip'
 import { createTabDragController } from './browser/dragging'
 import { createDragPreview } from './browser/dragPreview'
 import {
@@ -502,6 +503,7 @@ app.whenReady().then(async () => {
     dragController: tabDragController,
     suggestWindows
   })
+  registerToolbarTooltipIpc(created)
   registerAppearanceIpc(appearanceController)
   registerSettingsIpc(settingsWindowController, { getMainWindow: () => mainWindow })
   // 窗口壳域（shell.ts）已随 2026-10-23 侧边栏收起态退役整体删除

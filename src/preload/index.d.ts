@@ -1,3 +1,4 @@
+import type { ToolbarTooltipPayload } from '../shared/toolbarTooltip'
 import type {
   CloseTabPayload,
   FindStartPayload,
@@ -101,6 +102,10 @@ import type {
 declare global {
   interface Window {
     api: {
+      toolbarTooltip: {
+        show(payload: ToolbarTooltipPayload): Promise<void>
+        hide(): Promise<void>
+      }
       appearance: {
         getState(): Promise<AppearanceSnapshot>
         setMode(payload: SetAppearanceModePayload): Promise<AppearanceSnapshot>

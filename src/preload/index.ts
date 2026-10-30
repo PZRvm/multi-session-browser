@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { BROWSER_CHANNELS } from '../shared/browser'
+import { TOOLBAR_TOOLTIP_CHANNELS } from '../shared/toolbarTooltip'
+import type { ToolbarTooltipPayload } from '../shared/toolbarTooltip'
 import type {
   BrowserSnapshot,
   CloseTabPayload,
@@ -112,6 +114,11 @@ import type {
 
 // Custom APIs for renderer
 const api = {
+  toolbarTooltip: {
+    show: (payload: ToolbarTooltipPayload): Promise<void> =>
+      ipcRenderer.invoke(TOOLBAR_TOOLTIP_CHANNELS.show, payload),
+    hide: (): Promise<void> => ipcRenderer.invoke(TOOLBAR_TOOLTIP_CHANNELS.hide)
+  },
   appearance: {
     getState: (): Promise<AppearanceSnapshot> => ipcRenderer.invoke(APPEARANCE_CHANNELS.getState),
     setMode: (payload: SetAppearanceModePayload): Promise<AppearanceSnapshot> =>

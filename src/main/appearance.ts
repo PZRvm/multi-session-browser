@@ -14,6 +14,12 @@ import { isRecord } from '../shared/guards'
 import { isThemeSystemId, themeBoardBackground, type ThemeSystemId } from '../shared/themeSystems'
 
 const PREFERENCES_VERSION = 1
+// 透明浮层不能套用板面实色底；弱引用随窗口释放，不影响外观快照的全窗广播。
+const transparentWindows = new WeakSet<BrowserWindow>()
+
+export function preserveWindowTransparency(window: BrowserWindow): void {
+  transparentWindows.add(window)
+}
 // 窗口首帧背景色的单源在 src/shared/themeSystems.ts：themeBoardBackground(系统, 态)
 // 即该系统该态的纸面底（--board-bg），主进程不持有色值副本（原亮/暗背景色常量随主题
 // 系统化退役）；app.css 的 :root / 暗色块保留琥珀系缺省值与之对账，两处字面量改一处
@@ -261,7 +267,9 @@ class NativeAppearanceController implements AppearanceController {
       this.lastPublishedSnapshot === null || !snapshotEquals(snapshot, this.lastPublishedSnapshot)
 
     for (const window of BrowserWindow.getAllWindows()) {
-      window.setBackgroundColor(backgroundColorFor(snapshot.resolvedTheme, snapshot.themeColor))
+      if (!transparentWindows.has(window)) {
+        window.setBackgroundColor(backgroundColorFor(snapshot.resolvedTheme, snapshot.themeColor))
+      }
     }
 
     if (shouldBroadcast && changed) {
