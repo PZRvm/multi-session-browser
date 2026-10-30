@@ -21,6 +21,8 @@ asarUnpack:
   - resources/**
 win:
   executableName: multi-session-browser
+  # Windows 使用去底透明版；保留原图与 macOS 的 build/icon.icns
+  icon: build/icon-win.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
