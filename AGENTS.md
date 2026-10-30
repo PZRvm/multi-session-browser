@@ -48,7 +48,8 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 ## 坑点
 
-- `.npmrc` 配了 npmmirror 镜像下载 Electron 二进制（国内网络环境），不要删除；`postinstall` 会执行 electron-builder install-app-deps
+- `.npmrc` 配了 npmmirror 镜像下载 Electron 二进制（国内网络环境），不要删除；npm 11 对 `electron_mirror` 等键的 "Unknown project config" 警告无害，勿因警告删配置
+- `postinstall`（electron-builder install-app-deps）已移除（2026-10-30）：唯一原生依赖 classic-level 自带全平台 N-API 预编译二进制（Node/Electron 通用），源码重编译无必要、还要求 Windows 装 VS C++ 工具链；将来新增非 N-API 原生依赖时需恢复该步骤
 - 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
 - PRD 5.1 提到的 Playwright 一期不使用（会话隔离由 Electron 原生 partition 承担），勿引入
 - 平台差异：macOS 关窗不退出（模板行为）；打包后 `resources/icon.png` 仅 Linux 用，Windows/Mac 用 `build/` 下的 ico/icns
