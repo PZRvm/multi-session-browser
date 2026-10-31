@@ -3,7 +3,8 @@ import { App, ConfigProvider, theme } from 'antd'
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import AppearanceEntry from './AppearanceEntry'
 import CountTiles from './CountTiles'
-import { windowTrafficControls, useBrowserStore } from '../stores/browser'
+import { windowTrafficControls, windowBrandMark, useBrowserStore } from '../stores/browser'
+import brandMark from '../../../../resources/logo-transparent-256.png'
 import SessionRow from './SessionRow'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import { useSessionDragReorder } from './useSessionDragReorder'
@@ -217,6 +218,21 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
             <span className="traffic-spacer" aria-hidden="true" />
           ) : (
             <span className="board-title">
+              {/* Windows 主窗（winc=wco 门控，2026-10-30 无底图标专项）：WCO 去标题栏
+                  后左上角空缺，标题前置 16px 去底品牌图形补窗标锚点（与关于页同一资产
+                  的 256px 导数 resources/logo-transparent-256.png——1024 源稿盒滤波
+                  降采样，electron-vite renderer 资产全量内联下控体积；源稿仅存档）；
+                  纯装饰不进可达树，draggable 阻断 img 原生拖拽源（Tab favicon 同款
+                  先例）；独立窗/Linux 无 winc 不渲染 */}
+              {windowBrandMark ? (
+                <img
+                  className="board-title-icon"
+                  src={brandMark}
+                  alt=""
+                  aria-hidden="true"
+                  draggable={false}
+                />
+              ) : null}
               <span className="board-title-text">{t('common.appName')}</span>
             </span>
           )}

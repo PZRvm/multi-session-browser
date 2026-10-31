@@ -115,15 +115,19 @@ let captureEditorWindowController: CaptureEditorWindowController | null = null
 // （覆盖「会话存在但从未应用」的场景；运行期增量由 registry 的读盘应用点并入引擎）
 let knownSessionIds: readonly string[] = []
 const appearanceController = createAppearanceController({
-  // WebContentsView 兜底底色随主题（2026-09-25 专项）：亮暗翻转即同步全部存量会话
-  // 视图；registry 晚于外观控制器初始化（whenReady 内创建），启动窗口期空值静默跳过
-  onResolvedThemeChanged: (resolved) => {
-    registry?.applyFallbackBackground(browserViewFallbackBackground(resolved))
-    // win32 WCO overlay 配色同步（2026-10-30 专项）：亮暗翻转即改主窗 overlay 底/
-    // 符号色（chrome-tabbar/chrome-ink 单源派生，只随亮暗不随主题色三系——与回调
-    // 粒度一致）。仅主窗有 overlay：独立窗与子窗均系统框，setTitleBarOverlay 对无
-    // overlay 窗口会抛错，不可进 appearance 的全窗 setBackgroundColor 循环；主窗
-    // 不存在（未建/macOS 关窗期）静默跳过，重开由 createWindow 现取快照回填初值
+  // 主题表面变化出口（2026-09-25 立项亮暗翻转；2026-10-30 chrome 表面主题化专项扩义
+  // 为亮暗或主题色任一变化即通知，按对去重在控制器内）：registry 晚于外观控制器初始
+  // 化（whenReady 内创建），启动窗口期空值静默跳过
+  onThemeSurfaceChanged: (snapshot) => {
+    // WebContentsView 兜底底色只随亮暗：页面画布中性底不随主题三系（2026-10-30
+    // 专项裁定，DESIGN「兜底底色」条目；browserViewFallbackBackground 恒中性常量）
+    registry?.applyFallbackBackground(browserViewFallbackBackground(snapshot.resolvedTheme))
+    // win32 WCO overlay 配色同步（2026-10-30 专项；同日主题化随系）：亮暗翻转或主题
+    // 色切换即改主窗 overlay 底/符号色——底随 chromeTabbar token 随系（与 renderer
+    // --chrome-tabbar 同源），符号色恒中性墨（chrome 墨族全局常量）。仅主窗有
+    // overlay：独立窗与子窗均系统框，setTitleBarOverlay 对无 overlay 窗口会抛错，
+    // 不可进 appearance 的全窗 setBackgroundColor 循环；主窗不存在（未建/macOS
+    // 关窗期）静默跳过，重开由 createWindow 现取快照回填初值
     if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
       // 原生 API 边界调用包 try-catch（dock.setIcon 同款先例，审查 20261030135910
       // 中-1）：overlay 配色是纯视觉增益，失败仅中文告警——不得阻断主题切换（路径一
@@ -131,8 +135,8 @@ const appearanceController = createAppearanceController({
       // 路径（handleNativeThemeUpdated → syncSnapshot → 本回调）以未捕获异常崩进程
       try {
         mainWindow.setTitleBarOverlay({
-          color: chromeTabbarSurface(resolved),
-          symbolColor: chromeOverlaySymbol(resolved)
+          color: chromeTabbarSurface(snapshot.themeColor, snapshot.resolvedTheme),
+          symbolColor: chromeOverlaySymbol(snapshot.resolvedTheme)
         })
       } catch (error) {
         console.warn('[main] WCO overlay 配色同步失败（不影响主题切换）:', error)
@@ -223,17 +227,21 @@ function createWindow(): void {
   // 耦合（app.css .board-head 头注登记对账），板头内容高度变化时须连本校准复核，
   // review 20260920161302 低-3 留痕；侧边栏收起态的三灯整组隐藏联动已随 2026-10-23
   // 收起功能退役删除，三灯恒显）；
-  // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）。
+  // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）；
+  // win32 主窗携 winc=wco（WCO 无标题栏形态标记——renderer 板头品牌 icon 门控消费，
+  // 2026-10-30 无底图标专项；与 darwin traffic 同 query 值域互斥，Linux/独立窗不带）。
   // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担（无门控恒生效——去栏平台
   // 自动升级为主拖拽带，零改动）。
   // Windows WCO（2026-10-30 专项，调研 notes/think-report/20261030130138 / DESIGN
   // 主窗窗体条目）：win32 同去系统标题条，窗口控制改 Windows 原生 overlay 按钮
   //（最小化/最大化/关闭，Win11 Snap Layouts 可用）浮于窗口右上角；overlay height
   // 与顶区对齐契约（板头/Tab 栏 40px）强耦，改值须连校（mac 三灯 y=12 同款警示）；
-  // 配色单源 themeSystems（实色——Electron #48193 透明色 hover 渲染 bug），亮暗
-  // 翻转经 onResolvedThemeChanged 桥接 setTitleBarOverlay 同步，建窗初值此处现取
-  //（themeBoardBackground 先例）；renderer 侧 Tab 栏以 env(titlebar-area-width)
-  // 避让（app.css，fallback 天然平台门控），无 query。Linux 保持系统框原形态
+  // 配色单源 themeSystems（实色——Electron #48193 透明色 hover 渲染 bug）：底随
+  // chromeTabbar token 随主题色三系（2026-10-30 主题化扩签，与 renderer --chrome-tabbar
+  // 同源），亮暗翻转或切系经 onThemeSurfaceChanged 桥接 setTitleBarOverlay 同步，
+  // 建窗初值此处现取（themeBoardBackground 先例）；renderer 侧 Tab 栏以
+  // env(titlebar-area-width) 避让（app.css，fallback 天然平台门控），无 query。
+  // Linux 保持系统框原形态
   const darwin = process.platform === 'darwin'
   const win = new BrowserWindow({
     width: 1280,
@@ -250,7 +258,7 @@ function createWindow(): void {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
             height: 40,
-            color: chromeTabbarSurface(appearance.resolvedTheme),
+            color: chromeTabbarSurface(appearance.themeColor, appearance.resolvedTheme),
             symbolColor: chromeOverlaySymbol(appearance.resolvedTheme)
           }
         }
@@ -304,7 +312,8 @@ function createWindow(): void {
     const query = new URLSearchParams({
       sys: appearance.themeColor,
       lang: getCurrentLanguage(),
-      ...(darwin ? { winc: 'traffic' } : {})
+      ...(darwin ? { winc: 'traffic' } : {}),
+      ...(process.platform === 'win32' ? { winc: 'wco' } : {})
     })
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
   } else {
@@ -312,7 +321,8 @@ function createWindow(): void {
       query: {
         sys: appearance.themeColor,
         lang: getCurrentLanguage(),
-        ...(darwin ? { winc: 'traffic' } : {})
+        ...(darwin ? { winc: 'traffic' } : {}),
+        ...(process.platform === 'win32' ? { winc: 'wco' } : {})
       }
     })
   }

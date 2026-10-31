@@ -133,17 +133,21 @@ class NativeAppearanceController implements AppearanceController {
   private mode: AppearanceMode = 'system'
   private themeColor: ThemeSystemId = 'amber'
   private lastPublishedSnapshot: AppearanceSnapshot | null = null
-  /** resolvedTheme 翻转主进程侧出口（2026-09-25）：index.ts 桥接 registry 同步存量 WebContentsView 兜底底色 */
-  private readonly onResolvedThemeChanged?: (resolved: ResolvedTheme) => void
-  /** 上次已通知的亮暗（去重：init 首发一次，其后仅真翻转时发；themeColor 变化不改亮暗不触发） */
-  private lastNotifiedResolvedTheme: ResolvedTheme | null = null
+  /** 主题表面变化主进程侧出口（2026-09-25 立项为亮暗翻转；2026-10-30 chrome 表面
+   *  主题化专项扩义：亮暗或 themeColor 任一变化即通知）：index.ts 桥接 registry
+   *  同步存量 WebContentsView 兜底底色与 win32 主窗 WCO overlay 配色 */
+  private readonly onThemeSurfaceChanged?: (snapshot: AppearanceSnapshot) => void
+  /** 上次已通知的（亮暗, 主题色）对（去重：init 首发一次，其后仅该对真变化时发；
+   *  mode 变化不翻转亮暗或不改主题色时不触发——表面派生只消费这两元） */
+  private lastNotifiedSurface: { resolvedTheme: ResolvedTheme; themeColor: ThemeSystemId } | null =
+    null
   // setMode 与 setThemeColor 共用的持久化串行队列：并发写偏好依序落盘，落盘恒写全
   // 两键（无部分键覆盖路径），队列吞错只保序不吞调用方结果
   private writeQueue: Promise<unknown> = Promise.resolve()
   private isListening = false
 
-  constructor(onResolvedThemeChanged?: (resolved: ResolvedTheme) => void) {
-    this.onResolvedThemeChanged = onResolvedThemeChanged
+  constructor(onThemeSurfaceChanged?: (snapshot: AppearanceSnapshot) => void) {
+    this.onThemeSurfaceChanged = onThemeSurfaceChanged
   }
 
   async init(): Promise<void> {
@@ -282,18 +286,30 @@ class NativeAppearanceController implements AppearanceController {
 
     this.lastPublishedSnapshot = snapshot
 
-    if (this.onResolvedThemeChanged && snapshot.resolvedTheme !== this.lastNotifiedResolvedTheme) {
-      this.lastNotifiedResolvedTheme = snapshot.resolvedTheme
-      this.onResolvedThemeChanged(snapshot.resolvedTheme)
+    // 表面出口按（亮暗, 主题色）对去重（原亮暗单值去重随 2026-10-30 扩义升级）：
+    // themeColor 变化也需通知（WCO overlay 随系），mode-only 变化不通知
+    if (
+      this.onThemeSurfaceChanged &&
+      (this.lastNotifiedSurface === null ||
+        this.lastNotifiedSurface.resolvedTheme !== snapshot.resolvedTheme ||
+        this.lastNotifiedSurface.themeColor !== snapshot.themeColor)
+    ) {
+      this.lastNotifiedSurface = {
+        resolvedTheme: snapshot.resolvedTheme,
+        themeColor: snapshot.themeColor
+      }
+      this.onThemeSurfaceChanged(snapshot)
     }
   }
 }
 
 export function createAppearanceController(deps?: {
-  /** resolvedTheme 翻转回调（含 init 首次，去重在控制器内）：主进程侧出口——index.ts 桥接 registry.applyFallbackBackground 同步存量 WebContentsView 兜底底色 */
-  onResolvedThemeChanged?: (resolved: ResolvedTheme) => void
+  /** 主题表面变化回调（亮暗或 themeColor 任一变化，含 init 首次，按对去重在控制器内）：
+   *  主进程侧出口——index.ts 桥接 registry.applyFallbackBackground（只随亮暗）与
+   *  win32 主窗 WCO overlay 配色同步（随亮暗与主题色） */
+  onThemeSurfaceChanged?: (snapshot: AppearanceSnapshot) => void
 }): AppearanceController {
-  return new NativeAppearanceController(deps?.onResolvedThemeChanged)
+  return new NativeAppearanceController(deps?.onThemeSurfaceChanged)
 }
 
 export function getAppearanceBackgroundColor(

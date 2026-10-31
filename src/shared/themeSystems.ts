@@ -26,6 +26,18 @@
 // - confirmCardBg 亮恒 #ffffff（antd 弹层 elevated 白同源）；暗 ≡ raised。
 // - tileInk 与 loading 昼夜翻转：亮 = accentDeep、暗 = accentBase（计数砖昼夜语言）。
 // - accentDeep 暗态值仅作结构补齐，暗态无消费方（对比度矩阵注 1）。
+// - chrome 表面族（2026-10-30 主题化专项，需求：主题切换时右侧顶部栏/输入框栏背景
+//   随系换色——原「右区恒中性灰阶」原则随 DESIGN.md 双世界条目同日修订）：雾蓝锚定
+//   原中性灰阶值（#dee1e6/#f1f3f4 族，「已适配」现状即定稿）；琥珀/苔绿同明度异色相
+//   按各自板面色族推导。亮态规则（以雾蓝锚定值反推，插值取整 ±1，显式落值为准）——
+//   chromeTabbar = hairline 向 raised 约 78% 插值；chromeToolbar = bg + (3,2,1)；
+//   chromeLine = hairline − (5,7,8)；chromeTabSeparator = chromeTabbar − (38,37,37)；
+//   chromeSurface/chromeOmniboxBg 亮态三系恒 #ffffff（confirmCardBg 亮恒白先例）；
+//   chromeTabbarDragTarget = chromeTabbar − 26/通道。暗态——琥珀暗板为近黑蓝系与雾蓝
+//   暗板同族（bg #101418 vs #11151a），表面取与雾蓝同值；苔绿暗板为绿系近黑
+//  （G > R/B），同明度绿色相偏移（dragTarget 的 G 通道再多 +3 随族，line 的 B 通道
+//   −3 随族）。暗态关系：surface/omnibox ≡ tabbar、tab-active ≡ toolbar（亮暗同
+//   关系；tab-active 为映射别名不另落配置键）。
 
 export type ThemeSystemId = 'amber' | 'mist' | 'moss'
 
@@ -83,6 +95,23 @@ export interface ThemeModeTokens {
   loading: string
   /** 两步确认弹层卡片底 --settings-confirm-card-bg（亮 #ffffff / 暗 ≡ raised） */
   confirmCardBg: string
+  /** Chrome 侧 Tab 栏底 --chrome-tabbar（表面族 2026-10-30 主题化；亮 = hairline 向
+   *  raised 78% 插值；暗 ≡ surface/omnibox 同值，规则见头注） */
+  chromeTabbar: string
+  /** Chrome 侧工具栏底 --chrome-toolbar（亮 = bg + (3,2,1)；--chrome-tab-active 同值
+   *  别名映射，不另落配置键） */
+  chromeToolbar: string
+  /** Chrome 侧工具栏底线 --chrome-line（亮 = hairline − (5,7,8)） */
+  chromeLine: string
+  /** Tab 分隔线 --chrome-tab-separator（= chromeTabbar − (38,37,37)） */
+  chromeTabSeparator: string
+  /** 非活动 Tab 药丸与浏览器框架底 --chrome-surface（亮恒 #ffffff / 暗 ≡ tabbar） */
+  chromeSurface: string
+  /** 地址输入框底 --chrome-omnibox-bg（亮恒 #ffffff / 暗 ≡ tabbar） */
+  chromeOmniboxBg: string
+  /** 拖拽落点高亮 --chrome-tabbar-drag-target（= chromeTabbar − 26/通道，苔绿暗态
+   *  G 通道再 +3 随族） */
+  chromeTabbarDragTarget: string
 }
 
 export interface ThemeSystem {
@@ -122,7 +151,14 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#221a00',
       accentVeil: 'rgba(34, 26, 0, 0.12)',
       loading: '#9a5f00',
-      confirmCardBg: '#ffffff'
+      confirmCardBg: '#ffffff',
+      chromeTabbar: '#e8e4d9',
+      chromeToolbar: '#f9f6ef',
+      chromeLine: '#d3cbbd',
+      chromeTabSeparator: '#c2bfb4',
+      chromeSurface: '#ffffff',
+      chromeOmniboxBg: '#ffffff',
+      chromeTabbarDragTarget: '#cecabf'
     },
     dark: {
       bg: '#101418',
@@ -146,7 +182,15 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#221a00',
       accentVeil: 'rgba(34, 26, 0, 0.12)',
       loading: '#ffb000',
-      confirmCardBg: '#1a2026'
+      confirmCardBg: '#1a2026',
+      // 暗态表面与雾蓝同值（琥珀暗板近黑蓝系同族，规则见头注）
+      chromeTabbar: '#202124',
+      chromeToolbar: '#292a2d',
+      chromeLine: '#3c4043',
+      chromeTabSeparator: '#3c4043',
+      chromeSurface: '#202124',
+      chromeOmniboxBg: '#202124',
+      chromeTabbarDragTarget: '#444548'
     }
   },
   mist: {
@@ -175,7 +219,15 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#101c29',
       accentVeil: 'rgba(16, 28, 41, 0.12)',
       loading: '#31536e',
-      confirmCardBg: '#ffffff'
+      confirmCardBg: '#ffffff',
+      // 表面族 = 原中性灰阶锚定值（主题化专项的推导基准，「已适配」现状即定稿）
+      chromeTabbar: '#dee1e6',
+      chromeToolbar: '#f1f3f4',
+      chromeLine: '#c7cbd1',
+      chromeTabSeparator: '#b8bcc1',
+      chromeSurface: '#ffffff',
+      chromeOmniboxBg: '#ffffff',
+      chromeTabbarDragTarget: '#c4c7cc'
     },
     dark: {
       bg: '#11151a',
@@ -199,7 +251,14 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#101c29',
       accentVeil: 'rgba(16, 28, 41, 0.12)',
       loading: '#a4bcd1',
-      confirmCardBg: '#1b222b'
+      confirmCardBg: '#1b222b',
+      chromeTabbar: '#202124',
+      chromeToolbar: '#292a2d',
+      chromeLine: '#3c4043',
+      chromeTabSeparator: '#3c4043',
+      chromeSurface: '#202124',
+      chromeOmniboxBg: '#202124',
+      chromeTabbarDragTarget: '#444548'
     }
   },
   moss: {
@@ -230,7 +289,14 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#172207',
       accentVeil: 'rgba(23, 34, 7, 0.12)',
       loading: '#477329',
-      confirmCardBg: '#ffffff'
+      confirmCardBg: '#ffffff',
+      chromeTabbar: '#e1e6d4',
+      chromeToolbar: '#f4f6eb',
+      chromeLine: '#c9cfb5',
+      chromeTabSeparator: '#bbc1af',
+      chromeSurface: '#ffffff',
+      chromeOmniboxBg: '#ffffff',
+      chromeTabbarDragTarget: '#c7ccba'
     },
     dark: {
       bg: '#0f140f',
@@ -254,7 +320,15 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
       accentInk: '#172207',
       accentVeil: 'rgba(23, 34, 7, 0.12)',
       loading: '#a8cf8e',
-      confirmCardBg: '#19221a'
+      confirmCardBg: '#19221a',
+      // 苔绿暗系：绿系近黑（G > R/B，同明度偏移，规则见头注）
+      chromeTabbar: '#1f2320',
+      chromeToolbar: '#282d29',
+      chromeLine: '#3b423c',
+      chromeTabSeparator: '#3b423c',
+      chromeSurface: '#1f2320',
+      chromeOmniboxBg: '#1f2320',
+      chromeTabbarDragTarget: '#434a44'
     }
   }
 }
@@ -262,7 +336,9 @@ export const THEME_SYSTEMS: Record<ThemeSystemId, ThemeSystem> = {
 /**
  * 主题 token → CSS 变量映射（renderer 注入链逐条 setProperty 的唯一依据）。
  * 未收录的 CSS 变量为全局常量、不随主题系统：--accent-ink-dim（零引用留置）、
- * --idle、--danger/--danger-veil、--mask、chrome-* 全族与 color-scheme（见 app.css）。
+ * --idle、--danger/--danger-veil、--mask、chrome 墨族与蒙版族（--chrome-ink/
+ * -ink-dim/-disabled/-error、各 veil、--chrome-tab-insert）与 color-scheme
+ * （见 app.css；chrome 表面族已随 2026-10-30 专项主题化收录下方）。
  */
 export function themeCssVariables(
   id: ThemeSystemId,
@@ -290,7 +366,16 @@ export function themeCssVariables(
     '--accent-ink': t.accentInk,
     '--accent-veil': t.accentVeil,
     '--loading': t.loading,
-    '--settings-confirm-card-bg': t.confirmCardBg
+    '--settings-confirm-card-bg': t.confirmCardBg,
+    // chrome 表面族（tab-active 为 toolbar 的同值别名——融合裁决连续面关系，规则见头注）
+    '--chrome-tabbar': t.chromeTabbar,
+    '--chrome-toolbar': t.chromeToolbar,
+    '--chrome-tab-active': t.chromeToolbar,
+    '--chrome-line': t.chromeLine,
+    '--chrome-tab-separator': t.chromeTabSeparator,
+    '--chrome-surface': t.chromeSurface,
+    '--chrome-omnibox-bg': t.chromeOmniboxBg,
+    '--chrome-tabbar-drag-target': t.chromeTabbarDragTarget
   }
 }
 
@@ -299,13 +384,12 @@ export function themeBoardBackground(id: ThemeSystemId, resolved: 'light' | 'dar
   return THEME_SYSTEMS[id][resolved].bg
 }
 
-/** Chrome 表面色（主进程 WCO overlay 消费，2026-10-30 Windows 去标题栏专项）：
- *  Tab 栏底与墨色符号，亮暗两值全局常量不随主题色三系。单源对账三处——本文件 /
- *  app.css 的 --chrome-tabbar、--chrome-ink 字面量 / DESIGN.md Colors 块，改一处须
- *  同步另两处（themeBoardBackground 同款纪律）。overlay 只取实色（Electron #48193
- *  透明色 hover 渲染 bug） */
-export function chromeTabbarSurface(resolved: 'light' | 'dark'): string {
-  return resolved === 'dark' ? '#202124' : '#dee1e6'
+/** Chrome 表面色（主进程 WCO overlay 消费，2026-10-30 Windows 去标题栏专项；同日
+ *  chrome 表面族主题化专项随系扩签）：Tab 栏底随主题系统该态 chromeTabbar token（与
+ *  renderer --chrome-tabbar 同源同值），墨色符号仍恒中性（chrome 墨族全局常量）。
+ *  overlay 只取实色（Electron #48193 透明色 hover 渲染 bug） */
+export function chromeTabbarSurface(id: ThemeSystemId, resolved: 'light' | 'dark'): string {
+  return THEME_SYSTEMS[id][resolved].chromeTabbar
 }
 
 export function chromeOverlaySymbol(resolved: 'light' | 'dark'): string {

@@ -266,10 +266,11 @@ export interface OkResult {
 }
 
 /**
- * WebContentsView 页面首帧前兜底底色（chrome surface 族，亮暗成对）：主进程建视图时
- * 现取防透明闪烁，主题翻转经 appearance 广播链同步存量视图（只随亮暗两态，主题色不
- * 入右区）。主进程不读 CSS——本常量与 app.css `--chrome-surface` token、DESIGN.md
- * 「Chrome 侧」色板三处字面量对账，改一处须同步其余两处。
+ * WebContentsView 页面首帧前兜底底色（亮暗成对）：主进程建视图时现取防透明闪烁，
+ * 主题翻转经 appearance 广播链同步存量视图。**恒中性画布色、不随主题色三系**
+ * （2026-10-30 chrome 表面主题化专项裁定：页面画布是浏览器内容的中性底，与随系化
+ * 的 --chrome-surface token 解耦——原三处字面量对账随之退役，暗值恰与琥珀/雾蓝暗
+ * surface 同值属巧合，苔绿暗 surface 不联动；裁定依据 DESIGN「兜底底色」条目）。
  */
 export const BROWSER_VIEW_FALLBACK_BACKGROUND = {
   light: '#ffffff',

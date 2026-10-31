@@ -52,30 +52,33 @@
      白同源；暗 = raised 层同值） */
   --settings-confirm-card-bg: #ffffff;
 
-  /* Chrome 右侧 · 亮色（chrome-* 全族：全局常量，不随主题系统——右区恒中性灰阶）。
-     --chrome-tabbar/--chrome-ink 另被主进程 WCO overlay 消费：单源对账
-     src/shared/themeSystems.ts（chromeTabbarSurface/chromeOverlaySymbol），改值两处同步 */
-  --chrome-tabbar: #dee1e6;
-  --chrome-toolbar: #f1f3f4;
-  --chrome-line: #c7cbd1;
+  /* Chrome 右侧 · 亮色。表面族（tabbar/toolbar/tab-active/line/tab-separator/
+     surface/omnibox-bg/drag-target）为主题配置族：2026-10-30 主题化专项起随三系整套
+     切换，此处为琥珀系缺省值 + 对账基准（与 src/shared/themeSystems.ts 琥珀系逐值
+     对账，改一处须同步另一处；原「全局常量恒中性灰阶」表述随专项退役）；墨族/veil/
+     错误色仍为全局常量不随主题。--chrome-ink 另被主进程 WCO overlay 符号色消费
+     （chromeOverlaySymbol） */
+  --chrome-tabbar: #e8e4d9;
+  --chrome-toolbar: #f9f6ef;
+  --chrome-line: #d3cbbd;
   /* Tab 分隔线（Chromium tabstrip separator 同值）：仅相邻非活动 Tab 间呈现 */
-  --chrome-tab-separator: #b8bcc1;
+  --chrome-tab-separator: #c2bfb4;
   --chrome-ink: #3c4043;
   --chrome-ink-dim: #5f6368;
   --chrome-disabled: #b0b4b9;
   --chrome-surface: #ffffff;
-  /* 选中 Tab 底色（2026-10-29 融合裁决）：改与工具栏同值连成连续面（原 #ffffff）；
-     暗色块本就与 --chrome-toolbar 同值不动 */
-  --chrome-tab-active: #f1f3f4;
+  /* 选中 Tab 底色（2026-10-29 融合裁决）：与工具栏同值连成连续面（原 #ffffff）；
+     主题化后同值关系不变（themeCssVariables 中为 chromeToolbar 的别名映射） */
+  --chrome-tab-active: #f9f6ef;
   --chrome-omnibox-bg: #ffffff;
   --chrome-hover-veil: rgba(60, 64, 67, 0.08);
   --chrome-active-veil: rgba(60, 64, 67, 0.1);
   --chrome-pressed-veil: rgba(60, 64, 67, 0.12);
   --chrome-select-veil: rgba(60, 64, 67, 0.14);
   --chrome-error: #d93025;
-  /* 拖拽落点高亮（阶段 9，Tab 栏层）：tabbar 叠 16% ink 蒙版的合成色（比按压态
-     再深一档，落点信号须强于普通悬停），灰阶语义，强调色不进右侧 */
-  --chrome-tabbar-drag-target: #c4c7cc;
+  /* 拖拽落点高亮（阶段 9，Tab 栏层）：比常态 tabbar 深一档（落点信号须强于普通
+     悬停），随表面族主题化逐系落值（= tabbar − 26/通道，推导见 themeSystems 头注） */
+  --chrome-tabbar-drag-target: #cecabf;
   /* 拖拽插入指示线（阶段 10，Tab 栏层）：墨级灰阶线，与 --chrome-ink 同值源但语义
      分开命名（先例：--loading 与 --accent 同值异名）——须从常态 tabbar 与 drag-target
      高亮底上双双立得住 */
@@ -115,8 +118,9 @@
     /* 两步确认卡片底 · 暗：主题配置族（= raised 层同值） */
     --settings-confirm-card-bg: #1a2026;
 
-    /* Chrome 右侧 · Chromium 深色灰阶（chrome-* 全族：全局常量，不随主题系统）。
-       --chrome-tabbar/--chrome-ink 单源对账同亮色块头注（themeSystems.ts） */
+    /* Chrome 右侧 · 暗色。表面族同亮色块为主题配置族（此处为琥珀系暗态缺省值——
+       琥珀暗板为近黑蓝系与雾蓝暗板同族，表面取与雾蓝同值，推导见 themeSystems 头注；
+       对账纪律同亮色块）；墨族/veil/错误色仍为全局常量 */
     --chrome-tabbar: #202124;
     --chrome-toolbar: #292a2d;
     --chrome-line: #3c4043;
@@ -290,6 +294,15 @@ body.col-resizing {
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--board-ink);
+}
+
+/* Windows 主窗板头品牌 icon（winc=wco 门控，2026-10-30 无底图标专项）：16px 去底
+   品牌图形前置标题文本（40px 板头行内垂直居中由父级 inline-flex 承担），与文字
+   间距沿用 .board-title 既有 gap 6px；flex none 防窄栏挤压形变 */
+.board-title-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 
 .board-title-text {
@@ -1865,8 +1878,9 @@ select.picker-input {
   text-align: center;
 }
 
-/* 应用图标：64px 居中于产品名上方（2026-09-17 用户裁决补入；圆角已在图标资产内
-   烘焙，CSS 不再裁切） */
+/* 应用图标：64px 居中于产品名上方（2026-09-17 用户裁决补入；2026-10-30 无底图标
+   专项换去底透明品牌图形的 256px 导数 resources/logo-transparent-256.png——无底板
+   圆角可言，原「圆角已在资产内烘焙」表述退役，CSS 不裁切维持） */
 .settings-about-icon {
   display: block;
   width: 64px;

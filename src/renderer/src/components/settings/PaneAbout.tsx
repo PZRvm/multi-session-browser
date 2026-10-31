@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { SettingsPane, SettingsRow } from './SettingsParts'
 import { readableIpcError } from '../../stores/settings'
 import { useT } from '../../i18n'
-import appIcon from '../../../../../resources/icon.png'
+import appIcon from '../../../../../resources/logo-transparent-256.png'
 import type { SettingsAppInfo } from '../../../../shared/settings'
 
 // 关于版面：居中签名（应用图标 64px + 产品名 + 版本三元组）+ 数据目录行（阶段三

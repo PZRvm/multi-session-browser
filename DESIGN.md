@@ -1,7 +1,7 @@
 ---
 name: 多会话测试浏览器
-description: 会话到发信息板——左侧航显信息板配可切换的强调色系统（琥珀/雾蓝/苔绿，配置单源 themeSystems.ts），右侧交给 Chrome 原生语法，双世界各有亮暗变体
-theme-systems: 三套设计系统（琥珀/雾蓝/苔绿）的完整 token 单源在 src/shared/themeSystems.ts；本 colors 块仅默认琥珀系统（亮/暗两态）的缺省值快照，与 app.css 对账
+description: 会话到发信息板——左侧航显信息板配可切换的强调色系统（琥珀/雾蓝/苔绿，配置单源 themeSystems.ts），右侧交给 Chrome 原生语法（表面底色随三系同族切换），双世界各有亮暗变体
+theme-systems: 三套设计系统（琥珀/雾蓝/苔绿）的完整 token 单源在 src/shared/themeSystems.ts（含 chrome 表面族，2026-10-30 修订随系）；本 colors 块仅默认琥珀系统（亮/暗两态）的缺省值快照，与 app.css 对账
 colors:
   # 信息板（左侧世界，默认亮色）
   board-bg: '#f6f4ee'
@@ -26,19 +26,19 @@ colors:
   accent-ink: '#221a00'
   idle: '#6b7280'
   loading: '#ffb000'
-  # Chrome 右侧（列车本身，默认亮色）
-  chrome-tabbar: '#dee1e6'
-  chrome-toolbar: '#f1f3f4'
-  chrome-line: '#c7cbd1'
+  # Chrome 右侧（列车本身，默认亮色；表面族随主题三系——此处为琥珀系暖灰值，2026-10-30 主题化）
+  chrome-tabbar: '#e8e4d9'
+  chrome-toolbar: '#f9f6ef'
+  chrome-line: '#d3cbbd'
   chrome-ink: '#3c4043'
   chrome-ink-dim: '#5f6368'
   chrome-disabled: '#b0b4b9'
   chrome-surface: '#ffffff'
-  chrome-tab-active: '#f1f3f4'
+  chrome-tab-active: '#f9f6ef'
   chrome-omnibox-bg: '#ffffff'
-  chrome-tabbar-drag-target: '#c4c7cc'
+  chrome-tabbar-drag-target: '#cecabf'
   chrome-tab-insert: '#3c4043'
-  chrome-tab-separator: '#b8bcc1'
+  chrome-tab-separator: '#c2bfb4'
   chrome-tabbar-dark: '#202124'
   chrome-toolbar-dark: '#292a2d'
   chrome-line-dark: '#3c4043'
@@ -148,7 +148,7 @@ components:
 
 **Creative North Star: "到发信息板（The Departure Board）"**
 
-这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：暖灰或近黑蓝底上的行式栅格，1px 发丝线分隔，强调色只作为「航班信息」出现——当前选中的会话、加载中的信号、计数数字、唯一的全宽主按钮（默认系统为航显琥珀 #FFB000；强调色系统可在琥珀/雾蓝/苔绿三套间整套切换，单源 `src/shared/themeSystems.ts`，与亮暗正交组合）。右侧是列车本身：完全交给 Chrome 的原生灰阶语法（tab 栏、工具栏、药丸地址栏），板面语言不得越界。两个世界各有完整 light/dark 变体，切换只改变表面与墨色，不改变布局、层级或会话状态。
+这个世界由两个半区构成，各有各的法律。左侧是站台的信息板：暖灰或近黑蓝底上的行式栅格，1px 发丝线分隔，强调色只作为「航班信息」出现——当前选中的会话、加载中的信号、计数数字、唯一的全宽主按钮（默认系统为航显琥珀 #FFB000；强调色系统可在琥珀/雾蓝/苔绿三套间整套切换，单源 `src/shared/themeSystems.ts`，与亮暗正交组合）。右侧是列车本身：完全交给 Chrome 的原生语法（tab 栏、工具栏、药丸地址栏的结构、交互与墨阶），其**表面底色随主题三系同族切换**（2026-10-30 修订，原「恒中性灰阶」退役——用户需求：主题切换时顶部栏与输入框栏背景跟随换色；雾蓝锚定原值，琥珀/苔绿按各自板面色族同明度推导），强调色信号仍不得越界。两个世界各有完整 light/dark 变体，切换只改变表面与墨色，不改变布局、层级或会话状态。
 
 密度是桌面效率工具的密度：13px 基准字号、双行会话行、一切状态静置可读。深度不靠阴影——全应用 0 box-shadow——靠发丝线与色阶（board-bg / board-bg-raised / board-tile 三层）。动效无签名时刻——2026-09-20 用户裁决退役翻牌砖的 rotateX 翻转（计数砖静态呈现、变值即换字），全部状态过渡压在 120ms。
 
@@ -173,7 +173,7 @@ components:
 
 ## Colors
 
-一句话：三套信息板色彩系统（琥珀/雾蓝/苔绿，各含亮暗两态，信号色与底色族随主题整套同族切换），对页使用 Chrome 自己的亮暗灰阶——两个色域始终不互通。**下文色值叙述均为默认琥珀系统的定稿值**；雾蓝/苔绿的同名 token 值见配置单源 `src/shared/themeSystems.ts`（新增主题 = 该文件加一条配置）。
+一句话：三套信息板色彩系统（琥珀/雾蓝/苔绿，各含亮暗两态，信号色与底色族随主题整套同族切换），对页 chrome 的**表面底色族**（tabbar/toolbar/line/separator/surface/omnibox/drag-target）自 2026-10-30 起同样随主题三系整套切换（雾蓝锚定原灰阶值，琥珀/苔绿同明度异色相推导），墨阶/veil/错误色仍恒中性灰阶——强调色信号不越界的边界不变。**下文色值叙述均为默认琥珀系统的定稿值**；雾蓝/苔绿的同名 token 值见配置单源 `src/shared/themeSystems.ts`（新增主题 = 该文件加一条配置）。
 
 ### Primary
 
@@ -196,18 +196,18 @@ components:
 - **砖线（Board Tile Line）**（亮 #d8d2c5 / 暗 #2a313a，`--board-tile-line`）：计数砖描边；滚动条 thumb 已拆为独立 token `--board-scrollbar-thumb`（亮 #c9c1b2 / 暗 #2a313a）。
 - **砖上数字（Board Tile Ink）**（亮 #9a5f00 / 暗 #ffb000，`--board-tile-ink`）：白天用降饱和深琥珀（与白天态加载信号同一做法），黑夜用航显琥珀。
 
-Chrome 侧（右侧世界专用，禁入板面）：
+Chrome 侧（右侧世界专用，禁入板面；表面族随主题三系——此处为琥珀系定稿值，推导规则见 themeSystems.ts 头注）：
 
-- **亮色 Chrome：** tabbar #dee1e6、toolbar #f1f3f4、line #c7cbd1、surface/tab-active/omnibox #ffffff、ink #3c4043、dim #5f6368、disabled #b0b4b9。
-- **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368。
-- **兜底底色（主进程建视图）：** WebContentsView 页面首帧前兜底底色取 surface 族色（亮 #ffffff / 暗 #202124），常量单源在 `src/shared/browser.ts`（`BROWSER_VIEW_FALLBACK_BACKGROUND`）——主进程不读 CSS，与 app.css `--chrome-surface` token 及本节色板三处字面量对账，改一处须同步其余两处。
+- **亮色 Chrome：** tabbar #e8e4d9、toolbar #f9f6ef（tab-active 同值）、line #d3cbbd、separator #c2bfb4、surface/omnibox #ffffff、ink #3c4043、dim #5f6368、disabled #b0b4b9、drag-target #cecabf（2026-10-30 主题化：表面族由中性冷灰换琥珀系暖灰——雾蓝系保留原值 #dee1e6/#f1f3f4/#c7cbd1/#b8bcc1/#c4c7cc 作锚，推导规则见单源头注）。
+- **暗色 Chrome：** tabbar/surface #202124、toolbar/tab-active #292a2d、line/separator #3c4043、omnibox #202124、ink #e8eaed、dim #bdc1c6、disabled #5f6368、drag-target #444548（琥珀暗板本为近黑蓝系与雾蓝同族，暗态表面琥珀/雾蓝同值；苔绿暗系向绿色相偏移，值见单源）。
+- **兜底底色（主进程建视图）：** WebContentsView 页面首帧前兜底底色恒取中性画布色（亮 #ffffff / 暗 #202124），常量单源在 `src/shared/browser.ts`（`BROWSER_VIEW_FALLBACK_BACKGROUND`）——**页面画布是浏览器内容的中性底、不随主题三系**（2026-10-30 裁定，随 chrome 表面主题化同步退役原三处对账：暗值恰与琥珀/雾蓝暗 surface 同值属巧合同值，苔绿暗 surface #1f2320 不再联动）。
 - **语义状态：** hover/pressed 蒙版、建议列表选中蒙版（--chrome-select-veil 亮 rgba(60,64,67,0.14) / 暗 rgba(232,234,237,0.20)——白底上的键盘选中须一眼可辨）、地址错误红、分隔条与滚动条悬停都必须各有亮暗 token；组件只能引用语义 token，不直接假设底色为白或黑。
 
 半透明蒙版（veil）全部按主题提升为语义 token；反白行内菜单仍使用强调色上的墨色 veil（`--accent-veil`）。（原翻牌砖中缝 token `--board-tile-seam` 随 2026-09-20 翻牌动画退役一并移除——中缝只为翻转铰链服务。）
 
 ### Named Rules
 
-**The Accent Stays On The Board Rule（强调色不出板）.** 强调色只出现在左侧信息板与全局焦点环上；右侧 Chrome 区域只用 chrome-\* 灰阶。强调色在大面积上只允许两种形态：选中行的整行反白、底部唯一的全宽主按钮——此外永远是点、字、数字级的小信号。（原「琥珀不出板」随主题色系统化更名：琥珀是默认强调色，不是专属品牌色。）
+**The Accent Stays On The Board Rule（强调色不出板）.** 强调色只出现在左侧信息板与全局焦点环上；右侧 Chrome 区域只用 chrome-\* 表面与墨阶 token（表面随主题三系同族切换，墨阶/veil/错误色恒中性——2026-10-30 修订，原「只用 chrome-\* 灰阶」随表面主题化更新；强调色仍零进入）。强调色在大面积上只允许两种形态：选中行的整行反白、底部唯一的全宽主按钮——此外永远是点、字、数字级的小信号。（原「琥珀不出板」随主题色系统化更名：琥珀是默认强调色，不是专属品牌色。）
 
 **The Inversion Rule（反白即选中）.** 选中态不是描边、不是下划线、不是左侧色条，是整行强调色反白（`--accent` 底 + `--accent-ink` 字），行内次级文字降不透明度 0.72，空闲状态点同步变墨色。如机场信息屏的高亮航班。
 

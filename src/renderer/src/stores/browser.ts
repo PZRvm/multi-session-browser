@@ -247,14 +247,20 @@ const parseWindowIdentity = (): WindowIdentity => {
 
 export const windowIdentity = parseWindowIdentity()
 
-/**
- * 主窗自绘窗口控制钮门控（2026-09-20 主窗去原生标题条专项）：建窗 query winc=traffic
- * 仅 darwin 主窗携带（主进程 index.ts 单源注入，renderer 不经 navigator 推断平台，
- * 对齐设置窗 chrome=custom-close 单源纪律）；独立窗/Windows/Linux 不携带 → 不渲染
- * 自绘钮（独立窗当前保持原生标题栏，契约见 shared/window.ts 头注）
- */
-export const windowTrafficControls =
-  new URLSearchParams(window.location.search).get('winc') === 'traffic'
+// 建窗 query 形态门控共用一次解析（审查 20261031123822 低-1 收敛重复解析）：
+// winc 值域 = 'traffic'（仅 darwin 主窗，三灯占位门控）| 'wco'（仅 win32 主窗，WCO
+// 无标题栏形态标记——板头品牌 icon 门控），主进程 index.ts 单源注入、两值平台互斥，
+// renderer 不经 navigator 推断平台（对齐设置窗 chrome=custom-close 单源纪律）；
+// 独立窗/Linux 不携带 → 两门控均不触发（独立窗保持原生标题栏，契约见 shared/window.ts 头注）
+const wincParam = new URLSearchParams(window.location.search).get('winc')
+
+/** 主窗自绘窗口控制钮门控（2026-09-20 主窗去原生标题条专项） */
+export const windowTrafficControls = wincParam === 'traffic'
+
+/** Windows 主窗板头品牌 icon 门控（2026-10-30 无底图标专项）：WCO 去标题栏后左上角
+ *  空缺，板头标题前置 16px 去底 logo 补窗标锚点；独立窗/Linux 不携带 → 标题纯文字
+ *  现状不变，macOS 走 traffic 分支无标题 */
+export const windowBrandMark = wincParam === 'wco'
 
 // 历史镜像重拉的过期判据（单调递增 token）：快速连续切换会话时，只有最新一次
 // 重拉的回填生效，晚到的旧回复整体丢弃（独立窗绑定恒定，token 同样防重入叠加）
