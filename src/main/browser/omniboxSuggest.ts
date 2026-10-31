@@ -19,6 +19,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { installShellInputGuard } from '../inputGuard'
 import { getCurrentLanguage } from '../i18n'
+import { preserveWindowTransparency } from '../appearance'
 import {
   OMNIBOX_SUGGEST_CHANNELS,
   SUGGEST_PANEL_BORDER,
@@ -205,6 +206,10 @@ export function createOmniboxSuggestWindows(deps: {
       }
     })
     installShellInputGuard(win.webContents)
+    // 透明窗防护（审查 20261030162931 低-5 收敛）：外观控制器的全窗
+    // setBackgroundColor 循环对透明窗设不透明板面底会破坏透明合成（融合面板
+    // 透明角落变实色块）——跳过循环（toolbarTooltip 同款先例）
+    preserveWindowTransparency(win)
     const entry: ChildEntry = {
       win,
       ready: false,

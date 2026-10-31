@@ -10,8 +10,45 @@ import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
+import { TOOLTIP_FONT_STACK, TOOLTIP_METRICS } from '../../../../shared/toolbarTooltip'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
+
+/** 悬停气泡 span 槽（审查 20261030162931 低-4 收敛）：hover/focus 四件套接线单点
+ *  维护，各钮只声明文案/键帽/场景 kind；span 为 flex 项紧包按钮（rect 与按钮等值），
+ *  disabled 钮不派发鼠标事件且不可聚焦，槽承接 hover；React 焦点事件按 focusin/
+ *  focusout 冒泡，内层 button 聚焦即达 span（承载与编排说明见组件内 showToolsPop 注释） */
+function TooltipSlot({
+  label,
+  keyText = null,
+  kind,
+  onEnter,
+  onLeave,
+  children
+}: {
+  label: string
+  keyText?: string | null
+  kind?: 'pause-toggle' | 'reload-toggle'
+  onEnter: (
+    anchor: HTMLElement,
+    label: string,
+    keyText: string | null,
+    kind?: 'pause-toggle' | 'reload-toggle'
+  ) => void
+  onLeave: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <span
+      onMouseEnter={(e) => onEnter(e.currentTarget, label, keyText, kind)}
+      onMouseLeave={onLeave}
+      onFocus={(e) => onEnter(e.currentTarget, label, keyText, kind)}
+      onBlur={onLeave}
+    >
+      {children}
+    </span>
+  )
+}
 
 /** 导航圆头 chevron（2026-10-23 用户裁决）：antd 图标库全系直角折线描边、无圆头箭头，
  * 自绘替换 Left/RightOutlined——1em 度量随 .chrome-nav 按钮 16px 字阶（与 antd 图标同
@@ -125,7 +162,7 @@ function Toolbar(): React.JSX.Element {
   // 悬停提示：导航、截图与录屏统一为图标下方原生子窗气泡，
   // 避免 Windows 窗口控制区遮挡，也不被网页原生视图盖住；不登记 overlay、不收起网页。
   // keyText 键帽槽由刷新钮消费（RELOAD_ACCEL 单源派生），其余钮恒 null。
-  // 步骤 2 起导航三键同槽接线（原生 title 退役；主页槽随按钮 2026-10-30 退役删除）
+  // 气泡槽 = TooltipSlot 模块组件（审查 20261030162931 低-4 收敛，四件套单点接线）
   const [toolsPop, setToolsPop] = useState<{
     x: number
     y: number
@@ -231,6 +268,12 @@ function Toolbar(): React.JSX.Element {
         : (toolsPop?.label ?? '')
   const toolsPopKeyText =
     toolsPop?.kind === 'reload-toggle' && activeTab?.loading ? null : (toolsPop?.keyText ?? null)
+  // 子窗 show/hide 编排（审查 20261030162931 低-3 重构：原 cleanup 无条件 hide +
+  // effect 体 show 的组合在 effect 重跑时先隐后显，loadURL 异步间隙闪断一次——
+  // 悬停中点击触发 onFocus 再入即复现）。现拆两路：非空态 effect 只发 show
+  //（重跑 = 直接换内容/坐标，不闪隐；同值重发由主进程幂等 show 承担，也能复活
+  //  owner blur/move 等主进程侧 dismiss 后的同锚再悬停）；hide 收口只发生在
+  // toolsPop 归空（移出/手动隐/resize）与组件卸载两路
   useLayoutEffect(() => {
     const pop = toolsPopRef.current
     if (!pop || !toolsPop) return
@@ -246,12 +289,21 @@ function Toolbar(): React.JSX.Element {
         keyText: toolsPopKeyText
       })
       .catch((error: unknown) => console.warn('显示工具栏气泡失败:', error))
-    return () => {
+  }, [toolsPop, toolsPopLabel, toolsPopKeyText])
+  useLayoutEffect(() => {
+    if (toolsPop !== null) return
+    void window.api.toolbarTooltip
+      .hide()
+      .catch((error: unknown) => console.warn('隐藏工具栏气泡失败:', error))
+  }, [toolsPop])
+  useEffect(
+    () => () => {
       void window.api.toolbarTooltip
         .hide()
         .catch((error: unknown) => console.warn('隐藏工具栏气泡失败:', error))
-    }
-  }, [toolsPop, toolsPopLabel, toolsPopKeyText])
+    },
+    []
+  )
   // about:blank（新标签页）与无 tab 时地址栏显示空串；其余显示完整 URL，不做 scheme 折叠
   const mainUrl = activeTab && activeTab.url !== 'about:blank' ? activeTab.url : ''
 
@@ -441,18 +493,12 @@ function Toolbar(): React.JSX.Element {
 
   return (
     <div className="chrome-toolbar">
-      {/* 导航三键（步骤 2：自绘 glyph + 悬停气泡 span 槽，.chrome-tools 同构——
-          disabled 钮不派发鼠标事件且不可聚焦，span 槽承接 hover；React 焦点事件按
-          focusin/focusout 冒泡，内层 button 聚焦即达 span；span 为 flex 项紧包按钮，
-          rect 与按钮等值。原生 title 提示退役，气泡 label 渲染期经 kind 动态取——
-          刷新/停止共用一槽，加载态翻转时按钮与文案即时跟随） */}
+      {/* 导航三键（步骤 2：自绘 glyph + 悬停气泡 TooltipSlot 槽，.chrome-tools 同构——
+          四件套单点接线；React 焦点事件按 focusin/focusout 冒泡，内层 button 聚焦
+          即达 span。原生 title 提示退役，气泡 label 渲染期经 kind 动态取——刷新/停止
+          共用一槽，加载态翻转时按钮与文案即时跟随） */}
       <div className="chrome-nav">
-        <span
-          onMouseEnter={(e) => showToolsPop(e.currentTarget, backLabel, null)}
-          onMouseLeave={hideToolsPop}
-          onFocus={(e) => showToolsPop(e.currentTarget, backLabel, null)}
-          onBlur={hideToolsPop}
-        >
+        <TooltipSlot label={backLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
           <button
             type="button"
             aria-label={backLabel}
@@ -461,13 +507,8 @@ function Toolbar(): React.JSX.Element {
           >
             <NavChevron direction="left" />
           </button>
-        </span>
-        <span
-          onMouseEnter={(e) => showToolsPop(e.currentTarget, forwardLabel, null)}
-          onMouseLeave={hideToolsPop}
-          onFocus={(e) => showToolsPop(e.currentTarget, forwardLabel, null)}
-          onBlur={hideToolsPop}
-        >
+        </TooltipSlot>
+        <TooltipSlot label={forwardLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
           <button
             type="button"
             aria-label={forwardLabel}
@@ -476,16 +517,13 @@ function Toolbar(): React.JSX.Element {
           >
             <NavChevron direction="right" />
           </button>
-        </span>
-        <span
-          onMouseEnter={(e) =>
-            showToolsPop(e.currentTarget, reloadLabel, reloadKeyText, 'reload-toggle')
-          }
-          onMouseLeave={hideToolsPop}
-          onFocus={(e) =>
-            showToolsPop(e.currentTarget, reloadLabel, reloadKeyText, 'reload-toggle')
-          }
-          onBlur={hideToolsPop}
+        </TooltipSlot>
+        <TooltipSlot
+          label={reloadLabel}
+          keyText={reloadKeyText}
+          kind="reload-toggle"
+          onEnter={showToolsPop}
+          onLeave={hideToolsPop}
         >
           {activeTab?.loading ? (
             <button type="button" aria-label={stopLabel} onClick={stop}>
@@ -496,7 +534,7 @@ function Toolbar(): React.JSX.Element {
               <ToolGlyph paths={[TOOL_GLYPH_PATHS.reloadArc, TOOL_GLYPH_PATHS.reloadHead]} />
             </button>
           )}
-        </span>
+        </TooltipSlot>
       </div>
       <div className="chrome-omnibox-host" ref={hostRef}>
         <input
@@ -534,18 +572,10 @@ function Toolbar(): React.JSX.Element {
         />
       </div>
       {/* 截图/录屏钮（快速截图与快速录屏专项，两线融合）：icon 钮沿用 .chrome-nav 图标钮
-          语言，置于 DevTools 开关左侧。悬停气泡统一 .chrome-tools-pop（轮四「不做提示」
-          裁决已被轮六自绘轻量层取代）；aria-label 保留无障碍；disabled 钮不派发鼠标事件
-          且不可聚焦，span 槽承接 hover；聚焦气泡经 span 的 onFocus/onBlur 接线（React
-          焦点事件按 focusin/focusout 冒泡，内层 button 聚焦即达）——锚点即 span 自身
-          （flex 项紧包按钮，rect 与按钮等值，无需 querySelector 取钮） */}
+          语言，置于 DevTools 开关左侧。悬停气泡统一原生子窗（TooltipSlot 四件套接线，
+          轮四「不做提示」裁决已被轮六气泡取代）；aria-label 保留无障碍 */}
       <div className="chrome-tools">
-        <span
-          onMouseEnter={(e) => showToolsPop(e.currentTarget, screenshotLabel, null)}
-          onMouseLeave={hideToolsPop}
-          onFocus={(e) => showToolsPop(e.currentTarget, screenshotLabel, null)}
-          onBlur={hideToolsPop}
-        >
+        <TooltipSlot label={screenshotLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
           <button
             type="button"
             aria-label={screenshotLabel}
@@ -554,14 +584,9 @@ function Toolbar(): React.JSX.Element {
           >
             <CameraOutlined />
           </button>
-        </span>
+        </TooltipSlot>
         {recState.status === 'idle' ? (
-          <span
-            onMouseEnter={(e) => showToolsPop(e.currentTarget, recordLabel, null)}
-            onMouseLeave={hideToolsPop}
-            onFocus={(e) => showToolsPop(e.currentTarget, recordLabel, null)}
-            onBlur={hideToolsPop}
-          >
+          <TooltipSlot label={recordLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
             <button
               type="button"
               aria-label={recordLabel}
@@ -573,38 +598,19 @@ function Toolbar(): React.JSX.Element {
             >
               <VideoCameraOutlined />
             </button>
-          </span>
+          </TooltipSlot>
         ) : (
           <>
             {/* 录制态：常驻暂停/继续图标钮（弃 Popover——弹层跨页面层必收页面或被盖，
-                嵌入工具栏两全：页面恒显 + 控件恒可达） */}
-            <span
-              onMouseEnter={(e) =>
-                showToolsPop(
-                  e.currentTarget,
-                  t(
-                    recState.status === 'paused'
-                      ? 'capture.resumeRecording'
-                      : 'capture.pauseRecording'
-                  ),
-                  null,
-                  'pause-toggle'
-                )
-              }
-              onMouseLeave={hideToolsPop}
-              onFocus={(e) =>
-                showToolsPop(
-                  e.currentTarget,
-                  t(
-                    recState.status === 'paused'
-                      ? 'capture.resumeRecording'
-                      : 'capture.pauseRecording'
-                  ),
-                  null,
-                  'pause-toggle'
-                )
-              }
-              onBlur={hideToolsPop}
+                嵌入工具栏两全：页面恒显 + 控件恒可达）；气泡 label 渲染期随录制态
+                取词（label prop 随渲染取值，recState 变化即重渲染换词） */}
+            <TooltipSlot
+              label={t(
+                recState.status === 'paused' ? 'capture.resumeRecording' : 'capture.pauseRecording'
+              )}
+              kind="pause-toggle"
+              onEnter={showToolsPop}
+              onLeave={hideToolsPop}
             >
               <button
                 type="button"
@@ -620,14 +626,13 @@ function Toolbar(): React.JSX.Element {
               >
                 {recState.status === 'paused' ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
               </button>
-            </span>
+            </TooltipSlot>
             {/* 录制胶囊：红点（录制中脉动/暂停静止）＋ mono 时长，点击＝停止
                 （PRD 3.10.2「再次点击停止」） */}
-            <span
-              onMouseEnter={(e) => showToolsPop(e.currentTarget, t('capture.stopRecord'), null)}
-              onMouseLeave={hideToolsPop}
-              onFocus={(e) => showToolsPop(e.currentTarget, t('capture.stopRecord'), null)}
-              onBlur={hideToolsPop}
+            <TooltipSlot
+              label={t('capture.stopRecord')}
+              onEnter={showToolsPop}
+              onLeave={hideToolsPop}
             >
               <button
                 type="button"
@@ -643,7 +648,7 @@ function Toolbar(): React.JSX.Element {
                 />
                 <span className="chrome-record-time">{formatElapsed(recState, recNow)}</span>
               </button>
-            </span>
+            </TooltipSlot>
           </>
         )}
       </div>
@@ -651,7 +656,18 @@ function Toolbar(): React.JSX.Element {
         <div
           ref={toolsPopRef}
           className="chrome-tools-pop"
-          style={{ left: toolsPop.x, top: toolsPop.y }}
+          style={{
+            left: toolsPop.x,
+            top: toolsPop.y,
+            // 度量单源内联（审查 20261030162931 低-2）：与主进程渲染层同取
+            // shared/toolbarTooltip.ts 常量，测量恒等于子窗实际排版
+            fontFamily: TOOLTIP_FONT_STACK,
+            fontSize: TOOLTIP_METRICS.fontSize,
+            lineHeight: TOOLTIP_METRICS.lineHeight,
+            padding: `${TOOLTIP_METRICS.paddingY}px ${TOOLTIP_METRICS.paddingX}px`,
+            gap: TOOLTIP_METRICS.gap,
+            whiteSpace: 'nowrap'
+          }}
           aria-hidden="true"
         >
           <span>{toolsPopLabel}</span>

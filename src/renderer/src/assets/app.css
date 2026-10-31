@@ -2048,17 +2048,22 @@ select.picker-input {
    下限（favicon + 关闭钮）后仍溢出的尾段在本层内横向滚动裁切，不再钻入右上角 WCO
    按钮区；新建钮在外层恒显于避让线内。滚动条全隐（Chrome tabstrip 无滚动条观感，
    滚轮横滚）；min-width: 0 允许本层在右列布局中收缩让位新建钮；对齐与 Tab 间距
-   同外栏（flex-end 底对齐 + gap 4），右缘额外留出裙边绘制区并补偿外侧间距。
-   不扩张占用空白，让新建钮紧跟最后一个 Tab；空间不足时仍可收缩并横向滚动 */
+   同外栏（flex-end 底对齐 + gap 4）；左右两缘各留 8px 裙边绘制区并以负外边距
+   补偿外侧间距——末位右侧原有（3355eba），首位左侧对称补齐（审查
+   20261030162931 中-1：overflow 在 padding box 裁切，左侧无补偿时首个选中 Tab 的
+   左下角凹弧被切呈直角，恰在 Tab 栏最显眼位置违背裙边定稿）。负外边距使两缘
+   裙边区不扩张占位、新建钮与首末 Tab 间距不变；滚动态下首末 Tab 裙边完整可见 */
 .chrome-tabs-list {
   display: flex;
   align-items: flex-end;
   gap: 4px;
   flex: 0 1 auto;
   min-width: 0;
-  /* 为末尾 Tab 外伸的 8px 裙边留出裁切空间，负外边距保持新建钮原有间距。 */
+  /* 首末 Tab 外伸的 8px 裙边留出裁切空间，负外边距保持外侧既有间距（左右对称） */
   padding-right: 8px;
   margin-right: -8px;
+  padding-left: 8px;
+  margin-left: -8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -2361,17 +2366,14 @@ img.chrome-tab-favicon {
 }
 
 /* 工具栏气泡统一由透明原生子窗显示在图标下方（toolbarTooltip.ts）。
-   本 DOM 只精确测量文字与键帽尺寸，始终隐藏，不参与页面交互。 */
+   本 DOM 只精确测量文字与键帽尺寸，始终隐藏，不参与页面交互。度量（字体栈/
+   字号/行高/内距/间距）经 shared/toolbarTooltip.ts 单源常量由组件内联注入
+  （审查 20261030162931 低-2 收敛，与主进程渲染层同源；此处只留定位与命中面） */
 .chrome-tools-pop {
   position: fixed;
   visibility: hidden;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
   pointer-events: none;
 }
 

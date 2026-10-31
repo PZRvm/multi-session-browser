@@ -1,25 +1,30 @@
 import { BrowserWindow, ipcMain } from 'electron'
-import { TOOLBAR_TOOLTIP_CHANNELS } from '../../shared/toolbarTooltip'
+import {
+  TOOLBAR_TOOLTIP_CHANNELS,
+  TOOLTIP_FONT_STACK,
+  TOOLTIP_METRICS
+} from '../../shared/toolbarTooltip'
 import type { ToolbarTooltipPayload } from '../../shared/toolbarTooltip'
 import { isRecord } from '../../shared/guards'
 import type { SessionBrowserRegistry } from './registry'
 import { t } from '../i18n'
 import { preserveWindowTransparency } from '../appearance'
+import { escapeHtml } from './html'
 
-const escapeHtml = (value: string): string =>
-  value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
-
-// 与 .chrome-tools-pop 同一气泡语系；内容经字典翻译后传入并转义，子窗禁用脚本。
+// 与 .chrome-tools-pop 同一气泡语系；内容经字典翻译后传入并转义（html.ts 单源，
+// 审查 20261030162931 低-1 收敛），子窗禁用脚本。度量全部取 shared/toolbarTooltip.ts
+// 单源常量（低-2 收敛：renderer 测量层同源消费，改度量只改 shared 一处）
 function tooltipHtml(payload: ToolbarTooltipPayload): string {
+  const m = TOOLTIP_METRICS
   return `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
     <style>
       *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
-      body{padding-top:4px;font:12px/1.4 -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif}
-      .tip{position:relative;display:flex;align-items:center;gap:6px;padding:5px 10px;
+      body{padding-top:${m.arrow}px;font:${m.fontSize}px/${m.lineHeight} ${TOOLTIP_FONT_STACK}}
+      .tip{position:relative;display:flex;align-items:center;gap:${m.gap}px;padding:${m.paddingY}px ${m.paddingX}px;
         border-radius:4px;background:rgba(0,0,0,.85);color:#fff;white-space:nowrap}
       .tip:before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
-        border:4px solid transparent;border-bottom-color:rgba(0,0,0,.85)}
+        border:${m.arrow}px solid transparent;border-bottom-color:rgba(0,0,0,.85)}
       .key{color:rgba(255,255,255,.65);font-variant-numeric:tabular-nums}
     </style></head><body><div class="tip"><span>${escapeHtml(payload.label)}</span>${
       payload.keyText ? `<span class="key">${escapeHtml(payload.keyText)}</span>` : ''
@@ -42,7 +47,8 @@ export function registerToolbarTooltipIpc(registry: SessionBrowserRegistry): voi
     // 仅接受主窗口/独立窗口 shell，网页、设置窗及提示子窗均不可调用。
     registry.resolveSenderScope(event.sender)
     const owner = BrowserWindow.fromWebContents(event.sender)
-    if (!owner || owner.isDestroyed() || owner.webContents !== event.sender || !owner.isVisible()) return
+    if (!owner || owner.isDestroyed() || owner.webContents !== event.sender || !owner.isVisible())
+      return
     if (
       !isRecord(value) ||
       !['x', 'y', 'width', 'height'].every(
@@ -60,7 +66,8 @@ export function registerToolbarTooltipIpc(registry: SessionBrowserRegistry): voi
     }
     const content = owner.getContentBounds()
     const width = Math.ceil(payload.width)
-    const height = Math.ceil(payload.height) + 4 // 上箭头占 4px，不挤压气泡正文。
+    // 上箭头占位取度量单源（箭头不挤压气泡正文）
+    const height = Math.ceil(payload.height) + TOOLTIP_METRICS.arrow
     const bounds = {
       x:
         content.x + Math.round(Math.max(0, Math.min(payload.x - width / 2, content.width - width))),

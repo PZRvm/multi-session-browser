@@ -10,6 +10,7 @@
 import { BrowserWindow } from 'electron'
 import type { TabDragPreviewPayload } from '../../shared/browser'
 import { escapeHtml } from './html'
+import { preserveWindowTransparency } from '../appearance'
 
 export interface DragPreview {
   /** 建窗渲染虚影并定位到抓取点锚定位置（重复调用先销毁旧窗） */
@@ -91,6 +92,10 @@ export function createDragPreview(): DragPreview {
       win.setAlwaysOnTop(true, 'floating')
       // 虚影不接鼠标：不挡拖拽命中测试、不吞光标事件
       win.setIgnoreMouseEvents(true)
+      // 透明窗防护（审查 20261030162931 低-5 收敛）：拖拽窗口期恰逢主题/亮暗切换时
+      // 全窗 setBackgroundColor 循环会给透明窗设不透明板面底（虚影圆角外露底色块）
+      // ——跳过循环（toolbarTooltip/建议面板同款先例）
+      preserveWindowTransparency(win)
       win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(renderHtml(payload)))
       // 首帧就绪再显（showInactive 不抢焦点），建窗期的缺位对 16ms 轮询跟随无感
       win.once('ready-to-show', () => {
