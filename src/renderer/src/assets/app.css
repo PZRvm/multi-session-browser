@@ -41,16 +41,13 @@
   /* 加载信号：主题配置族（亮 = accentDeep / 暗 = accentBase，昼夜翻转） */
   --loading: #9a5f00;
   /* 设置专项阶段二：危险色域——全局常量，不随主题系统（DESIGN「设置窗口」——
-     危险区与两步确认弹层专用；亮值对齐 antd danger 红阶 red-7、暗值 red-5，
-     历久经 antd danger 供色先例；veil 为危险钮 hover 蒙版（0.08 档，对齐板面
-     hover 蒙版惯例）） */
+     危险区专用〔两步确认弹层已随 2026-10-31 原生化退役〕；亮值对齐 antd danger
+     红阶 red-7、暗值 red-5，历久经 antd danger 供色先例；veil 为危险钮 hover
+     蒙版（0.08 档，对齐板面 hover 蒙版惯例）） */
   --danger: #d4380d;
   --danger-veil: rgba(212, 56, 13, 0.08);
   /* 弹层遮罩：全局常量，不随主题系统（暗态加重一档，见暗色块） */
   --mask: rgba(0, 0, 0, 0.45);
-  /* 两步确认弹层卡片底：主题配置族（DESIGN 定稿：亮纯白 = antd 弹层 elevated
-     白同源；暗 = raised 层同值） */
-  --settings-confirm-card-bg: #ffffff;
 
   /* Chrome 右侧 · 亮色。表面族（tabbar/toolbar/tab-active/line/tab-separator/
      surface/omnibox-bg/drag-target）为主题配置族：2026-10-30 主题化专项起随三系整套
@@ -115,8 +112,6 @@
     --danger-veil: rgba(255, 120, 117, 0.12);
     /* 弹层遮罩 · 暗：全局常量，不随主题系统（近黑蓝底上加重一档保遮罩可辨） */
     --mask: rgba(0, 0, 0, 0.6);
-    /* 两步确认卡片底 · 暗：主题配置族（= raised 层同值） */
-    --settings-confirm-card-bg: #1a2026;
 
     /* Chrome 右侧 · 暗色。表面族同亮色块为主题配置族（此处为琥珀系暗态缺省值——
        琥珀暗板为近黑蓝系与雾蓝暗板同族，表面取与雾蓝同值，推导见 themeSystems 头注；
@@ -1478,9 +1473,9 @@ select.picker-input {
    板面双世界 token：board-bg 底 / board-ink 墨 / board-hairline 收边——色值全部经
    既有变量体系取值，亮暗随 prefers-color-scheme 自动翻转（主进程 nativeTheme
    .themeSource 驱动），不设独立暗态块；无卡片、无阴影。
-   双栏骨架（侧栏双栏契约）：根容器 flex row（左 176px 侧栏 + 右详情区）兼定位锚
-   （position: relative 供两步确认弹层 absolute inset-0 覆盖整个窗内容区，不受
-   .settings-detail 滚动影响），滚动职责独占在详情区 */
+   双栏骨架（侧栏双栏契约）：根容器 flex row（左 176px 侧栏 + 右详情区），滚动职责
+   独占在详情区（原 relative 定位锚随两步确认弹层 2026-10-31 原生化退役移除引用，
+   position 保留无害——Tab 右键菜单等弹层锚惯例） */
 .settings-window {
   position: relative;
   display: flex;
@@ -1493,8 +1488,8 @@ select.picker-input {
    红灯——自绘红点废弃；仅建窗 query chrome=hidden-titlebar 时由根类生效，Windows/
    Linux 零差异）：顶部拖拽带承担窗口拖动，高 28px 覆盖两栏顶部让位区（侧栏内距
    顶 38px / 详情区顶 34px 见下方覆盖块）；原生红灯由系统绘制在拖拽带左端
-   （trafficLightPosition {x:8,y:8} 对齐原自绘点裁决位），z 低于两步确认弹层（40）
-   ——弹层开启期间窗口不可拖（瞬态可接受） */
+   （trafficLightPosition {x:8,y:8} 对齐原自绘点裁决位）〔原「z 低于两步确认
+   弹层（40）」关系随弹层 2026-10-31 原生化退役注销〕 */
 .settings-drag-strip {
   position: absolute;
   top: 0;
@@ -1775,7 +1770,7 @@ select.picker-input {
 }
 
 /* 下拉弹层（类经 Select classNames.popup.root 挂载）：抬升层底 + 1px 发丝线 +
-   6px 圆角、无阴影（板面弹层先例——两步确认卡片同语言，antd 默认色底投影不进板面） */
+   6px 圆角、无阴影（板面弹层先例，antd 默认色底投影不进板面） */
 .settings-language-dropdown.ant-select-dropdown {
   border: 1px solid var(--board-hairline);
   border-radius: 6px;
@@ -1909,11 +1904,12 @@ select.picker-input {
   color: var(--board-ink-dim);
 }
 
-/* antd Input 板面化覆写（设置窗两处输入：主页行与两步确认第二步，度量同源）：
-   28px 高、1px 控件线、4px 圆角、透明底融入板面（卡片内即透卡片底）、focus 边框
+/* antd Input 板面化覆写（设置窗主页行输入；原两步确认第二步输入已随 2026-10-31
+   原生化退役）：
+   28px 高、1px 控件线、4px 圆角、透明底融入板面、focus 边框
    加深至次墨；压掉 antd 聚焦态自带的蓝色描边与 box-shadow（蓝不进板面 + 无阴影
    规则），hover 加深同 ws-combobox 惯例；主页行在 44px 行体系内取 220px 定宽
-   （控件不换行，卡片内第二步维持 100% 宽） */
+   （控件不换行） */
 .settings-input.ant-input {
   width: 100%;
   height: 28px;
@@ -1948,7 +1944,7 @@ select.picker-input {
 }
 
 /* 主页行错误态（阶段四）：danger 描边且 hover/focus 不回落控件线（行内红显
-   不落盘，DESIGN 主页行交互口径）；两步确认第二步输入不挂此类，恒默认态 */
+   不落盘，DESIGN 主页行交互口径） */
 .settings-input.ant-input.settings-input-invalid,
 .settings-input.ant-input.settings-input-invalid:hover,
 .settings-input.ant-input.settings-input-invalid:focus,
@@ -1973,8 +1969,9 @@ select.picker-input {
   color: var(--board-ink-dim);
 }
 
-/* danger 描边钮（恢复出厂设置… / 弹层第一步「下一步」）：1px --danger 描边 +
-   --danger 字 + 6px 圆角，hover 走危险蒙版（亮 0.08 档，DESIGN 定稿值） */
+/* danger 描边钮（恢复出厂设置…）：1px --danger 描边 + --danger 字 + 6px 圆角，
+   hover 走危险蒙版（亮 0.08 档，DESIGN 定稿值）；确认走主进程原生警告框
+  （2026-10-31 原生化，原弹层两步钮族随之退役） */
 .settings-danger-btn {
   height: 26px;
   padding: 0 14px;
@@ -1992,118 +1989,11 @@ select.picker-input {
   background: var(--danger-veil);
 }
 
-/* 弹层第二步「确认重置」：danger 实底白字，输入精确等于「重置」才启用；hover 以
-   危险蒙版叠加示意（背景图叠底色，不引入新色值）；禁用灰化沿用主按钮惯例 */
-.settings-danger-solid-btn {
-  height: 26px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 6px;
-  background: var(--danger);
-  color: #ffffff;
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-
-.settings-danger-solid-btn:not(:disabled):hover {
-  background-image: linear-gradient(var(--danger-veil), var(--danger-veil));
-}
-
-.settings-danger-solid-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-/* 弹层普通钮（「取消」）：plain——无边框无底色，hover 走板面蒙版（会话行菜单同惯例）；
-   禁用态（执行中）与 danger 实底钮同灰化语言 */
-.settings-plain-btn {
-  height: 26px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--board-ink);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-
-.settings-plain-btn:not(:disabled):hover {
-  background: var(--board-hover-veil);
-}
-
-.settings-plain-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-/* 两步确认弹层（DESIGN「两步确认弹层」定稿，自绘 overlay）：absolute inset-0 覆盖
-   设置窗内容区、底 --mask、flex 居中、z-index 40（.settings-window 为定位锚，
-   不随 .settings-detail 滚动）；居中卡片 340px、1px 发丝线、8px 圆角、无阴影 */
-.settings-confirm {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: var(--mask);
-}
-
-.settings-confirm-card {
-  width: 340px;
-  max-width: 100%;
-  padding: 16px;
-  border: 1px solid var(--board-hairline);
-  /* 6px 对齐板面弹层先例（WorkspaceSwitcher 面板同值）；8px 属 Chrome tab 语法 */
-  border-radius: 6px;
-  background: var(--settings-confirm-card-bg);
-}
-
-/* 第一步标题（第二步复用）：13/600 板面主墨 */
-.settings-confirm-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--board-ink);
-}
-
-/* 后果清单三条：12px 次墨、无项目符号（清单语义由 <ul> 承担） */
-.settings-confirm-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.settings-confirm-list li {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--board-ink-dim);
-}
-
-/* 第二步受控输入：主页行 Input 同度量（.settings-input 板面化覆写共用） */
-.settings-confirm-input {
-  margin-top: 12px;
-}
-
-/* 按钮行：右对齐（DESIGN 定稿），与标题/清单的间距一档收紧到 16px */
-.settings-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-/* 失败错误行（阶段七）：按钮行上方 11px danger，主页行 danger 描述副行同语言；
-   间距取本卡 8px 标准档，随文案换行（line-height 1.5），零新色值 */
-.settings-confirm-error {
-  margin-top: 8px;
+/* 失败错误行（恢复出厂执行失败如实呈现，2026-10-31 原生化随弹层退役迁入板面）：
+   按钮下方 11px danger，主页行 danger 描述副行同语言；间距 8px 标准档，随文案换行
+  （line-height 1.5），零新色值；随下一次触发清零 */
+.settings-danger-error {
+  margin: 0;
   font-size: 11px;
   line-height: 1.5;
   color: var(--danger);

@@ -108,18 +108,13 @@ export const settings: Dictionary['settings'] = {
     note: '刪除全部會話、工作區與瀏覽資料，恢復預設設定，不可撤銷'
   },
 
-  /** 两步确认弹层（ConfirmResetOverlay）：确认词随语言，精确匹配语义不变（PRD 26） */
+  /** 恢復出廠確認（2026-10-31 原生化：主進程原生警告框消費；兩步彈層鍵組隨渲染層退役刪除） */
   confirmReset: {
-    dialogAria: '恢復出廠設定',
     step1Title: '恢復出廠設定',
     consequenceSessions: '全部會話與工作區',
     consequencePartitionData: '全部分區資料（Cookie、快取、LocalStorage、登入狀態）',
     consequenceSettings: '全部設定恢復預設',
-    next: '下一步',
-    step2Title: '最後確認：輸入「{word}」二字',
-    confirmWord: '重置',
     confirmButton: '確認重置',
-    resetting: '正在恢復出廠…',
     resetFailed: '恢復出廠失敗：{message}'
   }
 }

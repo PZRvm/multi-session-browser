@@ -23,8 +23,9 @@ import { t } from './i18n'
 import { logFailureAsync } from './ipc-utils'
 
 /** kind 白名单（对齐 isAppearanceMode allowlist 先例），白名单外整单拒绝；
- * sessions-batch-close 已于 2026-10-23 随批量多选退役删除 */
-const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete']
+ * sessions-batch-close 已于 2026-10-23 随批量多选退役删除；factory-reset 于
+ * 2026-10-31 增量（恢复出厂确认原生化，用户裁决） */
+const CONFIRM_KINDS: readonly ConfirmKind[] = ['session-delete', 'factory-reset']
 
 /** 守卫失败业务错误工厂（ipc-utils 惯例键，两 parse 共用） */
 const invalidError = (): Error => new Error(t('errors.invalidSessionParams'))
@@ -63,11 +64,13 @@ export function dialogIconForDarwin(): NativeImage | undefined {
 const DISPLAY_NAME_MAX = 200
 const DISPLAY_COUNT_MAX = 1_000_000
 
-/** 入参守卫：kind 白名单 + 按 kind 校验必填数据参数（缺传/类型非法抛业务错误） */
+/** 入参守卫：kind 白名单 + 按 kind 校验必填数据参数（缺传/类型非法抛业务错误）；
+ * factory-reset 无数据参数（后果清单为全局事实，2026-10-31 增量） */
 function parseConfirmPayload(payload: unknown): ConfirmDestructivePayload {
   if (!isRecord(payload)) throw invalidError()
   const kind = payload.kind
   if (typeof kind !== 'string' || !CONFIRM_KINDS.includes(kind as ConfirmKind)) throw invalidError()
+  if (kind === 'factory-reset') return { kind: 'factory-reset' }
   const name = payload.name
   if (typeof name !== 'string' || name.length === 0) throw invalidError()
   return { kind: 'session-delete', name: clampDisplayName(name) }
@@ -83,13 +86,30 @@ function parseWorkspaceDeletePayload(payload: unknown): ConfirmWorkspaceDeletePa
   return { name: clampDisplayName(name), count: clampDisplayCount(count) }
 }
 
-/** 按 kind 组装标题与正文（键复用 sessions 命名空间原位文案；workspace-delete 分支
- * 已随 2026-09-24 三态通道退役、sessions-batch-close 分支已随 2026-10-23 批量退役删除，
- * 现仅 session-delete 一值） */
-function composeText(payload: ConfirmDestructivePayload): { title: string; detail: string } {
+/** 按 kind 组装标题、正文与确认钮文案键（键复用各场景命名空间原位文案，i18n 零新增；
+ * workspace-delete 分支已随 2026-09-24 三态通道退役、sessions-batch-close 分支已随
+ * 2026-10-23 批量退役删除；factory-reset 分支 2026-10-31 增量——后果三条为全局
+ * 事实按行拼入 detail，渲染层两步弹层键组原位复用） */
+function composeText(payload: ConfirmDestructivePayload): {
+  title: string
+  detail: string
+  confirmLabel: string
+} {
+  if (payload.kind === 'factory-reset') {
+    return {
+      title: t('settings.confirmReset.step1Title'),
+      detail: [
+        t('settings.confirmReset.consequenceSessions'),
+        t('settings.confirmReset.consequencePartitionData'),
+        t('settings.confirmReset.consequenceSettings')
+      ].join('\n'),
+      confirmLabel: t('settings.confirmReset.confirmButton')
+    }
+  }
   return {
     title: t('sessions.sessionRow.deleteConfirm.title'),
-    detail: t('sessions.sessionRow.deleteConfirm.content', { name: payload.name ?? '' })
+    detail: t('sessions.sessionRow.deleteConfirm.content', { name: payload.name ?? '' }),
+    confirmLabel: t('sessions.shared.delete')
   }
 }
 
@@ -102,18 +122,19 @@ export function registerDialogIpc(): void {
         const confirmed = parseConfirmPayload(payload)
         const win = BrowserWindow.fromWebContents(event.sender)
         if (!win) return false
-        const { title, detail } = composeText(confirmed)
+        const { title, detail, confirmLabel } = composeText(confirmed)
         const icon = dialogIconForDarwin()
         // 「取消」为安全默认按钮（用户裁决 2026-09-18：Enter/Esc 均等同取消，
         // 防误触不可逆删除——与原渲染层版 Enter=删除的行为差异）；buttons[0]=取消
-        // （defaultId/cancelId 同指）、[1]=删除；noLink 强制横向按钮排布。按钮的
+        // （defaultId/cancelId 同指）、[1]=确认钮（kind 场景词，session-delete=删除 /
+        // factory-reset=确认重置）；noLink 强制横向按钮排布。按钮的
         // 屏幕视觉次序存在平台差异，语义以 defaultId/cancelId 为准绳，dev 实测核对
         const options: MessageBoxOptions = {
           type: 'warning',
           message: title,
           detail,
           icon,
-          buttons: [t('common.cancel'), t('sessions.shared.delete')],
+          buttons: [t('common.cancel'), confirmLabel],
           defaultId: 0,
           cancelId: 0,
           noLink: true

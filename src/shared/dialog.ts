@@ -91,14 +91,17 @@ export const DIALOG_CHANNELS = {
 /**
  * 破坏性确认的场景白名单（kind，主进程 switch 分支组文案）；workspace-delete 已于
  * 2026-09-24 退役迁 confirmWorkspaceDelete 三态通道（其结论非二值，不复用本类型）；
- * sessions-batch-close 已于 2026-10-23 随批量多选功能退役删除
+ * sessions-batch-close 已于 2026-10-23 随批量多选功能退役删除；factory-reset 于
+ * 2026-10-31 增量（用户裁决：恢复出厂确认改原生提示窗——渲染层两步弹层与输入
+ * 确认词随之退役，PRD 3.8.3 / 4.9 / 验收 26 同日修订标注）
  */
-export type ConfirmKind = 'session-delete'
+export type ConfirmKind = 'session-delete' | 'factory-reset'
 
 export interface ConfirmDestructivePayload {
   /** 确认场景；白名单外的 kind 守卫整单拒绝 */
   kind: ConfirmKind
-  /** 会话名：session-delete 必填（正文 {name} 插值），仅展示用不落盘 */
+  /** 会话名：session-delete 必填（正文 {name} 插值），仅展示用不落盘；factory-reset
+   *  无数据参数（后果清单为全局事实，不经载荷传展示字符串） */
   name?: string
 }
 

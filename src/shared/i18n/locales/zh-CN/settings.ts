@@ -110,21 +110,16 @@ export const settings = {
     note: '删除全部会话、工作区与浏览数据，恢复默认设置，不可撤销'
   },
 
-  /** 两步确认弹层（ConfirmResetOverlay）：确认词随语言（PRD 26 本地化确认词口径，
-   * 精确匹配语义不变）；第二步标题经 {word} 插值、输入框 aria 与匹配比对同用
-   * confirmWord 一键；resetting = 执行中确认钮文案，resetFailed = 失败错误行
-   * （{message} 取主进程上浮的中文错误，阶段七） */
+  /** 恢复出厂确认（2026-10-31 原生化：主进程原生警告框消费——step1Title 标题、
+   * consequence* 后果三条按行拼入正文、confirmButton 确认钮文案；原两步弹层键组
+   * 〔dialogAria/next/step2Title/confirmWord/resetting〕随渲染层退役删除）；
+   * resetFailed = 危险区内联失败行（{message} 取主进程上浮的中文错误） */
   confirmReset: {
-    dialogAria: '恢复出厂设置',
     step1Title: '恢复出厂设置',
     consequenceSessions: '全部会话与工作区',
     consequencePartitionData: '全部分区数据（Cookie、缓存、LocalStorage、登录态）',
     consequenceSettings: '全部设置恢复默认',
-    next: '下一步',
-    step2Title: '最后确认：输入「{word}」二字',
-    confirmWord: '重置',
     confirmButton: '确认重置',
-    resetting: '正在恢复出厂…',
     resetFailed: '恢复出厂失败：{message}'
   }
 }

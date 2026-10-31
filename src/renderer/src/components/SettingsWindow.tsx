@@ -18,12 +18,11 @@ import { PaneBrowsing } from './settings/PaneBrowsing'
 import { PaneShortcuts } from './settings/PaneShortcuts'
 import { PaneAbout } from './settings/PaneAbout'
 import { PaneDanger } from './settings/PaneDanger'
-import { ConfirmResetOverlay } from './settings/ConfirmResetOverlay'
-import type { ConfirmResetStep } from './settings/ConfirmResetOverlay'
 
 // 设置窗侧栏双栏全量骨架（侧栏双栏重构定稿，契约见 DESIGN.md「设置窗口」条目）：
-// 本组件是导航壳——侧栏五分类 + 版面切换 + 两步确认弹层编排；五版面内容在
-// ./settings/ 各版面组件（纯 UI 零功能，控件一律受控只读或纯本地瞬态，不写
+// 本组件是导航壳——侧栏五分类 + 版面切换 + 恢复出厂确认编排（2026-10-31 原生化：
+// 主进程原生警告框确认 → settings:factory-reset 执行，渲染层两步弹层退役）；五版面
+// 内容在 ./settings/ 各版面组件（纯 UI 零功能，控件一律受控只读或纯本地瞬态，不写
 // settings.json、不接真实版本号、不执行任何清理）。主题：壳体板面 token 经 CSS
 // 媒体查询随 nativeTheme 翻转；antd 组件包 ConfigProvider（algorithm 随 appearance
 // 只读镜像的 resolvedTheme，组件 token 走 CSS 变量融入板面）。窗口标题「设置」
@@ -81,41 +80,26 @@ export default function SettingsWindow(): React.JSX.Element {
 
   // 当前版面 id：组件本地瞬态（不落盘不进 IPC），默认「通用」，切换瞬切无动效
   const [pane, setPane] = useState<SettingsPaneId>('general')
-  // 两步确认弹层：0=关闭 / 1=第一步（后果清单）/ 2=第二步（输入「重置」点亮确认）
-  const [confirmStep, setConfirmStep] = useState<ConfirmResetStep | 0>(0)
-  // 恢复出厂执行链（阶段七）：executing = 在途（双钮禁用 + Esc 守卫由弹层承担），
-  // resetError = 主进程上浮的失败文案（弹层保持可重试）；成功关弹层清错误态，
-  // 各版面默认态经既有 changed 广播自动回显，本组件零额外回填
-  const [executing, setExecuting] = useState(false)
+  // 恢复出厂执行链：确认走主进程原生警告框（2026-10-31 用户裁决原生化——渲染层
+  // 两步弹层与输入确认词退役，PRD 3.8.3 / 4.9 / 验收 26 同日修订），执行仍归
+  // settings:factory-reset（阶段七链路不变）；resetError = 主进程上浮的失败文案
+  // （危险区内联 danger 行如实呈现、可重试，原弹层错误行语言的板面化承接）；
+  // 成功零额外回填——各版面默认态经既有 changed 广播自动回显。原生框 window-modal
+  // 天然防重入，resetInFlight 仅守卫确认后执行窗口期的极速连点
   const [resetError, setResetError] = useState<string | null>(null)
   const resetInFlight = useRef(false)
-  const closeConfirm = useCallback((): void => {
-    setConfirmStep(0)
-  }, [])
-  const openConfirm = useCallback((): void => {
-    setResetError(null) // 重开弹层不残留上次的失败文案（审查低 1）
-    setConfirmStep(1)
-  }, [])
-  const nextConfirm = useCallback((): void => {
-    setConfirmStep(2)
-  }, [])
   const factoryReset = useSettingsStore((s) => s.factoryReset)
-  const confirmReset = useCallback(async (): Promise<void> => {
-    // 在途守卫（极速连点防重复 IPC 先例）：禁用态渲染前的极速连点防重复 IPC
+  const openConfirm = useCallback(async (): Promise<void> => {
     if (resetInFlight.current) return
+    const confirmed = await window.api.dialog.confirmDestructive({ kind: 'factory-reset' })
+    if (!confirmed) return
     resetInFlight.current = true
-    setExecuting(true)
     setResetError(null)
     try {
       const error = await factoryReset()
-      if (error === null) {
-        setConfirmStep(0)
-      } else {
-        setResetError(error)
-      }
+      if (error !== null) setResetError(error)
     } finally {
       resetInFlight.current = false
-      setExecuting(false)
     }
   }, [factoryReset])
 
@@ -208,18 +192,8 @@ export default function SettingsWindow(): React.JSX.Element {
           {pane === 'browsing' && <PaneBrowsing />}
           {pane === 'shortcuts' && <PaneShortcuts />}
           {pane === 'about' && <PaneAbout />}
-          {pane === 'danger' && <PaneDanger onRequestReset={openConfirm} />}
+          {pane === 'danger' && <PaneDanger onRequestReset={openConfirm} error={resetError} />}
         </div>
-        {confirmStep !== 0 && (
-          <ConfirmResetOverlay
-            step={confirmStep}
-            onNext={nextConfirm}
-            onClose={closeConfirm}
-            onConfirm={confirmReset}
-            executing={executing}
-            error={resetError}
-          />
-        )}
       </div>
     </ConfigProvider>
   )

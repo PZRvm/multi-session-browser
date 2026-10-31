@@ -83,19 +83,16 @@ export const settings: Dictionary['settings'] = {
     note: 'Deletes all sessions, workspaces and browsing data, and restores default settings. This cannot be undone'
   },
 
-  // macOS window chrome: custom close dot aria (2026-09-18, hidden native title bar)
+  // Factory reset confirmation (nativized 2026-10-31: consumed by the main-process
+  // native warning box — title / consequence lines / confirm button; two-step overlay
+  // keys retired with the renderer layer). resetFailed = inline danger-zone error line
   confirmReset: {
-    dialogAria: 'Factory Reset',
     step1Title: 'Factory Reset',
     consequenceSessions: 'All sessions and workspaces',
     consequencePartitionData:
       'All partition data (cookies, cache, LocalStorage, signed-in sessions)',
     consequenceSettings: 'All settings restored to defaults',
-    next: 'Next',
-    step2Title: 'Type "{word}" to confirm',
-    confirmWord: 'reset',
     confirmButton: 'Reset',
-    resetting: 'Resetting to factory defaults…',
     resetFailed: 'Factory reset failed: {message}'
   }
 }
