@@ -119,6 +119,8 @@ src/
 
 提交前请确保 `npm run typecheck` 与 `npm run lint` 通过；提交信息遵循 [AGENTS.md](./AGENTS.md) 中的 Clean Commit 规范。
 
+日常改动先合入 `dev` 验证，确认后通过 `dev → main` PR 发布。CI 自动检查代码；成功合并该 PR 且版本更新后才打包并发布 Releases，仅修改 CI 或文档时保留版本并跳过发布。版本更新与重试步骤见 [发布流程](./.github/RELEASING.md)。
+
 <br />
 
 <div align="center">

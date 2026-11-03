@@ -21,6 +21,13 @@ npm run build:win    # Windows 安装包（另有 build:mac / build:linux / buil
 
 无测试框架；验证手段是 typecheck + lint + `npm run dev` 手动验证。
 
+## 分支与发布
+
+- 日常开发从 `dev` 开功能分支，改动先合入 `dev` 验证；用户确认后，才通过本仓库 `dev → main` 的 GitHub PR 发布。未经确认不合入 `main`，不直接向 `main` 推送开发改动。
+- `dev` / `main` 的 push 与 PR 运行 CI（lint + 含 typecheck 的生产构建）；成功合并 `dev → main` PR 后检查版本，仅新版本构建安装包并发布 Releases。已有版本且应用/打包输入未变时跳过发布，应用/打包输入变化但版本未更新则报错；普通 push、标签推送及关闭未合并 PR 不发布。
+- 发布前在 `dev` 用 `npm version patch --no-git-tag-version`（或 minor / major）同步更新 `package.json` 与 `package-lock.json`，提交版本变更；CI 按该版本生成标签，禁止覆盖已发布版本。
+- 工作流与失败重试步骤见 `.github/RELEASING.md`；签名证书与公证尚未配置，自动构建沿用现有临时签名方案。
+
 ## 架构与分层规则
 
 Electron 三进程结构（electron-vite 脚手架）：
