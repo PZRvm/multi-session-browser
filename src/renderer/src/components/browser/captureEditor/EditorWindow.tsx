@@ -3,25 +3,8 @@
 // 工具条（EditorToolbar，chrome 系自绘）+ 右上产出钮（复制到剪贴板/下载）+ 中部
 // 画布区（AnnotationStage 居中，checker 底）+ 窗内错误条。
 //
-// 取图链：挂载即 window.api.capture.getEditImage() → Image 解码入 Stage；期间显示
-// loading 文案，失败（空槽/坏数据/解码失败）经 readableIpcError 剥 invoke 壳取主
-// 进程中文错误（剥不出用兜底文案）显示在窗内如实报错。持有 captureId 供产出对账。
-//
-// 撤销/重做：标注数组 + 视口的快照栈（裁剪确认也入栈），HISTORY_LIMIT 截长。
-//
-// 产出链（步骤 6）：stage.toDataURL({ 当前视口×scale, pixelRatio: 1/scale }) 还原
-// 原图像像素（马赛克滤镜在节点缓存画布中随导出合成；导出前隐藏裁剪浮层）→
-// editCopy / editDownload（captureId 对账）。成功后窗内 inline 结果反馈（头部位
-// 短文案 2.5s 淡出，不弹浮层**不自动关窗**——用户裁决）；失败经 readableIpcError
-// 显示在窗内错误条、留在编辑态（编辑期并发新截图 → 主进程报「截图已过期」如实
-// 呈现，不伪造成功）。
-//
-// 产出后续编（实现细节，计划未明示的必要补全）：edit-copy/edit-download 成功后
-// 主进程回写单槽并**换新 captureId**（契约 CaptureEditApplyPayload 头注/计划 §2.3
-// 「单槽 = 最近一次成品」）——旧引用随即过期，若不刷新则用户复制后再点下载必报
-// 「截图已过期」（假错误）。故每次产出成功后重取 getEditImage 把编辑基准续到新
-// 单槽：成品已含全部标注（标注数组清零、撤销栈重置、AnnotationStage 按
-// captureId 重挂清内部草稿态），画布视觉不变、可继续叠加标注。
+// 取图和产出后的续编均读取本窗绑定快照；新截图由其他编辑窗承载。
+// 每次成功产出后重取本窗成品，标注已烘焙故重置历史，窗口保留可继续编辑。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CopyOutlined, DownloadOutlined } from '@ant-design/icons'
@@ -98,7 +81,7 @@ function EditorWindow(): React.JSX.Element {
   const t = useT()
 
   // 建窗 query 的显示缩放系数（主进程按图幅与工作区现算，只缩不放）；缺省/非法
-  // 回退 1（空槽默认度量开窗的兜底，画布可能溢出可视区由滚动容器承接）
+  // 回退 1（非法 query 的兜底，画布溢出可视区由滚动容器承接）
   const scale = useMemo(() => {
     const raw = Number.parseFloat(new URLSearchParams(window.location.search).get('scale') ?? '')
     return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 1) : 1
@@ -256,18 +239,13 @@ function EditorWindow(): React.JSX.Element {
     )
   }
 
-  /** 产出成功后续编（见模块头注）：重取单槽换新 captureId，标注已烘入成品故清零。
-   *  弱校验（审查低-1 闭环）：返回尺寸 ≠ 本窗视口尺寸说明取到的是并发新截图而非
-   *  本窗成品——如实以 flash 告知「已切换到最新截图」，不静默跳变 */
-  async function refreshSlotAfterApply(): Promise<void> {
+  /** 成功产出后只重取本窗成品，绝不读取其他窗口或全局最新截图。 */
+  async function refreshImageAfterApply(): Promise<void> {
     const payload = await window.api.capture.getEditImage()
-    const switched =
-      view !== null && (payload.width !== view.width || payload.height !== view.height)
     const { image: decoded } = await decodeEditImage(payload)
     setImage(decoded)
     setCaptureId(payload.captureId)
     setHistory(initialHistoryOf(payload))
-    if (switched) showFlash(t('browser.captureEditor.slotSwitched'))
   }
 
   async function handleExport(kind: 'copy' | 'download'): Promise<void> {
@@ -286,7 +264,7 @@ function EditorWindow(): React.JSX.Element {
         const result = await window.api.capture.editDownload({ captureId, dataUrl })
         showFlash(t('browser.captureEditor.saved', { file: basename(result.path) }))
       }
-      await refreshSlotAfterApply()
+      await refreshImageAfterApply()
     } catch (error) {
       setExportError(readableIpcError(error, t('browser.captureEditor.failed')))
     } finally {

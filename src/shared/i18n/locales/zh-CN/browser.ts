@@ -49,6 +49,7 @@ export const browser = {
   },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
+    loadFailed: '截图编辑器加载失败，请重试',
     /** 取图期间空态文案 */
     loading: '正在载入截图…',
     /** 工具 aria-label 与 title（同一词；brush 画笔为反馈轮一新增） */
@@ -85,9 +86,6 @@ export const browser = {
     saved: '已保存：{file}',
     /** 兜底失败文案（主进程已本地化的具体错误优先） */
     failed: '编辑失败，请重试',
-    /** 产出续编弱校验命中提示（审查低-1：续编取到并发新截图而非本窗成品时告知，
-     *  不静默跳变） */
-    slotSwitched: '已切换到最新截图',
     /** 裁剪选区确认/取消钮 */
     cropConfirm: '确认',
     cropCancel: '取消',

@@ -52,6 +52,7 @@ export const browser: Dictionary['browser'] = {
   },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
+    loadFailed: '截圖編輯器載入失敗，請重試',
     /** 取图期间空态文案 */
     loading: '正在載入截圖…',
     /** 工具 aria-label 与 title（同一词；brush 画笔为反馈轮一新增） */
@@ -88,8 +89,6 @@ export const browser: Dictionary['browser'] = {
     saved: '已儲存：{file}',
     /** 兜底失败文案（主进程已本地化的具体错误优先） */
     failed: '編輯失敗，請重試',
-    /** 产出续编弱校验命中提示（审查低-1：续编取到并发新截图而非本窗成品时告知） */
-    slotSwitched: '已切換至最新截圖',
     /** 裁剪选区确认/取消钮 */
     cropConfirm: '確認',
     cropCancel: '取消',

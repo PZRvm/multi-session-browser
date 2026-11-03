@@ -336,7 +336,7 @@ function createWindow(): void {
     suggestWindows?.dispose(WINDOW_ID_MAIN)
     captureFeedbackWindows?.dispose(WINDOW_ID_MAIN)
     settingsWindowController?.dispose()
-    // 编辑窗若有（单例）一并级联关闭（controller 内自清引用，重开主窗后可再次开窗）
+    // 全部编辑窗一并级联关闭（controller 内自清引用，重开主窗后可再次开窗）
     captureEditorWindowController?.dispose()
   })
 

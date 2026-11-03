@@ -34,6 +34,7 @@ export const browser: Dictionary['browser'] = {
     edit: 'Edit'
   },
   captureEditor: {
+    loadFailed: 'Failed to load the screenshot editor, please try again',
     loading: 'Loading screenshot…',
     tools: {
       rectangle: 'Rectangle',
@@ -60,7 +61,6 @@ export const browser: Dictionary['browser'] = {
     copied: 'Copied',
     saved: 'Saved: {file}',
     failed: 'Editing failed, please retry',
-    slotSwitched: 'Switched to the latest screenshot',
     cropConfirm: 'Confirm',
     cropCancel: 'Cancel',
     /** Toolbar container (role=toolbar) aria-label (step 5/6 addition) */

@@ -416,7 +416,7 @@ const api = {
     feedbackAction: (payload: CaptureFeedbackActionPayload): Promise<void> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.feedbackAction, payload),
     // 截图编辑器四口（2026-10-14 增量）：开窗（宿主/反馈条入口侧）与取图/产出
-    // （编辑子窗侧）；产出对账语义同 save-last（captureId 不匹配＝「截图已过期」）
+    // （编辑子窗侧）；取图按 sender 绑定本窗，产出校验本窗 captureId 版本，最近槽仅条件回写
     openEditor: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.openEditor),
     getEditImage: (): Promise<CaptureEditImagePayload> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.getEditImage),

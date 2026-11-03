@@ -196,6 +196,7 @@ declare global {
         hideFeedback(): Promise<void>
         feedbackAction(payload: CaptureFeedbackActionPayload): Promise<void>
         openEditor(): Promise<void>
+        /** 读取本编辑窗绑定的图像版本，产出后重取本窗成品。 */
         getEditImage(): Promise<CaptureEditImagePayload>
         editCopy(payload: CaptureEditApplyPayload): Promise<void>
         editDownload(payload: CaptureEditApplyPayload): Promise<CaptureSaveResult>
