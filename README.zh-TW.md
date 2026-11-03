@@ -119,7 +119,7 @@ src/
 
 提交前請確保 `npm run typecheck` 與 `npm run lint` 通過；提交訊息遵循 [AGENTS.md](./AGENTS.md) 中的 Clean Commit 規範。
 
-日常改動先合入 `dev` 驗證，確認後透過 `dev → main` PR 發布。CI 自動檢查程式碼；僅成功合併該 PR 後才打包並發布 Releases。版本更新與重試步驟見 [發布流程](./.github/RELEASING.md)。
+日常改動先合入 `dev` 驗證，確認後透過 `dev → main` PR 發布。CI 自動檢查程式碼；成功合併該 PR 且版本更新後才打包並發布 Releases，僅修改 CI 或文件時保留版本並跳過發布。版本更新與重試步驟見 [發布流程](./.github/RELEASING.md)。
 
 <br />
 

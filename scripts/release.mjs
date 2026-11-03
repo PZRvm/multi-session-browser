@@ -40,8 +40,29 @@ function checkVersion() {
   const tag = `v${version}`
   const commit = git('rev-parse', 'HEAD')
   const tags = git('tag', '--list', 'v*').split('\n').filter(Boolean)
+  let shouldPublish = true
   if (tags.includes(tag) && git('rev-parse', `${tag}^{}`) !== commit) {
-    throw new Error(`${tag} 已被其他提交使用，请先在 dev 更新版本号`)
+    // CI、文档等改动不产生新安装包；应用或打包输入变化仍必须更新版本。
+    const changedInputs = git(
+      'diff',
+      '--name-only',
+      tag,
+      '--',
+      'src',
+      'resources',
+      'build',
+      'scripts',
+      ':(exclude)scripts/release.mjs',
+      'electron-builder.yml',
+      'electron.vite.config.ts',
+      'package.json',
+      'package-lock.json',
+      'LICENSE'
+    )
+    if (changedInputs) {
+      throw new Error(`${tag} 已被使用且应用或打包文件发生变化，请先在 dev 更新版本号`)
+    }
+    shouldPublish = false
   }
   for (const existing of tags) {
     const previous = existing.slice(1)
@@ -50,9 +71,15 @@ function checkVersion() {
     }
   }
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`)
+    appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\npublish=${shouldPublish}\n`)
   }
-  console.log(`发布版本：${tag}，提交：${commit}`)
+  const summary = shouldPublish
+    ? `发布版本：${tag}，提交：${commit}`
+    : `${tag} 已存在且应用与打包文件无变化，跳过安装包构建与 Release`
+  console.log(summary)
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`)
+  }
 }
 
 function collectAssets(directory) {
