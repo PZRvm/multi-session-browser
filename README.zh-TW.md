@@ -10,13 +10,13 @@
 
 面向軟體測試人員的桌面端多帳號隔離瀏覽器——多帳號並行測試，不再 Cookie 串號、登入態互踢。
 
-![platform](https://img.shields.io/badge/platform-Windows_%7C_macOS-0078d4?style=flat-square)
-![Electron](https://img.shields.io/badge/Electron-39-47848f?style=flat-square&logo=electron&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white)
-![Ant Design](https://img.shields.io/badge/Ant_Design-6-1677ff?style=flat-square&logo=antd&logoColor=white)
-![Zustand](https://img.shields.io/badge/Zustand-5-453d39?style=flat-square)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
+![platform](.github/assets/badges/platform.svg)
+![Electron](.github/assets/badges/electron.svg)
+![React](.github/assets/badges/react.svg)
+![TypeScript](.github/assets/badges/typescript.svg)
+![Ant Design](.github/assets/badges/ant-design.svg)
+![Zustand](.github/assets/badges/zustand.svg)
+[![License: MIT](.github/assets/badges/license.svg)](./LICENSE)
 
 [简体中文](README.md) ｜ **繁體中文** ｜ [English](README.en-US.md)
 
