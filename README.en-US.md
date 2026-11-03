@@ -119,6 +119,8 @@ Isolation is built on Electron's native `session.fromPartition('persist:sess-<id
 
 Make sure `npm run typecheck` and `npm run lint` pass before committing; commit messages follow the Clean Commit spec in [AGENTS.md](./AGENTS.md).
 
+Merge development changes into `dev` for verification, then release through a confirmed `dev → main` PR. CI checks the code; installers and Releases are published only after that PR is merged. See the [release workflow](./.github/RELEASING.md) for version updates and retries.
+
 <br />
 
 <div align="center">

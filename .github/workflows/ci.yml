@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 检查与构建
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 校验 main 的合并来源
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [[ "$SOURCE_BRANCH" != dev || "$SOURCE_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            echo '::error::main 只接收本仓库 dev 分支的发布 PR'
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: 校验发布版本
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: node scripts/release.mjs version
+      - run: npm run lint
+      - run: npm run build
