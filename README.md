@@ -66,7 +66,7 @@
 
 ## 🚀 快速开始
 
-安装包将随首个 Release 提供，当前请从源码运行：
+从 [GitHub Releases](https://github.com/PZRvm/multi-session-browser/releases/latest) 下载 Windows x64、macOS Apple Silicon 或 Intel 安装包。也可从源码运行：
 
 ```bash
 git clone https://github.com/PZRvm/multi-session-browser.git

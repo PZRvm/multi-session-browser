@@ -66,7 +66,7 @@ A typical day of multi-role testing: sign in to account A, and account B gets ki
 
 ## 🚀 Quick Start
 
-Installers will ship with the first Release — run from source for now:
+Download the Windows x64, macOS Apple Silicon, or Intel installer from [GitHub Releases](https://github.com/PZRvm/multi-session-browser/releases/latest). You can also run from source:
 
 ```bash
 git clone https://github.com/PZRvm/multi-session-browser.git

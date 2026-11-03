@@ -9,12 +9,11 @@ afterPack: scripts/patch-mac-display-names.js
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # 仅收录运行产物，生产依赖由 electron-builder 自动添加。
+  # 排除开发笔记、临时验证数据与工具配置，避免随安装包分发。
+  - out/**
+  - resources/**
+  - LICENSE
   # logo 设计源稿（icon.png 已由其生成）：仅入库存档，不随包分发（asarUnpack resources/** 的排除项）
   - '!resources/logo-*.png'
 asarUnpack:
@@ -24,7 +23,7 @@ win:
   # Windows 使用去底透明版；保留原图与 macOS 的 build/icon.icns
   icon: build/icon-win.ico
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${name}-${version}-win-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -43,7 +42,7 @@ mac:
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-mac-${arch}.${ext}
 linux:
   target:
     - AppImage

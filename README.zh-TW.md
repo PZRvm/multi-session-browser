@@ -66,7 +66,7 @@
 
 ## 🚀 快速開始
 
-安裝檔將隨首個 Release 提供，目前請從原始碼執行：
+從 [GitHub Releases](https://github.com/PZRvm/multi-session-browser/releases/latest) 下載 Windows x64、macOS Apple Silicon 或 Intel 安裝檔。亦可從原始碼執行：
 
 ```bash
 git clone https://github.com/PZRvm/multi-session-browser.git
