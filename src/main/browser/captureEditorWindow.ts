@@ -20,7 +20,7 @@ const WORK_AREA_MARGIN = 80
 /** 窗高在画布显示区之外的工具栏/产出钮预留行 */
 const TOOLBAR_ALLOWANCE = 56
 /** 度量下限：极小图（裁剪产物再编辑）仍保可用工具条 */
-const MIN_WINDOW_WIDTH = 360
+const MIN_WINDOW_WIDTH = 720
 const MIN_WINDOW_HEIGHT = 280
 /** 原始截图身份用于窗口去重，captureId 仅表示当前图像版本。 */
 export interface CaptureEditorSnapshot {
