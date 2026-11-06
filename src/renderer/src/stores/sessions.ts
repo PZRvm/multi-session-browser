@@ -157,7 +157,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       offStatusChanged = window.api.sessions.onStatusChanged((payload) => {
         applyStatuses(set, payload)
       })
-      // 会话事实变更订阅（恢复出厂增量）：跨窗口发起的变更（现唯一来源 = 恢复出厂
+      // 会话事实变更订阅（恢复出厂增量）：权威变更（来源 = 乐观操作/恢复出厂/独立窗合并
       // 完成）以主进程快照权威接管。adopt 后重拉浏览器快照——清盘级联的浏览器空态
       // 快照推送可能先于本地 activeId 更新到达而被守卫丢弃（deleteSessions 的
       // resync 先例）；通道低频，无条件 resync

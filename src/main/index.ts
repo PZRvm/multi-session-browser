@@ -466,6 +466,13 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     windows: independentWindows,
+    ensureMainWindow: () => {
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+      return mainWindow!
+    },
+    onMergeSessionsChanged: (snapshot) => {
+      mainWindow?.webContents.send(SESSIONS_CHANNELS.changed, snapshot)
+    },
     getHomepageUrl,
     // WebContentsView 兜底底色现取（外观快照派生 chrome surface 族，单源 shared/browser.ts）
     getFallbackBackground: () =>

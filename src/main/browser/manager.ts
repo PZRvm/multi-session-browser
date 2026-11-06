@@ -198,6 +198,8 @@ export type TearOffTabManager = TabManager & {
     targetWindowId: string,
     insertIndex?: number
   ) => BrowserSnapshot
+  /** 本独立窗全部 Tab 按序追加到主窗，保留激活页；批量完成后才发快照。 */
+  mergeAllTabsToMain: (sourceWindowId: string) => void
   /**
    * 订阅页面侧导航事实（历史采集面，kind 语义见 history.ts 的 VisitFact），返回退订
    * 函数。挂在 TearOffTabManager 扩展面而非 TabManager 基面：基面是 registry 对 ipc
@@ -817,6 +819,25 @@ export function createTabManager(
     return buildSnapshot(sourceWindowId)
   }
 
+  function mergeAllTabsToMain(sourceWindowId: string): void {
+    if (sourceWindowId === WINDOW_ID_MAIN) return
+    const sourceIds = scopedTabIds(sourceWindowId)
+    if (sourceIds.length === 0) return
+    const mainIds = scopedTabIds(WINDOW_ID_MAIN)
+    const activeId = activeByWindow.get(sourceWindowId) ?? sourceIds[0]
+    // 所有归属先更新，随后只激活一次、通知一次，空窗关闭不会打断半途迁移。
+    for (const id of sourceIds) {
+      const tab = tabs.get(id)!
+      releaseFullscreenSlot(tab)
+      detachView(tab)
+      tab.windowId = WINDOW_ID_MAIN
+    }
+    activeByWindow.set(sourceWindowId, null)
+    applyTabOrder([...mainIds, ...sourceIds])
+    activate(activeId, WINDOW_ID_MAIN)
+    emitChange()
+  }
+
   function destroyTabsInWindow(windowId: string): void {
     const doomed: TabEntry[] = []
     for (const tab of tabs.values()) {
@@ -1008,6 +1029,7 @@ export function createTabManager(
     closeTab,
     tearOffTab,
     moveTabToWindow,
+    mergeAllTabsToMain,
     destroyTabsInWindow,
     applyFallbackBackground,
     switchTab,

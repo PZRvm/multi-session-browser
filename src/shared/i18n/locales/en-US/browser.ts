@@ -10,6 +10,8 @@ export const browser: Dictionary['browser'] = {
     closeWith: 'Close tab: {title}'
   },
   toolbar: {
+    mergeToMain: 'Merge into main window',
+    mergeFailed: 'Unable to merge windows. Please try again.',
     back: 'Back',
     forward: 'Forward',
     reload: 'Reload',

@@ -15,6 +15,8 @@ export const browser: Dictionary['browser'] = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    mergeToMain: '合併回主視窗',
+    mergeFailed: '無法合併視窗，請重試',
     back: '後退',
     forward: '前進',
     reload: '重新整理',

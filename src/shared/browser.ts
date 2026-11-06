@@ -42,6 +42,8 @@ export const BROWSER_CHANNELS = {
   closeTab: 'browser:close-tab',
   switchTab: 'browser:switch-tab',
   reorderTabs: 'browser:reorder-tabs',
+  /** 独立窗口全部 Tab 合回主窗，无入参；契约见 20261106131016 开发计划 2.4 */
+  mergeToMain: 'browser:merge-to-main',
   navigate: 'browser:navigate',
   back: 'browser:back',
   forward: 'browser:forward',

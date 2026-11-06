@@ -79,7 +79,7 @@ export const SESSIONS_CHANNELS = {
   setActive: 'sessions:set-active',
   getStatuses: 'sessions:get-statuses',
   statusChanged: 'sessions:status-changed',
-  /** 会话事实变更推送（恢复出厂增量）：payload = 完整快照，定向主窗，收方权威接管 */
+  /** 会话事实变更推送（乐观操作/恢复出厂/独立窗合并）：payload = 完整快照，定向主窗，收方权威接管 */
   changed: 'sessions:changed',
   clone: 'sessions:clone',
   /** 批量关闭选中（2026-10-23 批量模式退役后仅工作区删除「删除全部会话」处置消费） */

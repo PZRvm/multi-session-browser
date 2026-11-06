@@ -246,6 +246,7 @@ const api = {
     // 不匹配拒绝（renderer 据失败回滚本地预览序）
     reorderTabs: (payload: ReorderTabsPayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.reorderTabs, payload),
+    mergeToMain: (): Promise<BrowserOkResult> => ipcRenderer.invoke(BROWSER_CHANNELS.mergeToMain),
     navigate: (payload: NavigatePayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.navigate, payload),
     back: (): Promise<BrowserSnapshot> => ipcRenderer.invoke(BROWSER_CHANNELS.back),

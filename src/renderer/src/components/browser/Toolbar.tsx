@@ -5,7 +5,7 @@ import {
   PlayCircleOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
-import { useBrowserStore } from '../../stores/browser'
+import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
@@ -67,7 +67,11 @@ const TOOL_GLYPH_PATHS = {
   reloadArc: 'M18.3 12a6.3 6.3 0 1 1-6.3-6.3c1.76 0 3.45 0.7 4.72 1.92L18.3 9.2',
   reloadHead: 'M18.3 5.7v3.5h-3.5',
   stopA: 'M8.5 8.5 15.5 15.5',
-  stopB: 'M15.5 8.5 8.5 15.5'
+  stopB: 'M15.5 8.5 8.5 15.5',
+  mergeMainWindow: 'M12 8H3v13h13v-9',
+  mergeSourceWindow: 'M9 5V3h12v12h-3',
+  mergeArrow: 'M19 5 8 16',
+  mergeArrowHead: 'M8 11v5h5'
 } as const
 
 /** 刷新键帽键位单源（步骤 2）：BROWSER_SHORTCUTS reload 首键位（字母键）拼
@@ -135,6 +139,7 @@ function omniboxScopeKey(sessionId: string | null, tabId: string | null): string
 // 消费的编排整体在 useOmniboxSuggestWindow hook，本组件只供状态机与回调。
 function Toolbar(): React.JSX.Element {
   const t = useT()
+  const [merging, setMerging] = useState(false)
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
@@ -690,6 +695,39 @@ function Toolbar(): React.JSX.Element {
       >
         {t('browser.toolbar.devtools')}
       </button>
+      {windowIdentity.mode === 'independent' && (
+        <div className="chrome-tools">
+          <TooltipSlot
+            label={t('browser.toolbar.mergeToMain')}
+            onEnter={showToolsPop}
+            onLeave={hideToolsPop}
+          >
+            <button
+              type="button"
+              aria-label={t('browser.toolbar.mergeToMain')}
+              aria-busy={merging}
+              disabled={merging || tabs.length === 0}
+              onClick={() => {
+                hideToolsPop()
+                setMerging(true)
+                void window.api.browser
+                  .mergeToMain()
+                  .catch((error: unknown) => console.warn('合并回主窗口失败:', error))
+                  .finally(() => setMerging(false))
+              }}
+            >
+              <ToolGlyph
+                paths={[
+                  TOOL_GLYPH_PATHS.mergeMainWindow,
+                  TOOL_GLYPH_PATHS.mergeSourceWindow,
+                  TOOL_GLYPH_PATHS.mergeArrow,
+                  TOOL_GLYPH_PATHS.mergeArrowHead
+                ]}
+              />
+            </button>
+          </TooltipSlot>
+        </div>
+      )}
     </div>
   )
 }

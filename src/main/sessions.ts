@@ -210,6 +210,12 @@ function logFailure<T>(channel: string, payload: unknown, run: () => Promise<T>)
 }
 
 export function registerSessionIpc(deps: SessionIpcDeps): void {
+  /** 乐观操作保存后推送权威快照，按提交顺序收敛合并期间被覆盖的选择与排序。 */
+  function pushSnapshot(snapshot: SessionsSnapshot): void {
+    const main = deps.getMainWindow()
+    if (main && !main.isDestroyed()) main.webContents.send(SESSIONS_CHANNELS.changed, snapshot)
+  }
+
   // list：返回完整快照（含 version/sessions/activeId）。只读，不进入写临界区
   ipcMain.handle(SESSIONS_CHANNELS.list, async (): Promise<SessionsSnapshot> =>
     logFailure(SESSIONS_CHANNELS.list, undefined, async () => loadSnapshot())
@@ -425,7 +431,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       if (!isRecord(payload)) throw invalidParams()
       if (payload.id !== null && typeof payload.id !== 'string') throw invalidParams()
       const nextId = payload.id
-      await mutateSnapshot((snapshot) => {
+      const stored = await mutateSnapshot((snapshot) => {
         if (nextId !== null && !snapshot.sessions.some((s) => s.id === nextId)) {
           throw new Error(t('errors.sessionNotFound'))
         }
@@ -439,10 +445,11 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             if (ws) ws.lastActiveSessionId = nextId
           }
         }
-        return { ok: true }
+        return snapshot
       })
       // 落盘成功后联动（id 守卫或写盘失败时抛错，不联动）
       deps.onActiveChanged(nextId)
+      pushSnapshot(stored)
       return { ok: true }
     })
   )
@@ -565,7 +572,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 重排同在 mutateSnapshot 互斥期内完成（无校验/执行竞态窗口：窗口期内被并发
   // 增删的会话使集合不再相等，整单拒绝）。合法时仅按入参顺序重排 snapshot.sessions
   // （元素对象原样引用、内容零变更），activeId 不动，无任何编排回调——排序是
-  // 纯元数据操作，浏览器视图、分区与状态推送均不受影响
+  // 纯元数据操作，不触发浏览器切换；保存后推送元数据快照收敛乐观顺序
   ipcMain.handle(SESSIONS_CHANNELS.reorder, async (_event, payload: unknown): Promise<OkResult> =>
     logFailure(SESSIONS_CHANNELS.reorder, payload, async () => {
       // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
@@ -577,7 +584,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
       if (new Set(ids).size !== ids.length) {
         throw new Error(t('errors.reorderDuplicateIds'))
       }
-      await mutateSnapshot((snapshot) => {
+      const stored = await mutateSnapshot((snapshot) => {
         // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
         // 缺项 / 多项 / 未知三类不一致
         const known = new Set(snapshot.sessions.map((s) => s.id))
@@ -586,8 +593,9 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         }
         const byId = new Map(snapshot.sessions.map((s) => [s.id, s]))
         snapshot.sessions = ids.map((id) => byId.get(id) as StoredSession)
-        return { ok: true }
+        return snapshot
       })
+      pushSnapshot(stored)
       return { ok: true }
     })
   )
@@ -729,7 +737,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         if (new Set(ids).size !== ids.length) {
           throw new Error(t('errors.reorderDuplicateIds'))
         }
-        await mutateSnapshot((snapshot) => {
+        const stored = await mutateSnapshot((snapshot) => {
           // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
           // 缺项 / 多项 / 未知三类不一致
           const known = new Set(snapshot.workspaces.map((w) => w.id))
@@ -738,8 +746,9 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           }
           const byId = new Map(snapshot.workspaces.map((w) => [w.id, w]))
           snapshot.workspaces = ids.map((id) => byId.get(id) as StoredWorkspace)
-          return { ok: true }
+          return snapshot
         })
+        pushSnapshot(stored)
         return { ok: true }
       })
   )
@@ -763,7 +772,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           if (viewId === WORKSPACE_VIEW_ALL) {
             // 全部视野：纯视野切换，activeId 不动，零编排
             snapshot.activeWorkspaceId = WORKSPACE_VIEW_ALL
-            return { prevActive, nextActive: snapshot.activeId }
+            return { prevActive, nextActive: snapshot.activeId, snapshot }
           }
           if (viewId === WORKSPACE_VIEW_UNGROUPED) {
             // 未分组视野（2026-09-21 用户反馈增量）：纯元数据切换，无激活记忆
@@ -773,7 +782,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             if (!current || current.workspaceId !== null) {
               snapshot.activeId = snapshot.sessions.find((s) => s.workspaceId === null)?.id ?? null
             }
-            return { prevActive, nextActive: snapshot.activeId }
+            return { prevActive, nextActive: snapshot.activeId, snapshot }
           }
           const ws = snapshot.workspaces.find((w) => w.id === viewId)
           if (!ws) throw new Error(t('errors.workspaceNotFound'))
@@ -795,12 +804,13 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
             // 级联即真实激活：同步更新该工作区记忆（空工作区记 null，语义一致）
             ws.lastActiveSessionId = nextActive
           }
-          return { prevActive, nextActive: snapshot.activeId }
+          return { prevActive, nextActive: snapshot.activeId, snapshot }
         })
         // 落盘成功后联动（守卫或写盘失败即抛错，不联动）；仅激活位值变化才编排
         if (outcome.nextActive !== outcome.prevActive) {
           deps.onActiveChanged(outcome.nextActive)
         }
+        pushSnapshot(outcome.snapshot)
         return { ok: true }
       })
   )

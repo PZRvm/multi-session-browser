@@ -150,6 +150,8 @@ declare global {
         closeTab(payload: CloseTabPayload): Promise<BrowserSnapshot>
         switchTab(payload: SwitchTabPayload): Promise<BrowserSnapshot>
         reorderTabs(payload: ReorderTabsPayload): Promise<BrowserSnapshot>
+        /** 将本独立窗口全部 Tab 合回主窗口；来源由主进程解析 */
+        mergeToMain(): Promise<BrowserOkResult>
         navigate(payload: NavigatePayload): Promise<BrowserSnapshot>
         back(): Promise<BrowserSnapshot>
         forward(): Promise<BrowserSnapshot>

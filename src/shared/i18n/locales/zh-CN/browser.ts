@@ -12,6 +12,8 @@ export const browser = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    mergeToMain: '合并回主窗口',
+    mergeFailed: '未能合并窗口，请重试',
     back: '后退',
     forward: '前进',
     reload: '刷新',

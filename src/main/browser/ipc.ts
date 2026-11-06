@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：三十三条通道（浏览器域 26 条（20 命令 + 6 推送）+ 建议子窗域
+// 浏览器 IPC handlers：三十四条通道（浏览器域 27 条（21 命令 + 6 推送）+ 建议子窗域
 // 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
@@ -19,7 +19,7 @@
 // HISTORY_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
   BROWSER_CHANNELS,
@@ -40,6 +40,7 @@ import type {
 } from '../../shared/omniboxSuggest'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
 import { t } from '../i18n'
+import { dialogIconForDarwin } from '../dialogs'
 import type { TabDragController } from './dragging'
 import type { OmniboxSuggestWindows } from './omniboxSuggest'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
@@ -302,6 +303,43 @@ export function registerBrowserIpc(
       const tabCount = manager.getSnapshot(scope.windowId).tabs.length
       if (payload.ids.length > Math.max(tabCount, 1) * 2) throw invalidParams()
       return manager.reorderTabs(payload.ids, scope.windowId)
+    })
+  )
+
+  // 一次合并只接收来源窗口身份，不接收 renderer 自报的会话或 Tab 集合。
+  const mergingWindows = new Set<string>()
+  ipcMain.handle(BROWSER_CHANNELS.mergeToMain, (event): Promise<OkResult> =>
+    logFailureAsync(BROWSER_CHANNELS.mergeToMain, undefined, async () => {
+      const scope = requireScope(event)
+      if (scope.windowId === WINDOW_ID_MAIN) throw new Error(t('errors.unknownCommandSource'))
+      if (mergingWindows.has(scope.windowId)) return { ok: true }
+      mergingWindows.add(scope.windowId)
+      try {
+        await manager.mergeWindowToMain(scope.windowId)
+        return { ok: true }
+      } catch (error) {
+        const owner = windows.getWindowById(scope.windowId) ?? getMainWindow()
+        const options = {
+          type: 'info' as const,
+          title: t('browser.toolbar.mergeToMain'),
+          message: t('browser.toolbar.mergeFailed'),
+          buttons: [t('common.confirm')],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+          icon: dialogIconForDarwin()
+        }
+        const shown =
+          owner && !owner.isDestroyed()
+            ? dialog.showMessageBox(owner, options)
+            : dialog.showMessageBox(options)
+        await shown.catch((dialogError: unknown) => {
+          console.warn('[browser] 合并失败提示框显示失败:', dialogError)
+        })
+        throw error
+      } finally {
+        mergingWindows.delete(scope.windowId)
+      }
     })
   )
 
@@ -618,6 +656,6 @@ export function registerBrowserIpc(
   )
 
   console.log(
-    '[browser] IPC handlers 已注册（33 条通道：浏览器域 26 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
+    '[browser] IPC handlers 已注册（34 条通道：浏览器域 27 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
   )
 }
