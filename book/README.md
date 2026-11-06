@@ -52,6 +52,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-adoption.md](changelogs/2026-11/2026-11-06-bocode-adoption.md) — 引入 BoCode 规范、索引、技能与历史文档迁移
 - [2026-11-06-bocode-hook-mode.md](changelogs/2026-11/2026-11-06-bocode-hook-mode.md) — 修正提交钩子在新克隆仓库的执行权限
+- [2026-11-06-bocode-root-doc-links.md](changelogs/2026-11/2026-11-06-bocode-root-doc-links.md) — 同步根产品与设计入口的文档迁移路径
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -199,7 +200,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
 
-**Resolved (37)**
+**Resolved (38)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -230,6 +231,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261023145932-箭头圆头化与批量收起退役.md](notes/issue/2026-10/20261023145932-箭头圆头化与批量收起退役.md) — "代码审查：箭头圆头化与批量收起退役"
 - [20261031164511-气泡Tab遗留修复轮复审.md](notes/issue/2026-10/20261031164511-气泡Tab遗留修复轮复审.md) — "代码审查：气泡与 Tab 遗留问题修复轮复审"
 - [2026-11-06-bocode-adoption-review.md](notes/issue/2026-11/2026-11-06-bocode-adoption-review.md) — BoCode 接入的十一项审查结果与提交钩子执行位问题
+- [2026-11-06-bocode-product-paths.md](notes/issue/2026-11/2026-11-06-bocode-product-paths.md) — 根产品与设计文档仍引用迁移前的需求和调研路径
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
 - [20261103174933-dev验证与main自动发布审查.md](notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md) — "代码审查：dev 验证与 main 自动发布"
@@ -400,4 +402,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 288 documents -->
+<!-- 290 documents -->
