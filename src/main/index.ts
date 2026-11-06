@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
+import { app, shell, BrowserWindow, Menu, webContents } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -61,6 +61,7 @@ import { getAppDisplayNameForOS } from '../shared/appDisplay'
 import { WINDOW_ID_MAIN, browserViewFallbackBackground } from '../shared/browser'
 import { chromeOverlaySymbol, chromeTabbarSurface } from '../shared/themeSystems'
 import type { TFunc } from '../shared/i18n'
+import { NATIVE_EDITING_CHANNELS, type NativeEditCommand } from '../shared/nativeEditing'
 
 // 测试隔离（必须在 app ready 前执行）：设置 MSB_USER_DATA 环境变量时，应用的
 // userData（sessions.json、Partitions 分区数据）整体指向该目录，开发期验证/冒烟
@@ -145,6 +146,23 @@ const appearanceController = createAppearanceController({
   }
 })
 
+function runNativeEditCommand(command: NativeEditCommand): void {
+  const focused = webContents.getFocusedWebContents()
+  if (!focused || focused.isDestroyed()) return
+  const owner = BrowserWindow.fromWebContents(focused)
+  let browserShell = false
+  if (owner?.webContents === focused && registry) {
+    try {
+      registry.resolveSenderScope(focused)
+      browserShell = true
+    } catch {
+      // 设置窗、选择窗等不是浏览器壳，保留其原生编辑。
+    }
+  }
+  if (browserShell) focused.send(NATIVE_EDITING_CHANNELS.command, command)
+  else focused[command]()
+}
+
 /**
  * 安装应用菜单（替代 Electron 默认英文菜单；阶段六参数化为 installAppMenu(t)——文案
  * 经 shared/i18n 字典 menu 命名空间取词，语言切换由 onMainLanguageChanged 回调重建，
@@ -189,8 +207,18 @@ function installAppMenu(t: TFunc): void {
       {
         label: t('menu.edit'),
         submenu: [
-          { role: 'undo', label: t('menu.undo') },
-          { role: 'redo', label: t('menu.redo') },
+          {
+            id: 'native-edit-undo',
+            label: t('menu.undo'),
+            accelerator: 'CmdOrCtrl+Z',
+            click: () => runNativeEditCommand('undo')
+          },
+          {
+            id: 'native-edit-redo',
+            label: t('menu.redo'),
+            accelerator: process.platform === 'darwin' ? 'CmdOrCtrl+Shift+Z' : 'Ctrl+Y',
+            click: () => runNativeEditCommand('redo')
+          },
           { type: 'separator' },
           { role: 'cut', label: t('menu.cut') },
           { role: 'copy', label: t('menu.copy') },

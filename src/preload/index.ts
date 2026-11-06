@@ -102,6 +102,8 @@ import type {
   SettingsSnapshot
 } from '../shared/settings'
 import { DIALOG_CHANNELS } from '../shared/dialog'
+import { isNativeEditCommand, NATIVE_EDITING_CHANNELS } from '../shared/nativeEditing'
+import type { NativeEditCommand } from '../shared/nativeEditing'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -114,6 +116,15 @@ import type {
 
 // Custom APIs for renderer
 const api = {
+  nativeEditing: {
+    onCommand: (callback: (command: NativeEditCommand) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, command: unknown): void => {
+        if (isNativeEditCommand(command)) callback(command)
+      }
+      ipcRenderer.on(NATIVE_EDITING_CHANNELS.command, listener)
+      return () => ipcRenderer.removeListener(NATIVE_EDITING_CHANNELS.command, listener)
+    }
+  },
   toolbarTooltip: {
     show: (payload: ToolbarTooltipPayload): Promise<void> =>
       ipcRenderer.invoke(TOOLBAR_TOOLTIP_CHANNELS.show, payload),

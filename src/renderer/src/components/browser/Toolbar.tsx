@@ -3,6 +3,7 @@ import {
   CameraOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
+  SearchOutlined,
   VideoCameraOutlined
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
@@ -18,7 +19,15 @@ import {
   suggest,
   type InlineCompletion
 } from './omniboxSuggest'
-import { buildSearchUrl, matchSearchEngine, type SearchEngine } from './searchEngines'
+import {
+  buildSearchUrl,
+  DEFAULT_SEARCH_ENGINE,
+  matchSearchEngine,
+  type SearchEngine
+} from './searchEngines'
+import { classifyAddressInput } from './addressInput'
+import { isNativeEditCommand, type NativeEditCommand } from '../../../../shared/nativeEditing'
+import { NATIVE_EDIT_COMMAND_EVENT } from '../../nativeEditing'
 
 /** 悬停气泡 span 槽（审查 20261030162931 低-4 收敛）：hover/focus 四件套接线单点
  *  维护，各钮只声明文案/键帽/场景 kind；span 为 flex 项紧包按钮（rect 与按钮等值），
@@ -331,6 +340,17 @@ function Toolbar(): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   // null 表示非编辑态：显示主进程 URL；聚焦编辑期间改用本地草稿，失焦/回车成功后回归
   const [draft, setDraft] = useState<string | null>(null)
+  // 待导航锁定也属于可编辑原文，快照 URL 离开提交基线或作用域改变后即失效。
+  const [pending, setPending] = useState<{
+    scope: string
+    baselineUrl: string
+    locked: string
+  } | null>(null)
+  const pendingShown =
+    pending !== null && pending.scope === scope && pending.baselineUrl === mainUrl
+      ? pending.locked
+      : null
+  const editableInput = draft ?? pendingShown ?? mainUrl
   const [completion, setCompletion] = useState<InlineCompletion | null>(null)
   const [acceptedTarget, setAcceptedTarget] = useState<InlineCompletion | null>(null)
   const [searchMode, setSearchMode] = useState<{
@@ -351,11 +371,11 @@ function Toolbar(): React.JSX.Element {
     // 替换选中的同一个制表符时文本没有变化，也必须恢复折叠后的光标。
     setSelectionTick((tick) => tick + 1)
   }
-  const shownInput = completion?.displayText ?? draft ?? mainUrl
+  const shownInput = completion?.displayText ?? editableInput
 
   const editSnapshot = (): AddressEditSnapshot => {
     const input = inputRef.current
-    const text = draft ?? mainUrl
+    const text = editableInput
     return {
       text,
       start: Math.min(input?.selectionStart ?? text.length, text.length),
@@ -398,21 +418,6 @@ function Toolbar(): React.JSX.Element {
     selectionRequest.current = null
     composing.current = false
   }, [scope])
-  // 提交锁定（用户反馈修复 + 融合专项作用域化）：回车成功那一刻导航刚开始、主进程
-  // URL 还是旧值（新标签页为 about:blank → 显示空串），直接回归快照会让加载期间
-  // 文本框被清空/显示旧 URL。提交时记「发起作用域 + 提交文本 + 当时快照 URL 基线」，
-  // 渲染期比对判断是否仍在加载中——快照 URL 离开基线（导航提交/重定向落地）或换
-  // 会话/Tab（(sessionId, activeTabId) 双维度比对，防跨会话同名 Tab 串显——审查 C
-  // 与步骤 1 复现 S2/S3b）后即过期，无需 effect 清理
-  const [pending, setPending] = useState<{
-    scope: string
-    baselineUrl: string
-    locked: string
-  } | null>(null)
-  const pendingShown =
-    pending !== null && pending.scope === scope && pending.baselineUrl === mainUrl
-      ? pending.locked
-      : null
   const [invalid, setInvalid] = useState(false)
   const invalidTimer = useRef<number | null>(null)
 
@@ -520,29 +525,30 @@ function Toolbar(): React.JSX.Element {
     }
   }
 
-  // 回车提交：无高亮时提交输入原文（空串直接回归非编辑态）
+  // 回车提交：只让明确接受的历史目标覆盖原文分类，自动展示的后缀不抢走搜索词。
   const submitDraft = async (): Promise<void> => {
     if (searchMode) {
-      if ((draft ?? '').trim()) void submitUrl(buildSearchUrl(searchMode.engine, draft ?? ''))
+      const query = editableInput.trim()
+      if (query) void submitUrl(buildSearchUrl(searchMode.engine, query))
       return
     }
-    const raw = (draft ?? '').trim()
-    if (raw.includes('\t')) {
-      setCompletion(null)
-      setSuggestDismissed(true)
-      showInvalid()
-      return
-    }
-    const target = completion ?? acceptedTarget
-    if (target && (completion !== null || target.displayText === draft)) {
-      void submitUrl(target.targetUrl)
-      return
-    }
-    if (!raw) {
+    if (!editableInput.trim()) {
       setDraft(null)
       return
     }
-    void submitUrl(raw)
+    if (acceptedTarget?.displayText === editableInput) {
+      void submitUrl(acceptedTarget.targetUrl)
+      return
+    }
+    const result = classifyAddressInput(editableInput)
+    if (result.kind === 'navigate') void submitUrl(result.url)
+    else if (result.kind === 'search')
+      void submitUrl(buildSearchUrl(DEFAULT_SEARCH_ENGINE, result.query))
+    else if (result.kind === 'invalid') {
+      setCompletion(null)
+      setSuggestDismissed(true)
+      showInvalid()
+    }
   }
 
   // 选中建议（键盘 Enter 与子窗点选共用）：清高亮后走统一提交出口（pending 锁定机制
@@ -587,6 +593,34 @@ function Toolbar(): React.JSX.Element {
     requestSelection(entry.length)
     setSuggestDismissed(true)
   }
+  const applyEditCommand = (command: NativeEditCommand): void => {
+    const from = command === 'redo' ? redoEdits.current : undoEdits.current
+    const to = command === 'redo' ? undoEdits.current : redoEdits.current
+    const previous = from.pop()
+    if (!previous) return
+    to.push(editSnapshot())
+    editVersion.current++
+    beforeEdit.current = null
+    setDraft(previous.text)
+    setCompletion(null)
+    setAcceptedTarget(previous.target)
+    setSuggestIndex(-1)
+    setSuggestDismissed(true)
+    clearInvalid()
+    requestSelection(previous.start, previous.end)
+  }
+  useLayoutEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    const onNativeEdit = (event: Event): void => {
+      if (document.activeElement !== input || composing.current) return
+      if (!(event instanceof CustomEvent) || !isNativeEditCommand(event.detail)) return
+      event.preventDefault()
+      applyEditCommand(event.detail)
+    }
+    input.addEventListener(NATIVE_EDIT_COMMAND_EVENT, onNativeEdit)
+    return () => input.removeEventListener(NATIVE_EDIT_COMMAND_EVENT, onNativeEdit)
+  })
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     const plainTab = e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
     if (e.nativeEvent.isComposing || composing.current) {
@@ -597,30 +631,16 @@ function Toolbar(): React.JSX.Element {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && ['z', 'y'].includes(e.key.toLowerCase())) {
       e.preventDefault()
       const redo = e.key.toLowerCase() === 'y' || e.shiftKey
-      const from = redo ? redoEdits.current : undoEdits.current
-      const to = redo ? undoEdits.current : redoEdits.current
-      const previous = from.pop()
-      if (previous) {
-        to.push(editSnapshot())
-        editVersion.current++
-        beforeEdit.current = null
-        setDraft(previous.text)
-        setCompletion(null)
-        setAcceptedTarget(previous.target)
-        setSuggestIndex(-1)
-        setSuggestDismissed(true)
-        clearInvalid()
-        requestSelection(previous.start, previous.end)
-      }
+      applyEditCommand(redo ? 'redo' : 'undo')
       return
     }
     if (plainTab) {
       e.preventDefault()
       beforeEdit.current = null
       // 用用户原始草稿优先识别引擎，不能让历史追加的路径抢走完整域名的 Tab。
-      const engine = searchMode === null ? matchSearchEngine(draft ?? mainUrl) : null
+      const engine = searchMode === null ? matchSearchEngine(editableInput) : null
       if (engine) {
-        const entry = draft ?? mainUrl
+        const entry = editableInput
         clearEditing()
         setSearchMode({ engine, entry, target: acceptedTarget })
         setDraft('')
@@ -744,6 +764,7 @@ function Toolbar(): React.JSX.Element {
         className={`chrome-omnibox-host${invalid ? ' chrome-omnibox-invalid' : ''}${suggestPresented ? ' chrome-omnibox-fused' : ''}`}
         ref={hostRef}
       >
+        <SearchOutlined className="chrome-omnibox-search-icon" aria-hidden="true" />
         {searchLabel && (
           <span className="chrome-omnibox-engine" title={searchLabel}>
             {searchLabel}
@@ -759,8 +780,8 @@ function Toolbar(): React.JSX.Element {
           autoCorrect="off"
           autoCapitalize="off"
           disabled={sessionId === null || !activeTab}
-          value={completion?.displayText ?? draft ?? pendingShown ?? mainUrl}
-          aria-label={searchLabel ?? t('browser.toolbar.addressPlaceholder')}
+          value={shownInput}
+          aria-label={searchLabel ?? t('browser.toolbar.addressSearchLabel')}
           aria-autocomplete={searchMode ? 'none' : 'both'}
           aria-invalid={invalid}
           aria-expanded={panelOpen && suggestPresented}

@@ -67,6 +67,8 @@ export const SEARCH_ENGINES = [
 
 export type SearchEngine = (typeof SEARCH_ENGINES)[number]
 
+export const DEFAULT_SEARCH_ENGINE = SEARCH_ENGINES.find((engine) => engine.id === 'google')!
+
 /** 仅匹配完整别名或根 URL，不猜测前缀，不把参数/伪装域名认作引擎。 */
 export function matchSearchEngine(raw: string): SearchEngine | null {
   const input = raw.trim().toLowerCase()

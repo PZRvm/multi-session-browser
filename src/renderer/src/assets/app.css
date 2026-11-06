@@ -2137,7 +2137,11 @@ select.picker-input {
 
 .chrome-tab.active::before {
   left: -8px;
-  background: radial-gradient(circle 8px at 0 0, transparent 7.5px, var(--chrome-tab-active) 8px);
+  background: radial-gradient(
+    circle 8px at 0 0,
+    transparent 7.5px,
+    var(--chrome-tab-active) 8px
+  );
 }
 
 .chrome-tab.active::after {
@@ -2436,7 +2440,7 @@ img.chrome-tab-favicon {
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 13px;
+  padding: 0 13px 0 8px;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -2449,6 +2453,10 @@ img.chrome-tab-favicon {
 }
 
 .chrome-omnibox::placeholder {
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-omnibox:disabled::placeholder {
   color: var(--chrome-disabled);
 }
 
@@ -2505,12 +2513,24 @@ img.chrome-tab-favicon {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-left: 13px;
+  margin-left: 8px;
   padding-right: 10px;
   border-right: 1px solid var(--chrome-line);
   color: var(--chrome-ink);
   font-size: 12px;
   font-weight: 500;
+}
+
+.chrome-omnibox-search-icon {
+  flex: 0 0 14px;
+  margin-left: 12px;
+  color: var(--chrome-ink);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.chrome-omnibox-host:has(.chrome-omnibox:disabled) .chrome-omnibox-search-icon {
+  color: var(--chrome-disabled);
 }
 
 /* 地址栏历史建议下拉（impeccable 定稿）：Chrome 灰阶语系——surface 底 + line 发丝线
