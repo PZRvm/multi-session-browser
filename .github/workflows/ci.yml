@@ -43,5 +43,8 @@ jobs:
       - name: 校验发布版本
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: node scripts/release.mjs version
+      - run: npm run book:index
+      - name: 校验知识库索引已提交
+        run: git diff --exit-code -- book/README.md
       - run: npm run lint
       - run: npm run build

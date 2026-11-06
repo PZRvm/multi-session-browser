@@ -1,0 +1,2162 @@
+{
+  "baseline_commit": "15e9b11",
+  "migrated": [
+    {
+      "source": "docs/PRD.md",
+      "sha256": "a5b4f3f657d4a5186b1403b73ba40917fc6b3b09e6004a08c3ec4dae75f20c81",
+      "bytes": 66076,
+      "destination": "book/docs/requirements/PRD.md",
+      "destination_sha256": "578c8f8fbd690f3cc2a576638028f9455772fe049e5fb3e5a146a069b7301f61"
+    },
+    {
+      "source": "docs/release-notes-v1.0.0.md",
+      "sha256": "b93ec3838326382438dc868805b4e4ca0cac477e441a40449c30aa80c89d6d70",
+      "bytes": 2079,
+      "destination": "book/changelogs/2026-11/release-notes-v1.0.0.md",
+      "destination_sha256": "db14a583b6d44e31ae2f54c1826bed4d0711fa094c5ba1fcf63342952abfe740"
+    },
+    {
+      "source": "docs/项目骨架.md",
+      "sha256": "375952719a3bed792d6b87a24ad41c12a0eae5f5c28031fa67d6edd444cc331b",
+      "bytes": 199730,
+      "destination": "book/docs/architecture/项目骨架.md",
+      "destination_sha256": "a39bc22bd7e85446bb6d5811c12cce8289df2fd65b2bfac1b0bf53ae39f14102"
+    },
+    {
+      "source": "notes/accept/20260910183402-阶段1会话持久化开发计划/20260910184241-波次1-契约冻结验收.md",
+      "sha256": "21e477b87ffd60031075f38ab829ee67b01b69e7c5643d13cf5720b65652f0b7",
+      "bytes": 1512,
+      "destination": "book/notes/summary/2026-09/20260910184241-波次1-契约冻结验收.md",
+      "destination_sha256": "1a79dddf1cada8f230d75ec1d8d63ad5920494bfae4a4b6252715445d744d49d"
+    },
+    {
+      "source": "notes/accept/20260910183402-阶段1会话持久化开发计划/20260910185615-波次2-持久化模块与preload桥验收.md",
+      "sha256": "45d23e0272e75ea9919cf9f935accd106c396468d3a793993e44ea529bd55154",
+      "bytes": 3010,
+      "destination": "book/notes/summary/2026-09/20260910185615-波次2-持久化模块与preload桥验收.md",
+      "destination_sha256": "7e06a165025ef0d420c0761c555ef42b4e47dd552bc499fa15bee9fb14d8e38b"
+    },
+    {
+      "source": "notes/accept/20260910183402-阶段1会话持久化开发计划/20260910190627-波次3-IPC handlers与健壮性验收.md",
+      "sha256": "80292a32e559734fb30c3dda985d821712d6173ef96e0d610c971001f5b5539d",
+      "bytes": 3287,
+      "destination": "book/notes/summary/2026-09/20260910190627-波次3-IPC handlers与健壮性验收.md",
+      "destination_sha256": "bc0aa70a71b6116d9b2f301a246ddf95f78478b591e9c495745be0b650403ce6"
+    },
+    {
+      "source": "notes/accept/20260910183402-阶段1会话持久化开发计划/20260910191900-波次4-renderer接入验收.md",
+      "sha256": "9238e5c95bdc2ee0681e10b7e263358b2f8f202890aaf3ceee5c8b80f92bf967",
+      "bytes": 2258,
+      "destination": "book/notes/summary/2026-09/20260910191900-波次4-renderer接入验收.md",
+      "destination_sha256": "435d30753114eba6d935d9fb1192ba9c041d8cb1d7ce374db36fafcf32f6ac27"
+    },
+    {
+      "source": "notes/accept/20260910183402-阶段1会话持久化开发计划/20260910192215-步骤8-重启持久化验收.md",
+      "sha256": "f75f5eecf213bfe2b707f53ce6bf5d69b754dc7420f9fdda135d8d6526809c2f",
+      "bytes": 3232,
+      "destination": "book/notes/summary/2026-09/20260910192215-步骤8-重启持久化验收.md",
+      "destination_sha256": "fe88882d35dcbcbd5ac35787d4745b7da275189eebbce0c6b58fedc11f3b06fb"
+    },
+    {
+      "source": "notes/accept/20260910211644-阶段2浏览器内嵌开发计划/20260911010406-阶段验收.md",
+      "sha256": "af91c123a1ebc013cce32153885f0d2f2b1535fd463e6d8524ac665e128307a5",
+      "bytes": 8155,
+      "destination": "book/notes/summary/2026-09/20260911010406-阶段验收.md",
+      "destination_sha256": "e7cf6ea9f22aacfa0b3e24c5caa76e6bb24e2f6081e9a79b378d5f74387ad167"
+    },
+    {
+      "source": "notes/accept/20260911014828-阶段3开发者模式对接开发计划/20260911024802-阶段验收.md",
+      "sha256": "d7a1c9c43b4d91f64a6357be5195e93613daada46956b83842d53b6df32aa48f",
+      "bytes": 8261,
+      "destination": "book/notes/summary/2026-09/20260911024802-阶段验收.md",
+      "destination_sha256": "cf7b2b0573802468b7bfa35828e4619a28aec5f769494054202637bb2e81222a"
+    },
+    {
+      "source": "notes/accept/20260911180858-阶段2与3浏览器现状复审/20260911183305-修复验收.md",
+      "sha256": "48d3adee3d176a278e8597a7cb19aaea93622e9e32ed588648c769e07cf52224",
+      "bytes": 4992,
+      "destination": "book/notes/summary/2026-09/20260911183305-修复验收.md",
+      "destination_sha256": "c5f756f8e342defb26554d84fa7953fcb0cc64ebdea4d5599b68f44255d38dde"
+    },
+    {
+      "source": "notes/accept/20260911180858-阶段2与3浏览器现状复审/20260911184134-修复验收追加轮.md",
+      "sha256": "9b523fec0731424f2ab4d8ba536aecb0c9330db428de48693c9a4c803325c6fc",
+      "bytes": 2934,
+      "destination": "book/notes/summary/2026-09/20260911184134-修复验收追加轮.md",
+      "destination_sha256": "5d8bac7792eeb2c52c86912f5efd8d9dbf0f91abf85fd0309495c3b44b74c0fb"
+    },
+    {
+      "source": "notes/accept/20260911191316-阶段4多会话浏览器绑定开发计划/20260912003809-阶段验收.md",
+      "sha256": "33842cb7e2b275a5e20c668569658e60e3f9c002ffa3d0efa1ad54cad598e241",
+      "bytes": 8521,
+      "destination": "book/notes/summary/2026-09/20260912003809-阶段验收.md",
+      "destination_sha256": "5870547b31a9a8045361eedf602b40b7d4b187857be22dcbbb6a1a692a85e5bf"
+    },
+    {
+      "source": "notes/accept/20260912004007-阶段4多会话浏览器绑定审查/20260912012344-修复验收.md",
+      "sha256": "ea4df05518e1d042e5df35dd53632a5b4694a267f1d9242ba2511d59f829918e",
+      "bytes": 5002,
+      "destination": "book/notes/summary/2026-09/20260912012344-修复验收.md",
+      "destination_sha256": "b903d3cb64e33c486526906695c498d896b15f686707f21f51dce8fb9c96ac9c"
+    },
+    {
+      "source": "notes/accept/20260912013740-阶段5会话克隆与批量操作开发计划/20260912020317-阶段验收.md",
+      "sha256": "31320cf84b35734d0a1f6b13a8efe313a41ab3dfd583a00f1c2a03059b772ee4",
+      "bytes": 7097,
+      "destination": "book/notes/summary/2026-09/20260912020317-阶段验收.md",
+      "destination_sha256": "4aa15d04b351b51231ff6c74ba3c573a232d8e4b607dae30b907630073be3de5"
+    },
+    {
+      "source": "notes/accept/20260912021122-阶段5会话克隆与批量操作审查/20260912031758-修复验收.md",
+      "sha256": "ba8f7e4a469230e3736f0d945fb9ca62cc173d2e83d3089712547b345f4ecffa",
+      "bytes": 4232,
+      "destination": "book/notes/summary/2026-09/20260912031758-修复验收.md",
+      "destination_sha256": "f18736b2558e80728d8357cfb34921c599c02961acad570f2e914aeb255d4191"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/20260912163106-阶段验收.md",
+      "sha256": "6b385efc9272a7348892f60c89e68fc3c08978642b2eff414ea245af1e292ab1",
+      "bytes": 10369,
+      "destination": "book/notes/summary/2026-09/20260912163106-阶段验收.md",
+      "destination_sha256": "1bbefedb78c5ada944bc6045d6d504fe44987d7a62c9458bfc5404864cacdc85"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-1-empty.png",
+      "sha256": "63e920eb80cd3d44d122dd9b635c200519a2c11a0733ffd6ede24382fa30578c",
+      "bytes": 27169,
+      "destination": "book/notes/summary/2026-09/c45302e46b-dark-1-empty.png",
+      "destination_sha256": "63e920eb80cd3d44d122dd9b635c200519a2c11a0733ffd6ede24382fa30578c"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-2-normal.png",
+      "sha256": "79b1615818a03316ee079195cb0c22b74af80e2c551fc8760bf32b7d70a1d9cf",
+      "bytes": 23476,
+      "destination": "book/notes/summary/2026-09/c6e31b82e7-dark-2-normal.png",
+      "destination_sha256": "79b1615818a03316ee079195cb0c22b74af80e2c551fc8760bf32b7d70a1d9cf"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-3-batch.png",
+      "sha256": "4d9a752020c9523c23d8f0674e77ced8e216529abf4b9e855bfa35c9b3abb32c",
+      "bytes": 30925,
+      "destination": "book/notes/summary/2026-09/f3d9247377-dark-3-batch.png",
+      "destination_sha256": "4d9a752020c9523c23d8f0674e77ced8e216529abf4b9e855bfa35c9b3abb32c"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-4-dropdown.png",
+      "sha256": "dedcb854183e02c3c868481e8d769bdad40af99cdb6d17f8caa0bdff463fa6a8",
+      "bytes": 28141,
+      "destination": "book/notes/summary/2026-09/313a4acaee-dark-4-dropdown.png",
+      "destination_sha256": "dedcb854183e02c3c868481e8d769bdad40af99cdb6d17f8caa0bdff463fa6a8"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-5-modal.png",
+      "sha256": "271ad883326593aecfd81d607cd7a7a9648a07181c1042f0a92061d999075292",
+      "bytes": 37805,
+      "destination": "book/notes/summary/2026-09/aeaee15bd8-dark-5-modal.png",
+      "destination_sha256": "271ad883326593aecfd81d607cd7a7a9648a07181c1042f0a92061d999075292"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-6-devtools.png",
+      "sha256": "e42ca07a3184cf879300d2260fda81366b7c72c9c2e47b73774aee2dbadabd94",
+      "bytes": 54098,
+      "destination": "book/notes/summary/2026-09/dd659cc153-dark-6-devtools.png",
+      "destination_sha256": "e42ca07a3184cf879300d2260fda81366b7c72c9c2e47b73774aee2dbadabd94"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-7-page.png",
+      "sha256": "1ad60808fcbf86e6e5bb183720d564b0ed0f739c1b68951efd245c44c5f7d14a",
+      "bytes": 14744,
+      "destination": "book/notes/summary/2026-09/972b36559f-dark-7-page.png",
+      "destination_sha256": "1ad60808fcbf86e6e5bb183720d564b0ed0f739c1b68951efd245c44c5f7d14a"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/dark-8-relaunch.png",
+      "sha256": "2f0898b76e1413314a4273832160a6f140d5cf431642e13ce80f85e044256dbb",
+      "bytes": 22230,
+      "destination": "book/notes/summary/2026-09/59a69b806f-dark-8-relaunch.png",
+      "destination_sha256": "2f0898b76e1413314a4273832160a6f140d5cf431642e13ce80f85e044256dbb"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-1-empty.png",
+      "sha256": "16d9172ce2229bc969043e3d79c831ef041c2bbad98530dcf8c6b5546aa0d68a",
+      "bytes": 27388,
+      "destination": "book/notes/summary/2026-09/d74ef22af3-light-1-empty.png",
+      "destination_sha256": "16d9172ce2229bc969043e3d79c831ef041c2bbad98530dcf8c6b5546aa0d68a"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-2-normal.png",
+      "sha256": "a0d04f995bf6fe89d8b5deef9175401317fb37218634e7b361b5e739776cdfdb",
+      "bytes": 23592,
+      "destination": "book/notes/summary/2026-09/c2c25da38e-light-2-normal.png",
+      "destination_sha256": "a0d04f995bf6fe89d8b5deef9175401317fb37218634e7b361b5e739776cdfdb"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-3-batch.png",
+      "sha256": "9549ce91c0adb7e5ad0476725f4a2f77acd1a423ce9903c6cda21d25c4f7e4a3",
+      "bytes": 28344,
+      "destination": "book/notes/summary/2026-09/ab2052ab5b-light-3-batch.png",
+      "destination_sha256": "9549ce91c0adb7e5ad0476725f4a2f77acd1a423ce9903c6cda21d25c4f7e4a3"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-4-dropdown.png",
+      "sha256": "43b79ced57bc9191063adef32b32d055fad281c20c115cae193c4551445aae0b",
+      "bytes": 33933,
+      "destination": "book/notes/summary/2026-09/07d1eb989d-light-4-dropdown.png",
+      "destination_sha256": "43b79ced57bc9191063adef32b32d055fad281c20c115cae193c4551445aae0b"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-5-modal.png",
+      "sha256": "18d8cbe4b59ed3ddbd08940944b343eb05a45570bb490d39b5d5d453ba4d422f",
+      "bytes": 42464,
+      "destination": "book/notes/summary/2026-09/99bf4c67f8-light-5-modal.png",
+      "destination_sha256": "18d8cbe4b59ed3ddbd08940944b343eb05a45570bb490d39b5d5d453ba4d422f"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-6-devtools.png",
+      "sha256": "625ea59ba18998db9b18506676afe7d9a459f76820966a6429d9f3e129e32162",
+      "bytes": 55030,
+      "destination": "book/notes/summary/2026-09/3af2ff3459-light-6-devtools.png",
+      "destination_sha256": "625ea59ba18998db9b18506676afe7d9a459f76820966a6429d9f3e129e32162"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/light-7-page.png",
+      "sha256": "1ad60808fcbf86e6e5bb183720d564b0ed0f739c1b68951efd245c44c5f7d14a",
+      "bytes": 14744,
+      "destination": "book/notes/summary/2026-09/1d2e8ae6dd-light-7-page.png",
+      "destination_sha256": "1ad60808fcbf86e6e5bb183720d564b0ed0f739c1b68951efd245c44c5f7d14a"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/shots/system-follow-dark.png",
+      "sha256": "2f0898b76e1413314a4273832160a6f140d5cf431642e13ce80f85e044256dbb",
+      "bytes": 22230,
+      "destination": "book/notes/summary/2026-09/41692d3aa1-system-follow-dark.png",
+      "destination_sha256": "2f0898b76e1413314a4273832160a6f140d5cf431642e13ce80f85e044256dbb"
+    },
+    {
+      "source": "notes/accept/20260912140057-应用外观三模式开发计划/运行时证据.log",
+      "sha256": "688a819d136ae065a1872ec4f977e65665f8840ca6be963bb98bd621a6ddbcce",
+      "bytes": 5190,
+      "destination": "book/notes/summary/2026-09/1693c2cf74-运行时证据.log",
+      "destination_sha256": "688a819d136ae065a1872ec4f977e65665f8840ca6be963bb98bd621a6ddbcce"
+    },
+    {
+      "source": "notes/accept/20260912201534-阶段6会话Tab列表落盘与恢复开发计划/20260912202920-阶段验收.md",
+      "sha256": "0c477bf827d936cc275fa236ae660bd91ecbafdde513799cca53ea7bfb4e2d78",
+      "bytes": 4040,
+      "destination": "book/notes/summary/2026-09/20260912202920-阶段验收.md",
+      "destination_sha256": "d104b44f5dc0c202e32ce031d7c993b80074e7e144a79d03d09c777ce7f76425"
+    },
+    {
+      "source": "notes/accept/20260912204735-阶段6Tab列表落盘与恢复/20260912210815-修复验收.md",
+      "sha256": "b0515b881b8b53c7730d079c45ffd836a8d79367ff4b8163f45c69425abff84e",
+      "bytes": 2916,
+      "destination": "book/notes/summary/2026-09/20260912210815-修复验收.md",
+      "destination_sha256": "fd76f1216cadd4ad3421d826f84cea32a2cb3aca73d408d8b9ad596370b08fd2"
+    },
+    {
+      "source": "notes/accept/20260912221518-阶段7与8合并独立窗口宿主与创建开发计划/20260912234901-阶段验收.md",
+      "sha256": "3b30d8ecc7f03eb49681f2437ef7641819a307bd5b3980ea4111689b17f1090c",
+      "bytes": 6828,
+      "destination": "book/notes/summary/2026-09/20260912234901-阶段验收.md",
+      "destination_sha256": "142d8355d00b254551eb7a804b137c13200b4dc28af0d6531e833658695c27ad"
+    },
+    {
+      "source": "notes/accept/20260913023538-阶段9拖出拖入手势开发计划/20260913041105-阶段验收.md",
+      "sha256": "d41c30c2c92ef53bb5e92e94adcb5206056dce6d5eccfbda1e4b5bdbb89f9b94",
+      "bytes": 12502,
+      "destination": "book/notes/summary/2026-09/20260913041105-阶段验收.md",
+      "destination_sha256": "b635c1c6f431d9557f7e59277de58e91895c7a15a9f6693a8d24dcb316931f80"
+    },
+    {
+      "source": "notes/accept/20260913191442-阶段9提交后复审/20260913192002-阶段验收.md",
+      "sha256": "52ba13c4df600dd1578595c5c212985737d7a094e50e852f834dfc617eed70cf",
+      "bytes": 3779,
+      "destination": "book/notes/summary/2026-09/20260913192002-阶段验收.md",
+      "destination_sha256": "09dc1a96198adec8175b7b24f130f467a7dd42c957793e8798b90bc0a5abc351"
+    },
+    {
+      "source": "notes/accept/20260913200109-阶段10跨窗口转移与生命周期收尾开发计划/20260913213414-阶段验收.md",
+      "sha256": "e52ae0c7fcdff0300d3c408806fd70cbb39420ac9ffed0f0230487318467a3a5",
+      "bytes": 9395,
+      "destination": "book/notes/summary/2026-09/20260913213414-阶段验收.md",
+      "destination_sha256": "0f4fbbe7fedfd4b23b8467da2504b81ce762a6d3124982d7386ed97944664f0f"
+    },
+    {
+      "source": "notes/accept/20260914135141-地址栏历史补全开发计划/20260914145229-阶段验收.md",
+      "sha256": "1e278355758418df6c4c4c64e57dd293aca818af869dd018f350fc30eb6cb9da",
+      "bytes": 5208,
+      "destination": "book/notes/summary/2026-09/20260914145229-阶段验收.md",
+      "destination_sha256": "fe527386222cc5e0948330a1e68b9beddc35f8a36d4f638b8e9bb6a1806f9626"
+    },
+    {
+      "source": "notes/accept/20260914140000-摄像头权限支持真机验收/20260914133000-摄像头权限真机验收.md",
+      "sha256": "223aef15de9389ba8cea1efc195801fca9ec6a9f2864efe8ca37f52464b6c4a4",
+      "bytes": 3749,
+      "destination": "book/notes/summary/2026-09/20260914133000-摄像头权限真机验收.md",
+      "destination_sha256": "ca8ebe103578eecc7cb2b9d24468e0f00297f208a46dbad3e26dc295c17037a5"
+    },
+    {
+      "source": "notes/accept/20260914140000-摄像头权限支持真机验收/站点询问弹窗-会话A.png",
+      "sha256": "80c728b4f80c20778cc0afa0beb93ed37a661fa6b2893dbc74e673f47c64042b",
+      "bytes": 321031,
+      "destination": "book/notes/summary/2026-09/434e26ade8-站点询问弹窗-会话A.png",
+      "destination_sha256": "80c728b4f80c20778cc0afa0beb93ed37a661fa6b2893dbc74e673f47c64042b"
+    },
+    {
+      "source": "notes/accept/20260914162746-会话网页内查找开发计划/20260914174136-阶段验收.md",
+      "sha256": "cc853c84ab5626fca908a39307655b56988cde88879b4186bcd406d6ddef5db1",
+      "bytes": 6747,
+      "destination": "book/notes/summary/2026-09/20260914174136-阶段验收.md",
+      "destination_sha256": "49663d415d3dbd5b2bc349b82ccf59a871172d9ed163b5817d3598d409174177"
+    },
+    {
+      "source": "notes/accept/20260914162746-会话网页内查找开发计划/查找栏亮色-1of8高亮.png",
+      "sha256": "ef3d0be0e80b7094fbf735572719ed54658e21d436f76a515d214140bc63b022",
+      "bytes": 2091123,
+      "destination": "book/notes/summary/2026-09/207d10bbf9-查找栏亮色-1of8高亮.png",
+      "destination_sha256": "ef3d0be0e80b7094fbf735572719ed54658e21d436f76a515d214140bc63b022"
+    },
+    {
+      "source": "notes/accept/20260914162746-会话网页内查找开发计划/查找栏暗色-1of8高亮.png",
+      "sha256": "22844a4facfe82a2be34a8397502a5023f9a6f16fedf31601f619f167aae9092",
+      "bytes": 1978743,
+      "destination": "book/notes/summary/2026-09/c089ce71e5-查找栏暗色-1of8高亮.png",
+      "destination_sha256": "22844a4facfe82a2be34a8397502a5023f9a6f16fedf31601f619f167aae9092"
+    },
+    {
+      "source": "notes/accept/20260914234125-会话列表拖拽排序专项审查/20260914235145-修复验收.md",
+      "sha256": "88d750c54eac987b10e30a3f2f5752d43e3aa3c2fdaa7d4b958899034cd9dbd2",
+      "bytes": 2723,
+      "destination": "book/notes/summary/2026-09/20260914235145-修复验收.md",
+      "destination_sha256": "ef1f6231a91a8a525c685087e9fff74be5723d4befeea0c5632132080156471a"
+    },
+    {
+      "source": "notes/accept/20260915150336-工作区下拉切换开发计划/20260915161457-阶段验收.md",
+      "sha256": "017e63ffcb25450f1622efd3bc758b5f124e4f6a32d35730fb4e00355b6bed0b",
+      "bytes": 6499,
+      "destination": "book/notes/summary/2026-09/20260915161457-阶段验收.md",
+      "destination_sha256": "04e3896ee0829ff0cd46a2174b7ab2ead77cc4b0c596c008f2aa757984a0ad5b"
+    },
+    {
+      "source": "notes/accept/20260915225410-地址栏建议下拉原生子窗口化开发计划/20260916001013-阶段验收.md",
+      "sha256": "7a99e94f419a823521c7ed63201ec42d73f5900d25a23c2cd63bfc365d565748",
+      "bytes": 6859,
+      "destination": "book/notes/summary/2026-09/20260916001013-阶段验收.md",
+      "destination_sha256": "4513bd24d55f67209fc1d81c3c803b7d7876c038500f5e6a03efd97bd8701bf4"
+    },
+    {
+      "source": "notes/accept/20260916002635-地址栏建议原生子窗口化专项审查/20260916004707-修复验收.md",
+      "sha256": "01fab1b323e2406cdf9792d5b381a4070ec716bef0b126653911fa2b24531e76",
+      "bytes": 5217,
+      "destination": "book/notes/summary/2026-09/20260916004707-修复验收.md",
+      "destination_sha256": "fb2f1c92a93f34e8e06f9334bbc5ba9e5f286da3f434757d1b958374efc6da90"
+    },
+    {
+      "source": "notes/accept/20260916213351-设置阶段一入口与设置窗口骨架开发计划/20260916220819-阶段验收.md",
+      "sha256": "526a5eb0225570fc62d7f3b1825cb72dde6ea43a5f999228040d9e7cea84200b",
+      "bytes": 8333,
+      "destination": "book/notes/summary/2026-09/20260916220819-阶段验收.md",
+      "destination_sha256": "50746cb95977323218c0328719b462d6533c0f7e71730b5a7f0fb9a973bd1fcd"
+    },
+    {
+      "source": "notes/accept/20260916231536-设置阶段二全量内容填充开发计划/20260917002145-阶段验收.md",
+      "sha256": "c176044f3b242da29441148283c56c9a24114c3fee00c685581df782f4ae9298",
+      "bytes": 6112,
+      "destination": "book/notes/summary/2026-09/20260917002145-阶段验收.md",
+      "destination_sha256": "b03e3c3960291c7fe0195008db82a0a6b1d3c3b136885bf6fa3e51d601dfe866"
+    },
+    {
+      "source": "notes/accept/20260917012118-设置窗重构侧栏双栏开发计划/20260917014213-阶段验收.md",
+      "sha256": "a96991be77d3e4b5e17ebabaaccf75a59e85071e998d0f4793e3c6346c868611",
+      "bytes": 5736,
+      "destination": "book/notes/summary/2026-09/20260917014213-阶段验收.md",
+      "destination_sha256": "da5b961df54e5f10c9504762dbd7a334bb7f05d3bcdf3f11d28608d59ce62763"
+    },
+    {
+      "source": "notes/accept/20260917021945-设置阶段三与四合并外观关于与主页URL开发计划/20260917030707-阶段验收.md",
+      "sha256": "4e25d78c49c5619f877ad1e47f1f583011e9dc4e1099ee2af912f062ec3bb193",
+      "bytes": 7879,
+      "destination": "book/notes/summary/2026-09/20260917030707-阶段验收.md",
+      "destination_sha256": "f9d2b870850003c51e26a2390fd724f6e70ce8f3f859495aca1b465cb9277fd8"
+    },
+    {
+      "source": "notes/accept/20260917104037-新建标签页打开主页开发计划/20260917110739-阶段验收.md",
+      "sha256": "4235679b41933c6edb04cd26cc197935d2bbbd4d8b46b3ea9374a113a2a1156c",
+      "bytes": 5184,
+      "destination": "book/notes/summary/2026-09/20260917110739-阶段验收.md",
+      "destination_sha256": "1b32860e358a5b31cef12f28f3ff4ad5edd8283985e7cac8414561d0e5b7785a"
+    },
+    {
+      "source": "notes/accept/20260917132912-主题色token化与色板点亮开发计划/20260917134932-对比度矩阵.md",
+      "sha256": "daa4d32f58ebebae93435153e139ed90bf3a61d448f39a4c9c2bfa69e220f3e5",
+      "bytes": 4355,
+      "destination": "book/notes/summary/2026-09/20260917134932-对比度矩阵.md",
+      "destination_sha256": "b79862d43a553d6bdad7abe2ee1cc1a3f4519d199d2748c91a77cb017d5bdbfe"
+    },
+    {
+      "source": "notes/accept/20260917132912-主题色token化与色板点亮开发计划/20260917143637-阶段验收.md",
+      "sha256": "0bb3aabfd63352e74f0db6567e88e94d8091c925a22b78382f139fd79c433eb0",
+      "bytes": 6934,
+      "destination": "book/notes/summary/2026-09/20260917143637-阶段验收.md",
+      "destination_sha256": "d6633aaa17ca8798663bab7579852e0c05b3d4e14ad5cf21540e284d1c097051"
+    },
+    {
+      "source": "notes/accept/20260917154344-批量移动会话到工作区开发计划/20260917161745-阶段验收.md",
+      "sha256": "7e6b402e6ec16c23d82140cdc36ea98cc1c68d2b557baad08d937aa12dc7868b",
+      "bytes": 5830,
+      "destination": "book/notes/summary/2026-09/20260917161745-阶段验收.md",
+      "destination_sha256": "33642b3e57b7930ea74f60ab3e39a62b6bb17b06631c2857a2354421998e4b78"
+    },
+    {
+      "source": "notes/accept/20260917172635-设置阶段六语言切换i18n开发计划/20260917221409-阶段验收.md",
+      "sha256": "e3060a60fb00d65a569da9e4ac02b9809658ea930828f80ab6a1cbe3541e3504",
+      "bytes": 8142,
+      "destination": "book/notes/summary/2026-09/20260917221409-阶段验收.md",
+      "destination_sha256": "c9a00532b380d7a1c87992bf9bb469d11b022e32769246042878cbe9fef57fcf"
+    },
+    {
+      "source": "notes/accept/20260917172635-设置阶段六语言切换i18n开发计划/20260917234736-修复验收.md",
+      "sha256": "c3de2ed8181a544b35a547f28816ce39a9aa537236e42ac725ce61c48a19eceb",
+      "bytes": 2594,
+      "destination": "book/notes/summary/2026-09/20260917234736-修复验收.md",
+      "destination_sha256": "13db9787b1419e67bb5d5c4bbe6800c63cbe4aa1461ebf1c7f16775a9668764c"
+    },
+    {
+      "source": "notes/accept/20260918010928-设置阶段七恢复出厂设置开发计划/20260918021451-阶段验收.md",
+      "sha256": "39c5e87d098a5ce10551965697d76f178c25ab55ad5d0bfa4fcbfa1dad9ae4f7",
+      "bytes": 9112,
+      "destination": "book/notes/summary/2026-09/20260918021451-阶段验收.md",
+      "destination_sha256": "701552c5b07dfbeb5733575336a3ca6064c94b5f29e7fa5579cc2b5f6ee8378b"
+    },
+    {
+      "source": "notes/accept/20260918085931-会话列表拖拽排序开发计划/20260914232516-阶段验收.md",
+      "sha256": "83a6c006585e5fa8ffbc6e2c0266b451ee4b68b6b5a982ce338b9bf5c38cc556",
+      "bytes": 7287,
+      "destination": "book/notes/summary/2026-09/20260914232516-阶段验收.md",
+      "destination_sha256": "0249a5743fcda9fd45cb4b9e1e08caf18b57bc91269392e2170d846afaa1a118"
+    },
+    {
+      "source": "notes/accept/20260918140903-tab栏分隔线与栏内拖动排序开发计划/20260918143240-阶段验收.md",
+      "sha256": "c2ff3953c9da49a0d87321580124033580cfd0e3c18dd3fa521d8ab306bea25a",
+      "bytes": 5463,
+      "destination": "book/notes/summary/2026-09/20260918143240-阶段验收.md",
+      "destination_sha256": "a828d770e3fbe375f43972f6df181be0117156549dee161432a392329bb5096f"
+    },
+    {
+      "source": "notes/accept/20260918155214-会话备注编辑开发计划/20260918160738-阶段验收.md",
+      "sha256": "56c5794e0e44a1818565790ad1f5e49117d603efe204fd3794632c02d6018c0e",
+      "bytes": 6263,
+      "destination": "book/notes/summary/2026-09/20260918160738-阶段验收.md",
+      "destination_sha256": "f1eb5e81fcde2407913c5c2cde2d6dfd1331d92c6ec5173c55ddaa9e059201c9"
+    },
+    {
+      "source": "notes/accept/20260918182549-删除会话原生确认框开发计划/20260918184533-阶段验收.md",
+      "sha256": "569d7c815215f37f291dfa79cf9774de7d4ac6051bce3e7c83ac17c9e22b7f3b",
+      "bytes": 5765,
+      "destination": "book/notes/summary/2026-09/20260918184533-阶段验收.md",
+      "destination_sha256": "7a809a0c37eca69c906b7a93b791f0c831c765edf3f6b73acff579ea79ecb59f"
+    },
+    {
+      "source": "notes/accept/20260921135305-工作区体验双升级开发计划/20260921145342-阶段验收.md",
+      "sha256": "fc5ef99b824361f424ae7802e6181a5f94359fc880cfdece58043142d63ac12c",
+      "bytes": 8538,
+      "destination": "book/notes/summary/2026-09/20260921145342-阶段验收.md",
+      "destination_sha256": "3686358e60ff01e8e042b83b0af339c29fbd5cdc9aae17fd566b0cbc538cc314"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/20260921171605-阶段验收.md",
+      "sha256": "ca4de102cb13597be8ccd0abe1c7f46faa86814163a17f8bd2b6f2766d72a64a",
+      "bytes": 6835,
+      "destination": "book/notes/summary/2026-09/20260921171605-阶段验收.md",
+      "destination_sha256": "7320952ab90db630f72494a4a363ff68b7029307936bac52dfc781c1c3b76acc"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/20260921175409-反馈轮验收.md",
+      "sha256": "a725dfbb565d6c6ed8969cc223dbc00db8518e60b8d7b2952a1d3902134ede3e",
+      "bytes": 4817,
+      "destination": "book/notes/summary/2026-09/20260921175409-反馈轮验收.md",
+      "destination_sha256": "345cdf6c87ea89c64eb5866f81c4005ecf322cb2b62da3c7379272286ddfd0f6"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/fb-session-menu.png",
+      "sha256": "6311a6e550e4a8225948c714a1196ec30d6bbf81d7b9d267112ce4d822a75d4f",
+      "bytes": 77734,
+      "destination": "book/notes/summary/2026-09/2ef4ac9b6c-fb-session-menu.png",
+      "destination_sha256": "6311a6e550e4a8225948c714a1196ec30d6bbf81d7b9d267112ce4d822a75d4f"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/fb-ws-menu.png",
+      "sha256": "f2ac7b0244a8ae558e388c69179dbd45a9aab14158d49f11c7a6306fc8d36079",
+      "bytes": 81813,
+      "destination": "book/notes/summary/2026-09/77f62da21f-fb-ws-menu.png",
+      "destination_sha256": "f2ac7b0244a8ae558e388c69179dbd45a9aab14158d49f11c7a6306fc8d36079"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step2-dark.png",
+      "sha256": "2f296b70099a795c85f83628249060d54122e784de94af3e2e47994d7deff263",
+      "bytes": 86274,
+      "destination": "book/notes/summary/2026-09/c70560cd45-step2-dark.png",
+      "destination_sha256": "2f296b70099a795c85f83628249060d54122e784de94af3e2e47994d7deff263"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step2-light.png",
+      "sha256": "50dff484905f04cf70b1eacdc7e0baa3a02f9a56a005e85c4ca34c7f85358db3",
+      "bytes": 87575,
+      "destination": "book/notes/summary/2026-09/43754c05d7-step2-light.png",
+      "destination_sha256": "50dff484905f04cf70b1eacdc7e0baa3a02f9a56a005e85c4ca34c7f85358db3"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step4-main-behind-sheet.png",
+      "sha256": "13ddfd25e09d3d81f78b038d4f5833a434d0df4096e1bbf3a593acb1bf5a2a82",
+      "bytes": 67338,
+      "destination": "book/notes/summary/2026-09/c3a5a29346-step4-main-behind-sheet.png",
+      "destination_sha256": "13ddfd25e09d3d81f78b038d4f5833a434d0df4096e1bbf3a593acb1bf5a2a82"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step4-rename-dark.png",
+      "sha256": "434480452a81c7eec413da5367248b355c9e4a8b8eaaee5754785d6cf6078c41",
+      "bytes": 14079,
+      "destination": "book/notes/summary/2026-09/23671b6bea-step4-rename-dark.png",
+      "destination_sha256": "434480452a81c7eec413da5367248b355c9e4a8b8eaaee5754785d6cf6078c41"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step4-rename-en.png",
+      "sha256": "6e990bef84afca8d61caacd97e01ba5d447eb6d600c4f773988d9a2dad51c971",
+      "bytes": 16881,
+      "destination": "book/notes/summary/2026-09/6e45c1700f-step4-rename-en.png",
+      "destination_sha256": "6e990bef84afca8d61caacd97e01ba5d447eb6d600c4f773988d9a2dad51c971"
+    },
+    {
+      "source": "notes/accept/20260921155828-工作区菜单右对齐与重命名原生化开发计划/step4-rename-light.png",
+      "sha256": "3ac654bac02a49b0db58dd833e1f24e5b67e0e48540c23373d515ee480da6a1e",
+      "bytes": 14098,
+      "destination": "book/notes/summary/2026-09/03333252dd-step4-rename-light.png",
+      "destination_sha256": "3ac654bac02a49b0db58dd833e1f24e5b67e0e48540c23373d515ee480da6a1e"
+    },
+    {
+      "source": "notes/accept/20260924222050-删除工作区会话处置弹窗开发计划/20260924225610-阶段验收.md",
+      "sha256": "a58e1e2ee6c60af557ac74a7fd7e1c4f293866162d9437ca92573b0ebc2a8076",
+      "bytes": 4895,
+      "destination": "book/notes/summary/2026-09/20260924225610-阶段验收.md",
+      "destination_sha256": "323a3ee0846964c02b7342bc7b61a9844dcd473dd2ed3a38ed621336319e7d14"
+    },
+    {
+      "source": "notes/accept/20260925003358-浏览器区兜底底色随主题开发计划/20260925005138-阶段验收.md",
+      "sha256": "9e001edc034e85a41e62293d43fa5d3080d9dbe48bf36b381cbab69dbfaf013a",
+      "bytes": 4085,
+      "destination": "book/notes/summary/2026-09/20260925005138-阶段验收.md",
+      "destination_sha256": "16568ff74921a0d31b35b4bdbf96dac854e5d0a204d687f9ee6c60bd74d3cde5"
+    },
+    {
+      "source": "notes/accept/20260928143655-侧边栏收起态开发计划/20260928152738-阶段验收.md",
+      "sha256": "d4e95fc7bdea2230412a321c3fac86c697659d5225d45a3ad0cd419f4276e770",
+      "bytes": 9628,
+      "destination": "book/notes/summary/2026-09/20260928152738-阶段验收.md",
+      "destination_sha256": "f6867cfaf36281fd07752b54410aba3a3d86efa465d833a198124e8acd916b75"
+    },
+    {
+      "source": "notes/accept/20260930133553-导入Chrome浏览数据开发计划/20260930145739-阶段验收.md",
+      "sha256": "3941470da412e3b990338a1011f44b6949e422845212cd5d97cd8cba1e48f178",
+      "bytes": 10940,
+      "destination": "book/notes/summary/2026-09/20260930145739-阶段验收.md",
+      "destination_sha256": "fd56326a9c117a968e89b8b22509b17b4683540cebf0a1453ca4b1daddcf2506"
+    },
+    {
+      "source": "notes/accept/20261009231903-录屏功能开发计划/20261010012408-阶段验收.md",
+      "sha256": "7966e6b0fc8a9c6da41ec5664a974a8b2af57b32911c4c9b4967df6f2b450e38",
+      "bytes": 15932,
+      "destination": "book/notes/summary/2026-10/20261010012408-阶段验收.md",
+      "destination_sha256": "42e6430fdc149d923e3f1f39aea3264c4589dafc0d30732786e3d954f77429cb"
+    },
+    {
+      "source": "notes/accept/20261009231903-录屏功能开发计划/20261010112614-合并验收.md",
+      "sha256": "ce69bf44234b64f0bee0cdc1193c015b6f6e822661eae8f7bd0885e3b6ab56df",
+      "bytes": 1878,
+      "destination": "book/notes/summary/2026-10/20261010112614-合并验收.md",
+      "destination_sha256": "633d36ffdfeeafd4030c6b3816561240651e71843bc2717a6988ba3920f05356"
+    },
+    {
+      "source": "notes/accept/20261009232146-快速截图开发计划/20261010002003-阶段验收.md",
+      "sha256": "8b4d6ecd2e4ed74398413bf30498e0ae465bf52037bb1db4b5bca68c9fdb9aec",
+      "bytes": 14425,
+      "destination": "book/notes/summary/2026-10/20261010002003-阶段验收.md",
+      "destination_sha256": "0efffd6466c48045e9599fb0a61918844f26deae1504f998c714135943b49737"
+    },
+    {
+      "source": "notes/accept/20261014134249-截图编辑器开发计划/20261014154750-阶段验收.md",
+      "sha256": "3cf738d7d6fdc69a4670cd42faca5f4fb2d798087e89c585d6cfce530f3919b9",
+      "bytes": 4476,
+      "destination": "book/notes/summary/2026-10/20261014154750-阶段验收.md",
+      "destination_sha256": "20a7c29f61b9b4085ce65ec13fca034997dd84f9740cd27e78c82cf84d146904"
+    },
+    {
+      "source": "notes/accept/20261014134249-截图编辑器开发计划/20261014163509-反馈轮一验收.md",
+      "sha256": "7b986927e63b01c8651d0b21fc707d4a197ff5be739f3845e9d528284faf714f",
+      "bytes": 2559,
+      "destination": "book/notes/summary/2026-10/20261014163509-反馈轮一验收.md",
+      "destination_sha256": "9c86d1cd670dde201432c66c7e2929901b8b2e38f3e201324328e76b4e08d1a5"
+    },
+    {
+      "source": "notes/accept/20261014134249-截图编辑器开发计划/20261014171710-反馈轮二验收.md",
+      "sha256": "8d3d0a247724e6f4b82460122d5cf476c7e83bf6233baab16c27ecd8dec799ec",
+      "bytes": 1976,
+      "destination": "book/notes/summary/2026-10/20261014171710-反馈轮二验收.md",
+      "destination_sha256": "f7b89afdf9dc5b510e84aa76320d171b7ab75353e1b7d9d54904ce74026107ae"
+    },
+    {
+      "source": "notes/accept/20261015025109-独立代理开发计划/20261015034446-阶段验收.md",
+      "sha256": "e2aff8e34f7d45aa0252a9db411420699a5d01bf61f0282621eca55b6bcffa70",
+      "bytes": 10939,
+      "destination": "book/notes/summary/2026-10/20261015034446-阶段验收.md",
+      "destination_sha256": "45586894a9eb192c32b734c388a3a8cb929228613de390d60996c587ae333e44"
+    },
+    {
+      "source": "notes/accept/20261020171932-加载状态可视与会话菜单统一开发计划/20261020181100-阶段验收.md",
+      "sha256": "4ec83bccfc23655de0182aa0543f14185b1080b318ead7c39d2be61c61988d05",
+      "bytes": 6014,
+      "destination": "book/notes/summary/2026-10/20261020181100-阶段验收.md",
+      "destination_sha256": "e5d7fb3f62ae27c45ea03cce2d1874c44fceefa73b99885de1c8170dcaa4d98c"
+    },
+    {
+      "source": "notes/accept/20261020171932-加载状态可视与会话菜单统一开发计划/msb-errorcard-dark.png",
+      "sha256": "11b900ae813b55d99fe6d54f36a7070cdb5b5d3af01b6182fd720741acd6b487",
+      "bytes": 45368,
+      "destination": "book/notes/summary/2026-10/b5f8912397-msb-errorcard-dark.png",
+      "destination_sha256": "11b900ae813b55d99fe6d54f36a7070cdb5b5d3af01b6182fd720741acd6b487"
+    },
+    {
+      "source": "notes/accept/20261020171932-加载状态可视与会话菜单统一开发计划/msb-errorcard-refused.png",
+      "sha256": "ec80179c6af491225e42aaab2c3ab2bce08363c0eac5f718817fae3b59830bbf",
+      "bytes": 45383,
+      "destination": "book/notes/summary/2026-10/9d11e4b24b-msb-errorcard-refused.png",
+      "destination_sha256": "ec80179c6af491225e42aaab2c3ab2bce08363c0eac5f718817fae3b59830bbf"
+    },
+    {
+      "source": "notes/accept/20261020184445-录屏输出MP4化开发计划/20261021111505-阶段验收.md",
+      "sha256": "d7a88e877684759f1357ce9a8b77d396e5606e777f70e13df15bf1de949224b8",
+      "bytes": 8034,
+      "destination": "book/notes/summary/2026-10/20261021111505-阶段验收.md",
+      "destination_sha256": "0656fa28aa649b1d801aa941f87f089bb633be5c0dbc15e604eff1ee47d58bd9"
+    },
+    {
+      "source": "notes/accept/20261022-macOS内网访问修复/README.md",
+      "sha256": "dee1271fb7a06e17bf10dcc62958b0e822f86c6780ca97f98ce24b6ce9f013c1",
+      "bytes": 5581,
+      "destination": "book/notes/summary/2026-10/README.md",
+      "destination_sha256": "e10573ad7f8b3e5085d5588c6aedbe829e09435e31c0877ce85a023d3a67a9a3"
+    },
+    {
+      "source": "notes/accept/20261023135637-箭头圆头化与批量收起退役开发计划/20261023145243-阶段验收.md",
+      "sha256": "7e9153fb47ededbc85fe96ba4817ef0e74de92b66cf272222e0b40abd3ff4b9c",
+      "bytes": 4767,
+      "destination": "book/notes/summary/2026-10/20261023145243-阶段验收.md",
+      "destination_sha256": "6df659810818fe7472ea714e042a5bfe1ebd707ed5d0db599be3e0ffbec2c1bf"
+    },
+    {
+      "source": "notes/accept/20261027150209-工作区右键菜单原生化开发计划/20261027154030-阶段验收.md",
+      "sha256": "b7173b19e7629408a067d62625ab152200106380390d7860a923ad6936b190e4",
+      "bytes": 6725,
+      "destination": "book/notes/summary/2026-10/20261027154030-阶段验收.md",
+      "destination_sha256": "e49a94d1cc4aa8b1ffabf39b486d5c26696e6b9506e00df803ab38bf8e63bc4d"
+    },
+    {
+      "source": "notes/accept/20261028112040-地址栏交互与Chrome站点数据导入开发计划/20261028123936-步骤1技术验证记录.md",
+      "sha256": "45e1dc34e3af5a4810babf9bc88984c64dfef04d1f99df4c8e38a5190673daa3",
+      "bytes": 15085,
+      "destination": "book/notes/summary/2026-10/20261028123936-步骤1技术验证记录.md",
+      "destination_sha256": "3d1282476d53b582c20ae602d61d9abbda1a1ac9103ec6ba0728d761c1713c14"
+    },
+    {
+      "source": "notes/accept/20261028112040-地址栏交互与Chrome站点数据导入开发计划/20261028162114-阶段验收.md",
+      "sha256": "0be08c2d4f353238b41f1fe01b9d4e9dcbd8e6764c177c718dded0dd786a7273",
+      "bytes": 7651,
+      "destination": "book/notes/summary/2026-10/20261028162114-阶段验收.md",
+      "destination_sha256": "0a9e50f8f787917fa5046dcde57afbdb05ab0b136b2f9c4dcbbc1bc39b6a5232"
+    },
+    {
+      "source": "notes/accept/20261029181900-地址栏融合阴影终态与Cookie解密修订/20261029182824-修复轮验收.md",
+      "sha256": "b904e1b3b0e6048dc0f4b6c6520cd7e818dbdb39256302f06d4d02fa9490b656",
+      "bytes": 2893,
+      "destination": "book/notes/summary/2026-10/20261029182824-修复轮验收.md",
+      "destination_sha256": "7cd363a76e4548a19a378fb8d49d5a1c02f65b6e8be92ca8ac8c6523fb7bc243"
+    },
+    {
+      "source": "notes/accept/20261029191550-工具栏图标气泡与Tab融合开发计划/20261030142104-阶段验收.md",
+      "sha256": "5aacdeac71cb61137dda40d2906fbf280f02254d1a5a989b082f9b568828a1d6",
+      "bytes": 6668,
+      "destination": "book/notes/summary/2026-10/20261030142104-阶段验收.md",
+      "destination_sha256": "2b025cea3d081151c7d0eea4489816401cb85e86f68d71263dcc4cc4c8567f40"
+    },
+    {
+      "source": "notes/accept/20261030131247-Windows主窗去标题栏WCO开发计划/20261030134409-阶段验收.md",
+      "sha256": "27b3daff9cbd296438e272f52b9096b7b811719117bb3b4c20f84354090de14e",
+      "bytes": 5537,
+      "destination": "book/notes/summary/2026-10/20261030134409-阶段验收.md",
+      "destination_sha256": "9ece1ec031a772312fcf65f2c9e5616de4241ce3441987d4d9a2b94b3041681b"
+    },
+    {
+      "source": "notes/accept/20261030164534-无底图标与chrome区主题适配开发计划/20261031121404-阶段验收.md",
+      "sha256": "8dde6f3ac3a6b827892dad4f5be2ab0cda5fbb25ac383e661bb6b0c6a19e15d8",
+      "bytes": 5389,
+      "destination": "book/notes/summary/2026-10/20261031121404-阶段验收.md",
+      "destination_sha256": "ada93cadf34bb4682ac54b5d07123d499eafd5d36759f6d5ed27b1e1305dbc6f"
+    },
+    {
+      "source": "notes/accept/20261103231311-截图编辑多窗口修复开发计划/20261103232809-阶段验收.md",
+      "sha256": "9a3954868d39d1e03d8df7f923e3d8e07c190a6cec2a1f0f45227b6c04fa7093",
+      "bytes": 7547,
+      "destination": "book/notes/summary/2026-11/20261103232809-阶段验收.md",
+      "destination_sha256": "01554325ee15379b73c190a966ef08302d674fc23aa11cb097982b0c1bc17d33"
+    },
+    {
+      "source": "notes/accept/20261103231311-截图编辑多窗口修复开发计划/editor-A.png",
+      "sha256": "5b6147dad53e5809b995fc237abf058d1c5d8ffa014d21831fda78cb36de37a9",
+      "bytes": 19735,
+      "destination": "book/notes/summary/2026-11/08aec7164d-editor-A.png",
+      "destination_sha256": "5b6147dad53e5809b995fc237abf058d1c5d8ffa014d21831fda78cb36de37a9"
+    },
+    {
+      "source": "notes/accept/20261103231311-截图编辑多窗口修复开发计划/extra-results.json",
+      "sha256": "5ddda3917351c570320e4d9c3b6052057c2a703bbd4103fb91517af402d23476",
+      "bytes": 510,
+      "destination": "book/notes/summary/2026-11/c32ad5c054-extra-results.json",
+      "destination_sha256": "5ddda3917351c570320e4d9c3b6052057c2a703bbd4103fb91517af402d23476"
+    },
+    {
+      "source": "notes/accept/20261103231311-截图编辑多窗口修复开发计划/quit-result.json",
+      "sha256": "b58f81aa30f0871a9cd2ee0e11014d647b81b3277062918d7fd75f6d053f47e3",
+      "bytes": 19,
+      "destination": "book/notes/summary/2026-11/08ff412f8e-quit-result.json",
+      "destination_sha256": "b58f81aa30f0871a9cd2ee0e11014d647b81b3277062918d7fd75f6d053f47e3"
+    },
+    {
+      "source": "notes/accept/20261103231311-截图编辑多窗口修复开发计划/results.json",
+      "sha256": "ac40af4b40d64269d6d86ebff86fde2c531c2835288a81cf21da9003ffa7dbe9",
+      "bytes": 1749,
+      "destination": "book/notes/summary/2026-11/1cbd4a64f2-results.json",
+      "destination_sha256": "ac40af4b40d64269d6d86ebff86fde2c531c2835288a81cf21da9003ffa7dbe9"
+    },
+    {
+      "source": "notes/accept/20261104004405-截图编辑多窗口修复审查/20261104005204-阶段验收.md",
+      "sha256": "37d20315d433f8a7de0e77ce5ec4c50289690163ebd0c9ce008dfdd52ce5ca70",
+      "bytes": 4245,
+      "destination": "book/notes/summary/2026-11/20261104005204-阶段验收.md",
+      "destination_sha256": "25a4c8f0df31511701c54ddeb27b57b99d17e2a96786943401b9121b6d798eca"
+    },
+    {
+      "source": "notes/accept/20261104004405-截图编辑多窗口修复审查/results.json",
+      "sha256": "561d63b0e07bd4fb6060acbe650ac1d5b0ef559d6ab4f4f964e464a1f77cb3ac",
+      "bytes": 1119,
+      "destination": "book/notes/summary/2026-11/b89003ab9b-results.json",
+      "destination_sha256": "561d63b0e07bd4fb6060acbe650ac1d5b0ef559d6ab4f4f964e464a1f77cb3ac"
+    },
+    {
+      "source": "notes/accept/20261106131016-独立窗口合并回主窗口开发计划/20261106132247-阶段验收.md",
+      "sha256": "e606107035a05d6c8325f792e58be55cd6c724c3c6ba585126e2ee02df477e19",
+      "bytes": 8362,
+      "destination": "book/notes/summary/2026-11/20261106132247-阶段验收.md",
+      "destination_sha256": "6fc53835e62ce3502f5e697d0f64d9f1018e79db37b4054ae325f3404ae9e0e0"
+    },
+    {
+      "source": "notes/accept/20261106131016-独立窗口合并回主窗口开发计划/extra-results.json",
+      "sha256": "f40a0cb2aca6ebb9bd2fbdb0f46a3a5c78a73d203fc44175a82f6cce06032e22",
+      "bytes": 215,
+      "destination": "book/notes/summary/2026-11/9d3dfe0ca8-extra-results.json",
+      "destination_sha256": "f40a0cb2aca6ebb9bd2fbdb0f46a3a5c78a73d203fc44175a82f6cce06032e22"
+    },
+    {
+      "source": "notes/accept/20261106131016-独立窗口合并回主窗口开发计划/results.json",
+      "sha256": "e4e1b286b036858a04cfa0217fd18273f27ee0b443eb53726eca80e5b641db75",
+      "bytes": 726,
+      "destination": "book/notes/summary/2026-11/5686f3f682-results.json",
+      "destination_sha256": "e4e1b286b036858a04cfa0217fd18273f27ee0b443eb53726eca80e5b641db75"
+    },
+    {
+      "source": "notes/accept/20261106131016-独立窗口合并回主窗口开发计划/tooltip-arrow-results.json",
+      "sha256": "c744f950aca9ea5e4bf265352ab889c9ca2c7966cb5707c26ea60ade3078a18e",
+      "bytes": 2814,
+      "destination": "book/notes/summary/2026-11/399c561047-tooltip-arrow-results.json",
+      "destination_sha256": "c744f950aca9ea5e4bf265352ab889c9ca2c7966cb5707c26ea60ade3078a18e"
+    },
+    {
+      "source": "notes/accept/20261106131016-独立窗口合并回主窗口开发计划/visual-results.json",
+      "sha256": "15f6c397b7588d5e640e7ae91fa9abc1f4cf3ceb48cfd3e8a2cf9bb9e86f2380",
+      "bytes": 2469,
+      "destination": "book/notes/summary/2026-11/b4006bff55-visual-results.json",
+      "destination_sha256": "15f6c397b7588d5e640e7ae91fa9abc1f4cf3ceb48cfd3e8a2cf9bb9e86f2380"
+    },
+    {
+      "source": "notes/accept/20261106140710-独立窗口合并与气泡定位审查/20261106145813-修复验收.md",
+      "sha256": "5937373aef02f21967d9f0e576cbf0e1a2b9692edcf26d4c4d43d4c6a3cb4867",
+      "bytes": 5552,
+      "destination": "book/notes/summary/2026-11/20261106145813-修复验收.md",
+      "destination_sha256": "ee807b2eecc6c97c55d957e41dba0787292b43c776daeef7fb5ae2688263a413"
+    },
+    {
+      "source": "notes/accept/20261106140710-独立窗口合并与气泡定位审查/repair-results.json",
+      "sha256": "cf75063fb028bcc165f5604f2de728cacfa6ea2931b437106f52c4f3f1f6012a",
+      "bytes": 888,
+      "destination": "book/notes/summary/2026-11/b62a31c3ef-repair-results.json",
+      "destination_sha256": "cf75063fb028bcc165f5604f2de728cacfa6ea2931b437106f52c4f3f1f6012a"
+    },
+    {
+      "source": "notes/demo/batch-move-to-workspace-demo.html",
+      "sha256": "842488a6ffc638ff4204b1f7aca2a041ec92de8ee0350c9866b139ccc9510a35",
+      "bytes": 26904,
+      "destination": "book/docs/prototypes/batch-move-to-workspace-demo.html",
+      "destination_sha256": "842488a6ffc638ff4204b1f7aca2a041ec92de8ee0350c9866b139ccc9510a35"
+    },
+    {
+      "source": "notes/demo/settings-redesign-demo.html",
+      "sha256": "9398ca3c9e65a381c55b3342516c79ace395acb8366d6a93a6545f9332bb3fe1",
+      "bytes": 23344,
+      "destination": "book/docs/prototypes/settings-redesign-demo.html",
+      "destination_sha256": "9398ca3c9e65a381c55b3342516c79ace395acb8366d6a93a6545f9332bb3fe1"
+    },
+    {
+      "source": "notes/demo/theme-systems-demo.html",
+      "sha256": "98c903719017b39cd542d3d58d06bfaac72540d594912c44b35632155dbd764b",
+      "bytes": 16802,
+      "destination": "book/docs/prototypes/theme-systems-demo.html",
+      "destination_sha256": "98c903719017b39cd542d3d58d06bfaac72540d594912c44b35632155dbd764b"
+    },
+    {
+      "source": "notes/demo/workspace-switcher-demo.html",
+      "sha256": "eaa51db650396ee974e7db53f924abeb882f4da59ab3a18706c050723444daf0",
+      "bytes": 71234,
+      "destination": "book/docs/prototypes/workspace-switcher-demo.html",
+      "destination_sha256": "eaa51db650396ee974e7db53f924abeb882f4da59ab3a18706c050723444daf0"
+    },
+    {
+      "source": "notes/logo-light-generation.md",
+      "sha256": "9b55855c2b853615a6098b4dedc4bd96ededaadadd7e5ca1dab91009f8d4bb10",
+      "bytes": 2764,
+      "destination": "book/notes/learn/2026-11/logo-light-generation.md",
+      "destination_sha256": "9fec2e6efde0dd8b10cff3b4b483f2623875ba4aeff8a03b7efb88114212e4e7"
+    },
+    {
+      "source": "notes/plans/20260910183402-阶段1会话持久化开发计划.md",
+      "sha256": "50339e68a40f5f72776149e26015b24efdb21c89f2023966e597efa7fd557a2b",
+      "bytes": 24928,
+      "destination": "book/plans/20260910183402-阶段1会话持久化开发计划.md",
+      "destination_sha256": "a9c6ff6bc37d1bb9f2eb928707ada5132d0f69e8633a1c7d7bf151c0395cbc90"
+    },
+    {
+      "source": "notes/plans/20260910211644-阶段2浏览器内嵌开发计划.md",
+      "sha256": "5bdf65acc9d889c76bb9308566588ca2d57a3bbb56a214ca66c122ad6a494832",
+      "bytes": 39271,
+      "destination": "book/plans/20260910211644-阶段2浏览器内嵌开发计划.md",
+      "destination_sha256": "6564413fca3a710b2ef255569c40c1c81877b7d1127b1b56aeec8a833ff4036a"
+    },
+    {
+      "source": "notes/plans/20260911014828-阶段3开发者模式对接开发计划.md",
+      "sha256": "bbb21151252e912fcc164965a509a7efeaedd7850856dcf2518f2a0a7ca69fa3",
+      "bytes": 42570,
+      "destination": "book/plans/20260911014828-阶段3开发者模式对接开发计划.md",
+      "destination_sha256": "f05d9d782e30a2b2ed70465359e9f294d1596102c4d32d5f1c4f47338addc168"
+    },
+    {
+      "source": "notes/plans/20260911191316-阶段4多会话浏览器绑定开发计划.md",
+      "sha256": "1fccc9ff5a6177f963b46b435282c29746fe2f174401a32be07c875c9bdf3ecc",
+      "bytes": 47499,
+      "destination": "book/plans/20260911191316-阶段4多会话浏览器绑定开发计划.md",
+      "destination_sha256": "79e5223fb4aba92f81707cbebbdef65365dedf347ca11b3c02f6bfc232982ce8"
+    },
+    {
+      "source": "notes/plans/20260912013740-阶段5会话克隆与批量操作开发计划.md",
+      "sha256": "75a243a3228d6aff51a041f27f31eb1fa24db408c48d9fdb21196f29f64fae34",
+      "bytes": 35411,
+      "destination": "book/plans/20260912013740-阶段5会话克隆与批量操作开发计划.md",
+      "destination_sha256": "4d989eadcb702528e625f289fec8b2757668672511fbde3f1fc7e85f179adabb"
+    },
+    {
+      "source": "notes/plans/20260912140057-应用外观三模式开发计划.md",
+      "sha256": "16ef077ea75cfa98ab86517f6511f8a6f5a915024bda655429e21d22f3fe17c8",
+      "bytes": 42174,
+      "destination": "book/plans/20260912140057-应用外观三模式开发计划.md",
+      "destination_sha256": "2d621c8b1279e005872bb9398acdb711b128c88990428c6a0c21399ead160b4b"
+    },
+    {
+      "source": "notes/plans/20260912201534-阶段6会话Tab列表落盘与恢复开发计划.md",
+      "sha256": "9b39dfb586714b4ecd0a456e48e1b1c99ae5c262129fb0c8a5862c270f37556f",
+      "bytes": 15301,
+      "destination": "book/plans/20260912201534-阶段6会话Tab列表落盘与恢复开发计划.md",
+      "destination_sha256": "9ab2b52ebe695893a9f89a605306c50bf2d8354579fab484ab2733d983221d9b"
+    },
+    {
+      "source": "notes/plans/20260912221518-阶段7与8合并独立窗口宿主与创建开发计划.md",
+      "sha256": "b150a15242aadb99ca62253c4e8004944a812fbfe45a2b75a57f9ea4f44eeec3",
+      "bytes": 38409,
+      "destination": "book/plans/20260912221518-阶段7与8合并独立窗口宿主与创建开发计划.md",
+      "destination_sha256": "f5387da2d32baf0b95a3e6e7f8c939fd7b78b73b9da5f98617dd1ebdd7beec42"
+    },
+    {
+      "source": "notes/plans/20260913023538-阶段9拖出拖入手势开发计划.md",
+      "sha256": "93dfcff44237d56bd78a0fe2e5abba21e61a6e8079008370967009ae2195e3a8",
+      "bytes": 42237,
+      "destination": "book/plans/20260913023538-阶段9拖出拖入手势开发计划.md",
+      "destination_sha256": "92bf11b3ff20ebc8bbe5d60c802bb7600a46242abee2e2faa8bb9173597ad738"
+    },
+    {
+      "source": "notes/plans/20260913200109-阶段10跨窗口转移与生命周期收尾开发计划.md",
+      "sha256": "05a3bf6a61761ec4d05c612bcfa9d7e1e4c8b5406c1e417fbba88ff71b0a80f0",
+      "bytes": 48955,
+      "destination": "book/plans/20260913200109-阶段10跨窗口转移与生命周期收尾开发计划.md",
+      "destination_sha256": "77243e60e470d66e20b3f42228417ca897063729b30a6865a2ba0774485d0b30"
+    },
+    {
+      "source": "notes/plans/20260914114038-摄像头访问兼容修复开发计划.md",
+      "sha256": "0aef06aa2bc997230d631f463c9962b877fd3bc6a44c28ae0dc5247cf2b6604b",
+      "bytes": 14645,
+      "destination": "book/plans/20260914114038-摄像头访问兼容修复开发计划.md",
+      "destination_sha256": "fd04edd6622934f4e98072f83097399ba9a5e6c168bd743e90a16c79f702441e"
+    },
+    {
+      "source": "notes/plans/20260914135141-地址栏历史补全开发计划.md",
+      "sha256": "0adfd1375319c6c653ae5de98ac810e5b3254cd1c1901d0bc5406f29b1df56c0",
+      "bytes": 26172,
+      "destination": "book/plans/20260914135141-地址栏历史补全开发计划.md",
+      "destination_sha256": "ccaf493f52873274c6fef177c02598a637b73561b6929648bdc17408aa0163ad"
+    },
+    {
+      "source": "notes/plans/20260914162746-会话网页内查找开发计划.md",
+      "sha256": "da238e5fd72f7e80078b37a3fc21e5ae8c6e19cfc0ed479346026e67faeb2750",
+      "bytes": 23839,
+      "destination": "book/plans/20260914162746-会话网页内查找开发计划.md",
+      "destination_sha256": "a9df926168eea0fc1cb5ce5a712112d31beb2bfef4759ad0213a892e2ce43c8c"
+    },
+    {
+      "source": "notes/plans/20260915150336-工作区下拉切换开发计划.md",
+      "sha256": "b2604d6c741d34e11711377ccc763a9983f918522b930ca642ae5f25f7cc4f34",
+      "bytes": 29314,
+      "destination": "book/plans/20260915150336-工作区下拉切换开发计划.md",
+      "destination_sha256": "19d36a07067e0490ecf6d167ddd04b1254c4bbf1432b318797d61b6d5bee1893"
+    },
+    {
+      "source": "notes/plans/20260915225410-地址栏建议下拉原生子窗口化开发计划.md",
+      "sha256": "f1e68bf953c5100caa8d77d23f7e73eb445abc984708d614dcef33de135604b3",
+      "bytes": 30316,
+      "destination": "book/plans/20260915225410-地址栏建议下拉原生子窗口化开发计划.md",
+      "destination_sha256": "6d43821d02d387356ab7bd04f903c9bd60951a35f22c96e971b071fd39a1f3e9"
+    },
+    {
+      "source": "notes/plans/20260916213351-设置阶段一入口与设置窗口骨架开发计划.md",
+      "sha256": "441eb32cae9480d074a335cb4167beb2d0c069ed30cd0bf307f49cb43647336d",
+      "bytes": 17124,
+      "destination": "book/plans/20260916213351-设置阶段一入口与设置窗口骨架开发计划.md",
+      "destination_sha256": "6502cfa81dcd93fdb354b57165d93a03cda7ce4fec3c26ee828fecf1e17468f7"
+    },
+    {
+      "source": "notes/plans/20260916231536-设置阶段二全量内容填充开发计划.md",
+      "sha256": "10814a499320bf2ec81f0b477165f61716a6d6414b1d65e0f8bef138bc40e346",
+      "bytes": 14389,
+      "destination": "book/plans/20260916231536-设置阶段二全量内容填充开发计划.md",
+      "destination_sha256": "c207e2e13de25d7e21bafa1abf18bbeb09fc3c6dd8e2568e9a5ba4725db52d33"
+    },
+    {
+      "source": "notes/plans/20260917012118-设置窗重构侧栏双栏开发计划.md",
+      "sha256": "f4a3b18718422bf20209d23bff1c30ea231c6e8e3c3df8f74871f57be0e70cbb",
+      "bytes": 12642,
+      "destination": "book/plans/20260917012118-设置窗重构侧栏双栏开发计划.md",
+      "destination_sha256": "cb39776df4236b0c2b2d8f2acfbab14ab895cb8e0f508c8d9305cbb836a667a6"
+    },
+    {
+      "source": "notes/plans/20260917021945-设置阶段三与四合并外观关于与主页URL开发计划.md",
+      "sha256": "2b039e443625511d07d5ada112f218573db184dbd355f9105aaf855f65a000c4",
+      "bytes": 28581,
+      "destination": "book/plans/20260917021945-设置阶段三与四合并外观关于与主页URL开发计划.md",
+      "destination_sha256": "fb84fae6a8b352dc461b4e07893cfc504dfbb614263938c68d7b22ddb90156c7"
+    },
+    {
+      "source": "notes/plans/20260917104037-新建标签页打开主页开发计划.md",
+      "sha256": "a1b116e14183dffafbf6b6b9185386c8465940ef690b32b497927597dd5cac2f",
+      "bytes": 11805,
+      "destination": "book/plans/20260917104037-新建标签页打开主页开发计划.md",
+      "destination_sha256": "cba5aa424acb57134406ed6f6dd65dcae28e3ad13d9bc43858406372bca5b82a"
+    },
+    {
+      "source": "notes/plans/20260917132912-主题色token化与色板点亮开发计划.md",
+      "sha256": "cc79f0c9f000e9dc3f6785510c336bd2d8f1f5561f99f26c538c23435f8f1821",
+      "bytes": 44586,
+      "destination": "book/plans/20260917132912-主题色token化与色板点亮开发计划.md",
+      "destination_sha256": "91b8eb25febc211f6ee3b08737ec06350347cb1eef1f0e916fd3f900e638cc2c"
+    },
+    {
+      "source": "notes/plans/20260917154344-批量移动会话到工作区开发计划.md",
+      "sha256": "01d88bca11fc93b20e63950bbdaffbb77f83f21ca4c3bec73b3a123ca76656e1",
+      "bytes": 17627,
+      "destination": "book/plans/20260917154344-批量移动会话到工作区开发计划.md",
+      "destination_sha256": "7c54988882bf3d40fb2170afd692e82b50f47f5755f5dac8b2835bf33ee74f86"
+    },
+    {
+      "source": "notes/plans/20260917172635-设置阶段六语言切换i18n开发计划.md",
+      "sha256": "d1880ea407d4aec131b90c8a3d9ea0362ccbd930d73a8291c15211af417a4f41",
+      "bytes": 40876,
+      "destination": "book/plans/20260917172635-设置阶段六语言切换i18n开发计划.md",
+      "destination_sha256": "b31d054f99dbc0c27d7f2347cf257ffa47eb8edc0345048776a437db844acd3e"
+    },
+    {
+      "source": "notes/plans/20260918010928-设置阶段七恢复出厂设置开发计划.md",
+      "sha256": "0e9dbff55c886f98edf380748bb56eb01dfe5696aab791be46f29d55ea0c066a",
+      "bytes": 31570,
+      "destination": "book/plans/20260918010928-设置阶段七恢复出厂设置开发计划.md",
+      "destination_sha256": "88a188799f473da108d4ea70832a52b4fa99ad219dc46ed2692d53fd1c16d5f1"
+    },
+    {
+      "source": "notes/plans/20260918085931-会话列表拖拽排序开发计划.md",
+      "sha256": "5b66e3209cff3efc6f91505181db0ff304af2ca979367f50a5fd163c9c31615f",
+      "bytes": 21190,
+      "destination": "book/plans/20260918085931-会话列表拖拽排序开发计划.md",
+      "destination_sha256": "27a330a347797b308719054698b4ddd286395bb835a6802eca6a293fa1e56fa4"
+    },
+    {
+      "source": "notes/plans/20260918125946-会话网页视频全屏开发计划.md",
+      "sha256": "97d29c1aebcec4a58a38563f03d846c25dda8afd3ccf22164a8694366469fccf",
+      "bytes": 4715,
+      "destination": "book/plans/20260918125946-会话网页视频全屏开发计划.md",
+      "destination_sha256": "8feb4b305d23cc60610b65a9697c0c20353748359a34619f1a4072642f090504"
+    },
+    {
+      "source": "notes/plans/20260918140903-tab栏分隔线与栏内拖动排序开发计划.md",
+      "sha256": "7ddd6d30f0f73b65ef20aa60b215f81f483d27ef353a7c9a5a1c96cdac1c0b44",
+      "bytes": 16244,
+      "destination": "book/plans/20260918140903-tab栏分隔线与栏内拖动排序开发计划.md",
+      "destination_sha256": "1b07d78e8a043a97230901f8e5a5534b8fd64cf10261d19da8d32993c7f03449"
+    },
+    {
+      "source": "notes/plans/20260918155214-会话备注编辑开发计划.md",
+      "sha256": "df666bb9a19e8dba78c07b05ab70cd7c150984561f115a20c21ed62c883fb15b",
+      "bytes": 15326,
+      "destination": "book/plans/20260918155214-会话备注编辑开发计划.md",
+      "destination_sha256": "b7bb81e19883374022c628685881736154fba2993fed3659dfdc2c8308fc8afa"
+    },
+    {
+      "source": "notes/plans/20260918182549-删除会话原生确认框开发计划.md",
+      "sha256": "5a92dff58aa6a580729bc8fc8a639a9acdb11b58c9fdb4d7ceb78158deedce4c",
+      "bytes": 19378,
+      "destination": "book/plans/20260918182549-删除会话原生确认框开发计划.md",
+      "destination_sha256": "ca214aa25b27045147b4bf48d9c6532513fdeabf6d1938dac44bbb20ecc409af"
+    },
+    {
+      "source": "notes/plans/20260921135305-工作区体验双升级开发计划.md",
+      "sha256": "a98b4b23ba3e3e783562c19429b27d7b24cb9caedb48edb67d7dfe6ed85966c4",
+      "bytes": 26251,
+      "destination": "book/plans/20260921135305-工作区体验双升级开发计划.md",
+      "destination_sha256": "2a19435526a4c01cadf6d65917277b901b8f47edc04672e49b101016b08914ec"
+    },
+    {
+      "source": "notes/plans/20260921155828-工作区菜单右对齐与重命名原生化开发计划.md",
+      "sha256": "076579a6a954d83153543759d337b6696ae32cb6063f6ff8ab0111a20f5ea962",
+      "bytes": 21845,
+      "destination": "book/plans/20260921155828-工作区菜单右对齐与重命名原生化开发计划.md",
+      "destination_sha256": "b57d2345de140d060613efecb62d9fa639c383829fb3ddc7e705b541c93688f1"
+    },
+    {
+      "source": "notes/plans/20260924222050-删除工作区会话处置弹窗开发计划.md",
+      "sha256": "5f1e192c49beeda4a43406cc445d2b4455638a75f45355efd0bfdee7e8e561a6",
+      "bytes": 22430,
+      "destination": "book/plans/20260924222050-删除工作区会话处置弹窗开发计划.md",
+      "destination_sha256": "81abd6352ffa0491b69f3011e76cd7f15ec466c5802bde6e29587617d66e74ad"
+    },
+    {
+      "source": "notes/plans/20260925003358-浏览器区兜底底色随主题开发计划.md",
+      "sha256": "9fd60bdd3c03dc71ecf242910ef8df52a914cbbb8dfdc36593c9644856a9ad9a",
+      "bytes": 11064,
+      "destination": "book/plans/20260925003358-浏览器区兜底底色随主题开发计划.md",
+      "destination_sha256": "20c48152f120088597e0e541eb365b02efa6e5d590ff2471610290603afd1ce4"
+    },
+    {
+      "source": "notes/plans/20260925085925-拖出裁决阈值修订.md",
+      "sha256": "bd177bbcd48e6cbebd45034e7a5b169211612c4ab57b74037902e8ee0a3b346e",
+      "bytes": 4177,
+      "destination": "book/plans/20260925085925-拖出裁决阈值修订.md",
+      "destination_sha256": "12b6d40e92feeac6c10f7e0a1f77d40e7bd65a6ab7c22c144e67a5b30efacc9e"
+    },
+    {
+      "source": "notes/plans/20260928143655-侧边栏收起态开发计划.md",
+      "sha256": "5cd2f3715f6c45c4fa3c64a70c7237b7bafc9c6b446b0d4ce0f28f1045de38c2",
+      "bytes": 16130,
+      "destination": "book/plans/20260928143655-侧边栏收起态开发计划.md",
+      "destination_sha256": "4106a268b1d1a7b094416f4c8d79180e1cf1ce4fbeda527956dc38a68360fd2d"
+    },
+    {
+      "source": "notes/plans/20260930133553-导入Chrome浏览数据开发计划.md",
+      "sha256": "d415c36490d11e1bd3d7abdd7d3cb330b2e659dac50ca571342520158edb9c96",
+      "bytes": 32735,
+      "destination": "book/plans/20260930133553-导入Chrome浏览数据开发计划.md",
+      "destination_sha256": "48d781beb56d770d69f805352515d310f53bdbb8d5987fb782a91c96fd4b7ed2"
+    },
+    {
+      "source": "notes/plans/20261009231903-录屏功能开发计划.md",
+      "sha256": "47dec117426b049ec9a7b3a26761e38ad317b3538f4ee563db5c81d7294e0ffe",
+      "bytes": 37078,
+      "destination": "book/plans/20261009231903-录屏功能开发计划.md",
+      "destination_sha256": "ddc27edb275763ad4cf5e4953c35596aa7ea7a3c2a92dcc20787b436b9e4a319"
+    },
+    {
+      "source": "notes/plans/20261014134249-截图编辑器开发计划.md",
+      "sha256": "82830c14f937579136907d6dfe23f63514c58bce34ba9622b7aeee33362ca859",
+      "bytes": 30331,
+      "destination": "book/plans/20261014134249-截图编辑器开发计划.md",
+      "destination_sha256": "65b40938d4abc3242945840e293630737595a1a309e850d8baff45a45f570848"
+    },
+    {
+      "source": "notes/plans/20261014160538-截图编辑器反馈轮一开发计划.md",
+      "sha256": "9039e073832f685fe639f3abdca7b021c3e79628f3dd71b04787ca414ae5f0c2",
+      "bytes": 15643,
+      "destination": "book/plans/20261014160538-截图编辑器反馈轮一开发计划.md",
+      "destination_sha256": "af28eb178ed0eb5e0fb36d5b25ece4e6d78956746e655ff6e9fbfac3ee22f173"
+    },
+    {
+      "source": "notes/plans/20261014165815-截图编辑器反馈轮二开发计划.md",
+      "sha256": "298ddf9e4fa80a81da109165cf36571d018284b65fe51c1ecf35e02c06533109",
+      "bytes": 9821,
+      "destination": "book/plans/20261014165815-截图编辑器反馈轮二开发计划.md",
+      "destination_sha256": "f268199cf029c796213da80822b35c07819a73481f0e58e5320d8157c70a3ded"
+    },
+    {
+      "source": "notes/plans/20261015025109-独立代理开发计划.md",
+      "sha256": "c3e14648dc61f6fb7567418d9231cf5414bd6415798d58861e1fd13abaa2a912",
+      "bytes": 33897,
+      "destination": "book/plans/20261015025109-独立代理开发计划.md",
+      "destination_sha256": "c40e43a728bd8ba3026161354748645b3b6dfe50b77dfbe968903f5c3a77ad68"
+    },
+    {
+      "source": "notes/plans/20261020171932-加载状态可视与会话菜单统一开发计划.md",
+      "sha256": "31545845f08ed0ee7cc477e41c0c2b5713c2b99bb902bea64a844c78dfb9b269",
+      "bytes": 14699,
+      "destination": "book/plans/20261020171932-加载状态可视与会话菜单统一开发计划.md",
+      "destination_sha256": "2541a0840cf949a68c8764291f5bbad3caa22427d1d4084225abba11fa19cf9e"
+    },
+    {
+      "source": "notes/plans/20261020184445-录屏输出MP4化开发计划.md",
+      "sha256": "419345a57d95ad29ed55e582fd506cfd4f3b2b84510218adf922dd9d67518bbc",
+      "bytes": 11580,
+      "destination": "book/plans/20261020184445-录屏输出MP4化开发计划.md",
+      "destination_sha256": "cc2cc378d21c050cf3962741721eb824fe9046abe51240b5fea0d9e000fcf850"
+    },
+    {
+      "source": "notes/plans/20261023135637-箭头圆头化与批量收起退役开发计划.md",
+      "sha256": "ee26fbcfe665f650f2e47eb4f6687969ddd93a0c7c8578b78f36a07c14301e51",
+      "bytes": 19691,
+      "destination": "book/plans/20261023135637-箭头圆头化与批量收起退役开发计划.md",
+      "destination_sha256": "a8585335d5fb8ec2e4cc6602e42f5c9e74971ef9c949a877adb37bb295e549f1"
+    },
+    {
+      "source": "notes/plans/20261027150209-工作区右键菜单原生化开发计划.md",
+      "sha256": "61d07c06ecb71a625b566c906ee31a661677aa363ade0df310633b8e57297d14",
+      "bytes": 14742,
+      "destination": "book/plans/20261027150209-工作区右键菜单原生化开发计划.md",
+      "destination_sha256": "d53517e32b0c43f075a15c05cd00a2dc59de34ba088e3c82c4c5725edadea015"
+    },
+    {
+      "source": "notes/plans/20261028112040-地址栏交互与Chrome站点数据导入开发计划.md",
+      "sha256": "91ccfaf78d997c675207235975b112a47fa7deeee6bec9dd73a8325ba6148191",
+      "bytes": 48488,
+      "destination": "book/plans/20261028112040-地址栏交互与Chrome站点数据导入开发计划.md",
+      "destination_sha256": "dd692179c780b539203c26b7f34fe73aa70215ea6a11e40c19e8a48b4f996082"
+    },
+    {
+      "source": "notes/plans/20261029191550-工具栏图标气泡与Tab融合开发计划.md",
+      "sha256": "1aedbe4ecba429b9e50717d0a5149753b99182f3932e010172ceabb08775deb2",
+      "bytes": 17469,
+      "destination": "book/plans/20261029191550-工具栏图标气泡与Tab融合开发计划.md",
+      "destination_sha256": "5a9604a8cfe8514ebcccf4d3e8e906fb2ed1d0004e24141bef9b251d1487f7f0"
+    },
+    {
+      "source": "notes/plans/20261030131247-Windows主窗去标题栏WCO开发计划.md",
+      "sha256": "697f0807263e92b629c911c60cb2c70bf78e02aaf03d0cf300d15bf7be1afeac",
+      "bytes": 15881,
+      "destination": "book/plans/20261030131247-Windows主窗去标题栏WCO开发计划.md",
+      "destination_sha256": "4a67a8efaf1c8e9844d07f75aa359eb822230399f4ff2ba4846dbc090cc47024"
+    },
+    {
+      "source": "notes/plans/20261030164534-无底图标与chrome区主题适配开发计划.md",
+      "sha256": "2e4420d6fcde7bb52a1206844febc5c8c952d02785341ad637d895b035511051",
+      "bytes": 21091,
+      "destination": "book/plans/20261030164534-无底图标与chrome区主题适配开发计划.md",
+      "destination_sha256": "e8f270e78dd4c213128bb1cbec4c3f4b7ab9073c746a6fdafa838368dd66e0af"
+    },
+    {
+      "source": "notes/plans/20261103231311-截图编辑多窗口修复开发计划.md",
+      "sha256": "53aaad6822d68eb2624112f7b3ced0d50ed2040bb13e56c94155ce4b1c81e37a",
+      "bytes": 14999,
+      "destination": "book/plans/20261103231311-截图编辑多窗口修复开发计划.md",
+      "destination_sha256": "bca77753378750128684f3ab36e099984a02dd1fb02afa2cccaf6e117f93ac5a"
+    },
+    {
+      "source": "notes/plans/20261106131016-独立窗口合并回主窗口开发计划.md",
+      "sha256": "5c886f40f2e1cfa8b4c790452a3b6c3fab8a96e84906399f04fa0446690dccc8",
+      "bytes": 5807,
+      "destination": "book/plans/20261106131016-独立窗口合并回主窗口开发计划.md",
+      "destination_sha256": "f5134f1cae5ce4125c95da780bbdef1088837d3c49eee3cbe940fbc4e9846b87"
+    },
+    {
+      "source": "notes/process.md",
+      "sha256": "90092b9fba4fd7b1ddfa00c7b60245fc185a007abe7baf5029624df005faba5c",
+      "bytes": 132713,
+      "destination": "book/notes/summary/2026-11/legacy-process.md",
+      "destination_sha256": "a547b3d19b680060bc2955803f05338ce1c78bb685a1df5f67521d2a09c64ebf"
+    },
+    {
+      "source": "notes/review-todo/20260910192721-阶段1会话持久化审查.md",
+      "sha256": "4fedfbaf226ea54ca33fb3fe5a2ca6cdefa8298cd43a4a0e0929730debf7991e",
+      "bytes": 13747,
+      "destination": "book/notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md",
+      "destination_sha256": "d7d467d395ede670f20f3607e481ccbe3b88a05729849d5e4f281868d79edef2"
+    },
+    {
+      "source": "notes/review-todo/20260911004439-阶段2浏览器内嵌.md",
+      "sha256": "af4da5f36376c517602e3d65c3071e64d13fb8cb9667aa5920f9e5b4e7c0ca18",
+      "bytes": 27171,
+      "destination": "book/notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md",
+      "destination_sha256": "dff1f1b9bda76e9625a7e43f89280b8665fe7cf16bcbf435a7418230842593b5"
+    },
+    {
+      "source": "notes/review-todo/20260911030459-阶段3开发者模式对接审查.md",
+      "sha256": "e534edc28d03775115fa8ebb9bb0e18e68c6c90830bbfdf9cc7a50be6130bf05",
+      "bytes": 26515,
+      "destination": "book/notes/issue/2026-09/20260911030459-阶段3开发者模式对接审查.md",
+      "destination_sha256": "47b56ae47dfebf4c1d81dafcc1c47bfc6b1cfa9df4f8a1bd8d0d4b2234242a54"
+    },
+    {
+      "source": "notes/review-todo/20260911180858-阶段2与3浏览器现状复审.md",
+      "sha256": "6779678a442101327b7f9c0c5d0d41ac251eeed478395263caebd5fbddae9905",
+      "bytes": 26170,
+      "destination": "book/notes/issue/2026-09/20260911180858-阶段2与3浏览器现状复审.md",
+      "destination_sha256": "a76e44d45c97cd97df181127b7aa0106164ebfca6b721b148cd05757e01aa78f"
+    },
+    {
+      "source": "notes/review-todo/20260911183419-修复轮复审.md",
+      "sha256": "7adfe4d8c364c9bd458cb37569b5c6dd6cd57fcb1a0b65b2079401fb777a3c3a",
+      "bytes": 6227,
+      "destination": "book/notes/issue/2026-09/20260911183419-修复轮复审.md",
+      "destination_sha256": "522cc1e280c85d421a66a451e7465014314f38c70ded301d7acce9e6955ace5d"
+    },
+    {
+      "source": "notes/review-todo/20260911184158-追加轮复审.md",
+      "sha256": "95bbbf5c690008e8e040b201d6725d9153b1ee314f1f41867d718606614fd829",
+      "bytes": 4160,
+      "destination": "book/notes/issue/2026-09/20260911184158-追加轮复审.md",
+      "destination_sha256": "181800c637929ebb342dfd4a1603a12a4bc893bcf618df4a22cf84189d8a49f6"
+    },
+    {
+      "source": "notes/review-todo/20260912004007-阶段4多会话浏览器绑定审查.md",
+      "sha256": "e8a89b5c55ff138a51e2d0c77ae21dca1d0db834c92e87d928eb00dd554c9ce5",
+      "bytes": 27273,
+      "destination": "book/notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md",
+      "destination_sha256": "c2387c90b3f20e49e29e51559d1273238af541bb6d40161d1fd590b024f5a80e"
+    },
+    {
+      "source": "notes/review-todo/20260912012042-阶段4修复轮复审.md",
+      "sha256": "502e10e95f0249d8c8a415b4e447ae606ab50f867cc76d2e3b18b503ba5aa126",
+      "bytes": 21576,
+      "destination": "book/notes/issue/2026-09/20260912012042-阶段4修复轮复审.md",
+      "destination_sha256": "5379f385780292858e72427971fdb96ee45f156adb2615d0d47dbd4c2c92866d"
+    },
+    {
+      "source": "notes/review-todo/20260912021122-阶段5会话克隆与批量操作审查.md",
+      "sha256": "81fa3e358852d6cb0d8fe047c57d0ae00971440d85bcf38e564dbebddf131a53",
+      "bytes": 36375,
+      "destination": "book/notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md",
+      "destination_sha256": "f0a296640d465ff6d8badca09d71848f9046e06d846fd3b767c525a390003fe4"
+    },
+    {
+      "source": "notes/review-todo/20260912030030-阶段5修复轮复审.md",
+      "sha256": "c7490fdf67383d3ed9fc676463d629032e7a9d05566a527a78c15d9cb41709bb",
+      "bytes": 31373,
+      "destination": "book/notes/issue/2026-09/20260912030030-阶段5修复轮复审.md",
+      "destination_sha256": "3d567da032c3fd74b80e8af9c5c3371697b12b92c7b82d2dcad281681a7d44d0"
+    },
+    {
+      "source": "notes/review-todo/20260912163522-应用外观三模式专项审查.md",
+      "sha256": "dd2582069feaa489ba4acb7c12e7c1b99ca53c049447aa6062d458a83238beda",
+      "bytes": 9375,
+      "destination": "book/notes/issue/2026-09/20260912163522-应用外观三模式专项审查.md",
+      "destination_sha256": "74655c3ca4ad92a36e9d0de2b7d9ace4f2cab77da06a4a5e1581b572aa245ef2"
+    },
+    {
+      "source": "notes/review-todo/20260912174146-外观入口响应式双形态.md",
+      "sha256": "bf30018550e09a34c5dfa62951a1480838bbae120e2741a5643b08b44cbcb39c",
+      "bytes": 10747,
+      "destination": "book/notes/issue/2026-09/20260912174146-外观入口响应式双形态.md",
+      "destination_sha256": "fff585c284e1b9e538be473e230f420141830b5e39340cf35753469ece682d2a"
+    },
+    {
+      "source": "notes/review-todo/20260912175142-外观入口修复轮复审.md",
+      "sha256": "61bdc391d99b0fc0644bce4f33518732bad32ff3dfef193798864d1e9582d8c8",
+      "bytes": 4442,
+      "destination": "book/notes/issue/2026-09/20260912175142-外观入口修复轮复审.md",
+      "destination_sha256": "a52f37044789c6cd3901caa7799647de3bc9c6fb365037f79445cdc9ab7ba558"
+    },
+    {
+      "source": "notes/review-todo/20260912204735-阶段6Tab列表落盘与恢复.md",
+      "sha256": "556f7727e322b992251cdcccb1409b791878e3dbd07031b938a570b26f92d9a7",
+      "bytes": 11046,
+      "destination": "book/notes/issue/2026-09/20260912204735-阶段6Tab列表落盘与恢复.md",
+      "destination_sha256": "be54293260326f9308c1fb9ceeec854b42709d6c150efacf4ce8edf559133f34"
+    },
+    {
+      "source": "notes/review-todo/20260912210815-阶段6修复轮复审.md",
+      "sha256": "2d9145c6fc981949fb8bb50c3afe0200dcf9f87217b7f6c579b723e01c05aa02",
+      "bytes": 3979,
+      "destination": "book/notes/issue/2026-09/20260912210815-阶段6修复轮复审.md",
+      "destination_sha256": "f58ea0d8e02498a39e840d97853d8ea02df88f06eb35cd93512a143c8a7cf719"
+    },
+    {
+      "source": "notes/review-todo/20260912234627-阶段7-8合并独立窗口审查.md",
+      "sha256": "6becd151302ea55652d18d1d7dded709dfef64a63f0a0d3f114df11bc2017516",
+      "bytes": 6200,
+      "destination": "book/notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md",
+      "destination_sha256": "def363b563fc2342121374688f55a22a40eb247c9248a29ee385e09305d8b844"
+    },
+    {
+      "source": "notes/review-todo/20260913040640-阶段9拖拽手势审查.md",
+      "sha256": "d232a0a1f936d218b4eef948f10dbd610277ed2edc8549fccd82155c28d4d212",
+      "bytes": 5886,
+      "destination": "book/notes/issue/2026-09/20260913040640-阶段9拖拽手势审查.md",
+      "destination_sha256": "c63c8dc59db6492afb11857e0c691d07c06d06fb622b62a0cfd6d58dc81a2180"
+    },
+    {
+      "source": "notes/review-todo/20260913191442-阶段9提交后复审.md",
+      "sha256": "aa72bfbd401a3385d55a63c156d8a1a74bf1c103dddf2a16fea6aad14c4ed25a",
+      "bytes": 7206,
+      "destination": "book/notes/issue/2026-09/20260913191442-阶段9提交后复审.md",
+      "destination_sha256": "34666acce82037b8ae92cae7b809d64132c3b1a3df9c2f8d20de0b8118247e2e"
+    },
+    {
+      "source": "notes/review-todo/20260913213135-阶段10跨窗口转移与生命周期收尾审查.md",
+      "sha256": "b999a71f1887ebbe9d42263a93527d09dd32e8498b367ed6b5529623c565ff81",
+      "bytes": 6050,
+      "destination": "book/notes/issue/2026-09/20260913213135-阶段10跨窗口转移与生命周期收尾审查.md",
+      "destination_sha256": "8045098868aef8473d796efc0b1c0a4369c2ab25139f16adb564104069688edb"
+    },
+    {
+      "source": "notes/review-todo/20260914002534-阶段10用户验收反馈修复轮审查.md",
+      "sha256": "f60dc596fb11cc3c05d1a90a57079948de59eb80fd94406bb65fd7ea4c6fa050",
+      "bytes": 6415,
+      "destination": "book/notes/issue/2026-09/20260914002534-阶段10用户验收反馈修复轮审查.md",
+      "destination_sha256": "68532988b328d8384c2d6cfa0fb9df508cfc228a71525553495fa47e40ca311e"
+    },
+    {
+      "source": "notes/review-todo/20260914145120-地址栏历史补全专项审查.md",
+      "sha256": "8aebb801ee3a544b95dd8e575bcd9518458ad89c12bc545775a81df332db7b82",
+      "bytes": 13733,
+      "destination": "book/notes/issue/2026-09/20260914145120-地址栏历史补全专项审查.md",
+      "destination_sha256": "2f45ef61eba2c037bc793df71e38690fdd62075ad544f1a9481086cb4e57c95c"
+    },
+    {
+      "source": "notes/review-todo/20260914154838-批量关闭选中会话审查.md",
+      "sha256": "5d53d421c6d068d2cda1db7397c0e8630a6a60df42923d6bff8c9ef77cb73cea",
+      "bytes": 11768,
+      "destination": "book/notes/issue/2026-09/20260914154838-批量关闭选中会话审查.md",
+      "destination_sha256": "c836c817e7de2d4246f4ecadd3ad92103e8fb29c5d6c564da53ce49dbc28ee00"
+    },
+    {
+      "source": "notes/review-todo/20260914183246-会话网页内查找专项审查.md",
+      "sha256": "34fbdb4eb945ff157ea0b3fbf199df00effb3abf28893339375872e32a55f3b0",
+      "bytes": 14608,
+      "destination": "book/notes/issue/2026-09/20260914183246-会话网页内查找专项审查.md",
+      "destination_sha256": "c2ee58e2bd65ca0da2b4a288d07ac143b7a9b7d77dcea8ac2bfd48cf8ab2627e"
+    },
+    {
+      "source": "notes/review-todo/20260914234125-会话列表拖拽排序专项审查.md",
+      "sha256": "a55bbdfb6787f2a5b66ef87adde04bab8d555e8ca64226c48430b52d40402e54",
+      "bytes": 13422,
+      "destination": "book/notes/issue/2026-09/20260914234125-会话列表拖拽排序专项审查.md",
+      "destination_sha256": "7e7912c634435d73daddd3c380d786d2cb2996230901065b684a89aefa0621fd"
+    },
+    {
+      "source": "notes/review-todo/20260915163844-工作区下拉切换专项审查.md",
+      "sha256": "d7f561b463de90535eb31691d4d01aca1d0684ee30d21eaff5a4d4c5b617463b",
+      "bytes": 15315,
+      "destination": "book/notes/issue/2026-09/20260915163844-工作区下拉切换专项审查.md",
+      "destination_sha256": "df9aeaaa260e61bc83a0d4d157cb270f667ab93290cbaec99ee6cee62eb29c74"
+    },
+    {
+      "source": "notes/review-todo/20260916002635-地址栏建议原生子窗口化专项审查.md",
+      "sha256": "1c8b52ede339ac8a0c009e83236e17fb25b23beafcbd432d43af2a4f5230ce63",
+      "bytes": 13578,
+      "destination": "book/notes/issue/2026-09/20260916002635-地址栏建议原生子窗口化专项审查.md",
+      "destination_sha256": "e075dbb3c238cd018123206f6f3dbbaaa7ffad4bcb86be4590ea6922aad6cdb6"
+    },
+    {
+      "source": "notes/review-todo/20260916004918-地址栏建议原生子窗口化修复轮复审.md",
+      "sha256": "9868a0120987c307f4ef8bd7dd7ca6a5915c40abc7424d850e6af19df4970a14",
+      "bytes": 5164,
+      "destination": "book/notes/issue/2026-09/20260916004918-地址栏建议原生子窗口化修复轮复审.md",
+      "destination_sha256": "2e23e45968ad769ff24c748b732ff0e2ee43f64111e0e94953f555bdaade9aab"
+    },
+    {
+      "source": "notes/review-todo/20260916161401-Logo亮色版提交前审查.md",
+      "sha256": "401ea01d6e551afc4f7d978702ec5fc51a69400d0be8580c629a311a599cfc14",
+      "bytes": 1954,
+      "destination": "book/notes/issue/2026-09/20260916161401-Logo亮色版提交前审查.md",
+      "destination_sha256": "45537be5da23e580b19c316fcb7d849bf78fa664500b840a1ae7465a55061f43"
+    },
+    {
+      "source": "notes/review-todo/20260916221009-设置专项阶段一审查.md",
+      "sha256": "cd64ef5addb0b9d8770814daf41e45687dd9edd9ac9fcac13d34f2e9edcfd2df",
+      "bytes": 7641,
+      "destination": "book/notes/issue/2026-09/20260916221009-设置专项阶段一审查.md",
+      "destination_sha256": "cf89a5430242473513905c61b49140be2d065c7c65406421f8eec8a30dddf15d"
+    },
+    {
+      "source": "notes/review-todo/20260917002230-设置专项阶段二审查.md",
+      "sha256": "9e00b9f4a9bc85700b553ed63c8dc9f130a2334e9f0426adfbefb732751a4d6a",
+      "bytes": 5035,
+      "destination": "book/notes/issue/2026-09/20260917002230-设置专项阶段二审查.md",
+      "destination_sha256": "8a105bfa3d347747336ab226c9cee3ba84e3c47288d64fd6df3a01a04eb6cdda"
+    },
+    {
+      "source": "notes/review-todo/20260917014300-设置窗重构侧栏双栏审查.md",
+      "sha256": "65a360b097c6c1cbe84a090e181f9c8566ed139d99c9dfefab6a3483bb4d35fa",
+      "bytes": 4135,
+      "destination": "book/notes/issue/2026-09/20260917014300-设置窗重构侧栏双栏审查.md",
+      "destination_sha256": "92f24d49080d17527298aed70330794c38d3a3e7cb8a2e0e5a971282a94238f2"
+    },
+    {
+      "source": "notes/review-todo/20260917020053-设置专项全量未提交变更审查.md",
+      "sha256": "b16ea8c2e144e137b485bece4af82f8d8c4d94a046439ad83ddb2a58e491adc8",
+      "bytes": 7436,
+      "destination": "book/notes/issue/2026-09/20260917020053-设置专项全量未提交变更审查.md",
+      "destination_sha256": "2239e7fb77d566922b78aed66e4513b7b8b956696d91e90d6796fe8609df8d72"
+    },
+    {
+      "source": "notes/review-todo/20260917030602-设置阶段三四外观关于主页URL审查.md",
+      "sha256": "39abf2eb512fe3b37dc956501d6a511f6d1738c781ba66d3d1c6de6098f74523",
+      "bytes": 10763,
+      "destination": "book/notes/issue/2026-09/20260917030602-设置阶段三四外观关于主页URL审查.md",
+      "destination_sha256": "795e7c8645d87ebb447a5d5630f33528f4f98629f80fac21c6c394ee5d3d3bc4"
+    },
+    {
+      "source": "notes/review-todo/20260917110900-新建标签页打开主页审查.md",
+      "sha256": "d65d3dd199c5eccfae248fad9ee2194efadec1d9d615f88c274cd6674890ffc8",
+      "bytes": 6307,
+      "destination": "book/notes/issue/2026-09/20260917110900-新建标签页打开主页审查.md",
+      "destination_sha256": "5995cddc9b9d5e4901478df0dead946601a9769e04c4d65774759ab60bc96234"
+    },
+    {
+      "source": "notes/review-todo/20260917111234-全量未提交变更复审.md",
+      "sha256": "292380ed9ae20b886d5030f78206ba9c07fb67d4fa47ad0a79da2cdd2cdd6c9d",
+      "bytes": 7617,
+      "destination": "book/notes/issue/2026-09/20260917111234-全量未提交变更复审.md",
+      "destination_sha256": "1c3d4107fd4fd2984a9394a0ecc54dccd9bbd40f56b300152e47f36267eafca5"
+    },
+    {
+      "source": "notes/review-todo/20260917112755-审查遗留修复轮复审.md",
+      "sha256": "ddbe0f6a14fd9a8fb25b94099cebcc7e47b2f22738ca446b5ecdce9fbbdc5dfd",
+      "bytes": 4015,
+      "destination": "book/notes/issue/2026-09/20260917112755-审查遗留修复轮复审.md",
+      "destination_sha256": "a97a707d9e7b40787c00c74fb97985b1e3ef416047a9678dde61c4e4b523c950"
+    },
+    {
+      "source": "notes/review-todo/20260917145527-主题色token化与色板点亮审查.md",
+      "sha256": "e7a40abdc08071b739acd4e0e4ea4a23eee024c76f8e8680c915bce5229368c8",
+      "bytes": 24527,
+      "destination": "book/notes/issue/2026-09/20260917145527-主题色token化与色板点亮审查.md",
+      "destination_sha256": "6811eeef8799cc15fbc1ce31e0338c1ca5dc447cbaddcf8ba224576f846ae7ae"
+    },
+    {
+      "source": "notes/review-todo/20260917164040-批量移动会话到工作区审查.md",
+      "sha256": "a1fc2ddbe5e71e1dceba9b4d2783b7b70d26463d44a41b33ba33101b607228f7",
+      "bytes": 21611,
+      "destination": "book/notes/issue/2026-09/20260917164040-批量移动会话到工作区审查.md",
+      "destination_sha256": "fcee56b409f1778d88674362056bb1ba5b4c75184f053c44d74ca93607edcc9f"
+    },
+    {
+      "source": "notes/review-todo/20260917214011-设置阶段六i18n审查.md",
+      "sha256": "f69b357669fa7e662b78c021df97309bed7d253a24f567b41d8ee4adfa935f63",
+      "bytes": 7175,
+      "destination": "book/notes/issue/2026-09/20260917214011-设置阶段六i18n审查.md",
+      "destination_sha256": "0f0a312f84b36c7c880759151e971eb64b5913cea917d741c3c468b25be038dc"
+    },
+    {
+      "source": "notes/review-todo/20260917234736-设置阶段六i18n修复轮复审.md",
+      "sha256": "286f9c1d870493c2d79e098df2d26b960cbc0e3b2bbb0f2843d7921c46f93952",
+      "bytes": 2903,
+      "destination": "book/notes/issue/2026-09/20260917234736-设置阶段六i18n修复轮复审.md",
+      "destination_sha256": "f2dc8bcaa888507e429be007a09e2be6e6f8f992b623501f0391b1d1665aa3a9"
+    },
+    {
+      "source": "notes/review-todo/20260918021744-设置阶段七恢复出厂审查.md",
+      "sha256": "74931e051ad35912620b13243e88890ce8ffbc2a689eb1ec43f1d35a84621f32",
+      "bytes": 9626,
+      "destination": "book/notes/issue/2026-09/20260918021744-设置阶段七恢复出厂审查.md",
+      "destination_sha256": "9f3838730f32c92850fc13c860fe5a67152e9c2b9906ac18f9eea56f36e7de15"
+    },
+    {
+      "source": "notes/review-todo/20260918022233-设置阶段七修复轮复审.md",
+      "sha256": "a9135860f2d738c52119218bb770a7e066c1a8755385fe8938616b3ff5533c87",
+      "bytes": 2427,
+      "destination": "book/notes/issue/2026-09/20260918022233-设置阶段七修复轮复审.md",
+      "destination_sha256": "042baa5e2675fb6c36d5e2003123e3b013fb8565f3f36f388cf74aa32c3b6afe"
+    },
+    {
+      "source": "notes/review-todo/20260918022808-设置阶段七独立复查.md",
+      "sha256": "85b77ea36e775828097d4dcc9dbed83a709fdf01b23a758cb98bb0ca9af7c0e1",
+      "bytes": 5863,
+      "destination": "book/notes/issue/2026-09/20260918022808-设置阶段七独立复查.md",
+      "destination_sha256": "b2ab1e4a6e0c992be6124238192e4443a9403d6306bf39b8a68d3870f7b38a2f"
+    },
+    {
+      "source": "notes/review-todo/20260918125417-视频全屏功能审查.md",
+      "sha256": "ab326c8162623edd85cbc9e2df66ad96565d93302744e278f2d4920542e62d96",
+      "bytes": 14166,
+      "destination": "book/notes/issue/2026-09/20260918125417-视频全屏功能审查.md",
+      "destination_sha256": "c5b09207aa36d45ef439c8a9be92caf3d238520a83cd7af4d68b7590c336bc62"
+    },
+    {
+      "source": "notes/review-todo/20260918144549-tab栏重排与分隔线审查.md",
+      "sha256": "b83862077f7f74d2e922ce34313e4c0a5533000bafd77ff7203a3f4f34b69ce7",
+      "bytes": 11610,
+      "destination": "book/notes/issue/2026-09/20260918144549-tab栏重排与分隔线审查.md",
+      "destination_sha256": "a6547dfb1951832da3008498d74efe441c19ce6b3de5062cddce73da2f18da86"
+    },
+    {
+      "source": "notes/review-todo/20260918172011-会话备注编辑专项审查.md",
+      "sha256": "d0593caf6d2ff76eeb112549c526aa23661ce6d7afb1bc682d5c3ddbae9ef696",
+      "bytes": 10294,
+      "destination": "book/notes/issue/2026-09/20260918172011-会话备注编辑专项审查.md",
+      "destination_sha256": "88717dc3b4db129ad1b48d421fb91eb950dd0da633a56c3380395c032e5285c5"
+    },
+    {
+      "source": "notes/review-todo/20260918173729-会话备注编辑修复轮复审.md",
+      "sha256": "d5a639994d71a4b0e5fbd2016f0318a1a7ff86dcaa6fb82b62fc78f98a562627",
+      "bytes": 4552,
+      "destination": "book/notes/issue/2026-09/20260918173729-会话备注编辑修复轮复审.md",
+      "destination_sha256": "7c9aacb659ca4a16da489b386ffc76c1c850b19bcd4c30f26e46cb8858927e05"
+    },
+    {
+      "source": "notes/review-todo/20260918185807-删除会话原生确认框审查.md",
+      "sha256": "26b72352521b7247ba9f427b7f06765ad0f7aa4967adb4d3fa087b946f31376e",
+      "bytes": 8802,
+      "destination": "book/notes/issue/2026-09/20260918185807-删除会话原生确认框审查.md",
+      "destination_sha256": "99b61af897d5497d5f5f4b8ec2a75506e0726755db69da4d1e76a401e75d31c4"
+    },
+    {
+      "source": "notes/review-todo/20260920161302-原生三灯与计数砖审查.md",
+      "sha256": "ab6f13f271701c551a2fe68e7d30d63d518a0f88ec7d6cb090ff551b24be76db",
+      "bytes": 9601,
+      "destination": "book/notes/issue/2026-09/20260920161302-原生三灯与计数砖审查.md",
+      "destination_sha256": "77f49a94c7cd72e2949a2aa3bdcf0dab964a35fe257166d9261f375c1cdad10d"
+    },
+    {
+      "source": "notes/review-todo/20260920174731-tab图标CSP与导航失败日志审查.md",
+      "sha256": "f163ea8da5cda68c7a139a01dbc9452d615844fac732814c4c42e7708e4b2395",
+      "bytes": 10643,
+      "destination": "book/notes/issue/2026-09/20260920174731-tab图标CSP与导航失败日志审查.md",
+      "destination_sha256": "dc3ca890e3e41f5d0d205f249a2df45a978593f2dcb004e4855d1292f7fd4105"
+    },
+    {
+      "source": "notes/review-todo/20260921153108-工作区体验双升级审查.md",
+      "sha256": "601e6f475429252e9cba2a99c05f3f1f083a6f01bb9249605b9e64f8285b9162",
+      "bytes": 11293,
+      "destination": "book/notes/issue/2026-09/20260921153108-工作区体验双升级审查.md",
+      "destination_sha256": "70bd317197341f3502bd7805c951b8387d661dc9fe0a73313374a27c264be3a3"
+    },
+    {
+      "source": "notes/review-todo/20260921154524-工作区体验双升级修复轮复审.md",
+      "sha256": "17bc0e704da8263e31e9bf9087eacf548e59d88725c4ab1fd703c981539a35b6",
+      "bytes": 3262,
+      "destination": "book/notes/issue/2026-09/20260921154524-工作区体验双升级修复轮复审.md",
+      "destination_sha256": "013f18e484e1b642baffeb7cc41a4e298fe3eb9d443fe26383d40cceac199105"
+    },
+    {
+      "source": "notes/review-todo/20260921181154-工作区菜单与重命名原生化审查.md",
+      "sha256": "48aec0a367c4720666ca40da9f52581c0083ec0e2a8d4d087db07e845a3af7b6",
+      "bytes": 12256,
+      "destination": "book/notes/issue/2026-09/20260921181154-工作区菜单与重命名原生化审查.md",
+      "destination_sha256": "22120d9be4eb938256ee8d32cd90dd5ca0339f7f3c1d98548ab2cb7612e35773"
+    },
+    {
+      "source": "notes/review-todo/20260922105714-工作区菜单修复轮复审.md",
+      "sha256": "401e2d44dd5a3d5947a993f670aca2edae1c450fae0ed191affff4cd041ee320",
+      "bytes": 5685,
+      "destination": "book/notes/issue/2026-09/20260922105714-工作区菜单修复轮复审.md",
+      "destination_sha256": "73b12c37f40936f3feb1f3cf95239a6bc26093fed8ecdd1bb8b4c52a44ce5629"
+    },
+    {
+      "source": "notes/review-todo/20260924231417-删除工作区会话处置弹窗审查.md",
+      "sha256": "6c8d47223faded2ac86704797aafa4dd2ad985dfe4b3ef6645b3bcb30375b64e",
+      "bytes": 10792,
+      "destination": "book/notes/issue/2026-09/20260924231417-删除工作区会话处置弹窗审查.md",
+      "destination_sha256": "e82b156c8550aba55b5d8cfc7841f0a7f267499a9b13cde6abf1fcdfab5db060"
+    },
+    {
+      "source": "notes/review-todo/20260925000009-删除工作区会话处置弹窗修复轮复审.md",
+      "sha256": "b6a76bac01ac3853204619da44d3884fb2740bac8f70def31d8de63cf91cc18e",
+      "bytes": 2012,
+      "destination": "book/notes/issue/2026-09/20260925000009-删除工作区会话处置弹窗修复轮复审.md",
+      "destination_sha256": "5560dbf994a1bafe3d45f8e784133d7d16db606b93068518ade97abdbd1e1b53"
+    },
+    {
+      "source": "notes/review-todo/20260925011602-浏览器区兜底底色随主题审查.md",
+      "sha256": "786d1c8f37dbe27e5bdaf849f3964f8b8d6f3973e1a1f7fe3cc30d2de4b947e6",
+      "bytes": 7752,
+      "destination": "book/notes/issue/2026-09/20260925011602-浏览器区兜底底色随主题审查.md",
+      "destination_sha256": "6665bc35145cd946f13007ca676bfa692d9b3f789aca3d5b8b9d9cd594765b5b"
+    },
+    {
+      "source": "notes/review-todo/20260925091124-拖出裁决阈值修订审查.md",
+      "sha256": "45890493fa8470fc2ab03d5bacbca1efdace77f086b2fb5d18771b89e15408a0",
+      "bytes": 10417,
+      "destination": "book/notes/issue/2026-09/20260925091124-拖出裁决阈值修订审查.md",
+      "destination_sha256": "e54c73374dec59a84bdae61cc0aeaba83c26a82efbe37cbe6bbcf5aba22045a6"
+    },
+    {
+      "source": "notes/review-todo/20260928165442-侧边栏收起态.md",
+      "sha256": "2503ac6491794fe0ecd9092c841ad8d212613ab95f799bf4ec3a191ba639be63",
+      "bytes": 11472,
+      "destination": "book/notes/issue/2026-09/20260928165442-侧边栏收起态.md",
+      "destination_sha256": "921594fe2451f12824eaae41e9042a4597ae4829c9740e1962c6279edbf8d7d6"
+    },
+    {
+      "source": "notes/review-todo/20260928171634-侧边栏收起态修复轮.md",
+      "sha256": "cf93b9413a48c62c1306a5b297337cf6ce794d26ceafd7c40a9d3c942fa0977c",
+      "bytes": 5034,
+      "destination": "book/notes/issue/2026-09/20260928171634-侧边栏收起态修复轮.md",
+      "destination_sha256": "ac2b658727c9af65b4c67451f0ebeefceb811b641ea9e62e71a2d396713b742e"
+    },
+    {
+      "source": "notes/review-todo/20260930171825-导入Chrome浏览数据.md",
+      "sha256": "eda9ca705100c111a139b5925277c97449b8c9f811d6202366786d1153804dd3",
+      "bytes": 10435,
+      "destination": "book/notes/issue/2026-09/20260930171825-导入Chrome浏览数据.md",
+      "destination_sha256": "7662739aed38b384529cc895d24f77bbe5d02b5ca77d0e1fb85f31310ac9bb47"
+    },
+    {
+      "source": "notes/review-todo/20261010021349-快速截图专项.md",
+      "sha256": "df0baba10120f72436e7d12fb4b48fc72ec2650fcc173f6f818c301ebb39deb1",
+      "bytes": 10817,
+      "destination": "book/notes/issue/2026-10/20261010021349-快速截图专项.md",
+      "destination_sha256": "853fe21237a3ac5a68ea252bd455cf5bc35ce65aec2af6725964470d135763df"
+    },
+    {
+      "source": "notes/review-todo/20261010025227-录屏功能与破版修复轮.md",
+      "sha256": "124b415a1390965ecd7f37958df0fb0bcb8bac67ea12f25081cf81dd72adb29e",
+      "bytes": 10101,
+      "destination": "book/notes/issue/2026-10/20261010025227-录屏功能与破版修复轮.md",
+      "destination_sha256": "34f2f8b43fcf66bd805a13f430e01122febef9b6e590d77519da09153115b57f"
+    },
+    {
+      "source": "notes/review-todo/20261010025924-快速截图反馈轮与修复轮.md",
+      "sha256": "3d815590c562334e6b78dbbec6266b05ed98c791876e568f03689b9f7e7f0d38",
+      "bytes": 8440,
+      "destination": "book/notes/issue/2026-10/20261010025924-快速截图反馈轮与修复轮.md",
+      "destination_sha256": "07d73a0e36acc8c4f8db8f3c6bc908a7ecac32b91924f2ecbd13e212b6c6e5f3"
+    },
+    {
+      "source": "notes/review-todo/20261010031047-录屏修复轮二审.md",
+      "sha256": "0250dfa9a792a40c5ea035338a8785a24e312a9063cfa9a918b9882e8bd39a47",
+      "bytes": 21699,
+      "destination": "book/notes/issue/2026-10/20261010031047-录屏修复轮二审.md",
+      "destination_sha256": "d6e453ea2a9023f89612dd29a5738df6836f000fbbe964f680b606f19c3b2860"
+    },
+    {
+      "source": "notes/review-todo/20261010114807-顶部Tab关闭钮右移微调.md",
+      "sha256": "4242818b13a12745167af50071aefe276079970ce555dc62ecdfc65d4faf82b6",
+      "bytes": 4324,
+      "destination": "book/notes/issue/2026-10/20261010114807-顶部Tab关闭钮右移微调.md",
+      "destination_sha256": "afd6425138a6d79c230ffdcb3e4dc9b84d72b0a3670c94cb00b940672a469f76"
+    },
+    {
+      "source": "notes/review-todo/20261010120305-两线合并融合.md",
+      "sha256": "cf2a52c347242aeca7de367198eef20eaf34e41405108e1731b607a4abf26942",
+      "bytes": 15904,
+      "destination": "book/notes/issue/2026-10/20261010120305-两线合并融合.md",
+      "destination_sha256": "71c30fefd1e483c86372a5790957552024af9d04a94b420a97e80ab82dc8bd0d"
+    },
+    {
+      "source": "notes/review-todo/20261010121354-两线合并修复轮复审.md",
+      "sha256": "2ca29d240f4bb45961ec2f8bb90a539cb9225ad2a6f87c2277e5853316b9e0f5",
+      "bytes": 5742,
+      "destination": "book/notes/issue/2026-10/20261010121354-两线合并修复轮复审.md",
+      "destination_sha256": "cc07e5cf4167a4fcf6ca3da4fd09f64f24bc2605b70055be07fd1769ae80e75a"
+    },
+    {
+      "source": "notes/review-todo/20261010123807-修复轮二复审.md",
+      "sha256": "ba073b7dda3dffbc5de5c18cc24504ac8616f4017ceb58a3e61e9964a4e2c619",
+      "bytes": 6169,
+      "destination": "book/notes/issue/2026-10/20261010123807-修复轮二复审.md",
+      "destination_sha256": "d16b48ef8291ed970b9b27bf2e66dc9750c584c4f2c8df3970b295eea3ec5521"
+    },
+    {
+      "source": "notes/review-todo/20261014105226-反馈条关闭钮.md",
+      "sha256": "d4fc4fe88b84acc1ab924e8c84f40974c9eb8a74b9db0c8c749855418b1f0b8a",
+      "bytes": 10236,
+      "destination": "book/notes/issue/2026-10/20261014105226-反馈条关闭钮.md",
+      "destination_sha256": "777969fbd466f0de8308d0c96e7a08a627504e3f5f25b92c0d1a5865c1109da6"
+    },
+    {
+      "source": "notes/review-todo/20261014154750-截图编辑器.md",
+      "sha256": "ec8a64a4dca7b6c1988e7bc0a741f8925c936c0d750b9111d03186810ba4b145",
+      "bytes": 8178,
+      "destination": "book/notes/issue/2026-10/20261014154750-截图编辑器.md",
+      "destination_sha256": "ab86a66b4033616f4bbf809b3c272a6a338242b5dfc380834711ba4cfbdadaf9"
+    },
+    {
+      "source": "notes/review-todo/20261014175820-截图编辑器三轮实现.md",
+      "sha256": "fb8c1af172aa3d1ee0e09d36503c7b4c4aa9dea534fa0727e38bcd6a2225a475",
+      "bytes": 8837,
+      "destination": "book/notes/issue/2026-10/20261014175820-截图编辑器三轮实现.md",
+      "destination_sha256": "2dc1ff2a65e8517c67f065bdbe7865af7c1625b41ca4a1e461162bca53053e04"
+    },
+    {
+      "source": "notes/review-todo/20261014183748-首击缺陷两轮修复.md",
+      "sha256": "774f0391f23c59360076489f8afaaa22bd7c29cece9b141a867444acffcfc517",
+      "bytes": 6229,
+      "destination": "book/notes/issue/2026-10/20261014183748-首击缺陷两轮修复.md",
+      "destination_sha256": "0f3f31612c9e558cd3f4841f3810f6b75e0fee547781b0ea4e301907a577e7e7"
+    },
+    {
+      "source": "notes/review-todo/20261015033335-独立代理专项审查.md",
+      "sha256": "9c8a4834e24271beeddc0091d9b7f3f747965e211336148aa2b82624320e9820",
+      "bytes": 21406,
+      "destination": "book/notes/issue/2026-10/20261015033335-独立代理专项审查.md",
+      "destination_sha256": "9ea1ed135ed9595cb876d876443a9f57d2675ad47911ea2683f8d5d9f1172509"
+    },
+    {
+      "source": "notes/review-todo/20261015163503-独立代理反馈轮与原生菜单迁移.md",
+      "sha256": "c7d6ab3fac1351f49c0653cd4753d3c3e8a157d92a0a1e58389bc5bbca5261da",
+      "bytes": 12777,
+      "destination": "book/notes/issue/2026-10/20261015163503-独立代理反馈轮与原生菜单迁移.md",
+      "destination_sha256": "06220f2e45fc6f765d61324d6022256f30b8382c8b1c328c5341be36b070dc7e"
+    },
+    {
+      "source": "notes/review-todo/20261020182345-加载状态可视与会话菜单统一专项.md",
+      "sha256": "e85ee30a5eeb3931b9cc3b05ad73a7efada42188ddca487a6a878da0e80dd970",
+      "bytes": 9344,
+      "destination": "book/notes/issue/2026-10/20261020182345-加载状态可视与会话菜单统一专项.md",
+      "destination_sha256": "12e4e0d1afa54d2608d5781cfe1defbfad3c78db0ba94b49fc0e043c2145dc70"
+    },
+    {
+      "source": "notes/review-todo/20261020183123-加载状态与会话菜单统一修复轮复审.md",
+      "sha256": "0e1edf648f840bc8cc0ff5240ff83a147f6a4059d641056ac790db8cd278cbdd",
+      "bytes": 3045,
+      "destination": "book/notes/issue/2026-10/20261020183123-加载状态与会话菜单统一修复轮复审.md",
+      "destination_sha256": "72dda0238e4cfbe1c2bc69b8670e4e836584ee2171247fe87676c693e48c3d09"
+    },
+    {
+      "source": "notes/review-todo/20261021123907-录屏MP4化专项.md",
+      "sha256": "eb14d1e8fc257373a819f39f33745db382c1955241df0b4ea99229f476fc8855",
+      "bytes": 12755,
+      "destination": "book/notes/issue/2026-10/20261021123907-录屏MP4化专项.md",
+      "destination_sha256": "44c014dcb766c6e23f8c47d065c3363817397d6fec1d1b58c4b9d273aa4b7d69"
+    },
+    {
+      "source": "notes/review-todo/20261021131913-录屏MP4化修复轮复审.md",
+      "sha256": "5733e966d260888ae03fcbdde9a56b42b08de7aabe0d8bc50b64340c73454cc7",
+      "bytes": 3725,
+      "destination": "book/notes/issue/2026-10/20261021131913-录屏MP4化修复轮复审.md",
+      "destination_sha256": "64a278a9ade0a4c6b2cec025792d9baa57beab1a657890f0a4ab2267069a3f58"
+    },
+    {
+      "source": "notes/review-todo/20261022135649-macOS内网权限打包修复.md",
+      "sha256": "18a9bf85668c1e881e3129203278fa80a7cdb39fc1c6edce009297046aa8b6a0",
+      "bytes": 3201,
+      "destination": "book/notes/issue/2026-10/20261022135649-macOS内网权限打包修复.md",
+      "destination_sha256": "00728355bdf93ff5d438b054e19eafbede1c471f51b0d5283c34ba51164e1c53"
+    },
+    {
+      "source": "notes/review-todo/20261023145932-箭头圆头化与批量收起退役.md",
+      "sha256": "3027ed79064e79999f55c2216e39c9d4de6e8b05b675705139b9a5a02de3b0e0",
+      "bytes": 8941,
+      "destination": "book/notes/issue/2026-10/20261023145932-箭头圆头化与批量收起退役.md",
+      "destination_sha256": "a4b4bfe4cad4b9523bfbd05ec1d19020e1a908f6020b1e93dd50cbf88232a847"
+    },
+    {
+      "source": "notes/review-todo/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md",
+      "sha256": "022c999e4510b10429749a0260c06a571881eef8a9f3a7cd64aac63d732d31d2",
+      "bytes": 15769,
+      "destination": "book/notes/issue/2026-10/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md",
+      "destination_sha256": "8a00f79c81279facf2f0febacfb7e1e000ababd22373be9149e06289a824f43d"
+    },
+    {
+      "source": "notes/review-todo/20261028170000-地址栏交互与Chrome站点数据导入.md",
+      "sha256": "728a59b0bc5930619242c8f743b7767d35ce97b94146da4648fb784d96bb132f",
+      "bytes": 26363,
+      "destination": "book/notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md",
+      "destination_sha256": "5aae9eb9536503014b3684ddaa91beef3b0971b2da1be20141faa5648ae66efc"
+    },
+    {
+      "source": "notes/review-todo/20261029181900-地址栏融合阴影终态与Cookie解密修订.md",
+      "sha256": "e4c6bd82f62104a910a6dc1b72b2dda925ec7fd90c89643e51d2b3927ccb08bf",
+      "bytes": 13100,
+      "destination": "book/notes/issue/2026-10/20261029181900-地址栏融合阴影终态与Cookie解密修订.md",
+      "destination_sha256": "1a1d6c257002275af798ea459a7112b18253b45700b2547814f5a0aae88f4fa2"
+    },
+    {
+      "source": "notes/review-todo/20261030135910-Windows主窗WCO去标题栏.md",
+      "sha256": "647d90afbd838e24068569f2ef6fe1716e8bef131c39083eee597c1428d2f2b6",
+      "bytes": 9897,
+      "destination": "book/notes/issue/2026-10/20261030135910-Windows主窗WCO去标题栏.md",
+      "destination_sha256": "da772d007b15b5b0ab8022e00f9c59299a863e29d0ec520843a27d1a00161327"
+    },
+    {
+      "source": "notes/review-todo/20261030141215-WCO修复轮复审.md",
+      "sha256": "24592dbaa8b91a984722c44fe9a038cee9854c0f198cd1c14128ca690484a34d",
+      "bytes": 3291,
+      "destination": "book/notes/issue/2026-10/20261030141215-WCO修复轮复审.md",
+      "destination_sha256": "59b26eac8029655cfb8203883377cd4002d6b904ff3a95d0e50b3e56083ca3ca"
+    },
+    {
+      "source": "notes/review-todo/20261030162931-工具栏气泡与Tab融合.md",
+      "sha256": "49d76a1f8cd993d0cf4024c973c61c48c0cef26327fa680dd0aed2eb15c3cd7c",
+      "bytes": 17548,
+      "destination": "book/notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md",
+      "destination_sha256": "743c30a3d8c75c38e0ff47cebd415d5489cc35ee08962b33e6c14558f0fd7498"
+    },
+    {
+      "source": "notes/review-todo/20261031123822-无底图标与chrome区主题适配.md",
+      "sha256": "57eb95e9e280c2949d2fbf383ac2173241e2596ed892a734ffbebd4d28f2f6cf",
+      "bytes": 11633,
+      "destination": "book/notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md",
+      "destination_sha256": "40a64417846c17d25102c3e7833e30923725437cacf09e6db7f13cd4cfd09cdd"
+    },
+    {
+      "source": "notes/review-todo/20261031164511-气泡Tab遗留修复轮复审.md",
+      "sha256": "bca15df969e70d7a7f54d66f01de039a15f7eac86e3c34a6157e67fdf1907fe3",
+      "bytes": 3623,
+      "destination": "book/notes/issue/2026-10/20261031164511-气泡Tab遗留修复轮复审.md",
+      "destination_sha256": "7d67878924371077670beee773c49cf6e32e65c80f235f83ca503a78d0785331"
+    },
+    {
+      "source": "notes/review-todo/20261103163919-README徽章与忽略规则提交前审查.md",
+      "sha256": "c1853960ab3c862b7bdd24b384e72c789c3077077385903aac187abd0574e556",
+      "bytes": 2238,
+      "destination": "book/notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md",
+      "destination_sha256": "24fe67790556ebd451ef739533bc4674958248799dbfaba22030fb820d845526"
+    },
+    {
+      "source": "notes/review-todo/20261103172012-v1.0.1双平台发布审查.md",
+      "sha256": "12d1429599a1bb81486de4aa9fb6da25999cb8a76658a1b9d0b6be66199bb3ff",
+      "bytes": 3063,
+      "destination": "book/notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md",
+      "destination_sha256": "dae4f76dd9f5eeff3696f1adf5d0e54cb90a85210d4b094b6ca2733348bd0a9d"
+    },
+    {
+      "source": "notes/review-todo/20261103174933-dev验证与main自动发布审查.md",
+      "sha256": "0e08a55e57aa13e8c4765d64b718ff4969ae5437b0188e1d0c8a105bbff94f1e",
+      "bytes": 4593,
+      "destination": "book/notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md",
+      "destination_sha256": "ee3a2464b2c1c56d6a41957e02ed3674733c2068b9ec0bc95a2083720dcd12d3"
+    },
+    {
+      "source": "notes/review-todo/20261103180541-CI改动跳过发版与版本回退审查.md",
+      "sha256": "fc30495a25055f008f485636c36cf1295a17ad42945336698f4fcc88fdd50e31",
+      "bytes": 3746,
+      "destination": "book/notes/issue/2026-11/20261103180541-CI改动跳过发版与版本回退审查.md",
+      "destination_sha256": "2df62f69453a77f42f92c66a97d32eef801f68f15e3bbf171ac0a45d911ad886"
+    },
+    {
+      "source": "notes/review-todo/20261104004405-截图编辑多窗口修复审查.md",
+      "sha256": "25064d0e4eb8de41f53574f982501889b2a5417181cf09640a20ebf66530cac8",
+      "bytes": 7819,
+      "destination": "book/notes/issue/2026-11/20261104004405-截图编辑多窗口修复审查.md",
+      "destination_sha256": "25f37b5090d4f3e7dab3e048bbbb6e594bd03dc69d3a840e8cbf5f22bf131140"
+    },
+    {
+      "source": "notes/review-todo/20261104005033-截图编辑多窗口审查修复复审.md",
+      "sha256": "283a4279c3419087595e6fb99653a19631354339c61c90bc8271090fdd98ebf9",
+      "bytes": 3224,
+      "destination": "book/notes/issue/2026-11/20261104005033-截图编辑多窗口审查修复复审.md",
+      "destination_sha256": "b41c2989f445b2c008da8fe3c496da0a947ae6b8563d5f354e470ceb9a06e9a1"
+    },
+    {
+      "source": "notes/review-todo/20261106140710-独立窗口合并与气泡定位审查.md",
+      "sha256": "719736810469e43d7990c39f920eea3a7944a236524c2ae82e25b0cc21e2e217",
+      "bytes": 9669,
+      "destination": "book/notes/issue/2026-11/20261106140710-独立窗口合并与气泡定位审查.md",
+      "destination_sha256": "e4daa478a1c719d7412cd08c056125ac932e960489965c94bfe3af4d0dc7d8c2"
+    },
+    {
+      "source": "notes/review-todo/20261106145813-独立窗口合并审查修复复审.md",
+      "sha256": "6ec139ecf2efccdf99b7946cb53b059667492029a2cff20a1b6ce343a26fe410",
+      "bytes": 4849,
+      "destination": "book/notes/issue/2026-11/20261106145813-独立窗口合并审查修复复审.md",
+      "destination_sha256": "c7a060fa62855aad1be5f1449897838ad601eedfb14f55a0bdae1ae46f5ba86a"
+    },
+    {
+      "source": "notes/steps/feature-tab栏分隔线与栏内拖动排序.md",
+      "sha256": "e394aaf8dfe939f2de90de74e39254500c92e62b72ece12512b782034398a69a",
+      "bytes": 3761,
+      "destination": "book/docs/requirements/stages/feature-tab栏分隔线与栏内拖动排序.md",
+      "destination_sha256": "66c62e6401d6afa47863f0a8fe4cc27980f6bddd05371a0902e081eeeaec7286"
+    },
+    {
+      "source": "notes/steps/feature-会话备注编辑.md",
+      "sha256": "5e3a4f5c75505318f3bd5c36d4b9b1d5e8eff4546e8305c947dd6f5c4066556e",
+      "bytes": 5639,
+      "destination": "book/docs/requirements/stages/feature-会话备注编辑.md",
+      "destination_sha256": "2bd06cab204a8698dcdb172406d6e068389c0cb5433414ea7452cb1460f940d7"
+    },
+    {
+      "source": "notes/steps/feature-会话网页内查找.md",
+      "sha256": "b5741e51dda2318d4afac8272cc0aa42f657c4ed7bb03c8b70ba1ddcb0d2295d",
+      "bytes": 1513,
+      "destination": "book/docs/requirements/stages/feature-会话网页内查找.md",
+      "destination_sha256": "c32c93228ce9e4210ae8e4c5237476c1c473ef54ae6608259b87689efb46ee5c"
+    },
+    {
+      "source": "notes/steps/feature-关于页无底图标与chrome区主题适配.md",
+      "sha256": "010ed8b91e34413483ff13d2006043cb741e527ece8df63bd855471453bd70a3",
+      "bytes": 3338,
+      "destination": "book/docs/requirements/stages/feature-关于页无底图标与chrome区主题适配.md",
+      "destination_sha256": "daff97ab444257d2246633edc755d4304fc387ce922ce36ef9da64ca2c35eaea"
+    },
+    {
+      "source": "notes/steps/feature-删除会话原生确认框.md",
+      "sha256": "73021da0820e4b7bb24e0571be43ee414773ec0fa75f93df76c8e52b07fdf9e2",
+      "bytes": 4832,
+      "destination": "book/docs/requirements/stages/feature-删除会话原生确认框.md",
+      "destination_sha256": "60137813918de43b1ff980da56eab3125b4afaf7fc423aa3a6f5250a5eb0ce70"
+    },
+    {
+      "source": "notes/steps/feature-删除工作区会话处置弹窗.md",
+      "sha256": "f29ceaf307e1af718b299f0ca07e30c3ab1f83667a00e7beb887f15afc2442ca",
+      "bytes": 4067,
+      "destination": "book/docs/requirements/stages/feature-删除工作区会话处置弹窗.md",
+      "destination_sha256": "2a34b56ec29bdf3b57d234f2ab38c0a0d79d1f4773b922f098e17d6d047c405d"
+    },
+    {
+      "source": "notes/steps/feature-地址栏下拉融合与新会话空输入.md",
+      "sha256": "7be1daf3abdd5205004aaaa0f50c3997eeaa721b4d32005b257fb9aa071ebf15",
+      "bytes": 6953,
+      "destination": "book/docs/requirements/stages/feature-地址栏下拉融合与新会话空输入.md",
+      "destination_sha256": "3c37ff85ab0de65e8a20c16b24634d5fd68021d3bcc29f5cab40d589b626e037"
+    },
+    {
+      "source": "notes/steps/feature-地址栏历史补全.md",
+      "sha256": "e6260e99396f7ee011648a1246827647a26be629dedaeb986fc91690f3d34375",
+      "bytes": 1310,
+      "destination": "book/docs/requirements/stages/feature-地址栏历史补全.md",
+      "destination_sha256": "cfc5d9991ad07502e3d309c345103a33c31c1418317b28de167c442c32933c52"
+    },
+    {
+      "source": "notes/steps/feature-工作区下拉切换.md",
+      "sha256": "3326993eaf1fd92f13fcafe34d196736cb0806c17f094c4e849ed48a2dc7f476",
+      "bytes": 4324,
+      "destination": "book/docs/requirements/stages/feature-工作区下拉切换.md",
+      "destination_sha256": "442011ba7e0cb8d590b77f2e73dff071586900a1ebc1b8a141accbe744e869c1"
+    },
+    {
+      "source": "notes/steps/feature-工作区下拉拖动排序.md",
+      "sha256": "77c8ab11fa3a15843138dbb94db42cbef792aa7997d74cb1ee7ad337302fc1dd",
+      "bytes": 3577,
+      "destination": "book/docs/requirements/stages/feature-工作区下拉拖动排序.md",
+      "destination_sha256": "ebaf808ebffba582de9dbe37f0c2d07c6675027b2fe9769e91c9ab7c10a9b6a1"
+    },
+    {
+      "source": "notes/steps/feature-工具栏图标气泡与Tab工具栏融合.md",
+      "sha256": "e0589804b87c61b022826c36b54df11a0bc512fdbad41a778d5308b157838956",
+      "bytes": 2583,
+      "destination": "book/docs/requirements/stages/feature-工具栏图标气泡与Tab工具栏融合.md",
+      "destination_sha256": "0cab39ec25ea39f32538f25ce835f7c3994b747d539ea265d7e26c8df3413a21"
+    },
+    {
+      "source": "notes/steps/feature-应用外观三模式.md",
+      "sha256": "3cc71623d8e4acb65a5b1c1d5934ebc07ee332ea84916a3a5e25d5c309e488bf",
+      "bytes": 968,
+      "destination": "book/docs/requirements/stages/feature-应用外观三模式.md",
+      "destination_sha256": "2904edf73a1ba6e62f1c08ae753017409fad144d4dee1f73938e1c4a4d9dab4d"
+    },
+    {
+      "source": "notes/steps/feature-快速截图与快速录屏.md",
+      "sha256": "d4aeec65ed4cd60cf363d6382fe85016636df5a0d0ca2c1d5bc0a4b8c07c386c",
+      "bytes": 4036,
+      "destination": "book/docs/requirements/stages/feature-快速截图与快速录屏.md",
+      "destination_sha256": "002aa10b1b9d0b3d90d9c4abe7f0b4ade141cf0d4d6ad1fa0a0bc8ee73664c48"
+    },
+    {
+      "source": "notes/steps/feature-独立窗口合并回主窗口.md",
+      "sha256": "62e3ec78da3d9a8f4636d87529050e4a6c6517adb9883af474d259625e6f71ae",
+      "bytes": 1618,
+      "destination": "book/docs/requirements/stages/feature-独立窗口合并回主窗口.md",
+      "destination_sha256": "6ffd32c92c4b41ad21e6e72c89fa50efb88366bfd992bd9a051c799f116639ec"
+    },
+    {
+      "source": "notes/steps/feature-移动到工作区原生模态框.md",
+      "sha256": "e1f3b0f375d97d7c2473b179c028dbb18ea55d5f8fd14720c8c5d7fb8ea631ce",
+      "bytes": 5452,
+      "destination": "book/docs/requirements/stages/feature-移动到工作区原生模态框.md",
+      "destination_sha256": "64ef98f0e2bdc81dfc50a93d7251c974cfb71f05bb926c8e2f5fcd5e07a894a2"
+    },
+    {
+      "source": "notes/steps/feature-设置窗口与全局偏好.md",
+      "sha256": "47216bdbff5c0c902002ff11228e49e35aebf62b39fb9240573c1bcb289e8ef5",
+      "bytes": 9366,
+      "destination": "book/docs/requirements/stages/feature-设置窗口与全局偏好.md",
+      "destination_sha256": "d11696004d1cc17771beb6cc892333bef1f6c8cb5336394d0109bf83927f6c5b"
+    },
+    {
+      "source": "notes/steps/step-01-会话列表管理与左右分栏布局.md",
+      "sha256": "9ab0b7b8801d939d23e93025aa4764dd4530bceacff5023583edfbd95e0aaa90",
+      "bytes": 353,
+      "destination": "book/docs/requirements/stages/step-01-会话列表管理与左右分栏布局.md",
+      "destination_sha256": "49a9061adcb27d62a2cd72e0734a55f8d3e237545fc52b669604d4f860294f5a"
+    },
+    {
+      "source": "notes/steps/step-02-右侧浏览器基础功能.md",
+      "sha256": "51c6c80b20a50a5f8a627865a12be5f0700df7bd060c8c9ca1854b344d69e9d1",
+      "bytes": 317,
+      "destination": "book/docs/requirements/stages/step-02-右侧浏览器基础功能.md",
+      "destination_sha256": "e96ac3d2470f97d642998cb6a9c082faf3422ed4533a55237746969738fbb1f6"
+    },
+    {
+      "source": "notes/steps/step-03-开发者模式对接.md",
+      "sha256": "217ebf8d81c0fd553e9b109416e102791c03d201db2cd45dbba16cf12c3097c1",
+      "bytes": 211,
+      "destination": "book/docs/requirements/stages/step-03-开发者模式对接.md",
+      "destination_sha256": "016d51570ba2ddc4347bec873129fe84ee64f9e6c95d0e42f36590cb2b418271"
+    },
+    {
+      "source": "notes/steps/step-04-多会话与浏览器绑定.md",
+      "sha256": "4d96fc4340d529f94eb188509f4dbf56feddea85c93bafbe54df40224edc3cbc",
+      "bytes": 293,
+      "destination": "book/docs/requirements/stages/step-04-多会话与浏览器绑定.md",
+      "destination_sha256": "a1dff473a039e63b1659e8de5f9d1dbf5306e0c01b71472a146b644d2047fd11"
+    },
+    {
+      "source": "notes/steps/step-05-会话克隆与批量操作.md",
+      "sha256": "0d6dd3a58e67da0f9b2a480ccb4b1c45a27757ec3bdca2b923f66d9b745c8ba0",
+      "bytes": 235,
+      "destination": "book/docs/requirements/stages/step-05-会话克隆与批量操作.md",
+      "destination_sha256": "915420653209ca8c673a7508a147e4772eb5ebb893ccce1cf2a5d21297de6a6f"
+    },
+    {
+      "source": "notes/steps/step-06-独立窗口一-会话Tab列表落盘与恢复.md",
+      "sha256": "c8580904a912df1a2326764c5deeda2c5a6fe1877c479212d18a93f10ccb6dcf",
+      "bytes": 405,
+      "destination": "book/docs/requirements/stages/step-06-独立窗口一-会话Tab列表落盘与恢复.md",
+      "destination_sha256": "980ece61468ecccbae0abc38f96f7acefec32caf10540713340344b8f722a7c6"
+    },
+    {
+      "source": "notes/steps/step-07-独立窗口二-主进程窗口宿主模型重构.md",
+      "sha256": "5366f520e82d979dbe823d8e8d4dc08fc81c704661951e6967c284fe95218280",
+      "bytes": 447,
+      "destination": "book/docs/requirements/stages/step-07-独立窗口二-主进程窗口宿主模型重构.md",
+      "destination_sha256": "3cf3341e10606d1f10901a5b6c541b4bc9a96607b51f97568bec00db04623c6c"
+    },
+    {
+      "source": "notes/steps/step-08-独立窗口三-独立窗口创建与形态.md",
+      "sha256": "fc4b35afc5afb20c070fd54296784c90ae1edcb7156273bde09dab69df637632",
+      "bytes": 651,
+      "destination": "book/docs/requirements/stages/step-08-独立窗口三-独立窗口创建与形态.md",
+      "destination_sha256": "fc8a9b1b0841fcc39d35dd3fb2c2fc475a9f4bc63dd9b91e3612508dfb95bcd6"
+    },
+    {
+      "source": "notes/steps/step-09-独立窗口四-拖出拖入手势.md",
+      "sha256": "db27eda568d15cc85f70c5fcffccc3069def257b1e38ea658418024842f7b573",
+      "bytes": 529,
+      "destination": "book/docs/requirements/stages/step-09-独立窗口四-拖出拖入手势.md",
+      "destination_sha256": "de9f0f636bdfe981a1f06120ae0c1d068fb84db11db424d23d0312d8e811fe36"
+    },
+    {
+      "source": "notes/steps/step-10-独立窗口五-跨窗口转移与生命周期收尾.md",
+      "sha256": "7d6f3a696430ea58e9c134f4dce124abfed6eb20e7a2bd1f29f9ceab46dd7f40",
+      "bytes": 522,
+      "destination": "book/docs/requirements/stages/step-10-独立窗口五-跨窗口转移与生命周期收尾.md",
+      "destination_sha256": "ce54ddab9523277764ae7bf69cb574d770ed369647c3c07a91a439afee670fbc"
+    },
+    {
+      "source": "notes/steps/step-11-应用打包与发布.md",
+      "sha256": "3c0113014bd027750a8f2b158873f0a6feaec5d27ad87e6c8d9c084bd3b0b27f",
+      "bytes": 2680,
+      "destination": "book/docs/requirements/stages/step-11-应用打包与发布.md",
+      "destination_sha256": "f8e4c6998a116be49be47864534a6e7872e3388f3218ef24135d942547984118"
+    },
+    {
+      "source": "notes/steps/step-12-测试辅助功能二期.md",
+      "sha256": "d16d6136620a18aff232aae303df16d6c9e8a526ad057f0232dfa05cebe86d41",
+      "bytes": 599,
+      "destination": "book/docs/requirements/stages/step-12-测试辅助功能二期.md",
+      "destination_sha256": "0672a8ad813aa123e83fbd0a0fd0683d54f99f4bcfe1b0e9f555cc8f6e37bc8d"
+    },
+    {
+      "source": "notes/think-report/20260912181214-会话网页截图.md",
+      "sha256": "1533629027c788272a6082c30f2f640ed3c62689a4aef0ff2ea1799dbb1e963c",
+      "bytes": 20782,
+      "destination": "book/notes/learn/2026-09/20260912181214-会话网页截图.md",
+      "destination_sha256": "93aef199990502eb07cdc3c47391c90091b5eb4bc5036b6d689f7a8bb8c094f8"
+    },
+    {
+      "source": "notes/think-report/20260912184016-标签页拖出独立窗口.md",
+      "sha256": "f5bbbe9ab8094c61e19a661ec320c195f75c1023620c916e9de72c58081b332b",
+      "bytes": 27543,
+      "destination": "book/notes/learn/2026-09/20260912184016-标签页拖出独立窗口.md",
+      "destination_sha256": "9812933599aed92d2c50fd58f7bc807b15f1a3d285269840705743b71ebaab71"
+    },
+    {
+      "source": "notes/think-report/20260914110740-会话网页摄像头访问.md",
+      "sha256": "dcba99fac745b091107ac0c5b34b97cbe8f314731380a66d2a9ffd86e007a423",
+      "bytes": 23104,
+      "destination": "book/notes/learn/2026-09/20260914110740-会话网页摄像头访问.md",
+      "destination_sha256": "38ca77d088e2d181165c7087d326ffecf72b936752577e9de54acea60886f7a6"
+    },
+    {
+      "source": "notes/think-report/20260914111602-地址栏历史补全.md",
+      "sha256": "958d013ee2ccaf287323e3c91c61bdb8eafc51df5a8bf5431f142b6157566227",
+      "bytes": 17315,
+      "destination": "book/notes/learn/2026-09/20260914111602-地址栏历史补全.md",
+      "destination_sha256": "33e19c79bc0a54081c516091a0c2f45bb76e94524830e0c9d10661ba9a562cbf"
+    },
+    {
+      "source": "notes/think-report/20260914153838-会话网页内查找.md",
+      "sha256": "27d0b2054871be12b6ab0d1c462bab0153fe2dd4d6e81afaa386e11a5116b483",
+      "bytes": 17510,
+      "destination": "book/notes/learn/2026-09/20260914153838-会话网页内查找.md",
+      "destination_sha256": "063b002fcb2ec591e2d249426f47e9f64578cbe672a575b701167c53c21cc7af"
+    },
+    {
+      "source": "notes/think-report/20260914172412-会话列表拖拽排序.md",
+      "sha256": "5a5cc1c1388951b309a1f9bae04ed19fc093579e65e82b2123029c5ab72981f6",
+      "bytes": 17005,
+      "destination": "book/notes/learn/2026-09/20260914172412-会话列表拖拽排序.md",
+      "destination_sha256": "18a6fc1044d3dfbda38c6313c6d759cebf2431e3657fbdede0278e926efdbaa0"
+    },
+    {
+      "source": "notes/think-report/20260918122907-会话网页视频全屏.md",
+      "sha256": "303a0370e6c27cbacc7b14ce2a7f5d92bc43b60f55611d82d199fad578148344",
+      "bytes": 18756,
+      "destination": "book/notes/learn/2026-09/20260918122907-会话网页视频全屏.md",
+      "destination_sha256": "2b23851b9fb2e0990c80f4f20822a87fa8d3170c9c767f708b08bd3fd5a75cd9"
+    },
+    {
+      "source": "notes/think-report/20260930130104-导入Chrome浏览数据.md",
+      "sha256": "a1a25301276290dac299bc03c7d030e20741f9f7e7e1f731304a6b5f68765cf0",
+      "bytes": 30184,
+      "destination": "book/notes/learn/2026-09/20260930130104-导入Chrome浏览数据.md",
+      "destination_sha256": "4f3502da63f0cf406604e7a3f9e84d2acdb692ba01d60eee89b4e72a2871d93f"
+    },
+    {
+      "source": "notes/think-report/20261014130059-截图编辑器.md",
+      "sha256": "73049b4356703cb61ec68db0e4baba86fb2be34efb627b762df9b19288ad400b",
+      "bytes": 23108,
+      "destination": "book/notes/learn/2026-10/20261014130059-截图编辑器.md",
+      "destination_sha256": "0fa7353b91204b6851447caf7a92b64ecf06add9355298d274f152ced2a3f961"
+    },
+    {
+      "source": "notes/think-report/20261028105514-Chrome登录态与站点存储导入可行性.md",
+      "sha256": "2c5180651ac119c82c76c10b4a10b0c4ac1852dc231b2adab8bf60a9929acd18",
+      "bytes": 23648,
+      "destination": "book/notes/learn/2026-10/20261028105514-Chrome登录态与站点存储导入可行性.md",
+      "destination_sha256": "8b216c6d8f41ee3cfcac42504b810a35fd7d10dd03a076d947a87a868a55a07d"
+    },
+    {
+      "source": "notes/think-report/20261030130138-Windows主窗去标题栏窗口控制右上角.md",
+      "sha256": "ecd2b64839de3065aade3a9f4771e3c327b4466c12cfbdff244966cff8f14cd2",
+      "bytes": 11475,
+      "destination": "book/notes/learn/2026-10/20261030130138-Windows主窗去标题栏窗口控制右上角.md",
+      "destination_sha256": "49fe3f0b03f28d3fc6acfbe6121631421ae7ccaa84d977d5d111b74082140c93"
+    },
+    {
+      "source": "notes/think-report/20261106131016-独立窗口合并回主窗口.md",
+      "sha256": "7c2d3fa2ac24a950a2a9e0bfba6dfc71e5f7f209b28ab75f890508deabac38cf",
+      "bytes": 3848,
+      "destination": "book/notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md",
+      "destination_sha256": "86b16c55006e5779307d7a4c1496e64cf8449d1d950bdba85f1761bf89daa915"
+    }
+  ],
+  "legacy_unavailable_links": []
+}

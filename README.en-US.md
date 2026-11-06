@@ -112,6 +112,7 @@ Isolation is built on Electron's native `session.fromPartition('persist:sess-<id
 
 ## 📚 More Docs
 
+- [book/README.md](./book/README.md) — BoCode workflow, plans, and knowledge base. Source stays at the repository root; run `npm run book:index` after documentation changes.
 - [PRODUCT.md](./PRODUCT.md) — product facts and design principles
 - [AGENTS.md](./AGENTS.md) — code conventions and contribution notes
 

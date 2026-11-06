@@ -112,6 +112,7 @@ src/
 
 ## 📚 更多文档
 
+- [book/README.md](./book/README.md) —— BoCode 工作流、计划与知识库；源码保留根目录，文档改动后运行 `npm run book:index`
 - [PRODUCT.md](./PRODUCT.md) —— 产品事实与设计原则
 - [AGENTS.md](./AGENTS.md) —— 代码约定与贡献须知
 

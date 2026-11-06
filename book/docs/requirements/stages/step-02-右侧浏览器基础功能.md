@@ -1,0 +1,10 @@
+---
+description: "step-02-右侧浏览器基础功能"
+migrated_from: "notes/steps/step-02-右侧浏览器基础功能.md"
+record: legacy
+---
+
+第2阶段：完成右侧浏览器的基础功能
+将chrome内核浏览器嵌入到应用程序中，完成chrome浏览器的基本功能
+包含顶部导航栏（前进、后退、刷新、地址栏跳转）、Tab标签栏（新建、关闭、切换Tab）、完整的网页渲染和交互
+暂时不做开发者模式

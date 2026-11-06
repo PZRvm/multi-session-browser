@@ -1,12 +1,93 @@
 # AGENTS.md
 
-多会话测试浏览器（multi-session-browser）：面向软件测试人员的 Electron 桌面工具。左侧管理多个完全隔离的浏览器会话（Cookie/缓存/登录态互不影响），右侧是 Chrome 式浏览区，每个会话可独立唤起 DevTools。npm 管理（勿用 pnpm/yarn）。
+This file is the entry point for AI agents working on this repository. Humans: start at `book/README.md`.
 
-## 改动前必读
+## Project overview
 
-- `docs/PRD.md`：需求、业务规则、验收标准的唯一依据（仓库内仅此一份 PRD，根目录无 `PRD.md`，勿另建副本）
-- `notes/steps/step-01~step-08`（文件名含阶段主题）：8 阶段开发计划（1-7 为一期，8 为二期），按阶段顺序开发，二期功能不要提前实现
-- `PRODUCT.md`：产品事实与设计原则（界面纯中文、产品名"多会话测试浏览器"）
+多会话测试浏览器（multi-session-browser）是面向软件测试人员的 Electron 桌面工具。它管理多个 Cookie、缓存与登录态隔离的浏览会话，提供 Chrome 式浏览区与会话专属 DevTools；依赖用 npm 管理。
+
+This project runs on the **BoCode workflow**: the repository root (`src/`) holds the source, `book/` holds the documentation stream and knowledge base. The highest architecture guidance lives inside the repository: long-term boundaries and hard constraints in `book/guidelines/architecture.md`, implementation snapshots in `book/docs/architecture/`.
+
+## Repository layout
+
+```
+<project>/
+├── src/        # source code (ADOPT Option B: root npm project)
+└── book/       # documentation stream and knowledge base
+```
+
+**code and book are the project's two halves — neither is optional.** The relationship runs both ways:
+
+- **book → code**: plans drive implementation; guidelines provide the baseline; learn entries supply experience to consult before coding; issues provide direction for later iterations.
+- **code → book**: after code changes, check whether book needs syncing; when a feature completes, write its summary / learn / issue back into book.
+
+**Core principle: the more complete the book, the more reference value for humans and agents.** Summaries are written for humans as reports; learn entries are written as searchable knowledge for both.
+
+**Book entry point: `book/README.md` — the master index, script-generated. Read it before reading anything else in book.** After any book change run `npm run book:index` to refresh it; every new document must carry a frontmatter `description` (one plain-language line about the content).
+
+## Workflow
+
+Feature development is graded first: every task is tiered S/M/L per `book/guidelines/task-tiers.md` (the tier lands in the first commit's motive); M/L tasks then strictly follow the six-phase gate workflow — see `book/guidelines/workflow.md`.
+
+Git commits and branching strictly follow `book/guidelines/git-workflow.md`: every non-merge commit uses the Clean Commit format; independent big features branch from `dev`; small verified fixes may commit to `dev` directly; PRs serve multi-contributor work and the `dev → main` release, which only ever merges. Never commit or push directly to `main`.
+
+## Staying current
+
+This workflow's template evolves. To sync an installed project, an agent reads `UPGRADE.md` and `CHANGELOG.md` from the BoCode repository (https://github.com/Focus695/BoCode) — the project's `.bocode-version` stamp records what it last synced to.
+
+## Document routing
+
+| Output | Location | Audience |
+|--------|----------|----------|
+| Feature report | `book/notes/summary/YYYY-MM/` | Humans first |
+| Experience & knowledge | `book/notes/learn/YYYY-MM/` | Humans + agents |
+| Potential problems | `book/notes/issue/YYYY-MM/` | Humans + agents |
+| Task tracking | `book/notes/task/` | Humans + agents |
+| Architecture decisions | `book/docs/decisions/` | Humans first |
+| Implementation plans | `book/plans/` | Agents first |
+| Change log | `book/changelogs/YYYY-MM/` | Humans first |
+
+**Writing style**: everything in book is written plain — see `book/guidelines/writing-style.md`.
+
+## code ↔ book interaction rules
+
+1. **Before coding**: search `book/notes/learn/YYYY-MM/` for related experience, and consult only the guideline the task actually touches — the input pointers in `book/guidelines/README.md` route you. No blanket pre-reading.
+2. **While coding**: new experience or pitfalls go straight into the current month's `book/notes/learn/YYYY-MM/`.
+3. **After coding**: check the book — is the plan's status updated, is a summary needed, do new issues exist?
+4. **Plans drive code**: `book/plans/` documents are the input to implementation. Read the plan, build in the repository root (`src/`), write back to `book/`.
+5. **Issues feed code**: `book/notes/issue/` entries are the direction of later improvements.
+
+`changelogs/` and `notes/{summary,learn,issue}/` archive under `YYYY-MM/`; the month is a physical grouping, retrieval happens through `book/README.md`, frontmatter, and links. `book/` opens directly as an Obsidian vault.
+
+## Safe by default
+
+Local commands are disposable and have no production access — npm scripts, tests, builds, `git status/diff/log`, `npm run book:index`, `node scripts/check-commit-message.mjs`. Run them, fix failures, and rerun without asking. A human still owns anything touching production data or credentials, destructive operations, and every push to `main` (which never happens directly anyway).
+
+## Hard constraints
+
+- The task tier (S/M/L, `book/guidelines/task-tiers.md`) is decided before any code and recorded in the first commit's motive; S runs the light channel, M/L owe the full pipeline
+- Step 0 (the structured requirements brief) is required before any M/L code
+- No skipping between phases (M/L)
+- Phase 2 stops for the user only on real gaps — scope conflict, undetermined data shape, unclear external dependency — never just for confirmation
+- Problems found in Phase 5 / Phase 6 are **recorded, never fixed**
+- Feature work touches no code outside its scope: no opportunistic refactors, no new abstractions
+
+## Tooling
+
+- `npm run book:index` — regenerate `book/README.md` after any book change (do not edit by hand; missing frontmatter `description` warns and exits 1)
+- `node scripts/check-commit-message.mjs "<subject>"` — validate a commit subject against Clean Commit
+
+## 本项目入口与兼容约定
+
+- 本项目按 ADOPT Option B 保留根目录 package.json、src/、resources/、build/ 与 CI 路径；所有命令在仓库根运行，不创建 code/。
+- 阅读 book/README.md 后按任务查阅；业务需求唯一依据是 book/docs/requirements/PRD.md。旧步骤已迁到 book/docs/requirements/stages/，只按涉及内容查阅，不再全量预读或重新执行历史阶段。
+- PRODUCT.md、DESIGN.md 保留根目录，供 impeccable 直接发现；book/docs/product/ 与 book/docs/design/ 负责索引入口，不另建副本。界面语言以当前 i18n 与产品事实为准。
+- 新工作使用 bocode / boscope / book-writeback / bowrite。项目技能同时放于 .agents/skills/ 与 .zcode/skills/；四份镜像必须同步，项目内安装不修改用户全局技能。
+- 旧 write-plan、subagent-execute-plan、research-feature、code-review、neat-freak 中与 notes 路由或阶段流程冲突的部分由本次用户明确选择的 BoCode 工作流取代；其领域检查可复用，新输出必须落入 book。不得为继续使用旧路径重建根 notes/ 或 docs/。旧 worktree 操作规则与设计技能仍保留。
+- record: legacy 的文档与 status 是历史证据，不代表当前重新验证；legacy_status: requires_triage 的 open 审查不能冒充已关闭。旧源路径通过 book/docs/migration/source-map.json 查询；历史原文在 15e9b11。
+- 现有中文 Clean Commit 要求比模板更严格，继续执行。仅本轮接入按用户要求直接在 dev；不推送或合 main。
+
+## 项目领域规则（沿用）
 
 ## 常用命令
 
@@ -43,8 +124,8 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 - Prettier：无分号、单引号、行宽 100、无尾逗号；.editorconfig：LF、2 空格缩进
 - ESLint 用 @electron-toolkit ts 配置 + react-hooks 规则，提交前 lint 和 typecheck 必须通过
-- **提交信息遵循 Clean Commit 规范**（2026-10-14 用户裁决，wgtechlabs/clean-commit v1.1.0；同日二次裁决：**description 一律中文**）：格式 `<emoji> <type> (<scope>): <中文描述>`（scope 可省、用英文小写），九类型严格配对——📦 new / 🔧 update / 🗑️ remove / 🔒 security / ⚙️ setup / ☕ chore / 🧪 test / 📖 docs / 🚀 release（勿用 feat/fix）；破坏性变更在 new/update/remove/security 后加 `!` 并配 `BREAKING CHANGE:` body；中文描述现在时、无句号，**整行含 emoji 与 scope ≤72 字符**；一个提交一个逻辑变更，混杂改动先拆分。细则与起草/校验流程见项目技能 `.zcode/skills/clean-commit/`（$clean-commit，本地副本已附中文描述适配注记），历史提交的旧长消息风格不追溯
-- 界面文案经 i18n 字典单源管理（`src/shared/i18n/`：zh-CN 为源语言与类型来源，en-US 并行受类型完备性约束；新增语言走注册表扩展入口，方法见 `docs/项目骨架.md`）——新增文案 zh/en 双语并行落字典，组件内不写用户可见文案字面量；面向专业测试人员，不写引导式提示文案。开发注释与 console 日志保持中文不入字典
+- **提交信息遵循 Clean Commit 规范**（2026-10-14 用户裁决，wgtechlabs/clean-commit v1.1.0；同日二次裁决：**description 一律中文**）：格式 `<emoji> <type> (<scope>): <中文描述>`（scope 可省、用英文小写），九类型严格配对——📦 new / 🔧 update / 🗑️ remove / 🔒 security / ⚙️ setup / ☕ chore / 🧪 test / 📖 docs / 🚀 release（勿用 feat/fix）；破坏性变更在 new/update/remove/security 后加 `!` 并配 `BREAKING CHANGE:` body；中文描述现在时、无句号，**整行含 emoji 与 scope ≤72 字符**；一个提交一个逻辑变更，混杂改动先拆分。细则与起草/校验流程见 `book/guidelines/git-workflow.md` 与 `scripts/check-commit-message.mjs`，历史提交的旧长消息风格不追溯
+- 界面文案经 i18n 字典单源管理（`src/shared/i18n/`：zh-CN 为源语言与类型来源，en-US 并行受类型完备性约束；新增语言走注册表扩展入口，方法见 `book/docs/architecture/项目骨架.md`）——新增文案 zh/en 双语并行落字典，组件内不写用户可见文案字面量；面向专业测试人员，不写引导式提示文案。开发注释与 console 日志保持中文不入字典
 
 ## 界面设计
 
@@ -60,4 +141,4 @@ Electron 三进程结构（electron-vite 脚手架）：
 - 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
 - PRD 5.1 提到的 Playwright 一期不使用（会话隔离由 Electron 原生 partition 承担），勿引入
 - 平台差异：macOS 关窗不退出（模板行为）；打包后 `resources/icon.png` 仅 Linux 用，Windows/Mac 用 `build/` 下的 ico/icns
-- dev 态摄像头/麦克风：`node_modules/electron/dist/Electron.app` 官方分发即 ad-hoc 签名，macOS TCC 对其授权弹窗/记录不可靠（秒拒、不落库）；且从 ZCode 内置终端启动的进程按归责查宿主应用权限会静默失败。`npm install` 后跑一次 `bash scripts/sign-electron-dev.sh` 重签，dev 用 iTerm 等正式终端启动；详见 notes/accept/20260914140000-摄像头权限支持真机验收/
+- dev 态摄像头/麦克风：`node_modules/electron/dist/Electron.app` 官方分发即 ad-hoc 签名，macOS TCC 对其授权弹窗/记录不可靠（秒拒、不落库）；且从 ZCode 内置终端启动的进程按归责查宿主应用权限会静默失败。`npm install` 后跑一次 `bash scripts/sign-electron-dev.sh` 重签，dev 用 iTerm 等正式终端启动；详见 book/notes/summary/2026-09/20260914133000-摄像头权限真机验收.md（旧路径映射见 book/docs/migration/source-map.json）
