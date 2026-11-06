@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<!-- 设置页重设计三方案概念演示——grill-me 访谈产物：
+     用户反馈阶段二设置页「草率」，要求参考市面成熟设置页重新设计；
+     已定稿决策：快捷键速查=独立版面、恢复出厂=独立危险区常驻；
+     待裁决：布局形态（方案一 侧栏双栏 / 方案二 单列大窗 / 方案三 顶部标签页）。
+     三案同用「到发信息板」视觉世界（token 逐值同源 app.css），窗口均按真实度量绘制；
+     概念演示非生产表面，定稿后走 impeccable 完整流程并重写 DESIGN.md「设置窗口」条目。 -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设置页重设计 · 三方案概念演示</title>
+<style>
+/* ---------- 语义 token（逐值同源 app.css） ---------- */
+:root {
+  --board-bg: #f6f4ee;
+  --board-bg-raised: #ede9df;
+  --board-hairline: #d8d2c5;
+  --board-tile: #ede9df;
+  --board-tile-line: #d8d2c5;
+  --board-tile-ink: #9a5f00;
+  --board-ink: #1e2329;
+  --board-ink-dim: #616974;
+  --board-hover-veil: rgba(30, 35, 41, 0.08);
+  --board-control-line: #bcb4a6;
+  --board-segment-selected-bg: #ffffff;
+  --amber: #ffb000;
+  --amber-press: #e6a000;
+  --amber-ink: #221a00;
+  --danger: #d4380d;
+  --mask: rgba(0, 0, 0, 0.45);
+}
+html[data-theme='dark'] {
+  --board-bg: #101418;
+  --board-bg-raised: #1a2026;
+  --board-hairline: #232830;
+  --board-tile: #1a2026;
+  --board-tile-line: #2a313a;
+  --board-tile-ink: #ffb000;
+  --board-ink: #f5f0e8;
+  --board-ink-dim: #9aa3ad;
+  --board-hover-veil: rgba(255, 255, 255, 0.08);
+  --board-control-line: #3a434e;
+  --board-segment-selected-bg: #2a313a;
+  --amber-press: #e6a000;
+  --amber-ink: #221a00;
+  --danger: #ff7875;
+  --mask: rgba(0, 0, 0, 0.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  padding: 24px 28px 60px;
+}
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.icon { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.4; display: inline-block; vertical-align: -0.125em; flex: none; }
+
+/* ---------- 演示页头 ---------- */
+.demo-head { max-width: 980px; margin: 0 auto 6px; }
+.demo-head h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.demo-head p { margin: 0; color: var(--board-ink-dim); }
+.demo-tools { margin: 12px 0 4px; display: flex; gap: 8px; align-items: center; }
+.theme-btn {
+  border: 1px solid var(--board-control-line); background: var(--board-bg-raised); color: var(--board-ink);
+  border-radius: 4px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.theme-btn:hover { background: var(--board-hover-veil); }
+
+.opt { max-width: 980px; margin: 30px auto 0; }
+.opt-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.opt-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
+.opt-tag { font-size: 11px; color: var(--board-ink-dim); border: 1px solid var(--board-control-line); border-radius: 10px; padding: 0 8px; }
+.opt-desc { margin: 0 0 12px; color: var(--board-ink-dim); }
+.opt-desc b { color: var(--board-ink); font-weight: 600; }
+
+/* ---------- 仿真窗体外壳 ---------- */
+.window {
+  border: 1px solid var(--board-hairline);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--board-bg);
+  display: flex;
+  flex-direction: column;
+}
+.titlebar {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  height: 38px; padding: 0 14px;
+  border-bottom: 1px solid var(--board-hairline);
+  background: var(--board-bg-raised);
+}
+.lights { display: inline-flex; gap: 7px; }
+.lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.lights i + i { background: #febc2e; }
+.lights i + i + i { background: #28c840; }
+.titlebar .t { font-size: 13px; font-weight: 600; }
+
+/* ---------- 控件行（三案共用词汇） ---------- */
+.row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 44px; border-bottom: 1px solid var(--board-hairline); padding: 6px 0; }
+.row:last-child { border-bottom: 0; }
+.row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-label { font-size: 13px; font-weight: 500; color: var(--board-ink); }
+.row-desc { font-size: 11px; color: var(--board-ink-dim); line-height: 1.45; }
+.row-control { flex: none; display: flex; align-items: center; }
+.row-control input[type='text'] {
+  width: 220px; height: 28px; border: 1px solid var(--board-control-line); border-radius: 4px;
+  background: transparent; color: var(--board-ink); font-size: 12px; padding: 0 10px; font-family: inherit;
+}
+.row-control input[type='text']::placeholder { color: var(--board-ink-dim); }
+
+.seg { display: inline-flex; gap: 2px; background: var(--board-bg-raised); border-radius: 4px; padding: 2px; }
+.seg button {
+  border: 0; background: transparent; color: var(--board-ink-dim); font-size: 12px; font-family: inherit;
+  padding: 3px 10px; border-radius: 3px; cursor: pointer;
+}
+.seg button.on { background: var(--board-segment-selected-bg); color: var(--board-tile-ink); font-weight: 600; }
+
+.select-box {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-width: 150px; height: 28px; padding: 0 10px; border: 1px solid var(--board-control-line);
+  border-radius: 4px; font-size: 12px; color: var(--board-ink); background: transparent;
+}
+.select-box .icon { font-size: 9px; color: var(--board-ink-dim); }
+
+/* 主题色占位色点：选中=琥珀实心（默认值），其余空心（候选待选案后填充） */
+.dots { display: inline-flex; gap: 8px; }
+.dots i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--board-control-line); }
+.dots i.on { background: var(--amber); border-color: var(--amber); outline: 2px solid var(--board-ink); outline-offset: 2px; }
+
+/* kbd 键帽（快捷键速查版面用） */
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 22px; padding: 0 7px;
+  background: var(--board-tile); border: 1px solid var(--board-tile-line); border-radius: 3px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; color: var(--board-ink);
+}
+.kbd-group { display: inline-flex; gap: 4px; align-items: center; }
+.kbd-plus { font-size: 10px; color: var(--board-ink-dim); }
+
+/* 危险区 */
+.danger-big { margin-top: 18px; border-top: 1px solid var(--board-hairline); padding-top: 16px; }
+.danger-btn {
+  border: 1px solid var(--danger); color: var(--danger); background: transparent;
+  border-radius: 6px; padding: 5px 14px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.danger-btn:hover { background: rgba(212, 56, 13, 0.08); }
+.danger-note { margin: 8px 0 0; font-size: 11px; color: var(--board-ink-dim); max-width: 46em; }
+
+/* 静态值 */
+.static-value { font-size: 12px; color: var(--board-ink-dim); }
+
+/* 版面标题 */
+.pane-title { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+.pane-desc { font-size: 11px; color: var(--board-ink-dim); margin: 0 0 8px; }
+
+/* ---------- 方案一：侧栏 + 详情 ---------- */
+.w1 { width: 700px; height: 480px; }
+.w1-body { flex: 1; display: flex; min-height: 0; }
+.w1-side {
+  width: 176px; flex: none; background: var(--board-bg-raised);
+  border-right: 1px solid var(--board-hairline);
+  display: flex; flex-direction: column; padding: 10px 8px;
+}
+.side-cat {
+  display: flex; align-items: center; gap: 9px;
+  height: 34px; padding: 0 10px; border-radius: 6px;
+  color: var(--board-ink); font-size: 13px; cursor: pointer; border: 0; background: transparent;
+  width: 100%; font-family: inherit; text-align: left;
+}
+.side-cat .icon { font-size: 15px; color: var(--board-ink-dim); }
+.side-cat:hover { background: var(--board-hover-veil); }
+/* 侧栏选中 = 信息板世界的「反白即选中」语言（与会话行同构） */
+.side-cat.on { background: var(--amber); color: var(--amber-ink); font-weight: 600; }
+.side-cat.on .icon { color: var(--amber-ink); }
+.side-cat.danger-cat { margin-top: auto; color: var(--danger); }
+.side-cat.danger-cat .icon { color: var(--danger); }
+.side-cat.danger-cat:hover { background: rgba(212, 56, 13, 0.08); }
+.side-cat.danger-cat.on { background: var(--danger); color: #fff; }
+.side-cat.danger-cat.on .icon { color: #fff; }
+.w1-detail { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 28px; }
+.w1-detail::-webkit-scrollbar { width: 8px; }
+.w1-detail::-webkit-scrollbar-thumb { background: var(--board-tile-line); border-radius: 4px; }
+
+/* ---------- 方案二：单列大窗 ---------- */
+.w2 { width: 520px; height: 620px; }
+.w2-body { flex: 1; overflow-y: auto; padding: 24px 30px; }
+.w2-body::-webkit-scrollbar { width: 8px; }
+.w2-body::-webkit-scrollbar-thumb { background: var(--board-tile-line); border-radius: 4px; }
+.w2-section { margin-top: 26px; }
+.w2-section:first-child { margin-top: 0; }
+.w2-section-title { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+
+/* ---------- 方案三：顶部图标标签页 ---------- */
+.w3 { width: 500px; height: 460px; }
+.w3-tabs {
+  flex: none; display: flex; gap: 4px; align-items: center;
+  height: 44px; padding: 0 12px; border-bottom: 1px solid var(--board-hairline);
+  background: var(--board-bg-raised);
+}
+.w3-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 30px; padding: 0 12px; border-radius: 6px; border: 0; cursor: pointer;
+  background: transparent; color: var(--board-ink); font-size: 12.5px; font-family: inherit;
+}
+.w3-tab .icon { font-size: 14px; color: var(--board-ink-dim); }
+.w3-tab:hover { background: var(--board-hover-veil); }
+.w3-tab.on { background: var(--amber); color: var(--amber-ink); font-weight: 600; }
+.w3-tab.on .icon { color: var(--amber-ink); }
+.w3-tab.danger-tab { margin-left: auto; color: var(--danger); }
+.w3-tab.danger-tab .icon { color: var(--danger); }
+.w3-tab.danger-tab:hover { background: rgba(212, 56, 13, 0.08); }
+.w3-tab.danger-tab.on { background: var(--danger); color: #fff; }
+.w3-tab.danger-tab.on .icon { color: #fff; }
+.w3-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.w3-body::-webkit-scrollbar { width: 8px; }
+.w3-body::-webkit-scrollbar-thumb { background: var(--board-tile-line); border-radius: 4px; }
+
+.pane { display: none; }
+.pane.on { display: block; }
+
+/* 关于版面（三案共用：居中产品签名） */
+.about-hero { text-align: center; padding: 26px 0 18px; }
+.about-name { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.about-sub { font-size: 11px; color: var(--board-ink-dim); margin-top: 4px; }
+
+.demo-foot { max-width: 980px; margin: 34px auto 0; color: var(--board-ink-dim); font-size: 12px; }
+.demo-foot p { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<header class="demo-head">
+  <h1>设置页重设计 · 三方案概念演示</h1>
+  <p>已定稿融入三案：快捷键速查=独立版面（F12/Esc/⌘F/⌘L 速查表）、恢复出厂=独立危险区常驻（红色入口，两步确认弹层不变）。三案均为零功能的形态演示：控件可点击切换但无行为，主题色行为占位色点（选中=琥珀默认，候选色板选案后填充）。窗口按真实度量绘制。</p>
+  <div class="demo-tools">
+    <button class="theme-btn" id="themeBtn">切换白天 / 黑夜</button>
+    <span style="font-size:12px;color:var(--board-ink-dim)">方案一/三的分类与标签可点击切换版面</span>
+  </div>
+</header>
+
+<div id="options"></div>
+
+<footer class="demo-foot">
+  <p>· 方案一参照 macOS 系统设置（侧栏 + 详情，~700×480）；方案二参照 Chrome 设置（单列大窗滚动，~520×620）；方案三参照经典偏好窗（顶部图标标签页，~500×460）。</p>
+  <p>· 侧栏/标签的选中态用信息板世界的「琥珀反白」语言（与会话行选中同构）——设置页导航是位置信号，不是状态信号，用反白不违反「零琥珀」的原始动因（稀释信号稀缺）；若你倾向保守也可改为次墨描边，定稿时定。</p>
+  <p>· 概念演示非生产表面；选定后走 impeccable 完整流程重写 DESIGN.md「设置窗口」条目并实施。</p>
+</footer>
+
+<script>
+/* ---------- 图标（SVG 基元手绘） ---------- */
+function icon(name) {
+  var S = {
+    gear: '<svg class="icon" viewBox="0 0 16 16"><g>' + [0, 45, 90, 135, 180, 225, 270, 315].map(function (d) { return '<rect x="7.4" y="0.8" width="1.2" height="2.8" rx="0.6" transform="rotate(' + d + ' 8 8)"/>' }).join('') + '<circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="8" r="1.4"/></g></svg>',
+    globe: '<svg class="icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M2 8h12M8 1.8c-2.6 3.4-2.6 9 0 12.4M8 1.8c2.6 3.4 2.6 9 0 12.4"/></svg>',
+    keyboard: '<svg class="icon" viewBox="0 0 16 16"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h1M7 6.5h1M10 6.5h1M4 9.5h8"/></svg>',
+    info: '<svg class="icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6M8 5v.2"/></svg>',
+    warn: '<svg class="icon" viewBox="0 0 16 16"><path d="M8 2l6 11H2z"/><path d="M8 6.5v3M8 11.6v.2"/></svg>',
+    caret: '<svg class="icon" viewBox="0 0 16 16"><path d="M4 6.5l4 4 4-4"/></svg>'
+  }
+  return S[name]
+}
+function kbd(keys) {
+  return '<span class="kbd-group">' + keys.map(function (k) { return '<span class="kbd">' + k + '</span>' }).join('<span class="kbd-plus">+</span>') + '</span>'
+}
+
+/* ---------- 版面内容（三案共用词汇，各自排版） ---------- */
+function rowsGeneral() {
+  return (
+    '<div class="row"><div class="row-main"><span class="row-label">外观</span><span class="row-desc">应用壳、原生界面与 DevTools 的亮暗模式</span></div>' +
+      '<div class="row-control"><span class="seg"><button class="on">跟随系统</button><button>白天</button><button>黑夜</button></span></div></div>' +
+    '<div class="row"><div class="row-main"><span class="row-label">语言</span><span class="row-desc">界面文案语言，切换即时生效</span></div>' +
+      '<div class="row-control"><span class="select-box">中文（简体）' + icon('caret') + '</span></div></div>' +
+    '<div class="row"><div class="row-main"><span class="row-label">主题色</span><span class="row-desc">左侧信息板的信号色（候选色板选案后启用）</span></div>' +
+      '<div class="row-control"><span class="dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></span></div></div>'
+  )
+}
+function rowsBrowsing() {
+  return (
+    '<div class="row"><div class="row-main"><span class="row-label">主页</span><span class="row-desc">工具栏「主页」按钮的跳转地址</span></div>' +
+      '<div class="row-control"><input type="text" placeholder="留空使用默认起始页" aria-label="主页"/></div></div>'
+  )
+}
+function rowsShortcuts() {
+  var items = [
+    ['唤起当前会话的开发者工具', ['F12']],
+    ['关闭开发者工具', ['Esc']],
+    ['页内查找', ['⌘', 'F']],
+    ['聚焦地址栏', ['⌘', 'L']],
+    ['新建标签页', ['⌘', 'T']],
+    ['关闭标签页', ['⌘', 'W']]
+  ]
+  return items.map(function (it) {
+    return '<div class="row"><div class="row-main"><span class="row-label">' + it[0] + '</span></div><div class="row-control">' + kbd(it[1]) + '</div></div>'
+  }).join('')
+}
+function rowsAbout() {
+  return (
+    '<div class="about-hero"><div class="about-name">多会话测试浏览器</div><div class="about-sub">版本 —（演示占位）</div></div>' +
+    '<div class="row"><div class="row-main"><span class="row-label">数据目录</span><span class="row-desc">会话、分区数据与偏好的落盘位置</span></div>' +
+      '<div class="row-control"><span class="static-value">打开</span></div></div>'
+  )
+}
+function dangerZone() {
+  return (
+    '<div class="danger-big"><button class="danger-btn" type="button">恢复出厂设置…</button>' +
+      '<p class="danger-note">删除全部会话、工作区与浏览数据，恢复默认设置；需两步确认（输入「重置」），不可撤销。</p></div>'
+  )
+}
+
+/* ---------- 方案一：侧栏 + 详情 ---------- */
+function frame1() {
+  var cats = [
+    ['general', 'gear', '通用'],
+    ['browsing', 'globe', '浏览'],
+    ['shortcuts', 'keyboard', '快捷键'],
+    ['about', 'info', '关于'],
+    ['danger', 'warn', '恢复出厂']
+  ]
+  var side = cats.map(function (c, i) {
+    return '<button type="button" class="side-cat' + (i === 0 ? ' on' : '') + (c[0] === 'danger' ? ' danger-cat' : '') + '" data-pane1="' + c[0] + '">' + icon(c[1]) + '<span>' + c[2] + '</span></button>'
+  }).join('')
+  function pane(id, title, desc, body, extra) {
+    return '<div class="pane' + (id === 'general' ? ' on' : '') + '" data-pane1b="' + id + '"><h3 class="pane-title">' + title + '</h3><p class="pane-desc">' + desc + '</p>' + body + (extra || '') + '</div>'
+  }
+  return (
+    '<div class="window w1">' +
+      '<div class="titlebar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="t">设置</span></div>' +
+      '<div class="w1-body">' +
+        '<nav class="w1-side">' + side + '</nav>' +
+        '<div class="w1-detail">' +
+          pane('general', '通用', '外观、语言与主题色', rowsGeneral()) +
+          pane('browsing', '浏览', '起始页与导航行为', rowsBrowsing()) +
+          pane('shortcuts', '快捷键', '应用与浏览器区的键位速查（阶段三实装对齐键位表单源）', rowsShortcuts()) +
+          pane('about', '关于', '', rowsAbout()) +
+          pane('danger', '恢复出厂设置', '高危操作：删除全部数据并重置设置', '<div class="danger-big" style="margin-top:4px;border-top:0;padding-top:0"><button class="danger-btn" type="button">恢复出厂设置…</button><p class="danger-note">删除全部会话、工作区与浏览数据，恢复默认设置；需两步确认（输入「重置」），不可撤销。</p></div>') +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  )
+}
+
+/* ---------- 方案二：单列大窗 ---------- */
+function frame2() {
+  function section(title, body) {
+    return '<section class="w2-section"><h3 class="w2-section-title">' + title + '</h3>' + body + '</section>'
+  }
+  return (
+    '<div class="window w2">' +
+      '<div class="titlebar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="t">设置</span></div>' +
+      '<div class="w2-body">' +
+        section('通用', rowsGeneral()) +
+        section('浏览', rowsBrowsing()) +
+        section('快捷键', rowsShortcuts()) +
+        section('关于', rowsAbout()) +
+        dangerZone() +
+      '</div>' +
+    '</div>'
+  )
+}
+
+/* ---------- 方案三：顶部图标标签页 ---------- */
+function frame3() {
+  var tabs = [
+    ['general', 'gear', '通用'],
+    ['browsing', 'globe', '浏览'],
+    ['shortcuts', 'keyboard', '快捷键'],
+    ['about', 'info', '关于'],
+    ['danger', 'warn', '恢复出厂']
+  ]
+  var tabRow = tabs.map(function (c, i) {
+    return '<button type="button" class="w3-tab' + (i === 0 ? ' on' : '') + (c[0] === 'danger' ? ' danger-tab' : '') + '" data-pane3="' + c[0] + '">' + icon(c[1]) + '<span>' + c[2] + '</span></button>'
+  }).join('')
+  function pane(id, title, body, withTitle) {
+    return '<div class="pane' + (id === 'general' ? ' on' : '') + '" data-pane3b="' + id + '">' + (withTitle ? '<h3 class="pane-title">' + title + '</h3>' : '') + body + '</div>'
+  }
+  return (
+    '<div class="window w3">' +
+      '<div class="titlebar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="t">设置</span></div>' +
+      '<div class="w3-tabs">' + tabRow + '</div>' +
+      '<div class="w3-body">' +
+        pane('general', '通用', rowsGeneral(), true) +
+        pane('browsing', '浏览', rowsBrowsing(), true) +
+        pane('shortcuts', '快捷键', rowsShortcuts(), true) +
+        pane('about', '关于', rowsAbout(), false) +
+        pane('danger', '恢复出厂设置', '<div class="danger-big" style="margin-top:4px;border-top:0;padding-top:0"><button class="danger-btn" type="button">恢复出厂设置…</button><p class="danger-note">删除全部会话、工作区与浏览数据，恢复默认设置；需两步确认（输入「重置」），不可撤销。</p></div>', true) +
+      '</div>' +
+    '</div>'
+  )
+}
+
+/* ---------- 装配三案 ---------- */
+var OPTIONS = [
+  { id: 'opt1', name: '方案一 · 侧栏 + 详情双栏', tag: '推荐 · macOS 系统设置形态', desc: '<b>700×480。</b>分类常驻左侧（图标 + 文字，34px 行），右侧整版详情（22/28 留白、44px 行、行下带说明文字）。<b>利：</b>最专业、最能长——每个分类都有整版空间（快捷键速查表、主题色板将来都摊得开）；导航零滚动。<b>弊：</b>窗口最大，内容少时右侧留白多。' },
+  { id: 'opt2', name: '方案二 · 单列大窗分节', tag: 'Chrome 设置形态', desc: '<b>520×620。</b>单列滚动、大节标题、行下说明文字。<b>利：</b>结构最简单、阅读线性、实现最轻。<b>弊：</b>内容全靠滚（本页已需滚两屏）；分类多后越来越长；专业观感弱于双栏。' },
+  { id: 'opt3', name: '方案三 · 顶部图标标签页', tag: '经典偏好窗形态', desc: '<b>500×460。</b>顶部一排图标标签切分类，内容区换版。<b>利：</b>比双栏紧凑、无滚动（当前内容量下）。<b>弊：</b>分类数受限（此形态一般 ≤6 个刚好在临界）；标签行占据的是「标题栏下方」的黄金位置但只承担导航；现代感三者最弱。' }
+]
+var mount = document.getElementById('options')
+OPTIONS.forEach(function (o, i) {
+  var sec = document.createElement('section')
+  sec.className = 'opt'
+  sec.innerHTML =
+    '<header class="opt-head"><h2>' + o.name + '</h2><span class="opt-tag">' + o.tag + '</span></header>' +
+    '<p class="opt-desc">' + o.desc + '</p>' +
+    (i === 0 ? frame1() : i === 1 ? frame2() : frame3())
+  mount.appendChild(sec)
+})
+
+/* ---------- 交互：侧栏/标签切版 + 昼夜 ---------- */
+document.addEventListener('click', function (e) {
+  var nav = e.target.closest('[data-pane1]')
+  if (nav) {
+    var win1 = nav.closest('.window')
+    win1.querySelectorAll('[data-pane1]').forEach(function (b) { b.classList.toggle('on', b === nav) })
+    win1.querySelectorAll('[data-pane1b]').forEach(function (p) {
+      p.classList.toggle('on', p.getAttribute('data-pane1b') === nav.getAttribute('data-pane1'))
+    })
+    return
+  }
+  var tab = e.target.closest('[data-pane3]')
+  if (tab) {
+    var win3 = tab.closest('.window')
+    win3.querySelectorAll('[data-pane3]').forEach(function (b) { b.classList.toggle('on', b === tab) })
+    win3.querySelectorAll('[data-pane3b]').forEach(function (p) {
+      p.classList.toggle('on', p.getAttribute('data-pane3b') === tab.getAttribute('data-pane3'))
+    })
+  }
+})
+document.getElementById('themeBtn').addEventListener('click', function () {
+  var root = document.documentElement
+  root.setAttribute('data-theme', root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark')
+})
+</script>
+</body>
+</html>

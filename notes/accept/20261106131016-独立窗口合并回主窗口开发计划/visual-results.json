@@ -1,0 +1,46 @@
+[
+  {
+    "name": "desktop-light",
+    "label": "合并回主窗口",
+    "toolbarWidth": 1024,
+    "scroll": 1024,
+    "x": 984,
+    "right": 1012,
+    "windowWidth": 1024,
+    "buttonCount": true,
+    "screenshot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/merge-main/desktop-light.png"
+  },
+  {
+    "name": "narrow-dark",
+    "label": "Merge into main window",
+    "toolbarWidth": 480,
+    "scroll": 480,
+    "x": 440,
+    "right": 468,
+    "windowWidth": 480,
+    "buttonCount": true,
+    "screenshot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/merge-main/narrow-dark.png"
+  },
+  {
+    "name": "narrow-traditional",
+    "label": "合併回主視窗",
+    "toolbarWidth": 480,
+    "scroll": 480,
+    "x": 440,
+    "right": 468,
+    "windowWidth": 480,
+    "buttonCount": true,
+    "screenshot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/merge-main/narrow-traditional.png"
+  },
+  {
+    "tooltip": [
+      {
+        "url": "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Chtml%3E%3Chead%3E%3Cmeta%20charset%3D%22utf-8%22%3E%0A%20%20%20%20%3Cmeta%20http-equiv%3D%22Content-Security-Policy%22%20content%3D%22default-src%20'none'%3B%20style-src%20'unsafe-inline'%22%3E%0A%20%20%20%20%3Cstyle%3E%0A%20%20%20%20%20%20*%7Bbox-sizing%3Aborder-box%7Dhtml%2Cbody%7Bmargin%3A0%3Bwidth%3A100%25%3Bheight%3A100%25%3Boverflow%3Ahidden%7D%0A%20%20%20%20%20%20body%7Bpadding-top%3A4px%3Bfont%3A12px%2F1.4%20-apple-system%2CBlinkMacSystemFont%2C'PingFang%20SC'%2C'Microsoft%20YaHei'%2C'Segoe%20UI'%2Csans-serif%7D%0A%20%20%20%20%20%20.tip%7Bposition%3Arelative%3Bdisplay%3Aflex%3Balign-items%3Acenter%3Bgap%3A6px%3Bpadding%3A5px%2010px%3B%0A%20%20%20%20%20%20%20%20border-radius%3A4px%3Bbackground%3Argba(0%2C0%2C0%2C.85)%3Bcolor%3A%23fff%3Bwhite-space%3Anowrap%7D%0A%20%20%20%20%20%20.tip%3Abefore%7Bcontent%3A''%3Bposition%3Aabsolute%3Bbottom%3A100%25%3Bleft%3A50%25%3Btransform%3AtranslateX(-50%25)%3B%0A%20%20%20%20%20%20%20%20border%3A4px%20solid%20transparent%3Bborder-bottom-color%3Argba(0%2C0%2C0%2C.85)%7D%0A%20%20%20%20%20%20.key%7Bcolor%3Argba(255%2C255%2C255%2C.65)%3Bfont-variant-numeric%3Atabular-nums%7D%0A%20%20%20%20%3C%2Fstyle%3E%3C%2Fhead%3E%3Cbody%3E%3Cdiv%20class%3D%22tip%22%3E%3Cspan%3E%E5%90%88%E5%B9%B6%E5%9B%9E%E4%B8%BB%E7%AA%97%E5%8F%A3%3C%2Fspan%3E%3C%2Fdiv%3E%3C%2Fbody%3E%3C%2Fhtml%3E",
+        "visible": true
+      }
+    ]
+  },
+  {
+    "realRendererClick": "PASS"
+  }
+]

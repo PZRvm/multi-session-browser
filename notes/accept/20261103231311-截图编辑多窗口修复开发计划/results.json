@@ -1,0 +1,42 @@
+{
+  "checks": [
+    "empty slot rejects editor",
+    "same capture double open before ready creates one window",
+    "A is bound to original capture",
+    "new screenshot opens second editor",
+    "same size different content stays separate",
+    "old editor image and annotations remain",
+    "same image restores existing minimized window",
+    "shell cannot read editor snapshot",
+    "cross-window image version rejected",
+    "old A editor exports after B capture",
+    "copy then download keeps A image dimensions",
+    "old editor export does not replace latest B",
+    "download then copy works in B without switching to A",
+    "new revision reuses same original capture window",
+    "download paused inside actual async file write",
+    "download completion does not overwrite concurrent C screenshot",
+    "recent screenshot download is still C",
+    "file failure rejects output",
+    "failed download preserves editor version",
+    "closing A leaves B and C usable",
+    "renderer crash removes only its editor",
+    "crashed current editor can reopen",
+    "accepted download finishes after closing editor without revival",
+    "closing during write leaves latest snapshot version unchanged",
+    "failed page load removes editor",
+    "editor reopens after failed load",
+    "toolbar screenshot displays feedback editor entry",
+    "feedback Edit opens new screenshot window",
+    "download names preserve screenshot session",
+    "closing main window disposes all editors",
+    "macOS main reopen can open editor again"
+  ],
+  "downloads": [
+    "Capture-A_20261103-232405-2.png",
+    "Capture-A_20261103-232405.png",
+    "Capture-A_20261103-232406.png",
+    "Capture-A_20261103-232407.png",
+    "Capture-A_20261103-232408.png"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "normal open does not display error dialog",
+    "zh-CN shell shows exactly one localized native info dialog",
+    "zh-CN shell failed entry removed while old editor survives",
+    "zh-CN feedback shows exactly one localized native info dialog",
+    "zh-CN feedback failed entry removed while old editor survives",
+    "zh-TW shell shows exactly one localized native info dialog",
+    "zh-TW shell failed entry removed while old editor survives",
+    "zh-TW feedback shows exactly one localized native info dialog",
+    "zh-TW feedback failed entry removed while old editor survives",
+    "en-US shell shows exactly one localized native info dialog",
+    "en-US shell failed entry removed while old editor survives",
+    "en-US feedback shows exactly one localized native info dialog",
+    "en-US feedback failed entry removed while old editor survives",
+    "retry after failure opens latest image with no extra prompt",
+    "closing pending editor suppresses spurious failure dialog",
+    "dialog display rejection leaves no leaked editor",
+    "normal editor still opens after dialog error"
+  ]
+}

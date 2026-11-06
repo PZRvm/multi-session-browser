@@ -1,0 +1,64 @@
+-- setMode light: "{\"mode\":\"light\",\"resolvedTheme\":\"light\"}"
+-- setMode dark: "{\"mode\":\"dark\",\"resolvedTheme\":\"dark\"}"
+-- setMode light: "{\"mode\":\"light\",\"resolvedTheme\":\"light\"}"
+-- normal state: "{\"rows\":1,\"tabs\":2,\"omnibox\":\"https://example.com/\"}"
+-- light batch: "{\"batchCount\":\"已选 1\",\"batchBar\":true}"
+-- setMode dark in batch: "{\"mode\":\"dark\",\"resolvedTheme\":\"dark\"}"
+-- dark normal: "{\"rows\":1,\"tabs\":2,\"active\":\"会话 1\"}"
+=== 用例 C：业务零回归 ===
+-- before: "{\"n\":1,\"active\":\"sess-mty48n35-1\"}"
+-- before: "{\"tabs\":2,\"activeTab\":\"tab-2\",\"url\":\"https://example.com/\",\"devtools\":false,\"sessionId\":\"sess-mty48n35-1\"}"
+-- open devtools: "{\"devtools\":true,\"tabs\":2}"
+-- targets before: B52710BF0656F9CA789A3F95C9A85DC4 page devtools://devtools/bundled/devtools_app.html?remoteBase=https://chrome-devtools-frontend.appspot.com/serve_file/@e62ac2a42847ca32ad8054229c7be73c6f18c4eb/&can_dock=true&toolbarColor=rgba(223,223,223,1)&textColor=rgba(0,0,0,1)&experiments=true;2C29DCF95CFC39CF88F3B948F95EEA76 page https://example.com/;9C75B37B5D20CB9D889BD3E95EF9FF20 page file:///Users/pangzerui/foreunit/multi-session-browser/out/renderer/index.html;B1793DD967371EEAEF937D73B4CC91A1 page about:blank;
+-- switch to light: "{\"mode\":\"light\",\"resolvedTheme\":\"light\"}"
+-- switch to dark: "{\"mode\":\"dark\",\"resolvedTheme\":\"dark\"}"
+-- after: "{\"tabs\":2,\"activeTab\":\"tab-2\",\"devtools\":true}"
+-- example.com probe: "{\"probe\":42,\"cookie\":\"msb_accept=theme\",\"ls\":\"keep\",\"title\":\"Example Domain\"}"
+-- about:blank probe: 
+-- targets after: B52710BF0656F9CA789A3F95C9A85DC4 page devtools://devtools/bundled/devtools_app.html?remoteBase=https://chrome-devtools-frontend.appspot.com/serve_file/@e62ac2a42847ca32ad8054229c7be73c6f18c4eb/&can_dock=true&toolbarColor=rgba(223,223,223,1)&textColor=rgba(0,0,0,1)&experiments=true;2C29DCF95CFC39CF88F3B948F95EEA76 page https://example.com/;9C75B37B5D20CB9D889BD3E95EF9FF20 page file:///Users/pangzerui/foreunit/multi-session-browser/out/renderer/index.html;B1793DD967371EEAEF937D73B4CC91A1 page about:blank;
+-- content rect: "{\"x\":281,\"y\":76,\"width\":799,\"height\":576,\"top\":76,\"right\":1080,\"bottom\":652,\"left\":281}"
+-- about:blank after switch: "{\"probe\":7,\"y\":777,\"v\":\" keepme\"}"
+-- devtools still open: "{\"devtools\":true}"
+-- media query (light): false
+-- media query (dark): true
+=== 用例 A：持久化 ===
+-- preferences.json after dark: {
+  "version": 1,
+  "appearanceMode": "dark"
+}
+-- relaunch1: 
+-- preferences.json after light: {
+  "version": 1,
+  "appearanceMode": "dark"
+}
+-- relaunch2: 
+-- relaunch1(dark): "{\"mode\":\"dark\",\"resolved\":\"dark\",\"sessions\":1,\"active\":true,\"tabs\":1}"
+-- preferences.json after light: {"version":1,"appearanceMode":"light"}
+-- relaunch2(light): "{\"mode\":\"light\",\"resolvedTheme\":\"light\"}"
+-- preferences.json after system: {"version":1,"appearanceMode":"system"}
+-- relaunch3(system): "{\"mode\":\"system\",\"resolvedTheme\":\"light\"}"
+-- OS->dark: "{\"state\":null,\"events\":[{\"mode\":\"system\",\"resolvedTheme\":\"dark\"}]}"
+-- getState after OS dark: "{\"mode\":\"system\",\"resolvedTheme\":\"dark\"}"
+-- events now: "[{\"mode\":\"system\",\"resolvedTheme\":\"dark\"},{\"mode\":\"system\",\"resolvedTheme\":\"light\"}]"
+-- explicit light under OS dark: "{\"mode\":\"light\",\"resolvedTheme\":\"light\"}"
+-- file untouched: {"version":1,"appearanceMode":"light"}
+-- events: "[{\"mode\":\"light\",\"resolvedTheme\":\"light\"},{\"set\":\"light\"}]"
+=== 用例 D：错误与恢复 ===
+-- D1 corrupt: "{\"mode\":\"system\",\"resolved\":\"light\",\"sessions\":1}"
+-- D1 log warning: [appearance] 外观偏好校验失败（文件不是合法 JSON），已回退“跟随系统”
+-- D2 unknown version: "{\"mode\":\"system\",\"sessions\":1}"
+-- D2 log warning: [appearance] 外观偏好校验失败（version 不认识: 99），已回退“跟随系统”
+-- D3 invalid payload: "rejected: Error invoking remote method 'appearance:set-mode': Error: 无效的外观模式参数"
+-- D3 file unchanged: {"version":99,"appearanceMode":"dark"}
+-- D3 theme unchanged: "{\"mode\":\"system\",\"resolvedTheme\":\"light\"}"
+-- D4 write failed: "rejected: Error invoking remote method 'appearance:set-mode': Error: EACCES: permission denied, open '/tmp/msb-accept-appearance/u-matrix/preferences.json.89050-1789201709086-nzymk5.tmp'"
+-- D4 snapshot retained: "{\"mode\":\"system\",\"resolvedTheme\":\"light\"}"
+-- D4 console error: 
+-- D4 retry after restore: "{\"mode\":\"dark\",\"resolvedTheme\":\"dark\"}"
+-- final preferences: {"version":1,"appearanceMode":"dark"}
+=== 用例 C 补充：双会话 ===
+-- after switches: "{\"n\":2,\"active\":\"sess-mty4kurc-1\",\"names\":[\"会话 1\",\"会话 1\"]}"
+-- s1 page: "{\"probe\":{\"sess\":1,\"keep\":true},\"cookie\":\"msb_accept=theme; msb_s1=alive\"}"
+-- s2 page: "{\"cookie\":\"msb_s2=own\",\"title\":\"Example Domain\"}"
+-- back to s1: "{\"active\":true,\"url\":\"https://example.com/\"}"
+-- s1 probe after swap: "{\"probe\":{\"sess\":1,\"keep\":true},\"cookie\":\"msb_accept=theme; msb_s1=alive\"}"
