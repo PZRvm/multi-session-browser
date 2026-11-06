@@ -11,9 +11,9 @@ status: in_progress
 
 验证：索引零警告；生产 build（含双类型检查）、lint、actionlint、工具格式检查通过。迁移 308/308、附件 44/44 字节一致；提交校验与索引均经过隔离正反例。未修改应用源码、依赖锁、打包配置，不运行或发布安装包。
 
-[B1 钩子执行位](../../issue/2026-11/2026-11-06-bocode-adoption-review.md) 已经独立 S 轮修复，索引导出与隔离真实 Git 提交验证通过。接入提交为 73a8f4b，尚未推送。
+[B1 钩子执行位](../../issue/2026-11/2026-11-06-bocode-adoption-review.md) 已经独立 S 轮修复，索引导出与隔离真实 Git 提交验证通过。接入提交为 73a8f4b；[B2 根文档引用](../../issue/2026-11/2026-11-06-bocode-product-paths.md) 也已独立同步。新克隆验证确认技能完整、钩子可执行、索引零警告且无生成差异，尚未推送。
 
-剩余：按上游 ADOPT 第 8 步，等待用户确认 [架构草案](../../../guidelines/architecture.md) 和 [编码草案](../../../guidelines/coding-style.md)，再定稿 ADR-001 与本记录。
+剩余：按上游 ADOPT 第 8 步，等待用户确认 [架构草案](../../../guidelines/architecture.md) 和 [编码草案](../../../guidelines/coding-style.md)，再将 [ADR-001](../../../docs/decisions/ADR-001-adopt-bocode.md) 从 Proposed 定为 Accepted，并完成计划与本记录。
 
 ## 复核入口
 

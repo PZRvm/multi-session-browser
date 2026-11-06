@@ -70,6 +70,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### docs/decisions/
 
+- [ADR-001-adopt-bocode.md](docs/decisions/ADR-001-adopt-bocode.md) — 接入 BoCode、保留根目录源码并迁移历史文档的决定与代价
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -402,4 +403,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 290 documents -->
+<!-- 291 documents -->
