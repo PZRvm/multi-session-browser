@@ -1,6 +1,6 @@
 ---
 description: BoCode 接入的十一项审查结果与提交钩子执行位问题
-status: open
+status: resolved
 tier: L
 ---
 
@@ -42,4 +42,8 @@ book:index 283 篇、零警告；build（含 node/web typecheck）、lint、工�
 
 ## Todo
 
-- [ ] B1：单独修复 Git 中的钩子执行位，并验证新克隆的实际提交行为
+- [x] B1：单独修复 Git 中的钩子执行位，并验证新克隆的实际提交行为
+
+## B1 独立修复轮验证
+
+接入审查提交 73a8f4b 后单独按 S 级处理：只修正钩子 Git 索引模式为 100755，不修改钩子正文或全局设置。git checkout-index 导出两份实际文件到临时目录，导出钩子有执行位；在该目录新建隔离 Git 仓库并设置 hooksPath，真实 git commit 拒绝非法 feat 消息，接受中文 Clean Commit。修复与审查分轮，未在审查中顺手改代码。
