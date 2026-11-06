@@ -12,6 +12,18 @@ export const browser = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜索 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必应',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜索'
+    },
     mergeToMain: '合并回主窗口',
     mergeFailed: '未能合并窗口，请重试',
     back: '后退',

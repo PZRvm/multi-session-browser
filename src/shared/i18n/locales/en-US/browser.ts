@@ -10,6 +10,18 @@ export const browser: Dictionary['browser'] = {
     closeWith: 'Close tab: {title}'
   },
   toolbar: {
+    searchWith: 'Search {engine}',
+    engines: {
+      baidu: 'Baidu',
+      bing: 'Bing',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: 'Sogou',
+      so360: '360 Search'
+    },
     mergeToMain: 'Merge into main window',
     mergeFailed: 'Unable to merge windows. Please try again.',
     back: 'Back',

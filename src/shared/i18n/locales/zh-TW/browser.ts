@@ -15,6 +15,18 @@ export const browser: Dictionary['browser'] = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜尋 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必應',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜尋'
+    },
     mergeToMain: '合併回主視窗',
     mergeFailed: '無法合併視窗，請重試',
     back: '後退',

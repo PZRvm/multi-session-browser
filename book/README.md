@@ -53,6 +53,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](changelogs/2026-11/2026-11-06-bocode-adoption.md) — 引入 BoCode 规范、索引、技能与历史文档迁移
 - [2026-11-06-bocode-hook-mode.md](changelogs/2026-11/2026-11-06-bocode-hook-mode.md) — 修正提交钩子在新克隆仓库的执行权限
 - [2026-11-06-bocode-root-doc-links.md](changelogs/2026-11/2026-11-06-bocode-root-doc-links.md) — 同步根产品与设计入口的文档迁移路径
+- [2026-11-06-地址栏补全搜索.md](changelogs/2026-11/2026-11-06-地址栏补全搜索.md) — 独立 worktree 实现历史行内补全、九家引擎 Tab 搜索和制表符编辑，待审查修复与平台验收
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -137,7 +138,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (61)**
+**Open (63)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -200,6 +201,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030141215-WCO修复轮复审.md](notes/issue/2026-10/20261030141215-WCO修复轮复审.md) — "代码审查：WCO 专项修复轮复审"
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
+- [20261106165837-地址栏补全搜索审查.md](notes/issue/2026-11/20261106165837-地址栏补全搜索审查.md) — 地址栏原生撤销菜单未接入局部快照，以及格式化带入无关 CSS 换行的审查记录
+- [20261106171834-地址栏补全搜索验收后审查.md](notes/issue/2026-11/20261106171834-地址栏补全搜索验收后审查.md) — 地址栏加载期间 Tab 会覆盖可见待导航文本，另复核原生撤销与无关 CSS 两项遗留问题
 
 **Resolved (38)**
 
@@ -263,6 +266,8 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
+- [20261106162848-地址栏行内补全与Tab搜索.md](notes/learn/2026-11/20261106162848-地址栏行内补全与Tab搜索.md) — 地址栏历史行内补全、九种搜索引擎的 Tab 搜索与制表符输入的可行性及接入方案
+- [20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md](notes/learn/2026-11/20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md) — 受控 input 的程序补全会改变撤销语义，快照必须保留原 URL 与选区，同值替换也需恢复光标
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -345,6 +350,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
 - [20261106145813-修复验收.md](notes/summary/2026-11/20261106145813-修复验收.md) — "独立窗口合并与气泡定位审查的修复验收"
+- [20261106165837-地址栏补全搜索验收.md](notes/summary/2026-11/20261106165837-地址栏补全搜索验收.md) — 地址栏补全搜索的 worktree、78 项累计验证、已知撤销菜单问题及可逐步执行的人工验收
+- [20261106171204-完整引擎输入优先Tab搜索.md](notes/summary/2026-11/20261106171204-完整引擎输入优先Tab搜索.md) — 完整搜索引擎输入优先于历史补全，九家引擎带历史路径时的一次 Tab 搜索验证与差异审查
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
 ### plans/
@@ -401,6 +408,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030164534-无底图标与chrome区主题适配开发计划.md](plans/20261030164534-无底图标与chrome区主题适配开发计划.md) — "阶段开发计划：无底图标与 chrome 区主题适配"
 - [20261103231311-截图编辑多窗口修复开发计划.md](plans/20261103231311-截图编辑多窗口修复开发计划.md) — "截图编辑多窗口修复开发计划"
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
+- [20261106163649-地址栏行内补全与Tab搜索开发计划.md](plans/20261106163649-地址栏行内补全与Tab搜索开发计划.md) — 在现有地址栏加入历史行内补全、九家引擎搜索与统一 Tab 优先级的四步实施及验收计划
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 291 documents -->
+<!-- 299 documents -->

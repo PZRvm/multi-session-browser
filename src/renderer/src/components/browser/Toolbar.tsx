@@ -12,7 +12,13 @@ import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settin
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
 import { TOOLTIP_FONT_STACK, TOOLTIP_METRICS } from '../../../../shared/toolbarTooltip'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
-import { normalizeForMatch, suggest } from './omniboxSuggest'
+import {
+  inlineCompletion,
+  normalizeForMatch,
+  suggest,
+  type InlineCompletion
+} from './omniboxSuggest'
+import { buildSearchUrl, matchSearchEngine, type SearchEngine } from './searchEngines'
 
 /** 悬停气泡 span 槽（审查 20261030162931 低-4 收敛）：hover/focus 四件套接线单点
  *  维护，各钮只声明文案/键帽/场景 kind；span 为 flex 项紧包按钮（rect 与按钮等值），
@@ -117,6 +123,13 @@ function ToolGlyph({ paths }: { paths: readonly string[] }): React.JSX.Element {
       ))}
     </svg>
   )
+}
+
+interface AddressEditSnapshot {
+  text: string
+  start: number
+  end: number
+  target: InlineCompletion | null
 }
 
 const INVALID_HINT_MS = 2500
@@ -318,6 +331,73 @@ function Toolbar(): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   // null 表示非编辑态：显示主进程 URL；聚焦编辑期间改用本地草稿，失焦/回车成功后回归
   const [draft, setDraft] = useState<string | null>(null)
+  const [completion, setCompletion] = useState<InlineCompletion | null>(null)
+  const [acceptedTarget, setAcceptedTarget] = useState<InlineCompletion | null>(null)
+  const [searchMode, setSearchMode] = useState<{
+    engine: SearchEngine
+    entry: string
+    target: InlineCompletion | null
+  } | null>(null)
+  const composing = useRef(false)
+  const editVersion = useRef(0)
+  // 程序补全会改写原生 input 的撤销栈，地址栏只保存本次聚焦期间的编辑快照。
+  const undoEdits = useRef<AddressEditSnapshot[]>([])
+  const redoEdits = useRef<AddressEditSnapshot[]>([])
+  const beforeEdit = useRef<AddressEditSnapshot | null>(null)
+  const selectionRequest = useRef<{ scope: string | null; start: number; end: number } | null>(null)
+  const [selectionTick, setSelectionTick] = useState(0)
+  const requestSelection = (start: number, end = start): void => {
+    selectionRequest.current = { scope, start, end }
+    // 替换选中的同一个制表符时文本没有变化，也必须恢复折叠后的光标。
+    setSelectionTick((tick) => tick + 1)
+  }
+  const shownInput = completion?.displayText ?? draft ?? mainUrl
+
+  const editSnapshot = (): AddressEditSnapshot => {
+    const input = inputRef.current
+    const text = draft ?? mainUrl
+    return {
+      text,
+      start: Math.min(input?.selectionStart ?? text.length, text.length),
+      end: Math.min(input?.selectionEnd ?? text.length, text.length),
+      target: acceptedTarget?.displayText === text ? acceptedTarget : null
+    }
+  }
+  const rememberEdit = (): void => {
+    const snapshot = beforeEdit.current ?? editSnapshot()
+    undoEdits.current.push(snapshot)
+    if (undoEdits.current.length > 100) undoEdits.current.shift()
+    redoEdits.current = []
+    beforeEdit.current = null
+  }
+  const clearEditing = (): void => {
+    editVersion.current++
+    composing.current = false
+    undoEdits.current = []
+    redoEdits.current = []
+    beforeEdit.current = null
+    selectionRequest.current = null
+    setCompletion(null)
+    setAcceptedTarget(null)
+    setSearchMode(null)
+  }
+  useLayoutEffect(() => {
+    const input = inputRef.current
+    if (!input || document.activeElement !== input) return
+    const selection = selectionRequest.current
+    selectionRequest.current = null
+    if (selection?.scope === scope) input.setSelectionRange(selection.start, selection.end)
+    else if (completion) input.setSelectionRange(completion.selectionStart, completion.selectionEnd)
+  }, [draft, completion, scope, selectionTick])
+  useLayoutEffect(() => {
+    // 作用域改变即让选区恢复与局部撤销失效，不给新会话套旧编辑历史。
+    editVersion.current++
+    undoEdits.current = []
+    redoEdits.current = []
+    beforeEdit.current = null
+    selectionRequest.current = null
+    composing.current = false
+  }, [scope])
   // 提交锁定（用户反馈修复 + 融合专项作用域化）：回车成功那一刻导航刚开始、主进程
   // URL 还是旧值（新标签页为 about:blank → 显示空串），直接回归快照会让加载期间
   // 文本框被清空/显示旧 URL。提交时记「发起作用域 + 提交文本 + 当时快照 URL 基线」，
@@ -339,8 +419,8 @@ function Toolbar(): React.JSX.Element {
   // 历史建议（地址栏补全）：编辑态对当前会话镜像本地过滤；-1 = 无键盘高亮。
   // dismissed：Esc 首按只关面板的抑制标志，继续输入或重新聚焦即复位（Chrome 对齐）
   const suggestions = useMemo(
-    () => (draft === null ? [] : suggest(history, draft)),
-    [history, draft]
+    () => (draft === null || searchMode !== null ? [] : suggest(history, draft)),
+    [history, draft, searchMode]
   )
   // 命中加粗用的规范化查询（与 suggest 同规：小写、去 scheme/www；空查询/低于阈值无加粗）
   const normalizedQuery = useMemo(() => (draft === null ? '' : normalizeForMatch(draft)), [draft])
@@ -357,6 +437,9 @@ function Toolbar(): React.JSX.Element {
   if (prevScope !== scope) {
     setPrevScope(scope)
     setDraft(null)
+    setCompletion(null)
+    setAcceptedTarget(null)
+    setSearchMode(null)
     setPending(null)
     setSuggestIndex(-1)
     setSuggestDismissed(false)
@@ -424,10 +507,12 @@ function Toolbar(): React.JSX.Element {
     if (scope === null) return
     const originScope = scope
     const baselineUrl = mainUrl
+    const version = editVersion.current
     const ok = await navigate(url)
     const { sessionId: sid, activeTabId: tabId } = useBrowserStore.getState()
-    if (omniboxScopeKey(sid, tabId) !== originScope) return
+    if (omniboxScopeKey(sid, tabId) !== originScope || editVersion.current !== version) return
     if (ok) {
+      clearEditing()
       setDraft(null)
       setPending({ scope: originScope, baselineUrl, locked: url })
     } else {
@@ -437,7 +522,22 @@ function Toolbar(): React.JSX.Element {
 
   // 回车提交：无高亮时提交输入原文（空串直接回归非编辑态）
   const submitDraft = async (): Promise<void> => {
+    if (searchMode) {
+      if ((draft ?? '').trim()) void submitUrl(buildSearchUrl(searchMode.engine, draft ?? ''))
+      return
+    }
     const raw = (draft ?? '').trim()
+    if (raw.includes('\t')) {
+      setCompletion(null)
+      setSuggestDismissed(true)
+      showInvalid()
+      return
+    }
+    const target = completion ?? acceptedTarget
+    if (target && (completion !== null || target.displayText === draft)) {
+      void submitUrl(target.targetUrl)
+      return
+    }
     if (!raw) {
       setDraft(null)
       return
@@ -469,32 +569,131 @@ function Toolbar(): React.JSX.Element {
     onPick: pickSuggestion
   })
 
-  // 输入法组合中的回车（isComposing）只用于候选确认，不触发提交；建议面板的键盘
-  // 语义分层（Chrome 对齐）：Enter 高亮项优先、Esc 先关面板（编辑态保留，再按才还原
-  // 主进程 URL）、↑↓ 环形移动高亮并吞默认（防 caret 跳到输入首尾）。Enter 的高亮
-  // 提交只在面板实际呈现时生效——空间不足被主进程拒绝展示期间（suggestPresented
-  // false）建议不可见，Enter 按输入原文提交，不提交不可见建议（审查 20261028170000
-  // 低-6）；aria-expanded 同随呈现态，不虚报弹开列表
+  const acceptCompletion = (): void => {
+    if (!completion) return
+    rememberEdit()
+    editVersion.current++
+    setDraft(completion.displayText)
+    setAcceptedTarget(completion)
+    requestSelection(completion.selectionEnd)
+    setCompletion(null)
+  }
+  const exitSearch = (): void => {
+    if (!searchMode) return
+    const { entry, target } = searchMode
+    clearEditing()
+    setDraft(entry)
+    setAcceptedTarget(target)
+    requestSelection(entry.length)
+    setSuggestDismissed(true)
+  }
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.nativeEvent.isComposing) return
-    if (e.key === 'Enter') {
-      if (panelOpen && suggestPresented && activeSuggestIndex >= 0) {
+    const plainTab = e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
+    if (e.nativeEvent.isComposing || composing.current) {
+      // IME 优先，但不让未被候选菜单消费的 Tab 落入壳层焦点导航。
+      if (plainTab) e.preventDefault()
+      return
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && ['z', 'y'].includes(e.key.toLowerCase())) {
+      e.preventDefault()
+      const redo = e.key.toLowerCase() === 'y' || e.shiftKey
+      const from = redo ? redoEdits.current : undoEdits.current
+      const to = redo ? undoEdits.current : redoEdits.current
+      const previous = from.pop()
+      if (previous) {
+        to.push(editSnapshot())
+        editVersion.current++
+        beforeEdit.current = null
+        setDraft(previous.text)
+        setCompletion(null)
+        setAcceptedTarget(previous.target)
+        setSuggestIndex(-1)
+        setSuggestDismissed(true)
+        clearInvalid()
+        requestSelection(previous.start, previous.end)
+      }
+      return
+    }
+    if (plainTab) {
+      e.preventDefault()
+      beforeEdit.current = null
+      // 用用户原始草稿优先识别引擎，不能让历史追加的路径抢走完整域名的 Tab。
+      const engine = searchMode === null ? matchSearchEngine(draft ?? mainUrl) : null
+      if (engine) {
+        const entry = draft ?? mainUrl
+        clearEditing()
+        setSearchMode({ engine, entry, target: acceptedTarget })
+        setDraft('')
+        setSuggestIndex(-1)
+        setSuggestDismissed(true)
+        clearInvalid()
+        requestSelection(0)
+      } else if (completion) {
+        acceptCompletion()
+      } else {
+        const { text, start, end } = editSnapshot()
+        rememberEdit()
+        editVersion.current++
+        setDraft(text.slice(0, start) + '\t' + text.slice(end))
+        setCompletion(null)
+        setAcceptedTarget(null)
+        setSuggestIndex(-1)
+        setSuggestDismissed(true)
+        clearInvalid()
+        requestSelection(start + 1)
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (!searchMode && panelOpen && suggestPresented && activeSuggestIndex >= 0) {
         pickSuggestion(suggestions[activeSuggestIndex].entry.url)
       } else void submitDraft()
     } else if (e.key === 'Escape') {
-      if (panelOpen) setSuggestDismissed(true)
-      else {
+      e.preventDefault()
+      if (searchMode) exitSearch()
+      else if (panelOpen || completion) {
+        editVersion.current++
+        setCompletion(null)
+        setSuggestDismissed(true)
+        setSuggestIndex(-1)
+      } else {
+        clearEditing()
         setDraft(null)
         clearInvalid()
       }
-    } else if (e.key === 'ArrowDown' && panelOpen) {
+    } else if (e.key === 'Backspace' && searchMode && !draft) {
       e.preventDefault()
+      exitSearch()
+    } else if ((e.key === 'Backspace' || e.key === 'Delete') && completion) {
+      e.preventDefault()
+      editVersion.current++
+      setCompletion(null)
+      setSuggestDismissed(true)
+      requestSelection((draft ?? '').length)
+    } else if (
+      e.key === 'ArrowRight' &&
+      completion &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      e.preventDefault()
+      acceptCompletion()
+    } else if (e.key === 'ArrowDown' && panelOpen && suggestPresented) {
+      e.preventDefault()
+      setCompletion(null)
       setSuggestIndex((activeSuggestIndex + 1) % suggestions.length)
-    } else if (e.key === 'ArrowUp' && panelOpen) {
+    } else if (e.key === 'ArrowUp' && panelOpen && suggestPresented) {
       e.preventDefault()
+      setCompletion(null)
       setSuggestIndex(activeSuggestIndex <= 0 ? suggestions.length - 1 : activeSuggestIndex - 1)
     }
   }
+  const searchLabel = searchMode
+    ? t('browser.toolbar.searchWith', {
+        engine: t(`browser.toolbar.engines.${searchMode.engine.id}`)
+      })
+    : null
 
   return (
     <div className="chrome-toolbar">
@@ -541,35 +740,96 @@ function Toolbar(): React.JSX.Element {
           )}
         </TooltipSlot>
       </div>
-      <div className="chrome-omnibox-host" ref={hostRef}>
+      <div
+        className={`chrome-omnibox-host${invalid ? ' chrome-omnibox-invalid' : ''}${suggestPresented ? ' chrome-omnibox-fused' : ''}`}
+        ref={hostRef}
+      >
+        {searchLabel && (
+          <span className="chrome-omnibox-engine" title={searchLabel}>
+            {searchLabel}
+          </span>
+        )}
         <input
           ref={inputRef}
           type="text"
-          className={`chrome-omnibox${invalid ? ' chrome-omnibox-invalid' : ''}${
-            suggestPresented ? ' chrome-omnibox-fused' : ''
-          }`}
+          className="chrome-omnibox"
           placeholder={t('browser.toolbar.addressPlaceholder')}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
           disabled={sessionId === null || !activeTab}
-          value={draft ?? pendingShown ?? mainUrl}
+          value={completion?.displayText ?? draft ?? pendingShown ?? mainUrl}
+          aria-label={searchLabel ?? t('browser.toolbar.addressPlaceholder')}
+          aria-autocomplete={searchMode ? 'none' : 'both'}
           aria-invalid={invalid}
           aria-expanded={panelOpen && suggestPresented}
           role="combobox"
           title={invalid ? t('browser.toolbar.addressInvalid') : undefined}
+          onBeforeInput={() => {
+            beforeEdit.current = editSnapshot()
+          }}
+          onCompositionStart={() => {
+            beforeEdit.current = null
+            rememberEdit()
+            composing.current = true
+            setCompletion(null)
+          }}
+          onCompositionEnd={(e) => {
+            composing.current = false
+            beforeEdit.current = null
+            setDraft(e.currentTarget.value)
+            setCompletion(null)
+          }}
           onChange={(e) => {
-            setDraft(e.target.value)
+            const input = e.currentTarget
+            const native = e.nativeEvent as InputEvent
+            const value = input.value
+            const userSelection =
+              !completion &&
+              beforeEdit.current !== null &&
+              beforeEdit.current.start !== beforeEdit.current.end
+            if (!composing.current && !native.isComposing) rememberEdit()
+            editVersion.current++
+            setDraft(value)
+            setAcceptedTarget(null)
+            const atEnd =
+              input.selectionStart === value.length && input.selectionEnd === value.length
+            const canComplete =
+              !searchMode &&
+              !composing.current &&
+              !native.isComposing &&
+              native.inputType === 'insertText' &&
+              !userSelection &&
+              atEnd &&
+              !!native.data &&
+              Array.from(native.data).length === 1
+            setCompletion(canComplete ? inlineCompletion(suggest(history, value), value) : null)
             setSuggestIndex(-1)
             setSuggestDismissed(false)
             clearInvalid()
           }}
+          onSelect={(e) => {
+            if (!completion) return
+            const input = e.currentTarget
+            if (
+              input.selectionStart === completion.selectionStart &&
+              input.selectionEnd === completion.selectionEnd
+            )
+              return
+            // 用户主动改选区时保留可见文本，不再把它作为自动后缀处理。
+            editVersion.current++
+            setDraft(shownInput)
+            setAcceptedTarget(completion)
+            setCompletion(null)
+          }}
           onFocus={() => {
+            clearEditing()
             setDraft(pendingShown ?? mainUrl)
             setSuggestDismissed(false)
           }}
           onBlur={() => {
+            clearEditing()
             setDraft(null)
             setSuggestIndex(-1)
           }}

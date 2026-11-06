@@ -85,3 +85,36 @@ export function suggest(
   matched.sort((a, b) => a.tier - b.tier || b.score - a.score)
   return matched.slice(0, limit).map((item) => ({ entry: item.entry, tier: item.tier }))
 }
+
+export interface InlineCompletion {
+  displayText: string
+  selectionStart: number
+  selectionEnd: number
+  targetUrl: string
+}
+
+/** 仅做大小写敏感的连续前缀追加；匹配排序仍沿用 suggest，原始导航目标不改写。
+ * 去 scheme/www 的展示变体逐一保留原串，不能用规范化查询的下标截原 URL。 */
+export function inlineCompletion(
+  suggestions: OmniboxSuggestion[],
+  input: string
+): InlineCompletion | null {
+  if (input.length < SUGGEST_MIN_INPUT || /\s/.test(input)) return null
+  for (const { entry } of suggestions) {
+    if (!/^https?:\/\//i.test(entry.url)) continue
+    const withoutScheme = entry.url.replace(/^https?:\/\//i, '')
+    const variants = [entry.url, withoutScheme, withoutScheme.replace(/^www\./i, '')]
+    for (const variant of variants) {
+      // 根地址隐藏末尾 /，使接受域名补全后下一次 Tab 可以精确进入搜索模式。
+      const displayText = /^[^/?#]+\/$/.test(variant) ? variant.slice(0, -1) : variant
+      if (displayText.length <= input.length || !displayText.startsWith(input)) continue
+      return {
+        displayText,
+        selectionStart: input.length,
+        selectionEnd: displayText.length,
+        targetUrl: entry.url
+      }
+    }
+  }
+  return null
+}
