@@ -10,6 +10,18 @@ export const browser: Dictionary['browser'] = {
     closeWith: 'Close tab: {title}'
   },
   toolbar: {
+    searchWith: 'Search {engine}',
+    engines: {
+      baidu: 'Baidu',
+      bing: 'Bing',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: 'Sogou',
+      so360: '360 Search'
+    },
     mergeToMain: 'Merge into main window',
     mergeFailed: 'Unable to merge windows. Please try again.',
     back: 'Back',
@@ -17,7 +29,8 @@ export const browser: Dictionary['browser'] = {
     reload: 'Reload',
     stop: 'Stop',
     // home (Home button label) removed with the 2026-10-30 toolbar Home button retirement
-    addressPlaceholder: 'Enter URL',
+    addressPlaceholder: 'Enter URL or search',
+    addressSearchLabel: 'Enter URL or search with Google',
     addressInvalid: 'Invalid URL',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
     screenshot: 'Screenshot',

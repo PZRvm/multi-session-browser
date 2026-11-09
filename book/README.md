@@ -54,6 +54,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](changelogs/2026-11/2026-11-06-bocode-adoption.md) — 引入 BoCode 规范、索引、技能与历史文档迁移
 - [2026-11-06-bocode-hook-mode.md](changelogs/2026-11/2026-11-06-bocode-hook-mode.md) — 修正提交钩子在新克隆仓库的执行权限
 - [2026-11-06-bocode-root-doc-links.md](changelogs/2026-11/2026-11-06-bocode-root-doc-links.md) — 同步根产品与设计入口的文档迁移路径
+- [2026-11-06-地址栏审查问题修复.md](changelogs/2026-11/2026-11-06-地址栏审查问题修复.md) — 关闭五项地址栏审查问题，原生菜单通过只读闭集桥接共用局部撤销栈
+- [2026-11-06-地址栏补全搜索.md](changelogs/2026-11/2026-11-06-地址栏补全搜索.md) — 独立 worktree 实现历史行内补全、九家引擎 Tab 搜索和制表符编辑，待审查修复与平台验收
+- [2026-11-06-默认搜索与统一图标.md](changelogs/2026-11/2026-11-06-默认搜索与统一图标.md) — 统一 SearchOutlined、普通文字默认 Google，并修复待导航地址编辑来源；审查记录两项边界缺口
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -72,6 +75,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### docs/decisions/
 
 - [ADR-001-adopt-bocode.md](docs/decisions/ADR-001-adopt-bocode.md) — 接入 BoCode、保留根目录源码并迁移历史文档的决定与代价
+- [ADR-002-omnibox-native-editing.md](docs/decisions/ADR-002-omnibox-native-editing.md) — 原生编辑菜单通过只读闭集推送交给当前浏览器壳，地址栏消费局部栈，其余输入保持原生编辑
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -202,7 +206,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
 
-**Resolved (38)**
+**Resolved (43)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -242,6 +246,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261104005033-截图编辑多窗口审查修复复审.md](notes/issue/2026-11/20261104005033-截图编辑多窗口审查修复复审.md) — "代码审查：截图编辑多窗口审查修复复审"
 - [20261106140710-独立窗口合并与气泡定位审查.md](notes/issue/2026-11/20261106140710-独立窗口合并与气泡定位审查.md) — "代码审查：独立窗口合并与气泡定位"
 - [20261106145813-独立窗口合并审查修复复审.md](notes/issue/2026-11/20261106145813-独立窗口合并审查修复复审.md) — "代码审查：独立窗口合并审查修复复审"
+- [20261106165837-地址栏补全搜索审查.md](notes/issue/2026-11/20261106165837-地址栏补全搜索审查.md) — 原生撤销菜单与无关 CSS 换行问题已修复并通过菜单、快捷键及基线对比验证
+- [20261106171834-地址栏补全搜索验收后审查.md](notes/issue/2026-11/20261106171834-地址栏补全搜索验收后审查.md) — pending、原生菜单撤销及 CSS 三项均已修复并复验
+- [20261106175900-默认搜索与统一图标审查.md](notes/issue/2026-11/20261106175900-默认搜索与统一图标审查.md) — 下划线主机、Unicode 空白及两项旧遗留均已修复
+- [20261106185333-默认搜索未提交改动复审.md](notes/issue/2026-11/20261106185333-默认搜索未提交改动复审.md) — 默认搜索复审的 URI、主机、空白及菜单/CSS 五项问题均已修复
+- [20261106193350-地址栏审查修复复审.md](notes/issue/2026-11/20261106193350-地址栏审查修复复审.md) — 五项地址栏审查问题已修复，闭集菜单桥接与输入边界复审未发现新增问题
 
 ### notes/learn/2026-09/
 
@@ -263,7 +272,12 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/learn/2026-11/
 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
+- [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
+- [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
+- [20261106162848-地址栏行内补全与Tab搜索.md](notes/learn/2026-11/20261106162848-地址栏行内补全与Tab搜索.md) — 地址栏历史行内补全、九种搜索引擎的 Tab 搜索与制表符输入的可行性及接入方案
+- [20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md](notes/learn/2026-11/20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md) — 受控 input 的程序补全会改变撤销语义，快照必须保留原 URL 与选区，同值替换也需恢复光标
+- [20261106182714-Google页面颜色与应用主题分层排查.md](notes/learn/2026-11/20261106182714-Google页面颜色与应用主题分层排查.md) — 应用白天偏好已传到网页时 Google 仍可能保留深色结果，需区分网页渲染状态与主题信号
 - [20261109154150-Chrome插件与截图录屏插件化可行性.md](notes/learn/2026-11/20261109154150-Chrome插件与截图录屏插件化可行性.md) — 全会话 Chrome 插件、CRX 与商店安装的可行性，以及截图录屏插件的 Chrome 和 Electron 双端适配路线
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
@@ -347,6 +361,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
 - [20261106145813-修复验收.md](notes/summary/2026-11/20261106145813-修复验收.md) — "独立窗口合并与气泡定位审查的修复验收"
+- [20261106165837-地址栏补全搜索验收.md](notes/summary/2026-11/20261106165837-地址栏补全搜索验收.md) — 地址栏补全搜索的 worktree、78 项累计验证、已知撤销菜单问题及可逐步执行的人工验收
+- [20261106171204-完整引擎输入优先Tab搜索.md](notes/summary/2026-11/20261106171204-完整引擎输入优先Tab搜索.md) — 完整搜索引擎输入优先于历史补全，九家引擎带历史路径时的一次 Tab 搜索验证与差异审查
+- [20261106180053-默认搜索与统一图标验收.md](notes/summary/2026-11/20261106180053-默认搜索与统一图标验收.md) — 默认 Google、统一 SearchOutlined 与 pending 编辑修复的实现结果、验证证据和手动验收步骤
+- [20261106211337-地址栏审查修复验收.md](notes/summary/2026-11/20261106211337-地址栏审查修复验收.md) — 五项审查修复的 L 级菜单窄桥、分类回归、实体菜单验证与可复现手动步骤
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
 ### notes/task/
@@ -354,6 +372,11 @@ description: Master index of the book — the map of every document. Regenerate 
 **Open (1)**
 
 - [2026-11-09-Chrome插件与双端工具插件.md](notes/task/2026-11-09-Chrome插件与双端工具插件.md) — 已确认的 Chrome 插件兼容、CRX 与商店安装、完整截图和带 Tab 音频录屏的实施与验收跟踪
+
+**Done (2)**
+
+- [20261106-地址栏审查修复.md](notes/task/20261106-地址栏审查修复.md) — L 级修复五项地址栏审查问题并提交，跟踪阶段与验证
+- [20261106-默认谷歌搜索执行.md](notes/task/20261106-默认谷歌搜索执行.md) — 统一搜索图标与默认 Google 搜索的执行阶段、检查与待验状态
 
 ### plans/
 
@@ -409,7 +432,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030164534-无底图标与chrome区主题适配开发计划.md](plans/20261030164534-无底图标与chrome区主题适配开发计划.md) — "阶段开发计划：无底图标与 chrome 区主题适配"
 - [20261103231311-截图编辑多窗口修复开发计划.md](plans/20261103231311-截图编辑多窗口修复开发计划.md) — "截图编辑多窗口修复开发计划"
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
+- [20261106163649-地址栏行内补全与Tab搜索开发计划.md](plans/20261106163649-地址栏行内补全与Tab搜索开发计划.md) — 在现有地址栏加入历史行内补全、九家引擎搜索与统一 Tab 优先级的四步实施及验收计划
+- [20261106172801-搜索引擎标识与默认谷歌搜索开发计划.md](plans/20261106172801-搜索引擎标识与默认谷歌搜索开发计划.md) — 地址栏统一使用 SearchOutlined，默认仅图标无引擎文字，非网址输入回车使用 Google 搜索
+- [20261106190232-地址栏审查问题修复与提交.md](plans/20261106190232-地址栏审查问题修复与提交.md) — 修复三项输入分类边界、原生菜单撤销和无关 CSS 换行，验证后提交
 - [20261109182912-Chrome插件前置验证与接口定稿开发计划.md](plans/20261109182912-Chrome插件前置验证与接口定稿开发计划.md) — 用隔离程序验证真实插件、CRX和商店安装、截图与Tab音频，再定稿接口并决定能否进入并行开发
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 294 documents -->
+<!-- 317 documents -->

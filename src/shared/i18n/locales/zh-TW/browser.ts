@@ -15,6 +15,18 @@ export const browser: Dictionary['browser'] = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜尋 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必應',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜尋'
+    },
     mergeToMain: '合併回主視窗',
     mergeFailed: '無法合併視窗，請重試',
     back: '後退',
@@ -23,7 +35,8 @@ export const browser: Dictionary['browser'] = {
     stop: '停止載入',
     // home（首頁鈕文案）已隨工具列首頁按鈕 2026-10-30 退役刪除
     /** 地址栏 placeholder */
-    addressPlaceholder: '輸入網址',
+    addressPlaceholder: '輸入網址或搜尋',
+    addressSearchLabel: '輸入網址或使用 Google 搜尋',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
     addressInvalid: '無效的網址',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */

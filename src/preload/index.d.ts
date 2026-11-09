@@ -1,4 +1,5 @@
 import type { ToolbarTooltipPayload } from '../shared/toolbarTooltip'
+import type { NativeEditCommand } from '../shared/nativeEditing'
 import type {
   CloseTabPayload,
   FindStartPayload,
@@ -102,6 +103,9 @@ import type {
 declare global {
   interface Window {
     api: {
+      nativeEditing: {
+        onCommand(callback: (command: NativeEditCommand) => void): () => void
+      }
       toolbarTooltip: {
         show(payload: ToolbarTooltipPayload): Promise<void>
         hide(): Promise<void>

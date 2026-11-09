@@ -12,6 +12,18 @@ export const browser = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜索 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必应',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜索'
+    },
     mergeToMain: '合并回主窗口',
     mergeFailed: '未能合并窗口，请重试',
     back: '后退',
@@ -20,7 +32,8 @@ export const browser = {
     stop: '停止加载',
     // home（主页钮文案）已随工具栏主页按钮 2026-10-30 退役删除
     /** 地址栏 placeholder */
-    addressPlaceholder: '输入网址',
+    addressPlaceholder: '输入网址或搜索',
+    addressSearchLabel: '输入网址或使用 Google 搜索',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
     addressInvalid: '无效的网址',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */

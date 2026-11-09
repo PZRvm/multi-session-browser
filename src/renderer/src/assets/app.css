@@ -2429,16 +2429,21 @@ img.chrome-tab-favicon {
   display: flex;
   flex: 1;
   min-width: 0;
+  height: 28px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 14px;
+  background: var(--chrome-omnibox-bg);
+  align-items: center;
 }
 
 .chrome-omnibox {
   flex: 1;
   min-width: 0;
-  height: 28px;
-  padding: 0 14px;
-  border: 1px solid var(--chrome-line);
-  border-radius: 14px;
-  background: var(--chrome-omnibox-bg);
+  height: 100%;
+  padding: 0 13px 0 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
   font-family: inherit;
   font-size: 12px;
   color: var(--chrome-ink);
@@ -2448,6 +2453,10 @@ img.chrome-tab-favicon {
 }
 
 .chrome-omnibox::placeholder {
+  color: var(--chrome-ink-dim);
+}
+
+.chrome-omnibox:disabled::placeholder {
   color: var(--chrome-disabled);
 }
 
@@ -2456,20 +2465,20 @@ img.chrome-tab-favicon {
   cursor: default;
 }
 
-.chrome-omnibox:focus-visible {
+.chrome-omnibox-host:focus-within {
   outline: none;
   border-color: var(--chrome-ink-dim);
 }
 
 /* 输入无效行内提示：边框短暂转当前 Chrome 主题错误色，2.5s 自动消退或下次输入即消 */
-.chrome-omnibox.chrome-omnibox-invalid {
+.chrome-omnibox-host.chrome-omnibox-invalid {
   border-color: var(--chrome-error);
 }
 
 /* 融合态（2026-10-28 融合专项，DESIGN「地址栏历史建议」融合态契约）：建议面板呈现
    期由 shell 按 show 回执 canPresent 加持 .chrome-omnibox-fused——输入框下角归零、
    与零间距上角直角的面板拼合为连续整体；面板收起/拒绝展示即摘类恢复四角药丸 */
-.chrome-omnibox.chrome-omnibox-fused {
+.chrome-omnibox-host.chrome-omnibox-fused {
   border-radius: 14px 14px 0 0;
   /* 融合体阴影（输入框侧半场）：与子窗面板侧 drop-shadow 观感对齐——上/左右在
    * 工具栏背景上可见；下方溢出工具栏的部分被页面原生层遮挡，由子窗侧阴影从
@@ -2485,12 +2494,43 @@ img.chrome-tab-favicon {
 
 /* 聚焦/无效态在融合态下一并保持无边框（面板展开本身即聚焦指示；无效提示仍由
    title 与收起后的整框红显承担） */
-.chrome-omnibox.chrome-omnibox-fused:focus-visible {
+.chrome-omnibox-host.chrome-omnibox-fused:focus-within {
   border-color: transparent;
 }
 
-.chrome-omnibox.chrome-omnibox-fused.chrome-omnibox-invalid {
+.chrome-omnibox-host.chrome-omnibox-fused.chrome-omnibox-invalid {
   border-color: transparent;
+}
+
+.chrome-omnibox:focus-visible {
+  outline: none;
+}
+
+.chrome-omnibox-engine {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 8px;
+  padding-right: 10px;
+  border-right: 1px solid var(--chrome-line);
+  color: var(--chrome-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chrome-omnibox-search-icon {
+  flex: 0 0 14px;
+  margin-left: 12px;
+  color: var(--chrome-ink);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.chrome-omnibox-host:has(.chrome-omnibox:disabled) .chrome-omnibox-search-icon {
+  color: var(--chrome-disabled);
 }
 
 /* 地址栏历史建议下拉（impeccable 定稿）：Chrome 灰阶语系——surface 底 + line 发丝线
