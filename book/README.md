@@ -40,6 +40,7 @@ description: Master index of the book — the map of every document. Regenerate 
 | `notes/summary/2026-09/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-10/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-11/` | Archived under notes/summary/, grouped by month |
+| `notes/task/` | Task tracking and breakdowns (status: open|done) |
 | `plans/` | Implementation plans: the construction blueprint agents build from |
 
 ## All files
@@ -348,6 +349,12 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106145813-修复验收.md](notes/summary/2026-11/20261106145813-修复验收.md) — "独立窗口合并与气泡定位审查的修复验收"
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
+### notes/task/
+
+**Open (1)**
+
+- [2026-11-09-Chrome插件与双端工具插件.md](notes/task/2026-11-09-Chrome插件与双端工具插件.md) — 已确认的 Chrome 插件兼容、CRX 与商店安装、完整截图和带 Tab 音频录屏的实施与验收跟踪
+
 ### plans/
 
 - [2026-11-06-bocode-adoption.md](plans/2026-11-06-bocode-adoption.md) — 从现有 Electron 项目接入 BoCode 的盘点、迁移边界、决策与验证记录
@@ -404,4 +411,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 292 documents -->
+<!-- 293 documents -->
