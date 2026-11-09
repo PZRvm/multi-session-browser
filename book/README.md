@@ -263,6 +263,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
+- [20261109154150-Chrome插件与截图录屏插件化可行性.md](notes/learn/2026-11/20261109154150-Chrome插件与截图录屏插件化可行性.md) — 全会话加载 Chrome 扩展的最小方案，以及截图和录屏插件在 Chrome 与 Electron 中运行的双端适配路线
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -403,4 +404,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 291 documents -->
+<!-- 292 documents -->
