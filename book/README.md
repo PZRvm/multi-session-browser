@@ -409,6 +409,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030164534-无底图标与chrome区主题适配开发计划.md](plans/20261030164534-无底图标与chrome区主题适配开发计划.md) — "阶段开发计划：无底图标与 chrome 区主题适配"
 - [20261103231311-截图编辑多窗口修复开发计划.md](plans/20261103231311-截图编辑多窗口修复开发计划.md) — "截图编辑多窗口修复开发计划"
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
+- [20261109182912-Chrome插件前置验证与接口定稿开发计划.md](plans/20261109182912-Chrome插件前置验证与接口定稿开发计划.md) — 用隔离程序验证真实插件、CRX和商店安装、截图与Tab音频，再定稿接口并决定能否进入并行开发
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 293 documents -->
+<!-- 294 documents -->
