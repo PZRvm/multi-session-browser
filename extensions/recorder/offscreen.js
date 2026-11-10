@@ -67,6 +67,19 @@ async function start(message) {
       audioCtx.createMediaStreamSource(stream).connect(audioCtx.destination)
       await audioCtx.resume()
     }
+    // 启动期取消：getUserMedia 无法中断，resolve 后在此拦截，不建录制器直接丢弃
+    if (cancelRequested) {
+      stream.getTracks().forEach((t) => t.stop())
+      stream = null
+      await report({
+        type: 'stopped',
+        generation,
+        reason: 'cancelled',
+        url: null,
+        info: { mimeType: null, duration: 0, audioIncluded: false, audioMutedLive: false, chunkCount: 0 }
+      })
+      return
+    }
     audioTrack = stream.getAudioTracks()[0] ?? null
     const mimeType = pickMime()
     recorder = new MediaRecorder(stream, { mimeType })
@@ -107,6 +120,8 @@ async function start(message) {
     recorder.start(500)
     await report({ type: 'ready', generation })
   } catch (error) {
+    // 取消路径已上报 stopped(cancelled)，启动失败不再覆盖为 error
+    if (cancelRequested) return
     await cleanup()
     await report({ type: 'error', generation, message: String(error) })
   }
