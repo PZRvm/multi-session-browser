@@ -127,10 +127,11 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
   /** 读解包目录 manifest：icons 最大 ≤48 → PNG dataURL；action/browser_action → 可弹窗 */
   const readManifestExtra = async (
     record: InstallRecord
-  ): Promise<{ icon?: string; hasAction: boolean }> => {
+  ): Promise<{ icon?: string; hasAction: boolean; displayName?: string }> => {
     const dir = join(paths.packagesRoot, `${record.id}-${record.version}`)
     try {
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as {
+        name?: unknown
         icons?: Record<string, string>
         action?: { default_icon?: Record<string, string> | string }
         browser_action?: { default_icon?: Record<string, string> | string }
@@ -156,7 +157,9 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
           icon = undefined
         }
       }
-      return { icon, hasAction: !!(manifest.action || manifest.browser_action) }
+      const displayName =
+        typeof manifest.name === 'string' && manifest.name.length > 0 ? manifest.name : undefined
+      return { icon, hasAction: !!(manifest.action || manifest.browser_action), displayName }
     } catch {
       return { hasAction: false }
     }
@@ -167,9 +170,21 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     return Promise.all(
       m.installs.map(async (r) => {
         const extra = await readManifestExtra(r)
+        // 名称自愈：早期安装的记录无 name 字段（后加），从解包 manifest 回填清单
+        if (!r.name && extra.displayName) {
+          await manifest
+            .update((cur) => ({
+              ...cur,
+              installs: cur.installs.map((v) =>
+                v.id === r.id ? { ...v, name: extra.displayName } : v
+              )
+            }))
+            .catch(() => undefined)
+        }
+        const displayName = r.name ?? extra.displayName ?? r.id
         return {
           id: r.id,
-          name: r.name ?? r.id,
+          name: displayName,
           version: r.version,
           source: r.source.kind,
           icon: extra.icon,
