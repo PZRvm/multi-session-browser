@@ -1,0 +1,201 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Button, Input } from 'antd'
+import { ApiOutlined, ExportOutlined, InboxOutlined } from '@ant-design/icons'
+import { useT } from '../../i18n'
+import type { DictKey } from '../../../../shared/i18n'
+import type { ExtensionListItem, InstallResult } from '../../../../shared/extensions/management'
+import { SettingsPane } from './SettingsParts'
+
+// 插件版面（2026-11-11 增量）：已装列表（名称/版本/来源/加载状态/卸载）+ 商店 ID
+// 安装 + 本地 CRX 导入。安装确认走主进程原生框；错误与状态以行内副行如实呈现
+//（设置窗行内 danger 先例），零 antd message 弹层。列表空态如实无插件引导安装。
+
+interface LoadState {
+  items: ExtensionListItem[]
+  loading: boolean
+  /** 行内反馈（安装/卸载结果与错误），随下一次成功操作清除 */
+  notice: { tone: 'default' | 'danger'; text: string } | null
+  installing: boolean
+  storeId: string
+}
+
+export function PaneExtensions(): React.JSX.Element {
+  const t = useT()
+  const [state, setState] = useState<LoadState>({
+    items: [],
+    loading: true,
+    notice: null,
+    installing: false,
+    storeId: ''
+  })
+
+  const refresh = useCallback(async (): Promise<void> => {
+    const items = await window.api.extensions.list()
+    setState((s) => ({ ...s, items, loading: false }))
+  }, [])
+
+  // 首拉：挂载后异步取清单（取消守卫防卸载后写入）
+  useEffect(() => {
+    let alive = true
+    window.api.extensions
+      .list()
+      .then((items) => {
+        if (alive) setState((s) => ({ ...s, items, loading: false }))
+      })
+      .catch(() => {
+        if (alive) setState((s) => ({ ...s, loading: false }))
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const setNotice = (tone: 'default' | 'danger', text: string): void => {
+    setState((s) => ({ ...s, notice: { tone, text }, installing: false }))
+  }
+
+  const installFromStore = useCallback(async (): Promise<void> => {
+    const id = state.storeId.trim()
+    if (!/^[a-p]{32}$/.test(id)) {
+      setNotice('danger', t('settings.extensions.badId'))
+      return
+    }
+    setState((s) => ({ ...s, installing: true, notice: null }))
+    const r: InstallResult = await window.api.extensions.installFromStore(id)
+    if (r.ok) {
+      await refresh()
+      setNotice(
+        'default',
+        t(r.duplicate ? 'settings.extensions.duplicate' : 'settings.extensions.installed')
+      )
+    } else {
+      setNotice(
+        'danger',
+        t('settings.extensions.installFailed') + (r.error ? `（${r.error}）` : '')
+      )
+    }
+  }, [state.storeId, refresh, t])
+
+  const importCrx = useCallback(async (): Promise<void> => {
+    setState((s) => ({ ...s, installing: true, notice: null }))
+    const r = await window.api.extensions.importCrx()
+    if (r.ok) {
+      await refresh()
+      setNotice(
+        'default',
+        t(r.duplicate ? 'settings.extensions.duplicate' : 'settings.extensions.installed')
+      )
+    } else if (r.error !== 'CANCELED') {
+      setNotice(
+        'danger',
+        t('settings.extensions.installFailed') + (r.error ? `（${r.error}）` : '')
+      )
+    } else {
+      setState((s) => ({ ...s, installing: false }))
+    }
+  }, [refresh, t])
+
+  const uninstall = useCallback(
+    async (id: string): Promise<void> => {
+      const r = await window.api.extensions.uninstall(id)
+      if (r.ok) {
+        await refresh()
+        setNotice('default', t('settings.extensions.uninstalled'))
+      } else {
+        setNotice(
+          'danger',
+          t('settings.extensions.uninstallFailed') + (r.error ? `（${r.error}）` : '')
+        )
+      }
+    },
+    [refresh, t]
+  )
+
+  return (
+    <SettingsPane
+      id="extensions"
+      title={t('settings.extensions.paneTitle')}
+      desc={t('settings.extensions.paneDesc')}
+    >
+      {/* 安装区：商店 ID + CRX 导入 */}
+      <div className="settings-ext-install">
+        <Input
+          className="settings-ext-store-input"
+          placeholder={t('settings.extensions.storePlaceholder')}
+          value={state.storeId}
+          maxLength={32}
+          status={
+            state.storeId.length > 0 && !/^[a-p]{32}$/.test(state.storeId) ? 'error' : undefined
+          }
+          onChange={(e) => setState((s) => ({ ...s, storeId: e.target.value }))}
+          onPressEnter={() => void installFromStore()}
+          aria-label={t('settings.extensions.storePlaceholder')}
+        />
+        <Button
+          type="primary"
+          loading={state.installing}
+          disabled={!/^[a-p]{32}$/.test(state.storeId.trim())}
+          onClick={() => void installFromStore()}
+        >
+          {t('settings.extensions.installStore')}
+        </Button>
+        <Button
+          icon={<ExportOutlined />}
+          disabled={state.installing}
+          onClick={() => void importCrx()}
+        >
+          {t('settings.extensions.importCrx')}
+        </Button>
+      </div>
+      {/* 行内反馈 */}
+      {state.notice ? (
+        <p
+          className={
+            state.notice.tone === 'danger'
+              ? 'settings-ext-notice settings-ext-notice-danger'
+              : 'settings-ext-notice'
+          }
+          role="status"
+        >
+          {state.notice.text}
+        </p>
+      ) : null}
+      {/* 已装列表 */}
+      {state.items.length === 0 && !state.loading ? (
+        <div className="settings-ext-empty">
+          <InboxOutlined aria-hidden="true" />
+          <p>{t('settings.extensions.empty')}</p>
+        </div>
+      ) : (
+        <ul className="settings-ext-list">
+          {state.items.map((item) => (
+            <li key={item.id} className="settings-ext-item">
+              <span className="settings-ext-item-icon" aria-hidden="true">
+                <ApiOutlined />
+              </span>
+              <span className="settings-ext-item-main">
+                <span className="settings-ext-item-name">{item.name}</span>
+                <span className="settings-ext-item-meta">
+                  v{item.version} · {t(`settings.extensions.source.${item.source}` as DictKey)}
+                  {' · '}
+                  {t('settings.extensions.loadedStat')
+                    .replace('{n}', String(item.loadedPartitions))
+                    .replace('{m}', String(item.totalPartitions))}
+                </span>
+              </span>
+              <Button
+                size="small"
+                danger
+                onClick={() => void uninstall(item.id)}
+                aria-label={t('settings.extensions.uninstallAria').replace('{name}', item.name)}
+              >
+                {t('settings.extensions.uninstall')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="settings-ext-hint">{t('settings.extensions.hint')}</p>
+    </SettingsPane>
+  )
+}

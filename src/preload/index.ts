@@ -102,6 +102,7 @@ import type {
   SettingsSnapshot
 } from '../shared/settings'
 import { DIALOG_CHANNELS } from '../shared/dialog'
+import { EXTENSIONS_CHANNELS } from '../shared/extensions/management'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -508,6 +509,18 @@ const api = {
   // 工作区选择模态框（PRD 4.11，2026-09-21 增量）：三通道三侧各取所需——show 归
   // 主窗 shell（发起 + 等待最终结论），payload/pick 归 sheet 页面（拉展示上下文 /
   // 提交选择）；主进程持单请求 pending 态，模态阻塞由窗口系统承担
+  extensions: {
+    list: (): Promise<import('../shared/extensions/management').ExtensionListItem[]> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.list),
+    installFromStore: (
+      id: string
+    ): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.installStore, id),
+    importCrx: (): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrx),
+    uninstall: (id: string): Promise<import('../shared/extensions/management').UninstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.uninstall, id)
+  },
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload),

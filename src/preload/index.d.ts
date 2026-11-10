@@ -221,6 +221,12 @@ declare global {
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
+      extensions: {
+        list(): Promise<import('../../shared/extensions/management').ExtensionListItem[]>
+        installFromStore(id: string): Promise<import('../../shared/extensions/management').InstallResult>
+        importCrx(): Promise<import('../../shared/extensions/management').InstallResult>
+        uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
+      }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>
         confirmWorkspaceDelete(

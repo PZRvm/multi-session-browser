@@ -694,25 +694,30 @@ app.whenReady().then(async () => {
     })
     .catch(() => undefined)
 
-  // 插件宿主 dev 守卫装配（M1-A6）：MSB_EXTENSIONS_DEV=1 时对会话分区做一次性 runtime
-  // 挂载（mounted 幂等去重），任何失败不阻塞启动（mountDevExtensions 内部吞错）。
-  // E 线 M3 以 registry 生命周期事件接线替换此轮询脚手架。
-  if (process.env['MSB_EXTENSIONS_DEV'] === '1') {
-    const seen = new Set<string>()
-    import('./extensions/dev-entry')
-      .then(({ mountDevExtensions }) => {
-        const poll = setInterval(() => {
-          for (const id of knownSessionIds) {
-            const partition = partitionFor(id)
-            if (seen.has(partition)) continue
-            seen.add(partition)
-            void mountDevExtensions(session.fromPartition(partition), partition)
-          }
-        }, 2000)
-        poll.unref?.()
+  // 插件宿主装配（正式接线）：对全部会话分区挂载运行时（mounted 幂等去重），启动即
+  // 装、新会话 2 秒内自动跟上；挂载失败吞错不阻塞启动。管理 IPC（设置窗插件页）
+  // 同点注册：列表/商店安装/CRX 导入/卸载，安装后重挂载全部分区即装即用。
+  const seenPartitions = new Set<string>()
+  import('./extensions/dev-entry')
+    .then(({ mountDevExtensions }) => {
+      const poll = setInterval(() => {
+        for (const id of knownSessionIds) {
+          const partition = partitionFor(id)
+          if (seenPartitions.has(partition)) continue
+          seenPartitions.add(partition)
+          void mountDevExtensions(session.fromPartition(partition), partition)
+        }
+      }, 2000)
+      poll.unref?.()
+    })
+    .catch(() => undefined)
+  import('./extensions/management')
+    .then(({ registerExtensionsManagement }) =>
+      registerExtensionsManagement({
+        getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
       })
-      .catch(() => undefined)
-  }
+    )
+    .catch(() => undefined)
 
   // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl/tabs）并关全部独立窗口。
   // 时序（阶段 10 翻转）：先冲刷（含封笔）后关窗——旧序「先关窗后冲刷」的前提

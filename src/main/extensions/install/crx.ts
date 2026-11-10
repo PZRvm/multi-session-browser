@@ -182,6 +182,7 @@ export async function extractCrx(buffer: Buffer, root: string, expectedId?: stri
     const info = {
       id: inspected.id,
       version: manifest.version,
+      name: typeof manifest.name === 'string' ? manifest.name : undefined,
       crxVersion: inspected.version,
       sha256: inspected.sha256
     }

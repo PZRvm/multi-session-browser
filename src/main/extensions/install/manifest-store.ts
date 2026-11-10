@@ -19,6 +19,8 @@ export interface InstallPartitionResult {
 export interface InstallRecord {
   id: string
   version: string
+  /** 展示名（manifest.name，协议v1 附加可选字段，缺省回退 id） */
+  name?: string
   sha256: string
   source: { kind: InstallSourceKind; origin?: string }
   generation: number
@@ -52,6 +54,11 @@ export function validateInstallRecord(record: unknown): InstallRecord {
   const r = record as Record<string, unknown>
   demand(typeof r.id === 'string' && /^[a-p]{32}$/.test(r.id), '扩展ID非法')
   demand(typeof r.version === 'string' && /^\d+(\.\d+){0,3}$/.test(r.version), '版本非法')
+  demand(
+    r.name === undefined ||
+      (typeof r.name === 'string' && r.name.length > 0 && r.name.length <= 100),
+    '展示名非法'
+  )
   demand(typeof r.sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.sha256), '摘要非法')
   const src = (r.source ?? {}) as { kind?: unknown; origin?: unknown }
   demand(
@@ -146,6 +153,7 @@ export interface ManifestStore {
   upsertInstall(input: {
     id: string
     version: string
+    name?: string
     sha256: string
     source: { kind: InstallSourceKind; origin?: string }
     partitions: Array<{ partition: string; ok: boolean }>
@@ -180,6 +188,7 @@ export function createManifestStore(file: string): ManifestStore {
         const record: InstallRecord = {
           id: input.id,
           version: input.version,
+          ...(input.name ? { name: input.name } : {}),
           sha256: input.sha256,
           source: input.source,
           generation,

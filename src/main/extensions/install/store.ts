@@ -43,7 +43,8 @@ function crxUrl(id: string): string {
 
 export function createStoreInstall(deps: StoreInstallDeps): StoreInstallHandle {
   const installFromStore = async (id: string): Promise<StoreInstallOutcome> => {
-    if (!deps.allowlist.includes(id)) throw new Error('STORE_ID_NOT_ALLOWED: ' + id)
+    if (!deps.allowlist.includes('*') && !deps.allowlist.includes(id))
+      throw new Error('STORE_ID_NOT_ALLOWED: ' + id)
     const approved = await deps
       .confirmInstall({ id, name: id, version: 'store' })
       .catch(() => false)
@@ -56,6 +57,7 @@ export function createStoreInstall(deps: StoreInstallDeps): StoreInstallHandle {
     await deps.manifest.upsertInstall({
       id: extracted.id,
       version: extracted.version,
+      name: extracted.name,
       sha256: extracted.sha256,
       source: { kind: 'store', origin: STORE_ORIGIN },
       partitions: []

@@ -3419,3 +3419,100 @@ body[data-role='capture-editor'] {
   color: var(--chrome-ink);
   font-weight: 600;
 }
+
+/* 插件版面（2026-11-11 增量）：安装区/已装列表/空态，度量对齐 .settings-row 体系
+   （行高 44px、发丝线分隔、label 13/500、副行 11px 次墨），零新令牌——全部消费
+   既有板面语义变量；danger 用 --danger/-veil（亮暗两态既有令牌） */
+.settings-ext-install {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0 4px;
+  flex-wrap: wrap;
+}
+.settings-ext-store-input {
+  width: 300px;
+}
+.settings-ext-notice {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+  color: var(--board-ink-dim);
+}
+.settings-ext-notice-danger {
+  color: var(--danger);
+}
+.settings-ext-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.settings-ext-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-top: 1px solid var(--board-hairline);
+}
+.settings-ext-item:last-child {
+  border-bottom: 1px solid var(--board-hairline);
+}
+.settings-ext-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+  color: var(--board-ink-dim);
+  font-size: 14px;
+  flex: none;
+}
+.settings-ext-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.settings-ext-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--board-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-ext-item-meta {
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+.settings-ext-item .ant-btn-dangerous {
+  flex: none;
+}
+.settings-ext-empty {
+  margin-top: 16px;
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  border: 1px dashed var(--board-hairline);
+  border-radius: 8px;
+}
+.settings-ext-empty :first-child {
+  font-size: 22px;
+}
+.settings-ext-empty p {
+  margin: 0;
+}
+.settings-ext-hint {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--board-ink-dim);
+  margin: 14px 0 0;
+}

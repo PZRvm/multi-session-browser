@@ -41,6 +41,7 @@ export function createInstallService(deps: InstallServiceDeps): InstallService {
     const record = await deps.manifest.upsertInstall({
       id: extracted.id,
       version: extracted.version,
+      name: extracted.name,
       sha256: extracted.sha256,
       source: { kind: 'crx' satisfies InstallSourceKind, origin: 'package' },
       partitions: []

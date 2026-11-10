@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import {
+  ApiOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   OrderedListOutlined,
@@ -14,6 +15,7 @@ import { ANTD_LOCALES, useT } from '../i18n'
 import { applyThemeTokens } from '../theme'
 import type { DictKey } from '../../../shared/i18n'
 import { PaneGeneral } from './settings/PaneGeneral'
+import { PaneExtensions } from './settings/PaneExtensions'
 import { PaneBrowsing } from './settings/PaneBrowsing'
 import { PaneShortcuts } from './settings/PaneShortcuts'
 import { PaneAbout } from './settings/PaneAbout'
@@ -33,7 +35,7 @@ import { PaneDanger } from './settings/PaneDanger'
 // 五分类导航词汇（侧栏双栏契约）：快捷键分类取列表语义图标（图标库无键盘图标，
 // 库存认见开发计划）；恢复出厂为 danger 分类（沉底恒红、选中 danger 实底白字）。
 // 分类名归 settings.categories 字典键（随界面语言取词），图标常量留模块级
-type SettingsPaneId = 'general' | 'browsing' | 'shortcuts' | 'about' | 'danger'
+type SettingsPaneId = 'general' | 'extensions' | 'browsing' | 'shortcuts' | 'about' | 'danger'
 
 const SETTINGS_CATEGORIES: ReadonlyArray<{
   id: SettingsPaneId
@@ -42,6 +44,7 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{
   danger?: boolean
 }> = [
   { id: 'general', labelKey: 'settings.categories.general', icon: <SettingOutlined /> },
+  { id: 'extensions', labelKey: 'settings.categories.extensions', icon: <ApiOutlined /> },
   { id: 'browsing', labelKey: 'settings.categories.browsing', icon: <GlobalOutlined /> },
   { id: 'shortcuts', labelKey: 'settings.categories.shortcuts', icon: <OrderedListOutlined /> },
   { id: 'about', labelKey: 'settings.categories.about', icon: <InfoCircleOutlined /> },
@@ -189,6 +192,7 @@ export default function SettingsWindow(): React.JSX.Element {
         {/* 详情区：滚动职责独占（侧栏不滚动），版面切换瞬切无动效 */}
         <div className="settings-detail">
           {pane === 'general' && <PaneGeneral />}
+          {pane === 'extensions' && <PaneExtensions />}
           {pane === 'browsing' && <PaneBrowsing />}
           {pane === 'shortcuts' && <PaneShortcuts />}
           {pane === 'about' && <PaneAbout />}

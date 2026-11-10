@@ -37,7 +37,8 @@ export function extensionsPaths(): ExtensionsPaths {
 export interface ExtensionsHandle {
   runtime: ExtensionRuntime
   paths: ExtensionsPaths
-  mounted: Map<string, string>
+  /** 已挂载分区 → 会话（安装后重挂载与卸载移除用） */
+  mounted: Map<string, Session>
 }
 
 let handle: ExtensionsHandle | undefined
@@ -67,10 +68,9 @@ export async function mountDevExtensions(
   const h = getExtensionsHandle()
   try {
     const result = await h.runtime.mountPartition(partition, session)
-    h.mounted.set(partition, 'ok')
+    h.mounted.set(partition, session)
     return result
   } catch (error) {
-    h.mounted.set(partition, 'error')
     return { partition, error: String(error).slice(0, 200) }
   }
 }
