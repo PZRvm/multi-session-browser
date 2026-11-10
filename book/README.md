@@ -54,6 +54,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](changelogs/2026-11/2026-11-06-bocode-adoption.md) — 引入 BoCode 规范、索引、技能与历史文档迁移
 - [2026-11-06-bocode-hook-mode.md](changelogs/2026-11/2026-11-06-bocode-hook-mode.md) — 修正提交钩子在新克隆仓库的执行权限
 - [2026-11-06-bocode-root-doc-links.md](changelogs/2026-11/2026-11-06-bocode-root-doc-links.md) — 同步根产品与设计入口的文档迁移路径
+- [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
+- [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
+- [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -63,6 +66,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### docs/api/
 
 - [README.md](docs/api/README.md) — API design docs — where interface contracts are written before and while they are implemented
+- [插件宿主协议草案.md](docs/api/插件宿主协议草案.md) — 插件宿主协议v1（2026-11-10冻结）：四组接口字段/语义/错误码与所有权方向；Windows能力保持unknown
 
 ### docs/architecture/
 
@@ -72,6 +76,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### docs/decisions/
 
 - [ADR-001-adopt-bocode.md](docs/decisions/ADR-001-adopt-bocode.md) — 接入 BoCode、保留根目录源码并迁移历史文档的决定与代价
+- [ADR-002-electron42-and-react-devtools-fork.md](docs/decisions/ADR-002-electron42-and-react-devtools-fork.md) — 用户同意升级Electron42并单独维护React DevTools图标修复版，同时保留商店原版验收基线
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -138,7 +143,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (61)**
+**Open (63)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -201,8 +206,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030141215-WCO修复轮复审.md](notes/issue/2026-10/20261030141215-WCO修复轮复审.md) — "代码审查：WCO 专项修复轮复审"
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
+- [20261110-终局IPC与模型审阅.md](notes/issue/2026-11/20261110-终局IPC与模型审阅.md) — 终局23项运行与16项IPC的增量审阅，只记录三项发现，不现场修复，不代表正式Phase 5通过
+- [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 
-**Resolved (38)**
+**Resolved (43)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -242,6 +249,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261104005033-截图编辑多窗口审查修复复审.md](notes/issue/2026-11/20261104005033-截图编辑多窗口审查修复复审.md) — "代码审查：截图编辑多窗口审查修复复审"
 - [20261106140710-独立窗口合并与气泡定位审查.md](notes/issue/2026-11/20261106140710-独立窗口合并与气泡定位审查.md) — "代码审查：独立窗口合并与气泡定位"
 - [20261106145813-独立窗口合并审查修复复审.md](notes/issue/2026-11/20261106145813-独立窗口合并审查修复复审.md) — "代码审查：独立窗口合并审查修复复审"
+- [20261109191345-插件前置工具阻塞诊断审阅.md](notes/issue/2026-11/20261109191345-插件前置工具阻塞诊断审阅.md) — 前置工具的阻塞诊断检查，记录四项待修问题和十一项检查结论，不代表正式验收通过
+- [20261110-厂商ZIP边界修复审阅.md](notes/issue/2026-11/20261110-厂商ZIP边界修复审阅.md) — 独立M级R5修复的八项审阅与验收证据，未发现新增阻塞，不代表整体插件前置Phase5通过
+- [20261110-非Windows补验增量审阅.md](notes/issue/2026-11/20261110-非Windows补验增量审阅.md) — 记录原录屏和本轮补验工具的八项增量审阅，发现厂商ZIP边界问题，整体仍非正式Phase5
+- [20261110112815-插件两项验证修复审阅与残留日志.md](notes/issue/2026-11/20261110112815-插件两项验证修复审阅与残留日志.md) — Cookie和React功能验证修复的定向审阅，记录仍存在的sandbox与SVG日志并保留原前置阻塞
+- [20261110125500-原生录屏在39与42均存在解码错误.md](notes/issue/2026-11/20261110125500-原生录屏在39与42均存在解码错误.md) — 原生录屏UI完整保存后H264严格解码失败，39和42均复现，需另行定位既有录屏链路
 
 ### notes/learn/2026-09/
 
@@ -265,6 +277,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
 - [20261109154150-Chrome插件与截图录屏插件化可行性.md](notes/learn/2026-11/20261109154150-Chrome插件与截图录屏插件化可行性.md) — 全会话 Chrome 插件、CRX 与商店安装的可行性，以及截图录屏插件的 Chrome 和 Electron 双端适配路线
+- [20261109191500-插件加载成功不等于功能兼容.md](notes/learn/2026-11/20261109191500-插件加载成功不等于功能兼容.md) — Electron39与候选扩展兼容库的实测边界，以及双端Tab音频验证需要检查的真实产物
+- [20261110-DevTools子frame应保留原生API并单独核验媒体.md](notes/learn/2026-11/20261110-DevTools子frame应保留原生API并单独核验媒体.md) — Electron42兼容preload需跳过DevTools子frame，插件fork应独立标识，媒体必须严格解码并保留旧版对照
+- [20261110-奇数采集宽度导致H264损坏.md](notes/learn/2026-11/20261110-奇数采集宽度导致H264损坏.md) — 1倍显示缩放的奇数采集宽度可重现H264损坏，固定偶数轨道尺寸修正，字节哈希可排除写入篡改
+- [20261110-插件界面验证先等状态再查真实数据.md](notes/learn/2026-11/20261110-插件界面验证先等状态再查真实数据.md) — Cookie表单动画导致错误保存目标，React面板折叠与输入值读取导致验证误判的实测经验
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -347,6 +363,12 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
 - [20261106145813-修复验收.md](notes/summary/2026-11/20261106145813-修复验收.md) — "独立窗口合并与气泡定位审查的修复验收"
+- [20261109184411-插件前置执行设计.md](notes/summary/2026-11/20261109184411-插件前置执行设计.md) — 插件前置验证的L级需求简报、影响分析、隔离工具设计及阶段门禁记录
+- [20261109191500-Chrome插件前置验证记录.md](notes/summary/2026-11/20261109191500-Chrome插件前置验证记录.md) — Chrome插件前置执行的实测结果、媒体证据与手动验收步骤，结论为未通过且接口尚未冻结
+- [20261110-非Windows插件补验结果.md](notes/summary/2026-11/20261110-非Windows插件补验结果.md) — 原录屏与工具四项已修复，Mac和普通Chrome主要实测通过，列明真实CRX2限制及尚未完成的接口门禁
+- [20261110113000-Cookie与React前置验证修复.md](notes/summary/2026-11/20261110113000-Cookie与React前置验证修复.md) — 修复Cookie保存时序和React面板验证误判，真实增改删与组件属性和Profiler通过，原生日志仍未消除
+- [20261110115700-sandbox与SVG告警根因及修复选项.md](notes/summary/2026-11/20261110115700-sandbox与SVG告警根因及修复选项.md) — 最小对照确认Electron39引擎问题与React原版SVG错误，给出隔离验证过的引擎方案和未应用的补丁
+- [20261110125000-Electron升级与React图标修复.md](notes/summary/2026-11/20261110125000-Electron升级与React图标修复.md) — Electron42消除sandbox错误，独立React修复版在项目宿主和普通Chrome通过属性与Profiler验证，原应用录屏产物暴露既有解码问题
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
 ### notes/task/
@@ -410,6 +432,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261103231311-截图编辑多窗口修复开发计划.md](plans/20261103231311-截图编辑多窗口修复开发计划.md) — "截图编辑多窗口修复开发计划"
 - [20261106131016-独立窗口合并回主窗口开发计划.md](plans/20261106131016-独立窗口合并回主窗口开发计划.md) — "独立窗口合并回主窗口开发计划"
 - [20261109182912-Chrome插件前置验证与接口定稿开发计划.md](plans/20261109182912-Chrome插件前置验证与接口定稿开发计划.md) — 用隔离程序验证真实插件、CRX和商店安装、截图与Tab音频，再定稿接口并决定能否进入并行开发
+- [20261110-修复厂商ZIP补验边界.md](plans/20261110-修复厂商ZIP补验边界.md) — 独立处理增量审阅R5，为固定厂商ZIP加下载解包上限与哈希校验，不实现生产升级事务
+- [20261110-修复插件前置两项失败.md](plans/20261110-修复插件前置两项失败.md) — Cookie与React验证和sandbox/SVG修复已实测，原录屏解码与完整回归仍阻塞测试准入
+- [20261110-完成非Windows插件前置验证.md](plans/20261110-完成非Windows插件前置验证.md) — 按用户授权补齐除Windows外的插件前置验证，修复工具阻塞与原录屏解码，逐项保留实证和无法完成的外部限制
+- [20261110-截图与录屏插件开发计划.md](plans/20261110-截图与录屏插件开发计划.md) — 会话2专用：截图与录屏两个自研插件（C/D），Chrome真机与前置夹具先行，宿主端到端待会话1
+- [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 294 documents -->
+<!-- 321 documents -->

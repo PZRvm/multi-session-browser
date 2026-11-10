@@ -26,6 +26,12 @@ Phase 4's hard part is the gate, not the sequence: all relevant tests green, no 
 
 Phases 5 and 6 share one discipline: **record, never fix.** A problem found during review or wrap-up goes into `notes/issue/` — fixing it is a separate, later task. Fixing in passing feels efficient and destroys the gate: the review no longer reviews what was built.
 
+## Plans and progress
+
+计划编写与执行直接遵循本工作流；项目不再安装或调用独立的旧计划编写/执行技能。按任务规模编写book/plans/，M/L保留Step 0、分析、设计、实施步骤与可执行验收；不强制旧技能的“执行模式”、波次或模板字段。历史文件保留当时记录，继续执行时以当前规则为准。
+
+每份在执行的计划保留一份当前Todo List。每次实施、验证或范围变化后，同步更新该清单、更新时间和当前阶段；不能只向文末追加进展。将已通过、失败与待测拆成独立条目，完成项附证据，未完成项说明原因。定向审阅快照和文档整理可以记完成，但不能据此将尚未通过测试的Phase 5/6勾为完成。
+
 ## code ↔ book — the two halves
 
 ```
