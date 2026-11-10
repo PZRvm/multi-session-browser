@@ -4,30 +4,81 @@
     <meta charset="utf-8" />
     <title>多会话录屏</title>
     <style>
+      /* 深浅双主题：跟随系统，变量单源；对比度按可读性校准 */
       :root {
         color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #1f2329;
+        --fg-soft: #6b7076;
+        --line: #d9dce1;
+        --btn-bg: #ffffff;
+        --btn-line: #b9bcc2;
+        --danger: #c5493c;
+        --error: #c5493c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1e2126;
+          --fg: #e8eaed;
+          --fg-soft: #9aa0a6;
+          --line: #3c4043;
+          --btn-bg: #2a2e33;
+          --btn-line: #4a4f55;
+          --danger: #e05a4c;
+          --error: #ff8a7d;
+        }
       }
       body {
         font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
         margin: 0;
         min-width: 300px;
-        color: #1f2329;
+        background: var(--bg);
+        color: var(--fg);
       }
       main {
         padding: 12px 14px;
       }
+      .state-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 2px;
+      }
+      /* 状态指示灯：空闲灰 / 启动黄 / 录制红闪 / 暂停蓝 / 收尾灰 */
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--fg-soft);
+        flex: none;
+      }
+      .dot.starting {
+        background: #e6a23c;
+      }
+      .dot.recording {
+        background: var(--danger);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .dot.paused {
+        background: #4c8bf5;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
       .state {
         font-size: 17px;
         font-weight: 600;
-        margin-bottom: 2px;
       }
       .meta {
-        color: #6b7076;
+        color: var(--fg-soft);
         font-size: 11px;
         min-height: 15px;
+        margin-top: 2px;
       }
       .error {
-        color: #c5493c;
+        color: var(--error);
         font-size: 11px;
         white-space: pre-wrap;
         word-break: break-all;
@@ -41,9 +92,10 @@
         flex: 1;
         font-size: 13px;
         padding: 7px 0;
-        border: 1px solid #b9bcc2;
+        border: 1px solid var(--btn-line);
         border-radius: 6px;
-        background: #fff;
+        background: var(--btn-bg);
+        color: var(--fg);
         cursor: pointer;
       }
       button:disabled {
@@ -51,9 +103,12 @@
         cursor: not-allowed;
       }
       button.primary {
-        background: #c5493c;
+        background: var(--danger);
         color: #fff;
-        border-color: #c5493c;
+        border-color: var(--danger);
+      }
+      button.primary:disabled {
+        opacity: 0.55;
       }
       label.audio {
         display: flex;
@@ -61,10 +116,11 @@
         gap: 8px;
         margin-top: 12px;
         font-size: 12px;
+        color: var(--fg);
       }
       .hint {
         margin-top: 10px;
-        color: #6b7076;
+        color: var(--fg-soft);
         font-size: 11px;
         line-height: 1.6;
       }
@@ -72,7 +128,10 @@
   </head>
   <body>
     <main>
-      <div class="state" id="state">未知</div>
+      <div class="state-row">
+        <span class="dot" id="dot"></span>
+        <span class="state" id="state">未知</span>
+      </div>
       <div class="meta" id="meta"></div>
       <div class="error" id="error" role="alert"></div>
       <div class="row">

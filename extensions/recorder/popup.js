@@ -15,6 +15,7 @@ let rec = null
 function render() {
   if (!rec) return
   $('state').textContent = STATE_TEXT[rec.state] ?? rec.state
+  $('dot').className = 'dot' + (rec.state === 'idle' ? '' : ' ' + rec.state)
   const bits = [`generation=${rec.generation}`, `seq=${rec.seq}`]
   if (rec.info?.filename) bits.push(`产物 ${rec.info.filename}（${rec.info.reason}）`)
   $('meta').textContent = bits.join(' · ')
