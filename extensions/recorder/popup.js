@@ -25,6 +25,7 @@ function render() {
   $('pause').disabled = rec.state !== 'recording'
   $('resume').disabled = rec.state !== 'paused'
   $('stop').disabled = rec.state === 'idle' || rec.state === 'finalizing'
+  $('cancel').disabled = !['starting', 'recording', 'paused'].includes(rec.state)
   $('audio').checked = rec.audioEnabled !== false
 }
 
@@ -59,6 +60,8 @@ $('start').addEventListener('click', async () => {
 $('pause').addEventListener('click', () => void send({ target: 'sw', type: 'pause' }))
 $('resume').addEventListener('click', () => void send({ target: 'sw', type: 'resume' }))
 $('stop').addEventListener('click', () => void send({ target: 'sw', type: 'stop' }))
+// 取消：停止采集并丢弃本次产物（区别于停止=收尾落盘）
+$('cancel').addEventListener('click', () => void send({ target: 'sw', type: 'cancel' }))
 $('audio').addEventListener('change', (event) => {
   void send({ target: 'sw', type: 'setAudio', value: event.target.checked })
 })

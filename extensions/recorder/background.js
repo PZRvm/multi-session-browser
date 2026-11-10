@@ -77,7 +77,8 @@ chrome.runtime.onMessage.addListener((message) => {
       await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' }).catch(() => {})
       return
     }
-    if (rec.state === 'starting' && message.type === 'cancel') {
+    if (message.type === 'cancel' && ['starting', 'recording', 'paused'].includes(rec.state)) {
+      // 取消：丢弃本次产物（区别于停止=收尾落盘）
       await patchRec({ state: 'finalizing' })
       await chrome.runtime.sendMessage({ target: 'offscreen', type: 'cancel' }).catch(() => {})
       return
@@ -135,6 +136,9 @@ chrome.runtime.onMessage.addListener((message) => {
             state: 'idle',
             info: { ...message.info, filename, downloadId, reason: message.reason ?? 'user' }
           })
+        } else if (message.reason === 'cancelled') {
+          // 取消：不落盘、不算失败
+          await patchRec({ state: 'idle', info: { reason: 'cancelled' }, error: null })
         } else {
           await patchRec({ state: 'idle', error: message.reason ?? '无产物' })
         }

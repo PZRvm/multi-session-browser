@@ -30,19 +30,16 @@
       }
       html,
       body {
-        background: transparent;
+        background: var(--bg);
       }
       body {
         font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
-        margin: 8px;
+        margin: 0;
         min-width: 300px;
         color: var(--fg);
       }
-      /* 卡片圆角：弹窗嵌在浏览器内，内容以圆角卡片呈现 */
+      /* 单层表面：内容铺满弹窗，圆角由弹窗窗口自身承担 */
       main {
-        background: var(--bg);
-        border: 1px solid var(--line);
-        border-radius: 14px;
         padding: 12px 14px;
       }
       .state-row {
@@ -92,12 +89,12 @@
       }
       .row {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         margin-top: 12px;
       }
       button {
         flex: 1;
-        font-size: 13px;
+        font-size: 12px;
         padding: 7px 0;
         border: 1px solid var(--btn-line);
         border-radius: 6px;
@@ -145,6 +142,7 @@
         <button id="start" class="primary">开始</button>
         <button id="pause" disabled>暂停</button>
         <button id="resume" disabled>恢复</button>
+        <button id="cancel" disabled>取消</button>
         <button id="stop" disabled>停止</button>
       </div>
       <label class="audio">

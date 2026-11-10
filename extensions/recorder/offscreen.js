@@ -82,8 +82,9 @@ async function start(message) {
         audioMutedLive: audioTrack ? !audioTrack.enabled : false,
         chunkCount: chunks.length
       }
-      const reason = cancelRequested ? 'cancelled-start' : stopReason
-      const url = blob ? URL.createObjectURL(blob) : null
+      const reason = cancelRequested ? 'cancelled' : stopReason
+      // 取消：不生成下载产物，blob 随之丢弃
+      const url = blob && reason !== 'cancelled' ? URL.createObjectURL(blob) : null
       await cleanup()
       await report({ type: 'stopped', generation, reason, url, info })
     }
