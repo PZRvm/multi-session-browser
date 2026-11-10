@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "name": "B5安装解包幂等首装",
+      "ok": true,
+      "detail": "eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    },
+    {
+      "name": "分区1挂载ready",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "分区1扩展已加载",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "action popup打开",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "popup页面可执行",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "导航后扩展仍在",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "重载后扩展仍在",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "分区2挂载ready",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "清单分区记录完整",
+      "ok": true,
+      "detail": "2,2"
+    },
+    {
+      "name": "分区2引擎就绪",
+      "ok": true,
+      "detail": "engine2"
+    },
+    {
+      "name": "权限探针记录",
+      "ok": true,
+      "detail": "未触发（挂载不触发权限）"
+    }
+  ]
+}
