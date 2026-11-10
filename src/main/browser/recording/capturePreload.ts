@@ -11,8 +11,8 @@ const collectorApi = {
     void ipcRenderer.invoke(COLLECTOR_CHANNELS.ready)
   },
   /** 媒体分块上行（ArrayBuffer） */
-  saveChunk: (buf: ArrayBuffer): void => {
-    void ipcRenderer.invoke(COLLECTOR_CHANNELS.chunk, buf)
+  saveChunk: (buf: ArrayBuffer): Promise<void> => {
+    return ipcRenderer.invoke(COLLECTOR_CHANNELS.chunk, buf)
   },
   /** 失败上报（getDisplayMedia 拒绝 / MediaRecorder 错误 / 指令执行异常） */
   reportError: (message: string): void => {

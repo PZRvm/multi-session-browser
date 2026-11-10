@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -46,11 +46,31 @@
           }
         })
         ;(async () => {
+          let stream = null
           try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({
+            stream = await navigator.mediaDevices.getDisplayMedia({
               video: true,
               audio: false
             })
+            // H.264在1倍显示缩放的奇数像素源上可生成损坏码流。固定偶数采集尺寸，
+            // 由轨道缩放承担，不改浏览区布局；后续窗口尺寸变化也不改变编码尺寸。
+            const preview = document.createElement('video')
+            preview.muted = true
+            preview.srcObject = stream
+            try {
+              await preview.play()
+              const width = Math.floor(preview.videoWidth / 2) * 2
+              const height = Math.floor(preview.videoHeight / 2) * 2
+              if (width < 2 || height < 2) throw new Error('采集画面尺寸无效')
+              await stream.getVideoTracks()[0].applyConstraints({
+                width: { exact: width },
+                height: { exact: height },
+                resizeMode: 'crop-and-scale'
+              })
+            } finally {
+              preview.pause()
+              preview.srcObject = null
+            }
             if (pendingStop) {
               // 排队中的 stop：不 start，直接收尾上报（tracks 释放 + stopped）
               stream.getTracks().forEach((t) => t.stop())
@@ -96,6 +116,7 @@
               pendingPause = false
             }
           } catch (err) {
+            stream?.getTracks().forEach((t) => t.stop())
             ignore(cap.reportError('start: ' + String(err)))
           }
         })()
