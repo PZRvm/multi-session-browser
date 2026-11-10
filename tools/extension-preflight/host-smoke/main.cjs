@@ -88,6 +88,27 @@ app.whenReady().then(async () => {
     const engine2 = handle.runtime.getEngine('persist:host-smoke-2')
     check('分区2引擎就绪', !!engine2, 'engine2')
     check('权限探针记录', true, results.permissionProbe ? '待真实权限请求时验证' : '未触发（挂载不触发权限）')
+    // M2-A DevTools 与 M2-B(2/2) 商店事务
+    hostTab.wc.openDevTools({ mode: 'detach' })
+    await delay(800)
+    check('DevTools打开', hostTab.wc.isDevToolsOpened(), 'detached')
+    hostTab.wc.closeDevTools()
+    const store = bundle.createStoreInstall({
+      manifest,
+      packagesRoot: join(outDir, 'packages'),
+      downloadDir: join(outDir, 'store-dl'),
+      allowlist: [meta('dark').id],
+      confirmInstall: async () => true
+    })
+    let guardDenied = false
+    try { await store.installFromStore('a'.repeat(32)) } catch (e) { guardDenied = String(e).includes('STORE_ID_NOT_ALLOWED') }
+    check('商店允许列表守卫', guardDenied, 'denied')
+    try {
+      const storeRes = await store.installFromStore(meta('dark').id)
+      check('商店真实下载验签安装', storeRes.id === meta('dark').id && storeRes.version.length > 0, storeRes.version)
+    } catch (e) {
+      check('商店真实下载验签安装', false, 'net:' + String(e).slice(0, 70))
+    }
     // M2-B 安装事务：自签同钥 CRX 安装→升级→卸载（经生产 installService）
     const { generateKeyPairSync } = require('node:crypto')
     const { makeCrx2 } = await import(new URL('../crx.mjs', 'file://' + __dirname + '/').href)

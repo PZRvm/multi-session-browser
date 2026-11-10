@@ -56,9 +56,24 @@
       "detail": "未触发（挂载不触发权限）"
     },
     {
+      "name": "DevTools打开",
+      "ok": true,
+      "detail": "detached"
+    },
+    {
+      "name": "商店允许列表守卫",
+      "ok": true,
+      "detail": "denied"
+    },
+    {
+      "name": "商店真实下载验签安装",
+      "ok": true,
+      "detail": "4.9.135"
+    },
+    {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "hbfikmii"
+      "detail": "cjajakol"
     },
     {
       "name": "事务分区3挂载v1.0.0",

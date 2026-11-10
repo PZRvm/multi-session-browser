@@ -31,6 +31,7 @@ var dev_entry_exports = {};
 __export(dev_entry_exports, {
   createInstallService: () => createInstallService,
   createManifestStore: () => createManifestStore,
+  createStoreInstall: () => createStoreInstall,
   extensionId: () => extensionId,
   extensionsPaths: () => extensionsPaths,
   extractCrx: () => extractCrx,
@@ -38,7 +39,7 @@ __export(dev_entry_exports, {
   mountDevExtensions: () => mountDevExtensions
 });
 module.exports = __toCommonJS(dev_entry_exports);
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 var import_electron2 = require("electron");
 
 // ../../../src/main/extensions/install/manifest-store.ts
@@ -525,13 +526,55 @@ function createInstallService(deps) {
   return service;
 }
 
+// ../../../src/main/extensions/install/store.ts
+var import_promises5 = require("node:fs/promises");
+var import_node_path6 = require("node:path");
+var STORE_ORIGIN = "https://chromewebstore.google.com";
+function crxUrl(id) {
+  const url = new URL("https://clients2.google.com/service/update2/crx");
+  url.searchParams.append("response", "redirect");
+  url.searchParams.append("acceptformat", "crx2,crx3");
+  const x = new URLSearchParams({ id, uc: "" });
+  url.searchParams.append("x", x.toString());
+  url.searchParams.append("prodversion", process.versions.chrome ?? "120");
+  return url.toString();
+}
+function createStoreInstall(deps) {
+  const installFromStore = async (id) => {
+    if (!deps.allowlist.includes(id)) throw new Error("STORE_ID_NOT_ALLOWED: " + id);
+    const approved = await deps.confirmInstall({ id, name: id, version: "store" }).catch(() => false);
+    if (!approved) throw new Error("STORE_CONFIRM_DENIED");
+    const response = await fetch(crxUrl(id), { redirect: "follow" });
+    if (!response.ok) throw new Error("STORE_DOWNLOAD_HTTP_" + response.status);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length < 16) throw new Error("STORE_DOWNLOAD_EMPTY");
+    const extracted = await extractCrx(bytes, deps.packagesRoot, id);
+    await deps.manifest.upsertInstall({
+      id: extracted.id,
+      version: extracted.version,
+      sha256: extracted.sha256,
+      source: { kind: "store", origin: STORE_ORIGIN },
+      partitions: []
+    });
+    const stale = (0, import_node_path6.join)(deps.downloadDir, id);
+    await (0, import_promises5.rm)(stale, { recursive: true, force: true });
+    return {
+      id: extracted.id,
+      version: extracted.version,
+      sha256: extracted.sha256,
+      duplicate: extracted.duplicate
+    };
+  };
+  return { installFromStore };
+}
+
 // ../../../src/main/extensions/dev-entry.ts
 function extensionsPaths() {
-  const root = (0, import_node_path6.join)(import_electron2.app.getPath("userData"), "extensions");
+  const root = (0, import_node_path7.join)(import_electron2.app.getPath("userData"), "extensions");
   return {
     root,
-    manifestFile: (0, import_node_path6.join)(root, "installed.json"),
-    packagesRoot: (0, import_node_path6.join)(root, "packages")
+    manifestFile: (0, import_node_path7.join)(root, "installed.json"),
+    packagesRoot: (0, import_node_path7.join)(root, "packages")
   };
 }
 var handle;
@@ -565,6 +608,7 @@ async function mountDevExtensions(session, partition) {
 0 && (module.exports = {
   createInstallService,
   createManifestStore,
+  createStoreInstall,
   extensionId,
   extensionsPaths,
   extractCrx,
