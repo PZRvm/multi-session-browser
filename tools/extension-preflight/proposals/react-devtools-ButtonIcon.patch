@@ -1,0 +1,15 @@
+--- a/packages/react-devtools-shared/src/devtools/views/ButtonIcon.js
++++ b/packages/react-devtools-shared/src/devtools/views/ButtonIcon.js
+@@ -216,7 +216,11 @@
+       height="24"
+       viewBox={viewBox}>
+       <path d="M0 0h24v24H0z" fill="none" />
+-      <path fill="currentColor" d={pathData} />
++      {React.isValidElement(pathData) ? (
++        pathData
++      ) : (
++        <path fill="currentColor" d={pathData} />
++      )}
+     </svg>
+   );
+ }
