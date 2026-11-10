@@ -395,17 +395,51 @@ try {
     assert(row && row.state === 'complete', '下载未完成：' + JSON.stringify(row?.state))
     return row.filename
   }
-  const controllerClick = async (id, action) => {
-    const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-    const controller = targetInfos.find(
-      (v) => v.type === 'page' && v.url.startsWith(`${recUrl}controller.html`)
-    )
-    assert(controller, '控制面板未打开')
-    const session = await cdp.attach(controller.targetId)
+  /** 打开录屏popup并点击其中按钮（popup 即插件入口下方的操作面板） */
+  const popupClick = async (id, action) => {
+    await cdp.send('Target.activateTarget', { targetId: tabId })
+    await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
+    let popupId
+    for (let i = 0; i < 40; i++) {
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      const popup = targetInfos.find(
+        (v) => v.type === 'page' && v.url.startsWith(`${recUrl}popup.html`)
+      )
+      if (popup) {
+        popupId = popup.targetId
+        break
+      }
+      await delay(100)
+    }
+    assert(popupId, '录屏popup未打开')
+    const session = await cdp.attach(popupId)
     await cdp.send('Page.bringToFront', {}, session)
     await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
+    // popup 页面加载是异步的，必须等目标按钮挂载后再点
+    for (let i = 0; i < 50; i++) {
+      if (
+        await cdp.evaluate(
+          `(() => { const el = document.getElementById('${id}'); return !!el && !el.disabled })()`,
+          session
+        )
+      )
+        break
+      await delay(100)
+    }
     await cdp.evaluate(`document.getElementById('${id}')${action}`, session)
     await delay(150)
+  }
+  /** audio 开关点击：popup 监听器挂载与 DOM 就绪存在竞态，点击后校验状态翻转，未翻转重试 */
+  const clickAudioUntil = async (pred, reason) => {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await popupClick('audio', '.click()')
+      for (let j = 0; j < 20; j++) {
+        const value = await rec()
+        if (value && pred(value)) return
+        await delay(100)
+      }
+    }
+    throw new Error(reason + '：' + JSON.stringify(await rec()))
   }
 
   /** 测试音启动（指标重载竞态下 testSite 可能瞬时丢失，失败即重探重试） */
@@ -428,11 +462,10 @@ try {
     const otherSession = await cdp.attach(other.targetId)
     await startTabAudio(otherSession, 733)
     timeline.startedAt = Date.now()
-    await cdp.send('Target.activateTarget', { targetId: tabId })
-    await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
+    await popupClick('start', '.click()')
     const started = await waitForState((v) => v.state === 'recording', '录制未进入recording')
     assert(started.generation >= 1, 'generation未递增')
-    // 忙碌语义：录制中再点action不并发新录制
+    // 忙碌语义：录制中再点图标只重开popup（start钮被禁用），不并发新录制
     await cdp.send('Target.activateTarget', { targetId: tabId })
     await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
     await delay(400)
@@ -443,28 +476,26 @@ try {
 
   await record('暂停排除与恢复（3秒暂停段不进入时长）', async () => {
     await delay(2000)
-    await controllerClick('pause', '.click()')
+    await popupClick('pause', '.click()')
     timeline.pausedAt = Date.now()
     const paused = await waitForState((v) => v.state === 'paused', '未进入paused')
     await delay(3000)
-    await controllerClick('resume', '.click()')
+    await popupClick('resume', '.click()')
     timeline.resumedAt = Date.now()
     const resumed = await waitForState((v) => v.state === 'recording', '未恢复recording')
     return { paused: paused.seq, resumed: resumed.seq }
   })
 
   await record('录制中静音开关即时生效并恢复', async () => {
-    await controllerClick('audio', '.click()')
-    const muted = await waitForState((v) => v.audioMutedLive === true, '静音开关未生效', 5000)
-    await controllerClick('audio', '.click()')
-    const unmuted = await waitForState((v) => v.audioMutedLive === false, '取消静音未生效', 5000)
-    return { muted: muted.seq, unmuted: unmuted.seq }
+    await clickAudioUntil((v) => v.audioMutedLive === true, '静音开关未生效')
+    await clickAudioUntil((v) => v.audioMutedLive === false, '取消静音未生效')
+    return { toggled: true }
   })
 
   await record('停止落盘与MP4规格（H264/AAC、暂停排除）', async () => {
     await delay(1500)
     timeline.stoppedAt = Date.now()
-    await controllerClick('stop', '.click()')
+    await popupClick('stop', '.click()')
     const done = await waitForState(
       (v) => v.state === 'idle' && v.info?.downloadId,
       '停止后未落盘完成',
@@ -531,13 +562,11 @@ try {
 
   await record('独立audio开关：关音频录制无音轨', async () => {
     await delay(1200)
-    await controllerClick('audio', '.click()')
-    await waitForState((v) => v.audioEnabled === false, 'audio开关未保存', 5000)
-    await cdp.send('Target.activateTarget', { targetId: tabId })
-    await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
+    await clickAudioUntil((v) => v.audioEnabled === false, 'audio开关未保存')
+    await popupClick('start', '.click()')
     await waitForState((v) => v.state === 'recording', '第二次录制未启动')
     await delay(3000)
-    await controllerClick('stop', '.click()')
+    await popupClick('stop', '.click()')
     const done = await waitForState(
       (v) => v.state === 'idle' && v.info?.downloadId,
       '第二次未落盘',
@@ -562,14 +591,12 @@ try {
   await record('目标关闭即时收尾（TARGET_GONE语义）', async () => {
     // 上一次录制刚释放采集源，给Chrome一拍恢复时间；失败重试一次启动
     await delay(1500)
-    await cdp.send('Target.activateTarget', { targetId: tabId })
-    await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
+    await popupClick('start', '.click()')
     try {
-      await waitForState((v) => v.state === 'recording', '第三次录制未启动', 8000)
+      await waitForState((v) => v.state === 'recording', '第三次录制未启动(popup点开始)', 8000)
     } catch {
       await delay(1000)
-      await cdp.send('Target.activateTarget', { targetId: tabId })
-      await cdp.send('Extensions.triggerAction', { id: recExt.id, targetId: tabId })
+      await popupClick('start', '.click()')
       await waitForState((v) => v.state === 'recording', '第三次重试仍未启动')
     }
     await delay(2000)

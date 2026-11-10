@@ -51,8 +51,8 @@ chrome.action.onClicked.addListener(async (tab) => {
     bitmap.close()
     await saveCapture(payload)
     // 弹窗形态：与生产编辑器子窗一致（独立窗口承载，不占用标签页）；
-    // scale 按图幅现算（view-fit 只缩不放），画布在弹窗内完整可见
-    const scale = Math.min(1, 840 / payload.width, 600 / payload.height)
+    // scale 只按宽适配（view-fit 只缩不放），超高内容经生产滚动容器（overflow:auto）承接
+    const scale = Math.min(1, 840 / payload.width)
     await chrome.windows.create({
       url: 'editor.html?captureId=' + payload.captureId + '&scale=' + scale,
       type: 'popup',

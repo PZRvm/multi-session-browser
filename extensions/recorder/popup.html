@@ -2,52 +2,45 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>多会话录屏控制面板</title>
+    <title>多会话录屏</title>
     <style>
       :root {
         color-scheme: light dark;
       }
       body {
-        font: 14px/1.6 system-ui, -apple-system, 'PingFang SC', sans-serif;
-        margin: 24px;
+        font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
+        margin: 0;
+        min-width: 300px;
         color: #1f2329;
       }
       main {
-        max-width: 420px;
-        margin: 0 auto;
-        border: 1px solid #d9dce1;
-        border-radius: 10px;
-        padding: 20px 24px;
-      }
-      h1 {
-        font-size: 16px;
-        margin: 0 0 12px;
+        padding: 12px 14px;
       }
       .state {
-        font-size: 20px;
+        font-size: 17px;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
       }
       .meta {
         color: #6b7076;
-        font-size: 12px;
-        min-height: 18px;
+        font-size: 11px;
+        min-height: 15px;
       }
       .error {
         color: #c5493c;
-        font-size: 12px;
+        font-size: 11px;
         white-space: pre-wrap;
         word-break: break-all;
       }
       .row {
         display: flex;
-        gap: 10px;
-        margin-top: 16px;
+        gap: 8px;
+        margin-top: 12px;
       }
       button {
         flex: 1;
-        font-size: 14px;
-        padding: 8px 0;
+        font-size: 13px;
+        padding: 7px 0;
         border: 1px solid #b9bcc2;
         border-radius: 6px;
         background: #fff;
@@ -66,36 +59,34 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-top: 16px;
-        font-size: 13px;
+        margin-top: 12px;
+        font-size: 12px;
       }
       .hint {
-        margin-top: 14px;
+        margin-top: 10px;
         color: #6b7076;
-        font-size: 12px;
-        line-height: 1.7;
+        font-size: 11px;
+        line-height: 1.6;
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>多会话录屏</h1>
       <div class="state" id="state">未知</div>
       <div class="meta" id="meta"></div>
       <div class="error" id="error" role="alert"></div>
       <div class="row">
+        <button id="start" class="primary">开始</button>
         <button id="pause" disabled>暂停</button>
         <button id="resume" disabled>恢复</button>
-        <button id="stop" class="primary" disabled>停止</button>
+        <button id="stop" disabled>停止</button>
       </div>
       <label class="audio">
         <input type="checkbox" id="audio" checked />
         录制当前 Tab 音频（改后下次录制生效；录制中切换为即时静音）
       </label>
-      <p class="hint">
-        点击工具栏图标：空闲时对当前标签页开始录制；录制中打开本面板。产物下载为 MP4。
-      </p>
+      <p class="hint">对当前标签页开始录制；关闭本弹窗录制继续，再次点图标查看状态。产物下载为 MP4。</p>
     </main>
-    <script src="controller.js"></script>
+    <script src="popup.js"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 /* eslint @typescript-eslint/explicit-function-return-type: off -- 插件后台/采集器为纯 JS 扩展代码 */
 /* global chrome */
-// 录屏插件后台：action 点击启动录制或打开/聚焦控制面板；状态机对齐协议v1
+// 录屏插件后台：popup 内取 tabCapture streamId 后经消息启动；状态机对齐协议v1
 // （idle→starting→recording↔paused→finalizing→idle，generation/seq 单调，晚到 ready 拒绝，
 // 启动期取消落盘不回滚）。Chrome 侧用 storage + runtime 消息承载协议语义。
 
@@ -35,53 +35,42 @@ async function ensureOffscreen() {
     })
 }
 
-async function openController() {
-  const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL('controller.html') + '*' })
-  if (tabs[0]) {
-    await chrome.tabs.reload(tabs[0].id)
-    await chrome.tabs.update(tabs[0].id, { active: true })
-  } else {
-    await chrome.tabs.create({ url: 'controller.html' })
-  }
+// popup 启动指令：popup 打开即扩展调用态，SW 在该窗口内取 tabCapture 流并分发
+async function startRecording(message) {
+  const rec = await readRec()
+  if (rec.state !== 'idle') return
+  if (!message.targetTabId) throw new Error('缺少目标标签页')
+  await ensureOffscreen()
+  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: message.targetTabId })
+  const next = await patchRec({
+    state: 'starting',
+    generation: rec.generation + 1,
+    error: null,
+    info: null,
+    targetTabId: message.targetTabId
+  })
+  await chrome.runtime.sendMessage({
+    target: 'offscreen',
+    type: 'start',
+    streamId,
+    audio: rec.audioEnabled,
+    generation: next.generation
+  })
 }
 
-chrome.action.onClicked.addListener(async (tab) => {
-  try {
-    const rec = await readRec()
-    if (rec.state !== 'idle') {
-      // 忙碌语义：不并发新录制，只打开控制面板查看/停止现有录制
-      await openController()
-      return
-    }
-    if (!tab.id) throw new Error('目标标签页无效')
-    await ensureOffscreen()
-    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
-    const next = await patchRec({
-      state: 'starting',
-      generation: rec.generation + 1,
-      error: null,
-      info: null,
-      targetTabId: tab.id
-    })
-    await chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'start',
-      streamId,
-      audio: rec.audioEnabled,
-      generation: next.generation
-    })
-    await openController()
-  } catch (error) {
-    await patchRec({ state: 'idle', error: String(error) })
-    await openController()
-  }
-})
-
-// 控制面板指令中继到 offscreen（stop/pause/resume/setAudio）
+// popup 指令中继到 offscreen（start/pause/resume/stop/setAudio）
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.target !== 'sw') return
   void (async () => {
     const rec = await readRec()
+    if (message.type === 'start') {
+      try {
+        await startRecording(message)
+      } catch (error) {
+        await patchRec({ state: 'idle', error: String(error) })
+      }
+      return
+    }
     if (message.type === 'stop') {
       if (rec.state === 'idle' || rec.state === 'finalizing') return
       await patchRec({ state: 'finalizing' })
