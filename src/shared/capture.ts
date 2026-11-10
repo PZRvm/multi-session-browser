@@ -146,7 +146,7 @@ export interface CaptureSaveResult {
 // ===== 录屏面类型 =====
 
 /** 录制状态机（主进程单源裁决；renderer 纯镜像） */
-export type CaptureStatus = 'idle' | 'recording' | 'paused'
+export type CaptureStatus = 'idle' | 'recording' | 'paused' | 'finalizing'
 
 /** begin 载荷：目标 = 当前激活会话的当前激活 Tab（renderer 不自报 id，主进程现取权威值核验一致——
  *  sessionId 按 resolveSenderScope、tabId 按发起窗快照 activeTabId，不一致即拒） */

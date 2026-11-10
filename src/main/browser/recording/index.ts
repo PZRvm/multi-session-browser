@@ -159,7 +159,13 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
   /** 终态收尾：写入队列排空 → finalize 落盘 → 回收采集器 → idle 推送 → 原生框反馈
    *  （suppressDialog：退出路径静默——退出中弹框无意义且可能阻塞退出） */
   const settle = async (suppressDialog = false): Promise<void> => {
-    machine.reset()
+    if (machine.getState().status !== 'idle') {
+      try {
+        machine.stop()
+      } catch {
+        /* 已在收尾窗口：重复 settle 确定跳过 */
+      }
+    }
     collectorReady = false
     if (readyTimer !== null) {
       clearTimeout(readyTimer)
@@ -167,7 +173,7 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
     }
     collector?.destroy()
     collector = null
-    broadcast({ status: 'idle' })
+    broadcast(machine.getState())
     const w = writer
     writer = null
     if (!w) return
@@ -183,17 +189,21 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
       )
       if (!suppressDialog) showInfoBox(deps.getMainWindow, messageForReason(reason)(path))
     } catch (error) {
-      console.warn('[recording] finalize 失败:', error)
+      console.warn('[recording] settle 失败:', error)
       if (suppressDialog) return
-      // 审查低-2 修复：按失败形态分镜——下载目录缺失 ENOENT 与零块各自如实文案
+      // 容错失败形态分镜——下载目录缺失 ENOENT 与零块各自如实文案
       const msg = error instanceof Error ? error.message : String(error)
       if (msg.includes('没有任何内容')) {
         showInfoBox(deps.getMainWindow, deps.t('capture.startFailed'))
       } else if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        showInfoBox(deps.getMainWindow, deps.t('capture.downloadsUnavailable'))
+        showInfoBox(deps.getMainWindow, deps.t('capture.startFailed'))
       } else {
         showInfoBox(deps.getMainWindow, deps.t('capture.writeFailed'))
       }
+    } finally {
+      // 协议v1 finalizing 语义：落盘收尾完成（含失败）才回 idle 并广播
+      machine.finalize()
+      broadcast({ status: 'idle' })
     }
   }
 
