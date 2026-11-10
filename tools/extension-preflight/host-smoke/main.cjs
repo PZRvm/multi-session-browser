@@ -7,8 +7,16 @@ const check = (name, ok, detail) => {
   results.checks.push({ name, ok: !!ok, detail: String(detail).slice(0, 160) })
 }
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
+process.on('uncaughtException', (e) => console.log('TEARDOWN_ERR', String(e).slice(0, 100)))
+process.on('unhandledRejection', (e) => console.log('TEARDOWN_REJ', String(e).slice(0, 100)))
 app.setPath('userData', '/tmp/host-smoke-userdata')
 app.whenReady().then(async () => {
+  const watchdog = setTimeout(() => {
+    console.log('WATCHDOG_FIRED')
+    writeFile(join(__dirname, 'host-smoke-results.json'), JSON.stringify(results, null, 2)).then(() => app.exit(2))
+  }, 120000)
+  watchdog.unref?.()
+
   try {
     console.log('S1 bundle'); const bundle = require('./host-smoke-bundle.cjs'); console.log('S2 bundle-loaded')
     const { startSite } = await import(new URL('../server.mjs', 'file://' + __dirname + '/').href)
@@ -150,6 +158,112 @@ app.whenReady().then(async () => {
     const un = await service.uninstall(fixtureId)
     const s3ids = ses3.getAllExtensions().map((v) => v.id)
     check('事务卸载', un === true && !s3ids.includes(fixtureId), 'removed=' + un)
+    // M3-E 协议v1 真实 IPC 验证（生产桥守卫）
+    console.log('S7 protocol')
+    const sesB = session.fromPartition('persist:host-smoke-b')
+    const waitBridge = async (w) => {
+      for (let i = 0; i < 50; i++) {
+        const t = await w.webContents.executeJavaScript('typeof window.extensionsBridge', true).catch(() => 'none')
+        if (t === 'object') return
+        await delay(100)
+      }
+      throw new Error('bridge preload missing in renderer')
+    }
+    const mkW = (ses) => new BrowserWindow({ show: false, webPreferences: { session: ses, preload: join(__dirname, 'bridge-preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
+    const trustedW = mkW(ses1)
+    const unknownW = mkW(sesB)
+    const extW = mkW(ses1)
+    const pageFile = join(__dirname, 'bridge-page.html')
+    await writeFile(pageFile, '<!doctype html><title>桥受控页</title><iframe src="bridge-child.html"></iframe>')
+    await writeFile(join(__dirname, 'bridge-child.html'), '<!doctype html><title>桥子frame</title>')
+    const ops = bundle.createCaptureOperations(() => trustedW.webContents)
+    console.log('P1 load'); await trustedW.loadFile(pageFile); console.log('P2 loaded')
+    const bt = bundle.registerBridgeTarget(trustedW.webContents, ses1, ops)
+    const token = bt.token
+    let seq = 0
+    const nextRid = () => 'ipc-' + ++seq
+    const send = async (w, payload, binaryJs) => {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          return await w.webContents.executeJavaScript(
+            'window.extensionsBridge.request(' + JSON.stringify(payload) + ', ' + (binaryJs || 'undefined') + ').then(r => ({ ok: r.ok, code: r.error && r.error.code, rid: r.requestId, value: r.value }))',
+            true
+          )
+        } catch (error) {
+          if (attempt === 5) throw error
+          await delay(500)
+        }
+      }
+    }
+    const base = { protocol: 1, method: 'capture', target: token }
+    const tv = (o) => send(trustedW, { ...base, requestId: nextRid(), ...o })
+    console.log('P3 handshake'); const hs = await tv({ method: 'handshake' }); console.log('P4 hs-done ok=' + hs.ok)
+    check('IPC握手能力', hs.ok && hs.value.capabilities.capture, hs.code || 'hs-ok')
+    const capJs = 'window.extensionsBridge.request(' + JSON.stringify({ ...base, requestId: nextRid(), method: 'capture' }) + ', undefined).then(r => { window.pngRef = r.value.png; return { ok: r.ok, w: r.value.width, h: r.value.height, sha: r.value.sha256, snap: r.value.snapshot } })'
+    console.log('P5 capture'); const cap = await trustedW.webContents.executeJavaScript(capJs, true); console.log('P6 capture-done ok=' + cap.ok)
+    seq += 1
+    check('IPC真实截图', cap.ok && cap.w > 0 && cap.sha.length === 64, String(cap.w))
+    const snapOk = { id: cap.snap.id, version: cap.snap.version }
+    const okCopy = await tv({ method: 'image.copy', snapshot: snapOk })
+    check('IPC有效快照复制', okCopy.ok, okCopy.code || 'copied')
+    const stale = await tv({ method: 'image.copy', snapshot: { id: cap.snap.id, version: cap.snap.version + 1 } })
+    check('IPC过期快照拒绝', !stale.ok && stale.code === 'SNAPSHOT_STALE', stale.code)
+    const inter = await tv({ method: 'image.copy', snapshot: { id: 'other', version: cap.snap.version } })
+    check('IPC交错快照拒绝', !inter.ok && inter.code === 'SNAPSHOT_STALE', inter.code)
+    const copyMeta = { ...base, requestId: nextRid(), method: 'image.copy', snapshot: snapOk, image: { width: cap.w, height: cap.h, mimeType: 'image/png', sha256: cap.sha } }
+    const roundtrip = await send(trustedW, copyMeta, 'window.pngRef')
+    check('IPC二进制往返复制', roundtrip.ok, roundtrip.code)
+    const tamperJs = '(async () => { const u8 = new Uint8Array(window.pngRef.slice(0)); u8[10] ^= 1; const r = await window.extensionsBridge.request(' + JSON.stringify(copyMeta) + ', u8.buffer).then(r => ({ ok: r.ok, code: r.error && r.error.code })).catch(e => ({ ok: false, code: String(e).slice(0, 30) })); return r })()'
+    const tamper = await trustedW.webContents.executeJavaScript(tamperJs, true)
+    check('IPC摘要篡改拒绝', !tamper.ok && tamper.code === 'INVALID_REQUEST', tamper.code)
+    const badJs = '(async () => { const bad = new Uint8Array(window.pngRef.slice(0)); bad[0] = 0; const meta = ' + JSON.stringify({ ...copyMeta, requestId: nextRid(), image: { ...copyMeta.image, sha256: 'f'.repeat(64) } }) + '; const r = await window.extensionsBridge.request(meta, bad.buffer).then(r => ({ ok: r.ok, code: r.error && r.error.code })); return r })()'
+    const badHead = await trustedW.webContents.executeJavaScript(badJs, true)
+    seq += 1
+    check('IPC坏头拒绝', !badHead.ok && badHead.code === 'INVALID_REQUEST', badHead.code)
+    const unkCap = await tv({ method: 'fs.readFile' })
+    check('IPC未知能力拒绝', !unkCap.ok && unkCap.code === 'CAPABILITY_UNSUPPORTED', unkCap.code)
+    const badRid = await send(trustedW, { ...base, requestId: '', method: 'capture' })
+    check('IPC非法requestId拒绝', !badRid.ok && badRid.code === 'INVALID_REQUEST' && badRid.rid === null, 'rid=null')
+    const forged = await tv({ target: 'forged' })
+    check('IPC伪造目标拒绝', !forged.ok && forged.code === 'TARGET_GONE', forged.code)
+    const wrongProto = await tv({ protocol: 2 })
+    check('IPC协议版本拒绝', !wrongProto.ok && wrongProto.code === 'PROTOCOL_UNSUPPORTED', wrongProto.code)
+    console.log('P7 dead'); bt.setAlive(false)
+    const dead = await tv({ method: 'capture' }); console.log('P8 dead-done')
+    check('IPC失效目标拒绝', !dead.ok && dead.code === 'TARGET_GONE', dead.code)
+    bt.setAlive(true)
+    console.log('P9 unknown'); await unknownW.loadFile(join(__dirname, 'bridge-child.html'))
+    await waitBridge(unknownW)
+    const fromUnknown = send(unknownW, { ...base, requestId: nextRid() })
+    const unkSrc = await fromUnknown; console.log('P10 unknown-done')
+    check('IPC跨分区未知来源拒绝', !unkSrc.ok && unkSrc.code === 'UNAUTHORIZED', unkSrc.code)
+    try {
+      await extW.loadURL('chrome-extension://' + meta('cookie').id + '/interface/options/options.html')
+      await waitBridge(extW)
+      const fromExt = await send(extW, { ...base, requestId: nextRid() })
+      check('IPC未知第三方扩展拒绝', !fromExt.ok && fromExt.code === 'UNAUTHORIZED', fromExt.code)
+    } catch (e) {
+      check('IPC未知第三方扩展拒绝', false, 'ext-page-flake: ' + String(e).slice(0, 50))
+    }
+    try {
+      const childFrame = trustedW.webContents.mainFrame.framesInSubtree.find((f) => f.url.includes('bridge-child'))
+      if (childFrame) {
+        const sub = await childFrame.executeJavaScript('window.extensionsBridge.request(' + JSON.stringify({ ...base, requestId: nextRid() }) + ', undefined).then(r => ({ ok: r.ok, code: r.error && r.error.code }))', true)
+        check('IPC子frame拒绝', !sub.ok && sub.code === 'UNAUTHORIZED', sub.code)
+      } else check('IPC子frame拒绝', false, 'no frame')
+    } catch (e) {
+      check('IPC子frame拒绝', false, 'renderer-flake: ' + String(e).slice(0, 50))
+    }
+    try {
+      await trustedW.webContents.loadURL(site.url + '/?session=bridge-nav')
+      const nav = await tv({ method: 'capture' })
+      check('IPC来源导航撤销', !nav.ok && nav.code === 'TARGET_GONE', (nav.code || 'throw') + '(生产语义:导航即目标失效)')
+    } catch (e) {
+      check('IPC来源导航撤销', false, 'renderer-flake: ' + String(e).slice(0, 50))
+    }
+    trustedW.destroy()
+    unknownW.destroy()
+    extW.destroy()
     await writeFile(join(__dirname, 'host-smoke-results.json'), JSON.stringify(results, null, 2))
     console.log('HOST_SMOKE_PASS=' + results.checks.every((c) => c.ok))
     app.exit(0)

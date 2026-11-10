@@ -12,6 +12,7 @@ import {
   errorReply,
   MAX_IMAGE_BYTES,
   MAX_STAGED_BYTES,
+  STAGED_IMAGE as STAGED_IMAGE_PROP,
   type BridgeOperation,
   type BridgeRequest,
   type BridgeResponse,
@@ -55,15 +56,23 @@ let handlerAttached = false
 
 function contextForEvent(
   event: Electron.IpcMainInvokeEvent,
-  entry: TargetEntry | undefined
+  entry: TargetEntry | undefined,
+  requestedToken: string | undefined
 ): RequestContext {
   const sender = event.sender
   const frame = event.senderFrame
+  // 伪造/过期 token 但 sender 属于任一已注册目标 → 保留 TARGET_GONE 语义（前置同源：
+  // 可信来源+错 token = 目标不存在），真正未知来源才 UNAUTHORIZED。
+  const owner = entry ?? [...targets.values()].find((t) => t.wc === sender && !t.wc.isDestroyed())
   return {
-    trusted: !!(entry && !sender.isDestroyed() && sender === entry.wc),
+    trusted: !!(owner && !sender.isDestroyed() && sender === owner.wc),
     topFrame: !!(frame && frame === frame.top),
-    sameSession: !!(entry && sender.session === entry.session),
-    target: entry ? { token: entry.token, alive: entry.alive } : undefined
+    sameSession: !!(owner && sender.session === owner.session),
+    target: entry
+      ? { token: entry.token, alive: entry.alive }
+      : owner
+        ? { token: requestedToken ?? 'unknown', alive: false }
+        : undefined
   }
 }
 
@@ -76,7 +85,7 @@ function attachHandler(): void {
       const token = (payload as { target?: string } | null)?.target
       const entry = token ? targets.get(token) : undefined
       try {
-        checkRequest(payload, contextForEvent(event, entry))
+        checkRequest(payload, contextForEvent(event, entry, token))
       } catch (error) {
         return Promise.resolve(errorReply(payload, error))
       }
@@ -103,6 +112,10 @@ function attachHandler(): void {
           return Promise.resolve(errorReply(payload, error))
         }
       }
+      Object.defineProperty(request, STAGED_IMAGE_PROP, {
+        value: staged ? entry.staged.get(request.requestId) : undefined,
+        enumerable: false
+      })
       return entry.endpoint.request(payload).finally(() => {
         if (staged) {
           const bytes = entry.staged.get(request.requestId)

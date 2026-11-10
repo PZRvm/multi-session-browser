@@ -203,3 +203,6 @@ export function createEndpoint(
     }
   }
 }
+
+/** 桥 handler 暂存二进制挂点（非枚举属性，不参与幂等指纹）；操作层经此读取 */
+export const STAGED_IMAGE = Symbol('msb.stagedImage')

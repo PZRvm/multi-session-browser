@@ -4,8 +4,14 @@
  * M3/E 正式接线时扩展为多会话生命周期管理，不改变 runtime/install 模块边界。
  */
 import { join } from 'node:path'
-import { app, type Session } from 'electron'
+import { createHash } from 'node:crypto'
+import { app, clipboard, nativeImage, type Session, type WebContents } from 'electron'
 import { createManifestStore } from './install/manifest-store'
+import {
+  STAGED_IMAGE,
+  type BridgeOperation,
+  type BridgeRequest
+} from '../../shared/extensions/protocol'
 import {
   createExtensionRuntime,
   type EngineOptions,
@@ -74,3 +80,60 @@ export { createManifestStore } from './install/manifest-store'
 export { createInstallService } from './install/service'
 export { extensionId } from './install/crx'
 export { createStoreInstall } from './install/store'
+export { registerBridgeTarget } from './bridge'
+
+/** 采集操作集（handshake/capture/image.copy），harness 与生产接线共用 */
+export function createCaptureOperations(
+  getWc: () => WebContents | undefined
+): Record<string, BridgeOperation> {
+  let version = 0
+  let snapshot: { id: string; version: number; image: Electron.NativeImage } | undefined
+  return {
+    handshake: () => ({
+      protocol: 1,
+      capabilities: { capture: true, imageCopy: true, tabAudio: false, subscription: false },
+      limits: {
+        requestBytes: 4096,
+        entries: 128,
+        imageBytes: 32 * 1024 * 1024,
+        imageInFlightBytes: 64 * 1024 * 1024
+      },
+      scope: 'msb production bridge'
+    }),
+    capture: async () => {
+      const wc = getWc()
+      if (!wc || wc.isDestroyed())
+        throw Object.assign(new Error('TARGET_GONE'), { code: 'TARGET_GONE' })
+      const image = await wc.capturePage()
+      if (image.isEmpty()) throw Object.assign(new Error('TARGET_GONE'), { code: 'TARGET_GONE' })
+      version += 1
+      snapshot = { id: 'msb-snapshot', version, image }
+      const bytes = image.toPNG()
+      return {
+        snapshot: { id: snapshot.id, version },
+        width: image.getSize().width,
+        height: image.getSize().height,
+        mimeType: 'image/png',
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        png: bytes.buffer.slice(bytes.byteOffset, bytes.byteLength)
+      }
+    },
+    'image.copy': (request) => {
+      const r = request as BridgeRequest
+      if (
+        !snapshot ||
+        !r.snapshot ||
+        r.snapshot.id !== snapshot.id ||
+        r.snapshot.version !== snapshot.version
+      ) {
+        throw Object.assign(new Error('SNAPSHOT_STALE'), { code: 'SNAPSHOT_STALE' })
+      }
+      const staged = (request as unknown as Record<symbol, Buffer | undefined>)[STAGED_IMAGE]
+      const image = staged ? nativeImage.createFromBuffer(staged) : snapshot.image
+      if (image.isEmpty())
+        throw Object.assign(new Error('INVALID_REQUEST'), { code: 'INVALID_REQUEST' })
+      clipboard.writeImage(image)
+      return { copied: !clipboard.readImage().isEmpty() }
+    }
+  }
+}

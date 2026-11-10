@@ -23,6 +23,14 @@ await build({
   external: ['electron', 'electron-chrome-extensions', 'adm-zip'],
   outfile: join(here, 'host-smoke-bundle.cjs')
 })
+await build({
+  entryPoints: [join(root, 'src/preload/extensions-bridge.ts')],
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  external: ['electron'],
+  outfile: join(here, 'bridge-preload.cjs')
+})
 await rm('/tmp/host-smoke-userdata', { recursive: true, force: true })
 const child = spawn(electron, [here], { env: { ...process.env, HOST_SMOKE_SAMPLES: samples }, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''

@@ -29,6 +29,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // ../../../src/main/extensions/dev-entry.ts
 var dev_entry_exports = {};
 __export(dev_entry_exports, {
+  createCaptureOperations: () => createCaptureOperations,
   createInstallService: () => createInstallService,
   createManifestStore: () => createManifestStore,
   createStoreInstall: () => createStoreInstall,
@@ -36,11 +37,13 @@ __export(dev_entry_exports, {
   extensionsPaths: () => extensionsPaths,
   extractCrx: () => extractCrx,
   getExtensionsHandle: () => getExtensionsHandle,
-  mountDevExtensions: () => mountDevExtensions
+  mountDevExtensions: () => mountDevExtensions,
+  registerBridgeTarget: () => registerBridgeTarget
 });
 module.exports = __toCommonJS(dev_entry_exports);
 var import_node_path7 = require("node:path");
-var import_electron2 = require("electron");
+var import_node_crypto4 = require("node:crypto");
+var import_electron3 = require("electron");
 
 // ../../../src/main/extensions/install/manifest-store.ts
 var import_promises = require("node:fs/promises");
@@ -202,6 +205,135 @@ function createManifestStore(file) {
     })
   };
 }
+
+// ../../../src/shared/extensions/protocol.ts
+var PROTOCOL_VERSION = 1;
+var MAX_REQUEST_BYTES = 4096;
+var MAX_ENTRIES_PER_TARGET = 128;
+var DEFAULT_TIMEOUT_MS = 5e3;
+var MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+var MAX_PIXELS = 64 * 1024 * 1024;
+var MAX_STAGED_BYTES = 64 * 1024 * 1024;
+var METHODS = /* @__PURE__ */ new Set([
+  "handshake",
+  "capture",
+  "image.copy",
+  "image.save",
+  "recording.start",
+  "recording.pause",
+  "recording.resume",
+  "recording.stop",
+  "recording.status",
+  "install.status"
+]);
+function fail(code) {
+  throw Object.assign(new Error(code), { code });
+}
+function checkRequest(request, context) {
+  const r = request;
+  if (!context.trusted || !context.topFrame || !context.sameSession) fail("UNAUTHORIZED");
+  if (!r || typeof r !== "object" || r.protocol !== PROTOCOL_VERSION) fail("PROTOCOL_UNSUPPORTED");
+  if (typeof r.requestId !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(r.requestId))
+    fail("INVALID_REQUEST");
+  if (!METHODS.has(r.method)) fail("CAPABILITY_UNSUPPORTED");
+  if (!context.target?.alive || r.target !== context.target.token) fail("TARGET_GONE");
+}
+var ERROR_CODES = [
+  "UNAUTHORIZED",
+  "PROTOCOL_UNSUPPORTED",
+  "INVALID_REQUEST",
+  "CAPABILITY_UNSUPPORTED",
+  "TARGET_GONE",
+  "SNAPSHOT_STALE",
+  "BUSY",
+  "INVALID_STATE",
+  "TIMEOUT",
+  "CANCELLED"
+];
+function errorReply(request, error) {
+  const r = request;
+  const valid = typeof r?.requestId === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(r.requestId);
+  const code = ERROR_CODES.includes(error) ? error : error?.code && ERROR_CODES.includes(error.code) ? error.code : "INTERNAL";
+  return {
+    protocol: PROTOCOL_VERSION,
+    requestId: valid ? r.requestId : null,
+    ok: false,
+    error: { code }
+  };
+}
+function createEndpoint(context, operations, options) {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxEntries = options?.maxEntries ?? MAX_ENTRIES_PER_TARGET;
+  const requests = /* @__PURE__ */ new Map();
+  let closed = false;
+  function request(payload) {
+    try {
+      if (closed) throw Object.assign(new Error("TARGET_GONE"), { code: "TARGET_GONE" });
+      checkRequest(payload, context());
+      const fingerprint = JSON.stringify(payload);
+      if (Buffer.byteLength(fingerprint) > MAX_REQUEST_BYTES) fail("INVALID_REQUEST");
+      const prior = requests.get(payload.requestId);
+      if (prior) {
+        if (prior.fingerprint !== fingerprint) fail("INVALID_REQUEST");
+        return prior.promise;
+      }
+      if (requests.size >= maxEntries) fail("BUSY");
+      const operation = operations[payload.method];
+      if (!operation) fail("CAPABILITY_UNSUPPORTED");
+      const controller = new AbortController();
+      let settled = false;
+      let timer;
+      let finish = () => void 0;
+      const reject = (code) => {
+        if (settled) return;
+        controller.abort();
+        finish(errorReply(payload, { code }));
+      };
+      const promise = new Promise((resolve) => {
+        finish = (value) => {
+          if (settled) return;
+          settled = true;
+          if (timer) clearTimeout(timer);
+          resolve(value);
+        };
+        timer = setTimeout(() => reject("TIMEOUT"), timeoutMs);
+        void Promise.resolve().then(
+          () => controller.signal.aborted ? void 0 : operation(payload, controller.signal)
+        ).then(
+          (value) => {
+            if (settled) return;
+            try {
+              checkRequest(payload, context());
+              finish({
+                protocol: 1,
+                requestId: payload.requestId,
+                ok: true,
+                value
+              });
+            } catch (error) {
+              finish(errorReply(payload, error));
+            }
+          },
+          (error) => finish(errorReply(payload, error))
+        );
+      });
+      requests.set(payload.requestId, { fingerprint, promise, reject });
+      return promise;
+    } catch (error) {
+      return Promise.resolve(errorReply(payload, error));
+    }
+  }
+  return {
+    request,
+    cancel: (id) => requests.get(id)?.reject("CANCELLED"),
+    close: () => {
+      closed = true;
+      for (const entry of requests.values()) entry.reject("TARGET_GONE");
+      requests.clear();
+    }
+  };
+}
+var STAGED_IMAGE = Symbol("msb.stagedImage");
 
 // ../../../src/main/extensions/runtime/index.ts
 var import_node_path3 = require("node:path");
@@ -568,9 +700,118 @@ function createStoreInstall(deps) {
   return { installFromStore };
 }
 
+// ../../../src/main/extensions/bridge.ts
+var import_node_crypto3 = require("node:crypto");
+var import_electron2 = require("electron");
+function checkImagePayload(meta, bytes) {
+  const pngMagic = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const valid = !!meta && meta.mimeType === "image/png" && bytes.length >= 24 && bytes.length <= MAX_IMAGE_BYTES && bytes.subarray(0, 8).equals(pngMagic) && bytes.toString("latin1", 12, 16) === "IHDR" && meta.width === bytes.readUInt32BE(16) && meta.height === bytes.readUInt32BE(20) && /^[a-f0-9]{64}$/.test(meta.sha256) && (0, import_node_crypto3.createHash)("sha256").update(bytes).digest("hex") === meta.sha256;
+  if (!valid) throw Object.assign(new Error("INVALID_REQUEST"), { code: "INVALID_REQUEST" });
+  return { width: meta.width, height: meta.height };
+}
+var targets = /* @__PURE__ */ new Map();
+var handlerAttached = false;
+function contextForEvent(event, entry, requestedToken) {
+  const sender = event.sender;
+  const frame = event.senderFrame;
+  const owner = entry ?? [...targets.values()].find((t) => t.wc === sender && !t.wc.isDestroyed());
+  return {
+    trusted: !!(owner && !sender.isDestroyed() && sender === owner.wc),
+    topFrame: !!(frame && frame === frame.top),
+    sameSession: !!(owner && sender.session === owner.session),
+    target: entry ? { token: entry.token, alive: entry.alive } : owner ? { token: requestedToken ?? "unknown", alive: false } : void 0
+  };
+}
+function attachHandler() {
+  if (handlerAttached) return;
+  handlerAttached = true;
+  import_electron2.ipcMain.handle(
+    "msb:extension-bridge",
+    (event, payload, binary) => {
+      const token = payload?.target;
+      const entry = token ? targets.get(token) : void 0;
+      try {
+        checkRequest(payload, contextForEvent(event, entry, token));
+      } catch (error) {
+        return Promise.resolve(errorReply(payload, error));
+      }
+      if (!entry) return Promise.resolve(errorReply(payload, { code: "UNAUTHORIZED" }));
+      const request = payload;
+      let staged = false;
+      if (binary !== void 0) {
+        if (!(binary instanceof ArrayBuffer) || request.method !== "image.copy") {
+          return Promise.resolve(errorReply(payload, { code: "INVALID_REQUEST" }));
+        }
+        try {
+          const bytes = Buffer.from(binary);
+          checkImagePayload(request.image, bytes);
+          if (!entry.staged.has(request.requestId) && entry.stagedBytes + bytes.length > MAX_STAGED_BYTES) {
+            return Promise.resolve(errorReply(payload, { code: "BUSY" }));
+          }
+          entry.staged.set(request.requestId, bytes);
+          entry.stagedBytes += bytes.length;
+          staged = true;
+        } catch (error) {
+          return Promise.resolve(errorReply(payload, error));
+        }
+      }
+      Object.defineProperty(request, STAGED_IMAGE, {
+        value: staged ? entry.staged.get(request.requestId) : void 0,
+        enumerable: false
+      });
+      return entry.endpoint.request(payload).finally(() => {
+        if (staged) {
+          const bytes = entry.staged.get(request.requestId);
+          if (bytes) {
+            entry.stagedBytes -= bytes.length;
+            entry.staged.delete(request.requestId);
+          }
+        }
+      });
+    }
+  );
+}
+function registerBridgeTarget(wc, session, operations) {
+  const token = (0, import_node_crypto3.randomUUID)();
+  const entry = {
+    token,
+    alive: true,
+    wc,
+    session,
+    endpoint: createEndpoint(
+      () => ({
+        trusted: true,
+        topFrame: true,
+        sameSession: true,
+        target: { token, alive: entry.alive }
+      }),
+      operations
+    ),
+    staged: /* @__PURE__ */ new Map(),
+    stagedBytes: 0,
+    onNavigated: () => {
+      entry.alive = false;
+    }
+  };
+  wc.on("did-navigate", entry.onNavigated);
+  targets.set(token, entry);
+  attachHandler();
+  return {
+    token,
+    setAlive: (alive) => {
+      entry.alive = alive;
+    },
+    release: () => {
+      entry.alive = false;
+      wc.off("did-navigate", entry.onNavigated);
+      targets.delete(token);
+    }
+  };
+}
+
 // ../../../src/main/extensions/dev-entry.ts
 function extensionsPaths() {
-  const root = (0, import_node_path7.join)(import_electron2.app.getPath("userData"), "extensions");
+  const root = (0, import_node_path7.join)(import_electron3.app.getPath("userData"), "extensions");
   return {
     root,
     manifestFile: (0, import_node_path7.join)(root, "installed.json"),
@@ -604,8 +845,56 @@ async function mountDevExtensions(session, partition) {
     return { partition, error: String(error).slice(0, 200) };
   }
 }
+function createCaptureOperations(getWc) {
+  let version = 0;
+  let snapshot;
+  return {
+    handshake: () => ({
+      protocol: 1,
+      capabilities: { capture: true, imageCopy: true, tabAudio: false, subscription: false },
+      limits: {
+        requestBytes: 4096,
+        entries: 128,
+        imageBytes: 32 * 1024 * 1024,
+        imageInFlightBytes: 64 * 1024 * 1024
+      },
+      scope: "msb production bridge"
+    }),
+    capture: async () => {
+      const wc = getWc();
+      if (!wc || wc.isDestroyed())
+        throw Object.assign(new Error("TARGET_GONE"), { code: "TARGET_GONE" });
+      const image = await wc.capturePage();
+      if (image.isEmpty()) throw Object.assign(new Error("TARGET_GONE"), { code: "TARGET_GONE" });
+      version += 1;
+      snapshot = { id: "msb-snapshot", version, image };
+      const bytes = image.toPNG();
+      return {
+        snapshot: { id: snapshot.id, version },
+        width: image.getSize().width,
+        height: image.getSize().height,
+        mimeType: "image/png",
+        sha256: (0, import_node_crypto4.createHash)("sha256").update(bytes).digest("hex"),
+        png: bytes.buffer.slice(bytes.byteOffset, bytes.byteLength)
+      };
+    },
+    "image.copy": (request) => {
+      const r = request;
+      if (!snapshot || !r.snapshot || r.snapshot.id !== snapshot.id || r.snapshot.version !== snapshot.version) {
+        throw Object.assign(new Error("SNAPSHOT_STALE"), { code: "SNAPSHOT_STALE" });
+      }
+      const staged = request[STAGED_IMAGE];
+      const image = staged ? import_electron3.nativeImage.createFromBuffer(staged) : snapshot.image;
+      if (image.isEmpty())
+        throw Object.assign(new Error("INVALID_REQUEST"), { code: "INVALID_REQUEST" });
+      import_electron3.clipboard.writeImage(image);
+      return { copied: !import_electron3.clipboard.readImage().isEmpty() };
+    }
+  };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  createCaptureOperations,
   createInstallService,
   createManifestStore,
   createStoreInstall,
@@ -613,5 +902,6 @@ async function mountDevExtensions(session, partition) {
   extensionsPaths,
   extractCrx,
   getExtensionsHandle,
-  mountDevExtensions
+  mountDevExtensions,
+  registerBridgeTarget
 });
