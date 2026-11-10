@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
+import { app, shell, BrowserWindow, Menu, session } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -693,6 +693,26 @@ app.whenReady().then(async () => {
       registry?.init(snapshot.activeId)
     })
     .catch(() => undefined)
+
+  // 插件宿主 dev 守卫装配（M1-A6）：MSB_EXTENSIONS_DEV=1 时对会话分区做一次性 runtime
+  // 挂载（mounted 幂等去重），任何失败不阻塞启动（mountDevExtensions 内部吞错）。
+  // E 线 M3 以 registry 生命周期事件接线替换此轮询脚手架。
+  if (process.env['MSB_EXTENSIONS_DEV'] === '1') {
+    const seen = new Set<string>()
+    import('./extensions/dev-entry')
+      .then(({ mountDevExtensions }) => {
+        const poll = setInterval(() => {
+          for (const id of knownSessionIds) {
+            const partition = partitionFor(id)
+            if (seen.has(partition)) continue
+            seen.add(partition)
+            void mountDevExtensions(session.fromPartition(partition), partition)
+          }
+        }, 2000)
+        poll.unref?.()
+      })
+      .catch(() => undefined)
+  }
 
   // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl/tabs）并关全部独立窗口。
   // 时序（阶段 10 翻转）：先冲刷（含封笔）后关窗——旧序「先关窗后冲刷」的前提
