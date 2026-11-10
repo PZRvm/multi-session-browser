@@ -282,6 +282,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-DevTools子frame应保留原生API并单独核验媒体.md](notes/learn/2026-11/20261110-DevTools子frame应保留原生API并单独核验媒体.md) — Electron42兼容preload需跳过DevTools子frame，插件fork应独立标识，媒体必须严格解码并保留旧版对照
 - [20261110-奇数采集宽度导致H264损坏.md](notes/learn/2026-11/20261110-奇数采集宽度导致H264损坏.md) — 1倍显示缩放的奇数采集宽度可重现H264损坏，固定偶数轨道尺寸修正，字节哈希可排除写入篡改
 - [20261110-插件界面验证先等状态再查真实数据.md](notes/learn/2026-11/20261110-插件界面验证先等状态再查真实数据.md) — Cookie表单动画导致错误保存目标，React面板折叠与输入值读取导致验证误判的实测经验
+- [20261111-媒体回归前必须清理残留Electron进程.md](notes/learn/2026-11/20261111-媒体回归前必须清理残留Electron进程.md) — 真实采集/录制回归前必须清理残留Electron进程，否则负载干扰会伪造解码损坏
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -441,4 +442,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 323 documents -->
+<!-- 324 documents -->
