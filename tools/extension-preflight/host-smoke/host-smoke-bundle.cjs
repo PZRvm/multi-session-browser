@@ -29,14 +29,16 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // ../../../src/main/extensions/dev-entry.ts
 var dev_entry_exports = {};
 __export(dev_entry_exports, {
+  createInstallService: () => createInstallService,
   createManifestStore: () => createManifestStore,
+  extensionId: () => extensionId,
   extensionsPaths: () => extensionsPaths,
   extractCrx: () => extractCrx,
   getExtensionsHandle: () => getExtensionsHandle,
   mountDevExtensions: () => mountDevExtensions
 });
 module.exports = __toCommonJS(dev_entry_exports);
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var import_electron2 = require("electron");
 
 // ../../../src/main/extensions/install/manifest-store.ts
@@ -185,6 +187,17 @@ function createManifestStore(file) {
       validateManifest(next);
       await persistAtomic(file, next);
       return updated;
+    }),
+    removeInstall: (id) => locked(async () => {
+      const current = await readRaw(file);
+      if (!current.installs.some((v) => v.id === id)) return false;
+      const next = {
+        ...current,
+        installs: current.installs.filter((v) => v.id !== id)
+      };
+      validateManifest(next);
+      await persistAtomic(file, next);
+      return true;
     })
   };
 }
@@ -468,13 +481,57 @@ async function extractCrx(buffer, root, expectedId) {
   }
 }
 
+// ../../../src/main/extensions/install/service.ts
+var import_node_path5 = require("node:path");
+var import_promises4 = require("node:fs/promises");
+function createInstallService(deps) {
+  const root = deps.packagesRoot;
+  const installFromBuffer = async (buffer, expectedId) => {
+    const extracted = await extractCrx(buffer, root, expectedId);
+    const record = await deps.manifest.upsertInstall({
+      id: extracted.id,
+      version: extracted.version,
+      sha256: extracted.sha256,
+      source: { kind: "crx", origin: "package" },
+      partitions: []
+    });
+    return { record, extracted, duplicate: extracted.duplicate };
+  };
+  const removeDir = async (path) => {
+    await (0, import_promises4.rm)(path, { recursive: true, force: true });
+  };
+  const service = {
+    installFromBuffer,
+    installFromFile: (path, expectedId) => (0, import_promises4.readFile)(path).then((b) => installFromBuffer(b, expectedId)),
+    uninstall: async (id) => {
+      const record = await deps.manifest.get(id);
+      if (!record) return false;
+      const removed = await deps.manifest.removeInstall(id);
+      if (!removed) return false;
+      await deps.onRemove?.(id);
+      await removeDir((0, import_node_path5.join)(root, `${id}-${record.version}`));
+      return true;
+    },
+    upgrade: async (id, buffer) => {
+      const prior = await deps.manifest.get(id);
+      if (!prior) throw new Error("UPGRADE_TARGET_MISSING: " + id);
+      const outcome = await installFromBuffer(buffer, id);
+      if (outcome.record.version === prior.version && outcome.record.sha256 === prior.sha256)
+        return outcome;
+      await removeDir((0, import_node_path5.join)(root, `${id}-${prior.version}`));
+      return outcome;
+    }
+  };
+  return service;
+}
+
 // ../../../src/main/extensions/dev-entry.ts
 function extensionsPaths() {
-  const root = (0, import_node_path5.join)(import_electron2.app.getPath("userData"), "extensions");
+  const root = (0, import_node_path6.join)(import_electron2.app.getPath("userData"), "extensions");
   return {
     root,
-    manifestFile: (0, import_node_path5.join)(root, "installed.json"),
-    packagesRoot: (0, import_node_path5.join)(root, "packages")
+    manifestFile: (0, import_node_path6.join)(root, "installed.json"),
+    packagesRoot: (0, import_node_path6.join)(root, "packages")
   };
 }
 var handle;
@@ -506,7 +563,9 @@ async function mountDevExtensions(session, partition) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  createInstallService,
   createManifestStore,
+  extensionId,
   extensionsPaths,
   extractCrx,
   getExtensionsHandle,

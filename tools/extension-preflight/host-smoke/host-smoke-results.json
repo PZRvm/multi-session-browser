@@ -54,6 +54,26 @@
       "name": "权限探针记录",
       "ok": true,
       "detail": "未触发（挂载不触发权限）"
+    },
+    {
+      "name": "事务安装v1.0.0",
+      "ok": true,
+      "detail": "hbfikmii"
+    },
+    {
+      "name": "事务分区3挂载v1.0.0",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "事务升级v1.0.1",
+      "ok": true,
+      "detail": "1.0.1"
+    },
+    {
+      "name": "事务卸载",
+      "ok": true,
+      "detail": "removed=true"
     }
   ]
 }

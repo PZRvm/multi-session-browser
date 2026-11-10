@@ -6,7 +6,12 @@
 import { join } from 'node:path'
 import { app, type Session } from 'electron'
 import { createManifestStore } from './install/manifest-store'
-import { createExtensionRuntime, type EngineOptions, type ExtensionRuntime, type MountResult } from './runtime'
+import {
+  createExtensionRuntime,
+  type EngineOptions,
+  type ExtensionRuntime,
+  type MountResult
+} from './runtime'
 
 export interface ExtensionsPaths {
   root: string
@@ -49,7 +54,10 @@ export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHa
 }
 
 /** 守卫装配语义：挂载失败不抛出（返回错误结果），不阻塞宿主启动 */
-export async function mountDevExtensions(session: Session, partition: string): Promise<MountResult | { partition: string; error: string }> {
+export async function mountDevExtensions(
+  session: Session,
+  partition: string
+): Promise<MountResult | { partition: string; error: string }> {
   const h = getExtensionsHandle()
   try {
     const result = await h.runtime.mountPartition(partition, session)
@@ -63,3 +71,5 @@ export async function mountDevExtensions(session: Session, partition: string): P
 
 export { extractCrx } from './install/crx'
 export { createManifestStore } from './install/manifest-store'
+export { createInstallService } from './install/service'
+export { extensionId } from './install/crx'

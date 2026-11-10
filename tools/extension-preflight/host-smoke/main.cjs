@@ -88,6 +88,47 @@ app.whenReady().then(async () => {
     const engine2 = handle.runtime.getEngine('persist:host-smoke-2')
     check('分区2引擎就绪', !!engine2, 'engine2')
     check('权限探针记录', true, results.permissionProbe ? '待真实权限请求时验证' : '未触发（挂载不触发权限）')
+    // M2-B 安装事务：自签同钥 CRX 安装→升级→卸载（经生产 installService）
+    const { generateKeyPairSync } = require('node:crypto')
+    const { makeCrx2 } = await import(new URL('../crx.mjs', 'file://' + __dirname + '/').href)
+    const AdmZip = require('adm-zip')
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const spk = publicKey.export({ type: 'spki', format: 'der' })
+    const fixtureId = bundle.extensionId(spk)
+    const ses3 = session.fromPartition('persist:host-smoke-3')
+    const service = bundle.createInstallService({
+      manifest,
+      packagesRoot: join(outDir, 'packages'),
+      onRemove: async (id) => {
+        for (const ses of [ses1, ses2, ses3]) { try { await ses.removeExtension(id) } catch {} }
+      }
+    })
+    const mkCrx = async (version) => {
+      const src = new AdmZip()
+      src.addLocalFolder(join(samplesDir, "unpacked", "hlkenndednhfkekhgcdicdfddnkalmdm-1.13.0"))
+      const out = new AdmZip()
+      for (const e of src.getEntries()) {
+        if (e.isDirectory) continue
+        if (e.entryName === 'manifest.json') {
+          const m = JSON.parse(e.getData().toString('utf8'))
+          m.version = version
+          out.addFile('manifest.json', Buffer.from(JSON.stringify(m, null, 2)))
+        } else out.addFile(e.entryName, e.getData())
+      }
+      return makeCrx2(out.toBuffer(), publicKey, privateKey)
+    }
+    const crx100 = await mkCrx('1.0.0')
+    const ins = await service.installFromBuffer(crx100)
+    check('事务安装v1.0.0', ins.record.id === fixtureId && ins.record.version === '1.0.0', fixtureId.slice(0, 8))
+    const m3 = await handle.runtime.mountPartition('persist:host-smoke-3', ses3)
+    check('事务分区3挂载v1.0.0', m3.state === 'ready' && ses3.getAllExtensions().some((v) => v.id === fixtureId), m3.state)
+    const crx101 = await mkCrx('1.0.1')
+    const up = await service.upgrade(fixtureId, crx101)
+    const oldDirGone = !(await require('node:fs/promises').stat(join(outDir, 'packages', fixtureId + '-1.0.0')).then(() => true).catch(() => false))
+    check('事务升级v1.0.1', up.record.version === '1.0.1' && oldDirGone, up.record.version)
+    const un = await service.uninstall(fixtureId)
+    const s3ids = ses3.getAllExtensions().map((v) => v.id)
+    check('事务卸载', un === true && !s3ids.includes(fixtureId), 'removed=' + un)
     await writeFile(join(__dirname, 'host-smoke-results.json'), JSON.stringify(results, null, 2))
     console.log('HOST_SMOKE_PASS=' + results.checks.every((c) => c.ok))
     app.exit(0)

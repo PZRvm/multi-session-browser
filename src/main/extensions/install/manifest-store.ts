@@ -152,6 +152,8 @@ export interface ManifestStore {
   }): Promise<InstallRecord>
   /** 记录一次分区加载结果：新增或覆盖该分区条目，generation 沿用安装记录代次（幂等） */
   recordPartition(id: string, partition: string, ok: boolean): Promise<InstallRecord | undefined>
+  /** 移除安装记录（清单层面）；存在返回 true，不存在返回 false */
+  removeInstall(id: string): Promise<boolean>
 }
 
 export function createManifestStore(file: string): ManifestStore {
@@ -211,6 +213,18 @@ export function createManifestStore(file: string): ManifestStore {
         validateManifest(next)
         await persistAtomic(file, next)
         return updated
+      }),
+    removeInstall: (id) =>
+      locked(async () => {
+        const current = await readRaw(file)
+        if (!current.installs.some((v) => v.id === id)) return false
+        const next: GlobalManifest = {
+          ...current,
+          installs: current.installs.filter((v) => v.id !== id)
+        }
+        validateManifest(next)
+        await persistAtomic(file, next)
+        return true
       })
   }
 }
