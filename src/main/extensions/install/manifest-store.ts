@@ -150,6 +150,8 @@ export interface ManifestStore {
     source: { kind: InstallSourceKind; origin?: string }
     partitions: Array<{ partition: string; ok: boolean }>
   }): Promise<InstallRecord>
+  /** 记录一次分区加载结果：新增或覆盖该分区条目，generation 沿用安装记录代次（幂等） */
+  recordPartition(id: string, partition: string, ok: boolean): Promise<InstallRecord | undefined>
 }
 
 export function createManifestStore(file: string): ManifestStore {
@@ -190,6 +192,25 @@ export function createManifestStore(file: string): ManifestStore {
         }
         await persistAtomic(file, next)
         return record
+      }),
+    recordPartition: (id, partition, ok) =>
+      locked(async () => {
+        const current = await readRaw(file)
+        let updated: InstallRecord | undefined
+        const installs = current.installs.map((v) => {
+          if (v.id !== id) return v
+          const others = v.partitions.filter((p) => p.partition !== partition)
+          updated = {
+            ...v,
+            partitions: [...others, { partition, ok, generation: v.generation }]
+          }
+          return updated
+        })
+        if (!updated) return undefined
+        const next: GlobalManifest = { ...current, installs }
+        validateManifest(next)
+        await persistAtomic(file, next)
+        return updated
       })
   }
 }
