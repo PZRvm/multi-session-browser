@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Input } from 'antd'
-import { ApiOutlined, ExportOutlined, InboxOutlined } from '@ant-design/icons'
+import { ApiOutlined, ExportOutlined, GlobalOutlined, InboxOutlined } from '@ant-design/icons'
 import { useT } from '../../i18n'
 import type { DictKey } from '../../../../shared/i18n'
 import type { ExtensionListItem, InstallResult } from '../../../../shared/extensions/management'
@@ -138,6 +138,16 @@ export function PaneExtensions(): React.JSX.Element {
           onClick={() => void installFromStore()}
         >
           {t('settings.extensions.installStore')}
+        </Button>
+        {/* 打开 Chrome 商店（当前会话标签导航）；TODO(商店伴随插件)：给商店页每个
+            插件加「添加到多会话浏览器」入口，替代手动复制 ID——单独任务排期 */}
+        <Button
+          icon={<GlobalOutlined />}
+          onClick={() =>
+            void window.api.browser.navigate({ url: 'https://chromewebstore.google.com' })
+          }
+        >
+          {t('settings.extensions.openStore')}
         </Button>
         <Button
           icon={<ExportOutlined />}

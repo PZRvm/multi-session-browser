@@ -32,6 +32,7 @@ export const browser: Dictionary['browser'] = {
     record: '錄屏',
     /** DevTools 开关的可见文案与 aria-label（同一词） */
     devtools: '開發人員工具',
+    extensions: '擴充功能',
     /** DevTools 未开启时的开关 title */
     devtoolsOpenTitle: '開啟開發人員工具（F12）',
     /** DevTools 已开启时的开关 title */
@@ -154,5 +155,15 @@ export const browser: Dictionary['browser'] = {
   divider: {
     /** role=separator 的 aria-label */
     adjustWidth: '調整面板寬度'
-  }
-}
+  },
+
+    extpanel: {
+      aria: '擴充功能面板',
+      title: '擴充功能',
+      closeAria: '關閉面板',
+      hintTitle: '無需存取權限',
+      hintBody: '這些外掛無需查看或變更此網站上的資訊。',
+      empty: '還沒有安裝任何外掛，到設定的外掛頁安裝',
+      noAction: '該外掛沒有彈出介面',
+      manage: '管理外掛'
+    },}

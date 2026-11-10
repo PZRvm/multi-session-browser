@@ -46,7 +46,7 @@ const MAX_HEIGHT = 680
 
 export interface SettingsWindowController {
   /** 打开设置窗（幂等单例）：已存在未销毁则聚焦，否则建窗（ready-to-show 后显窗取焦点） */
-  open(): void
+  open(pane?: string): void
   /** 关闭设置窗（主窗 closed 级联用；窗口不存在时 no-op，引用由 closed 钩子自清） */
   dispose(): void
   /** 设置窗引用现取（阶段三起 sender 白名单判据：get-app-info 等设置窗专属通道比对
@@ -71,7 +71,7 @@ export function createSettingsWindowController(deps: {
     if (win && !win.isDestroyed()) win.setTitle(t('menu.settingsWindow'))
   })
 
-  function open(): void {
+  function open(pane?: string): void {
     if (win && !win.isDestroyed()) {
       win.focus()
       return
@@ -149,6 +149,7 @@ export function createSettingsWindowController(deps: {
         sys: themeColor,
         lang: getCurrentLanguage()
       })
+      if (pane) query.set('pane', pane)
       if (darwin) query.set('chrome', 'hidden-titlebar')
       created
         .loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
@@ -160,6 +161,7 @@ export function createSettingsWindowController(deps: {
             role: SETTINGS_WINDOW_ROLE,
             sys: themeColor,
             lang: getCurrentLanguage(),
+            ...(pane ? { pane } : {}),
             ...(darwin ? { chrome: 'hidden-titlebar' } : {})
           }
         })

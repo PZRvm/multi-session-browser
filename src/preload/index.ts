@@ -519,7 +519,10 @@ const api = {
     importCrx: (): Promise<import('../shared/extensions/management').InstallResult> =>
       ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrx),
     uninstall: (id: string): Promise<import('../shared/extensions/management').UninstallResult> =>
-      ipcRenderer.invoke(EXTENSIONS_CHANNELS.uninstall, id)
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.uninstall, id),
+    openPopup: (id: string, anchor: { x: number; y: number }): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.openPopup, { id, anchor }),
+    manage: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(EXTENSIONS_CHANNELS.manage)
   },
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>

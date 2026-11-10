@@ -137,3 +137,20 @@ export function createCaptureOperations(
     }
   }
 }
+
+let shellWindow: Electron.BrowserWindow | undefined
+
+/** 记录壳窗引用（index.ts 装配时注入），供 attachShellTab 定位 parent 窗口 */
+export function setShellWindow(win: Electron.BrowserWindow): void {
+  shellWindow = win
+}
+
+/** 引擎注册应用壳页为活动 tab（addTab 幂等）：扩展 popup 锚定/打开的前置。语义 TODO：当前
+ * 活跃被插件网页变化未同步进引擎（E 线 registry 事件接线），popup 仅锚定主窗不读网页。 */
+export function attachShellTab(handle: ExtensionsHandle, partition: string, shell: Electron.WebContents): void {
+  const engine = handle.runtime.getEngine(partition)
+  if (!engine) return
+  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(shell, shellWindow)
+  ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(shell)
+}
+

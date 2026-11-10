@@ -711,10 +711,17 @@ app.whenReady().then(async () => {
       poll.unref?.()
     })
     .catch(() => undefined)
+  import('./extensions/dev-entry')
+    .then(({ setShellWindow }) => {
+      if (mainWindow && !mainWindow.isDestroyed()) setShellWindow(mainWindow)
+    })
+    .catch(() => undefined)
   import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({
-        getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
+        getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+        openSettings: (pane) => settingsWindowController?.open(pane),
+        getShellWebContents: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
       })
     )
     .catch(() => undefined)

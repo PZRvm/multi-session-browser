@@ -82,7 +82,11 @@ export default function SettingsWindow(): React.JSX.Element {
   }, [appearanceInitialized, themeColor, resolvedTheme])
 
   // 当前版面 id：组件本地瞬态（不落盘不进 IPC），默认「通用」，切换瞬切无动效
-  const [pane, setPane] = useState<SettingsPaneId>('general')
+  // 初始版面：URL query pane 定位（工具栏面板「管理插件」深链），白名单校验
+  const [pane, setPane] = useState<SettingsPaneId>(() => {
+    const q = new URLSearchParams(window.location.search).get('pane')
+    return SETTINGS_CATEGORIES.some((c) => c.id === q) ? (q as SettingsPaneId) : 'general'
+  })
   // 恢复出厂执行链：确认走主进程原生警告框（2026-10-31 用户裁决原生化——渲染层
   // 两步弹层与输入确认词退役，PRD 3.8.3 / 4.9 / 验收 26 同日修订），执行仍归
   // settings:factory-reset（阶段七链路不变）；resetError = 主进程上浮的失败文案

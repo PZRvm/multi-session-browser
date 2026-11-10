@@ -142,10 +142,11 @@ export const settings = {
     empty: '还没有安装任何插件',
     loadedStat: '已加载 {n}/{m} 个会话',
     hint: '支持商店 ID 安装与本地 CRX2/CRX3 导入；安装需确认，全部会话即时生效。',
+    openStore: '打开 Chrome 商店',
     source: {
       crx: '本地导入',
       store: 'Chrome 商店',
       unpacked: '开发目录'
     }
-  }
+  },
 }

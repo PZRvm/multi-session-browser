@@ -7,6 +7,7 @@
 import { BrowserWindow, dialog, ipcMain, type Session } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { attachShellTab } from './dev-entry'
 import { createManifestStore, type InstallRecord } from './install/manifest-store'
 import { createInstallService } from './install/service'
 import { createStoreInstall } from './install/store'
@@ -20,6 +21,10 @@ import {
 
 export interface ManagementDeps {
   getMainWindow: () => BrowserWindow | null
+  /** 打开设置窗并定位版面（工具栏面板「管理插件」入口） */
+  openSettings?: (pane?: string) => void
+  /** 应用壳页 webContents（引擎 tab 注册用） */
+  getShellWebContents?: () => BrowserWindow | null
 }
 
 interface InstallOutcome extends InstallResult {
@@ -92,16 +97,93 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     allowlist: ['*'],
     confirmInstall
   })
+  /** 读解包目录 manifest：icons 最大 ≤48 → PNG dataURL；action/browser_action → 可弹窗 */
+  const readManifestExtra = async (
+    record: InstallRecord
+  ): Promise<{ icon?: string; hasAction: boolean }> => {
+    const dir = join(paths.packagesRoot, `${record.id}-${record.version}`)
+    try {
+      const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as {
+        icons?: Record<string, string>
+        action?: { default_icon?: Record<string, string> | string }
+        browser_action?: { default_icon?: Record<string, string> | string }
+      }
+      const pickIcon = (icons?: Record<string, string>): string | undefined => {
+        if (!icons) return undefined
+        const best = Object.entries(icons)
+          .map(([size, path]) => ({ size: Number(size) || 0, path }))
+          .filter((v) => v.size <= 48 && v.path.length > 0 && !v.path.includes('..'))
+          .sort((a, b) => b.size - a.size)[0]
+        return best?.path
+      }
+      const rel =
+        pickIcon(manifest.action?.default_icon as Record<string, string> | undefined) ??
+        pickIcon(manifest.browser_action?.default_icon as Record<string, string> | undefined) ??
+        pickIcon(manifest.icons)
+      let icon: string | undefined
+      if (rel) {
+        try {
+          const bytes = await readFile(join(dir, rel))
+          icon = `data:image/png;base64,${bytes.toString('base64')}`
+        } catch {
+          icon = undefined
+        }
+      }
+      return { icon, hasAction: !!(manifest.action || manifest.browser_action) }
+    } catch {
+      return { hasAction: false }
+    }
+  }
   ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListItem[]> => {
     const m = await manifest.read()
-    return m.installs.map((r) => ({
-      id: r.id,
-      name: r.name ?? r.id,
-      version: r.version,
-      source: r.source.kind,
-      loadedPartitions: r.partitions.filter((p) => p.ok).length,
-      totalPartitions: r.partitions.length
-    }))
+    return Promise.all(
+      m.installs.map(async (r) => {
+        const extra = await readManifestExtra(r)
+        return {
+          id: r.id,
+          name: r.name ?? r.id,
+          version: r.version,
+          source: r.source.kind,
+          icon: extra.icon,
+          hasAction: extra.hasAction,
+          loadedPartitions: r.partitions.filter((p) => p.ok).length,
+          totalPartitions: r.partitions.length
+        }
+      })
+    )
+  })
+  /** 工具栏面板行点击：打开插件 action popup（锚定工具栏拼图按钮） */
+  ipcMain.handle(
+    EXTENSIONS_CHANNELS.openPopup,
+    async (_e, payload: { id?: unknown; anchor?: { x: number; y: number } }): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        if (typeof payload?.id !== 'string') return { ok: false, error: 'INVALID_ID' }
+        const anchor = payload.anchor
+        for (const { partition } of mountedSessions()) {
+          const engine = handle.runtime.getEngine(partition)
+          if (!engine) continue
+          const shellWin = deps.getShellWebContents?.() ?? deps.getMainWindow()
+          if (!shellWin) return { ok: false, error: 'NO_SHELL' }
+          attachShellTab(handle, partition, shellWin.webContents)
+          const request = {
+            eventType: 'click',
+            extensionId: payload.id,
+            alignment: 'bottom right',
+            anchorRect: { x: anchor?.x ?? shellWin.getContentSize()[0] - 80, y: anchor?.y ?? 8, width: 36, height: 36 }
+          }
+          ;(engine as unknown as { browserAction: { activateClick: (d: typeof request) => void } }).browserAction.activateClick(request)
+          return { ok: true }
+        }
+        return { ok: false, error: 'NO_MOUNTED_PARTITION' }
+      } catch (error) {
+        return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+      }
+    }
+  )
+  /** 面板底部「管理插件」：打开设置窗并定位插件版面 */
+  ipcMain.handle(EXTENSIONS_CHANNELS.manage, async (): Promise<{ ok: boolean }> => {
+    deps.openSettings?.('extensions')
+    return { ok: true }
   })
   ipcMain.handle(
     EXTENSIONS_CHANNELS.installStore,

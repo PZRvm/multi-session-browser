@@ -226,6 +226,11 @@ declare global {
         installFromStore(id: string): Promise<import('../../shared/extensions/management').InstallResult>
         importCrx(): Promise<import('../../shared/extensions/management').InstallResult>
         uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
+        openPopup(
+          id: string,
+          anchor: { x: number; y: number }
+        ): Promise<{ ok: boolean; error?: string }>
+        manage(): Promise<{ ok: boolean }>
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>

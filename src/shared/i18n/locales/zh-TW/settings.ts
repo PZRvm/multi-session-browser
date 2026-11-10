@@ -137,10 +137,11 @@ export const settings: Dictionary['settings'] = {
     empty: '還沒有安裝任何外掛',
     loadedStat: '已載入 {n}/{m} 個工作階段',
     hint: '支援商店 ID 安裝與本地 CRX2/CRX3 匯入；安裝需確認，全部工作階段即時生效。',
+    openStore: '開啟 Chrome 線上應用程式商店',
     source: {
       crx: '本地匯入',
       store: 'Chrome 商店',
       unpacked: '開發目錄'
     }
-  }
+  },
 }

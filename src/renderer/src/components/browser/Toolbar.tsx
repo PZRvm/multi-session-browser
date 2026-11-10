@@ -3,10 +3,12 @@ import {
   CameraOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
-  VideoCameraOutlined
+  VideoCameraOutlined,
+  BlockOutlined
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
+import { ExtensionsPanel } from './ExtensionsPanel'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
@@ -143,6 +145,16 @@ function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
+  // 扩展面板（Chrome 拼图菜单还原）：开关态 + 打开瞬时的按钮锚点（面板定位与 popup
+  // 锚定复用；rect 在点击事件里读取，不违反渲染期 ref 纪律）
+  const [extPanelOpen, setExtPanelOpen] = useState(false)
+  const [extAnchor, setExtAnchor] = useState({ x: 0, y: 0 })
+  const extBtnRef = useRef<HTMLButtonElement | null>(null)
+  const toggleExtPanel = (): void => {
+    const rect = extBtnRef.current?.getBoundingClientRect()
+    if (rect) setExtAnchor({ x: Math.round(rect.left), y: Math.round(rect.top) })
+    setExtPanelOpen((v) => !v)
+  }
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
@@ -679,6 +691,28 @@ function Toolbar(): React.JSX.Element {
           {toolsPopKeyText && <span className="chrome-tools-pop-key">{toolsPopKeyText}</span>}
         </div>
       )}
+      {/* 扩展入口（Chrome 拼图菜单还原，置于开发者工具左侧）：面板列出已装插件，
+          行点击经主进程引擎打开该插件 action popup；底部管理入口深链设置窗插件版面 */}
+      {extPanelOpen && activeTab && (
+        <ExtensionsPanel anchor={extAnchor} onClose={() => setExtPanelOpen(false)} />
+      )}
+      <TooltipSlot
+        label={t('browser.toolbar.extensions')}
+        onEnter={showToolsPop}
+        onLeave={hideToolsPop}
+      >
+        <button
+          type="button"
+          className="chrome-ext-toggle"
+          ref={extBtnRef}
+          aria-label={t('browser.toolbar.extensions')}
+          aria-expanded={extPanelOpen}
+          disabled={!activeTab}
+          onClick={toggleExtPanel}
+        >
+          <BlockOutlined />
+        </button>
+      </TooltipSlot>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button
         type="button"
