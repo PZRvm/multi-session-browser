@@ -74,13 +74,27 @@ export function checkRequest(request: unknown, context: RequestContext): void {
   if (!context.target?.alive || r.target !== context.target.token) fail('TARGET_GONE')
 }
 
+export const ERROR_CODES: readonly ErrorCode[] = [
+  'UNAUTHORIZED',
+  'PROTOCOL_UNSUPPORTED',
+  'INVALID_REQUEST',
+  'CAPABILITY_UNSUPPORTED',
+  'TARGET_GONE',
+  'SNAPSHOT_STALE',
+  'BUSY',
+  'INVALID_STATE',
+  'TIMEOUT',
+  'CANCELLED'
+]
+
 /** 非法 requestId 回传 null 的错误信封（协议v1 errorReply 同源） */
 export function errorReply(request: unknown, error: unknown): BridgeResponse {
   const r = request as { requestId?: unknown } | null
   const valid = typeof r?.requestId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(r.requestId)
   const code = ERROR_CODES.includes(error as never)
     ? (error as ErrorCode)
-    : (error as { code?: unknown })?.code && ERROR_CODES.includes((error as { code: string }).code)
+    : (error as { code?: unknown })?.code &&
+        ERROR_CODES.includes((error as { code: string }).code as ErrorCode)
       ? (error as { code: ErrorCode }).code
       : 'INTERNAL'
   return {
@@ -135,17 +149,18 @@ export function createEndpoint(
       const controller = new AbortController()
       let settled = false
       let timer: NodeJS.Timeout | undefined
+      let finish: (value: BridgeResponse) => void = () => undefined
+      const reject = (code: string): void => {
+        if (settled) return
+        controller.abort()
+        finish(errorReply(payload, { code }))
+      }
       const promise = new Promise<BridgeResponse>((resolve) => {
-        const finish = (value: BridgeResponse): void => {
+        finish = (value: BridgeResponse): void => {
           if (settled) return
           settled = true
           if (timer) clearTimeout(timer)
           resolve(value)
-        }
-        const reject = (code: string): void => {
-          if (settled) return
-          controller.abort()
-          finish(errorReply(payload, { code }))
         }
         timer = setTimeout(() => reject('TIMEOUT'), timeoutMs)
         void Promise.resolve()
