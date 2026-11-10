@@ -6,8 +6,8 @@
  */
 import { BrowserWindow, dialog, ipcMain, type Session } from 'electron'
 import { readFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { attachShellTab } from './dev-entry'
 import { createManifestStore, type InstallRecord } from './install/manifest-store'
 import { createInstallService } from './install/service'
 import { createStoreInstall } from './install/store'
@@ -32,6 +32,8 @@ interface InstallOutcome extends InstallResult {
 }
 
 let registered = false
+const readManifestFileSync = (dir: string): string =>
+  readFileSync(join(dir, 'manifest.json'), 'utf8')
 
 export function registerExtensionsManagement(deps: ManagementDeps): void {
   if (registered) return
@@ -97,6 +99,31 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     allowlist: ['*'],
     confirmInstall
   })
+  /** 读解包 manifest 的 popup 页面路径（MV3 action / MV2 browser_action） */
+  const readPopupPath = (extensionId: string): string | undefined => {
+    const record = manifestCache.get(extensionId)
+    if (!record) return undefined
+    let manifest: {
+      action?: { default_popup?: string }
+      browser_action?: { default_popup?: string }
+    }
+    try {
+      const dir = join(paths.packagesRoot, `${record.id}-${record.version}`)
+      manifest = JSON.parse(readManifestFileSync(dir))
+    } catch {
+      return undefined
+    }
+    const path = manifest.action?.default_popup ?? manifest.browser_action?.default_popup
+    return typeof path === 'string' && path.length > 0 ? path : undefined
+  }
+  const manifestCache = new Map<string, InstallRecord>()
+  // 清单缓存随每次 list/install 刷新（open-popup 查版本目录用）
+  const refreshManifestCache = async (): Promise<void> => {
+    const m = await manifest.read()
+    manifestCache.clear()
+    for (const r of m.installs) manifestCache.set(r.id, r)
+  }
+
   /** 读解包目录 manifest：icons 最大 ≤48 → PNG dataURL；action/browser_action → 可弹窗 */
   const readManifestExtra = async (
     record: InstallRecord
@@ -135,6 +162,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     }
   }
   ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListItem[]> => {
+    await refreshManifestCache()
     const m = await manifest.read()
     return Promise.all(
       m.installs.map(async (r) => {
@@ -152,39 +180,105 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       })
     )
   })
-  /** 工具栏面板行点击：打开插件 action popup（锚定工具栏拼图按钮） */
+  /** 插件 action popup 窗口（自研，参数与定位算法照 electron-chrome-extensions
+   *  PopupView 同源：无边框子窗 + preferred-size 自适应 + blur 关闭 + 父窗锚定） */
+  const activePopup = { win: null as BrowserWindow | null, id: '' }
+  const closeActivePopup = (destroy = true): void => {
+    const w = activePopup.win
+    activePopup.win = null
+    activePopup.id = ''
+    if (w && !w.isDestroyed()) destroy ? w.destroy() : w.close()
+  }
+  const openExtensionPopup = (
+    extensionId: string,
+    anchor: { x: number; y: number }
+  ): { ok: boolean; error?: string } => {
+    // 同插件重复点击 = 关闭（Chrome 切换语义）
+    if (activePopup.win && !activePopup.win.isDestroyed() && activePopup.id === extensionId) {
+      closeActivePopup()
+      return { ok: true }
+    }
+    closeActivePopup()
+    const mainWin = deps.getMainWindow()
+    if (!mainWin) return { ok: false, error: 'NO_SHELL' }
+    const popupPath = readPopupPath(extensionId)
+    if (!popupPath) return { ok: false, error: 'NO_POPUP' }
+    const mounted = mountedSessions()
+    if (mounted.length === 0) return { ok: false, error: 'NO_MOUNTED_PARTITION' }
+    const { session } = mounted[0]
+    const url = `chrome-extension://${extensionId}/${popupPath.replace(/^\//, '')}`
+    const win = new BrowserWindow({
+      show: false,
+      frame: false,
+      parent: mainWin,
+      movable: false,
+      maximizable: false,
+      minimizable: false,
+      fullscreenable: false,
+      resizable: false,
+      skipTaskbar: true,
+      backgroundColor: '#ffffff',
+      roundedCorners: false,
+      webPreferences: {
+        session,
+        sandbox: true,
+        nodeIntegration: false,
+        nodeIntegrationInWorker: false,
+        contextIsolation: true,
+        enablePreferredSizeMode: true
+      }
+    })
+    activePopup.win = win
+    activePopup.id = extensionId
+    const MIN = { w: 25, h: 25 }
+    const MAX = { w: 800, h: 600 }
+    const PADDING = 5
+    const positionAt = (): void => {
+      if (win.isDestroyed() || mainWin.isDestroyed()) return
+      const winBounds = mainWin.getBounds()
+      const viewBounds = win.getBounds()
+      let x = winBounds.x + anchor.x + 30 - viewBounds.width
+      let y = winBounds.y + anchor.y + 34 + PADDING
+      x = Math.floor(Math.max(winBounds.x + 4, x))
+      y = Math.floor(y)
+      const b = win.getBounds()
+      win.setBounds({ ...b, x, y })
+    }
+    const applySize = (width: number, height: number): void => {
+      if (win.isDestroyed()) return
+      const w = Math.floor(Math.min(MAX.w, Math.max(width || 0, MIN.w)))
+      const h = Math.floor(Math.min(MAX.h, Math.max(height || 0, MIN.h)))
+      const b = win.getBounds()
+      win.setBounds({ ...b, width: w, height: h })
+    }
+    win.webContents.on('preferred-size-changed', (_e, size) => {
+      applySize(size.width, size.height)
+      positionAt()
+      if (!win.isVisible()) win.show()
+    })
+    win.on('blur', () => closeActivePopup())
+    win.on('closed', () => {
+      activePopup.win = null
+      activePopup.id = ''
+    })
+    mainWin.once('closed', () => closeActivePopup())
+    void win.loadURL(url).catch(() => closeActivePopup())
+    return { ok: true }
+  }
   ipcMain.handle(
     EXTENSIONS_CHANNELS.openPopup,
-    async (_e, payload: { id?: unknown; anchor?: { x: number; y: number } }): Promise<{ ok: boolean; error?: string }> => {
+    async (
+      _e,
+      payload: { id?: unknown; anchor?: { x: number; y: number } }
+    ): Promise<{ ok: boolean; error?: string }> => {
       try {
         if (typeof payload?.id !== 'string') return { ok: false, error: 'INVALID_ID' }
-        const anchor = payload.anchor
-        for (const { partition } of mountedSessions()) {
-          const engine = handle.runtime.getEngine(partition)
-          if (!engine) continue
-          const shellWin = deps.getShellWebContents?.() ?? deps.getMainWindow()
-          if (!shellWin) return { ok: false, error: 'NO_SHELL' }
-          attachShellTab(handle, partition, shellWin.webContents)
-          const request = {
-            eventType: 'click',
-            extensionId: payload.id,
-            alignment: 'bottom right',
-            anchorRect: { x: anchor?.x ?? shellWin.getContentSize()[0] - 80, y: anchor?.y ?? 8, width: 36, height: 36 }
-          }
-          ;(engine as unknown as { browserAction: { activateClick: (d: typeof request) => void } }).browserAction.activateClick(request)
-          return { ok: true }
-        }
-        return { ok: false, error: 'NO_MOUNTED_PARTITION' }
+        return openExtensionPopup(payload.id, payload.anchor ?? { x: 0, y: 0 })
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
       }
     }
   )
-  /** 面板底部「管理插件」：打开设置窗并定位插件版面 */
-  ipcMain.handle(EXTENSIONS_CHANNELS.manage, async (): Promise<{ ok: boolean }> => {
-    deps.openSettings?.('extensions')
-    return { ok: true }
-  })
   ipcMain.handle(
     EXTENSIONS_CHANNELS.installStore,
     async (_e, id: unknown): Promise<InstallOutcome> => {
@@ -217,6 +311,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       if (picked.canceled || picked.filePaths.length === 0) return { ok: false, error: 'CANCELED' }
       const buffer = await readFile(picked.filePaths[0])
       const outcome = await install.installFromBuffer(buffer)
+      await refreshManifestCache()
       await remountAll()
       return { ok: true, record: outcome.record, duplicate: outcome.duplicate }
     } catch (error) {

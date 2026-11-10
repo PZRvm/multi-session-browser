@@ -69,8 +69,11 @@ export function ExtensionsPanel({ anchor, onClose }: ExtensionsPanelProps): Reac
     void window.api.extensions
       .openPopup(item.id, anchor)
       .then((r) => {
-        if (!r.ok) console.warn('[extensions-panel] popup 打开失败:', r.error)
+        // 成功才收面板（Chrome 行为：菜单关、弹窗开）；失败保留面板便于重试
+        if (r.ok) onClose()
+        else console.warn('[extensions-panel] popup 打开失败:', r.error)
       })
+      .catch((e) => console.warn('[extensions-panel] popup 异常:', String(e).slice(0, 80)))
   }
 
   return (
