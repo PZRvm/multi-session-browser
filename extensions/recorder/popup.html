@@ -28,14 +28,21 @@
           --error: #ff8a7d;
         }
       }
+      html,
+      body {
+        background: transparent;
+      }
       body {
         font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
-        margin: 0;
+        margin: 8px;
         min-width: 300px;
-        background: var(--bg);
         color: var(--fg);
       }
+      /* 卡片圆角：弹窗嵌在浏览器内，内容以圆角卡片呈现 */
       main {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 14px;
         padding: 12px 14px;
       }
       .state-row {
