@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/explicit-function-return-type: off, @typescript-eslint/no-require-imports: off -- Electron 主进程 CJS 验证脚本 */
 /* host-smoke：真实 Electron 验证生产 runtime/install（B5 闭环 + A 线生命周期） */
 const { app, BrowserWindow, session } = require('electron')
 const { join } = require('node:path')
@@ -18,7 +19,7 @@ app.whenReady().then(async () => {
   watchdog.unref?.()
 
   try {
-    console.log('S1 bundle'); const bundle = require('./host-smoke-bundle.cjs'); console.log('S2 bundle-loaded')
+    console.log('S1 bundle'); const bundle = require('./out/host-smoke-bundle.cjs'); console.log('S2 bundle-loaded')
     const { startSite } = await import(new URL('../server.mjs', 'file://' + __dirname + '/').href)
     console.log('S3 site'); const site = await startSite(); console.log('S4 site-ok')
     const samplesDir = process.env.HOST_SMOKE_SAMPLES
@@ -51,7 +52,7 @@ app.whenReady().then(async () => {
       show: false,
       webPreferences: {
         session: ses1,
-        preload: join(__dirname, 'action-preload.cjs'),
+        preload: join(__dirname, 'out', 'action-preload.cjs'),
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false
@@ -129,7 +130,7 @@ app.whenReady().then(async () => {
       manifest,
       packagesRoot: join(outDir, 'packages'),
       onRemove: async (id) => {
-        for (const ses of [ses1, ses2, ses3]) { try { await ses.removeExtension(id) } catch {} }
+        for (const ses of [ses1, ses2, ses3]) { try { await ses.removeExtension(id) } catch { /* 未挂载分区幂等跳过 */ } }
       }
     })
     const mkCrx = async (version) => {
@@ -169,7 +170,7 @@ app.whenReady().then(async () => {
       }
       throw new Error('bridge preload missing in renderer')
     }
-    const mkW = (ses) => new BrowserWindow({ show: false, webPreferences: { session: ses, preload: join(__dirname, 'bridge-preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
+    const mkW = (ses) => new BrowserWindow({ show: false, webPreferences: { session: ses, preload: join(__dirname, 'out', 'bridge-preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
     const trustedW = mkW(ses1)
     const unknownW = mkW(sesB)
     const extW = mkW(ses1)
@@ -220,6 +221,13 @@ app.whenReady().then(async () => {
     const badHead = await trustedW.webContents.executeJavaScript(badJs, true)
     seq += 1
     check('IPC坏头拒绝', !badHead.ok && badHead.code === 'INVALID_REQUEST', badHead.code)
+    // 审阅遗留复验：真实 IPC 幂等命中与同ID异JSON冲突
+    const idemPayload = { ...base, requestId: 'ipc-idem-1' }
+    const idemA = await tv(idemPayload)
+    const idemB = await tv(idemPayload)
+    check('IPC幂等命中复验', idemA.ok && idemB.ok && idemA.value.snapshot.version === idemB.value.snapshot.version, 'reused')
+    const conflict = await tv({ ...idemPayload, method: 'handshake' })
+    check('IPC同ID异JSON冲突拒绝', !conflict.ok && conflict.code === 'INVALID_REQUEST', conflict.code)
     const unkCap = await tv({ method: 'fs.readFile' })
     check('IPC未知能力拒绝', !unkCap.ok && unkCap.code === 'CAPABILITY_UNSUPPORTED', unkCap.code)
     const badRid = await send(trustedW, { ...base, requestId: '', method: 'capture' })

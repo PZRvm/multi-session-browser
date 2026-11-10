@@ -73,7 +73,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "hdmhfjco"
+      "detail": "afdcenge"
     },
     {
       "name": "事务分区3挂载v1.0.0",
@@ -127,6 +127,16 @@
     },
     {
       "name": "IPC坏头拒绝",
+      "ok": true,
+      "detail": "INVALID_REQUEST"
+    },
+    {
+      "name": "IPC幂等命中复验",
+      "ok": true,
+      "detail": "reused"
+    },
+    {
+      "name": "IPC同ID异JSON冲突拒绝",
       "ok": true,
       "detail": "INVALID_REQUEST"
     },

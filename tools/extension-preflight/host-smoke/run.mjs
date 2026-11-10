@@ -1,4 +1,5 @@
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+/* eslint @typescript-eslint/explicit-function-return-type: off -- 独立验证脚本 */
+import { readFile, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,7 +14,7 @@ await build({
   platform: 'node',
   format: 'cjs',
   external: ['electron'],
-  outfile: join(here, 'action-preload.cjs')
+  outfile: join(here, 'out', 'action-preload.cjs')
 })
 await build({
   entryPoints: [join(root, 'src/main/extensions/dev-entry.ts')],
@@ -21,7 +22,7 @@ await build({
   platform: 'node',
   format: 'cjs',
   external: ['electron', 'electron-chrome-extensions', 'adm-zip'],
-  outfile: join(here, 'host-smoke-bundle.cjs')
+  outfile: join(here, 'out', 'host-smoke-bundle.cjs')
 })
 await build({
   entryPoints: [join(root, 'src/preload/extensions-bridge.ts')],
@@ -29,13 +30,12 @@ await build({
   platform: 'node',
   format: 'cjs',
   external: ['electron'],
-  outfile: join(here, 'bridge-preload.cjs')
+  outfile: join(here, 'out', 'bridge-preload.cjs')
 })
 await rm('/tmp/host-smoke-userdata', { recursive: true, force: true })
 const child = spawn(electron, [here], { env: { ...process.env, HOST_SMOKE_SAMPLES: samples }, stdio: ['ignore', 'pipe', 'pipe'] })
-let out = ''
-child.stdout.on('data', (d) => { out += d; process.stdout.write(d) })
-child.stderr.on('data', (d) => { out += d; process.stderr.write(d) })
+child.stdout.on('data', (d) => { process.stdout.write(d) })
+child.stderr.on('data', (d) => { process.stderr.write(d) })
 child.on('exit', async (code) => {
   console.log('ELECTRON_EXIT=' + code)
   try {

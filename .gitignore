@@ -9,3 +9,4 @@ out
 
 # TypeScript 增量构建缓存（typecheck composite 产物）
 *.tsbuildinfo
+tools/extension-preflight/host-smoke/out/

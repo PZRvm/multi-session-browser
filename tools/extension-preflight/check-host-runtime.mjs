@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/explicit-function-return-type: off -- 独立验证脚本 */
 import { rm, writeFile } from 'node:fs/promises'
 const M = 'src/main/extensions'
 const { createManifestStore, classifyInstall } = await import(`../../${M}/install/manifest-store.ts`)
@@ -16,10 +17,9 @@ const mkSession = () => ({
     return { id }
   }
 })
-const mkRec = (n, origin) => ({ id: n.repeat(32), version: '1.0.0', sha256: 'c'.repeat(64), source: { kind: 'unpacked', origin }, partitions: [] })
 await store.upsertInstall({ id: 'a'.repeat(32), version: '1.0.0', sha256: 'c'.repeat(64), source: { kind: 'unpacked', origin: '/tmp/ext-runtime/a' }, partitions: [] })
 await store.upsertInstall({ id: 'b'.repeat(32), version: '1.0.0', sha256: 'c'.repeat(64), source: { kind: 'unpacked', origin: '/tmp/ext-runtime/b' }, partitions: [] })
-const opts = (partition) => ({
+const opts = () => ({
   resolvePath: (r) => r.source.origin ?? '',
   recordPartition: (id, p, ok) => store.recordPartition(id, p, ok)
 })
@@ -43,7 +43,7 @@ const ok3 = results3.filter((r) => r.ok).length === 1
 const t3 = ok3 && cls3 === 'partial' && part2.some((p) => p.ok === false) && part2.length === 2
 console.log(JSON.stringify({ t3_partial: t3, ok: results3.map((r) => r.ok) }))
 loadCalls = 0
-const results4 = await loadInstallsIntoSession(mkSession(), installs3, 'persist:sess-2', opts('x'))
+await loadInstallsIntoSession(mkSession(), installs3, 'persist:sess-2', opts('x'))
 const m4 = await store.read()
 const t4 = m4.installs.every((r) => r.partitions.filter((p) => p.partition === 'persist:sess-2').length === 1)
 console.log(JSON.stringify({ t4_partition_idempotent: t4, calls: loadCalls }))

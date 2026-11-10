@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/explicit-function-return-type: off -- 独立验证脚本 */
 import { readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 const P = process.argv[2] ?? join('tools/extension-preflight/out/.artifacts/samples')
