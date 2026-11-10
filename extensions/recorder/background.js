@@ -1,0 +1,166 @@
+/* eslint @typescript-eslint/explicit-function-return-type: off -- 插件后台/采集器为纯 JS 扩展代码 */
+/* global chrome */
+// 录屏插件后台：action 点击启动录制或打开/聚焦控制面板；状态机对齐协议v1
+// （idle→starting→recording↔paused→finalizing→idle，generation/seq 单调，晚到 ready 拒绝，
+// 启动期取消落盘不回滚）。Chrome 侧用 storage + runtime 消息承载协议语义。
+
+const IDLE = { state: 'idle', generation: 0, seq: 0, audioEnabled: true, error: null, info: null }
+
+async function readRec() {
+  const stored = await chrome.storage.local.get('rec')
+  return stored.rec ?? { ...IDLE }
+}
+
+/** 每次状态变化 seq 单调递增，快照整体写入（订阅方经 storage.onChanged 收完整快照） */
+async function patchRec(patch, { bumpSeq = true } = {}) {
+  const rec = await readRec()
+  const next = {
+    ...rec,
+    ...patch,
+    seq: bumpSeq ? rec.seq + 1 : rec.seq,
+    state: patch.state ?? rec.state,
+    generation: patch.generation ?? rec.generation
+  }
+  await chrome.storage.local.set({ rec: next })
+  return next
+}
+
+async function ensureOffscreen() {
+  const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })
+  if (!contexts.length)
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['USER_MEDIA', 'BLOBS'],
+      justification: '录制当前Tab画面与音频'
+    })
+}
+
+async function openController() {
+  const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL('controller.html') + '*' })
+  if (tabs[0]) {
+    await chrome.tabs.reload(tabs[0].id)
+    await chrome.tabs.update(tabs[0].id, { active: true })
+  } else {
+    await chrome.tabs.create({ url: 'controller.html' })
+  }
+}
+
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    const rec = await readRec()
+    if (rec.state !== 'idle') {
+      // 忙碌语义：不并发新录制，只打开控制面板查看/停止现有录制
+      await openController()
+      return
+    }
+    if (!tab.id) throw new Error('目标标签页无效')
+    await ensureOffscreen()
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
+    const next = await patchRec({
+      state: 'starting',
+      generation: rec.generation + 1,
+      error: null,
+      info: null,
+      targetTabId: tab.id
+    })
+    await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'start',
+      streamId,
+      audio: rec.audioEnabled,
+      generation: next.generation
+    })
+    await openController()
+  } catch (error) {
+    await patchRec({ state: 'idle', error: String(error) })
+    await openController()
+  }
+})
+
+// 控制面板指令中继到 offscreen（stop/pause/resume/setAudio）
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.target !== 'sw') return
+  void (async () => {
+    const rec = await readRec()
+    if (message.type === 'stop') {
+      if (rec.state === 'idle' || rec.state === 'finalizing') return
+      await patchRec({ state: 'finalizing' })
+      await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' }).catch(() => {})
+      return
+    }
+    if (rec.state === 'starting' && message.type === 'cancel') {
+      await patchRec({ state: 'finalizing' })
+      await chrome.runtime.sendMessage({ target: 'offscreen', type: 'cancel' }).catch(() => {})
+      return
+    }
+    if (message.type === 'setAudio') {
+      const patch = { audioEnabled: message.value }
+      if (rec.state === 'recording' || rec.state === 'paused') patch.audioMutedLive = !message.value
+      await patchRec(patch, { bumpSeq: false })
+      await chrome.runtime
+        .sendMessage({ target: 'offscreen', type: 'setAudio', value: message.value })
+        .catch(() => {})
+      return
+    }
+    if (rec.state !== 'recording' && rec.state !== 'paused') return
+    if (message.type === 'pause') await patchRec({ state: 'paused' })
+    if (message.type === 'resume') await patchRec({ state: 'recording' })
+    await chrome.runtime.sendMessage({ target: 'offscreen', type: message.type }).catch(() => {})
+  })()
+})
+
+// offscreen 结果回传：ready/paused/resumed/stopped/error
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.target !== 'sw-result') return
+  void (async () => {
+    const rec = await readRec()
+    if (message.type === 'ready') {
+      // 晚到 ready：generation 不匹配或状态已非 starting 时直接让采集器停止
+      if (rec.state !== 'starting' || message.generation !== rec.generation) {
+        await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' }).catch(() => {})
+        return
+      }
+      await patchRec({ state: 'recording' })
+      return
+    }
+    if (message.type === 'paused' && rec.state === 'recording') {
+      await patchRec({ state: 'paused' })
+      return
+    }
+    if (message.type === 'resumed' && rec.state === 'paused') {
+      await patchRec({ state: 'recording' })
+      return
+    }
+    if (message.type === 'stopped') {
+      // 收尾（finalizing）：产物已产生就落盘，不回滚已提交副作用；完成后 finish → idle
+      await patchRec({ state: 'finalizing' })
+      try {
+        if (message.url) {
+          const filename = `recording-${rec.generation}.mp4`
+          const downloadId = await chrome.downloads.download({
+            url: message.url,
+            filename,
+            saveAs: false
+          })
+          await patchRec({
+            state: 'idle',
+            info: { ...message.info, filename, downloadId, reason: message.reason ?? 'user' }
+          })
+        } else {
+          await patchRec({ state: 'idle', error: message.reason ?? '无产物' })
+        }
+      } catch (error) {
+        await patchRec({ state: 'idle', error: String(error) })
+      }
+      return
+    }
+    if (message.type === 'error') {
+      // 启动期失败回滚到 idle；录制期失败保已录内容走收尾
+      if (rec.state === 'starting') {
+        await patchRec({ state: 'idle', error: message.message })
+      } else {
+        await patchRec({ state: 'idle', error: message.message })
+      }
+    }
+  })()
+})
