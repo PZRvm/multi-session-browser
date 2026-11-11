@@ -134,3 +134,8 @@ status: open
 - `setSessionPartitionResolver`：两环境均未设置（默认 session.fromPartition 即可）→ 排除。
 
 剩余清单：capture/recording 装配、proxy 引擎、autoUpdater/I18N 批量门控（每项一轮 MSB_EXTENSIONS_SELFTEST=1 完整启动，判据 SELFTEST_RESULT ok:true 且 controls>2）。工具与清单就绪，下轮继续。
+
+## 剩余候选门控的实施细节（2026-11-11 固化）
+
+- **capture/recording 装配**（index.ts 637—648）：recordingHooks 被 routeBrowserLifecycleToRecording、recordedWindowIdHolder.get、capture 反馈条三处引用——门控需三处同步空值安全（holder.get 返回 null 即可，capture 已容忍）。proxy 引擎（461 行）与 autoUpdater/I18N 为独立装配，直接条件跳过即可。
+- 建议一轮批量门控（三候选同时跳过）先判方向：活 = 再逐项二分；仍死 = 三候选全排除，差异回收到"保留子集"（BrowserFrame/createWindow/registry 最小集 + loadSnapshot），下一层再做保留子集内部的二分。
