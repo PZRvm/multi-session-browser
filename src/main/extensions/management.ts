@@ -345,4 +345,9 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       }
     }
   )
+  /** 面板底部「管理插件」：打开设置窗并定位插件版面 */
+  ipcMain.handle(EXTENSIONS_CHANNELS.manage, async (): Promise<{ ok: boolean }> => {
+    deps.openSettings?.('extensions')
+    return { ok: true }
+  })
 }
