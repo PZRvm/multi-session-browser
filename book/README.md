@@ -145,7 +145,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (64)**
+**Open (65)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -211,6 +211,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
+- [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 
 **Resolved (45)**
 
@@ -448,4 +449,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 330 documents -->
+<!-- 331 documents -->
