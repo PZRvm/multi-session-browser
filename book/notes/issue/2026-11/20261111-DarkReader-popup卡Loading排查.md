@@ -109,3 +109,16 @@ status: open
 - `installWarningChannelFilter`（生产进程 ready 前唯一独有全局调用）已门控排除——禁用后 selftest 仍卡 Loading。
 - 生产独有剩余候选全部位于 whenReady 深处装配（registry/tabDrag/capture/recording/proxy/omnibox/autoUpdater/I18N 等），逐项二分需多轮完整 dev 启动，移交下轮继续。
 - selftest 工具（MSB_EXTENSIONS_SELFTEST=1 + SELFTEST_RESULT 日志 + /tmp/msb-selftest/dark 解包目录已备）就位，下一轮每个候选一轮即可二分。
+
+## 下轮二分执行清单（2026-11-11 固化，按此直接执行）
+
+候选与门控方式（每项一轮 dev：`MSB_USER_DATA=/tmp/msb-selftest-ud MSB_DEV_PORT=6175 MSB_EXTENSIONS_SELFTEST=1 npm run dev`，判据 = SELFTEST_RESULT ok:true 且 controls>2）：
+
+1. **tabDragController**（疑点最高：attachView 已接 tab 注册，其光标轮询/view 摘挂副作用覆盖面最大）——index.ts 492 行创建处用 `MSB_EXTENSIONS_SELFTEST!=='1'` 条件包住；注意其 null 化后 ipc 引用点需空值安全。
+2. capture/recording 装配（captureView/permissions 相关会话级 handler）。
+3. proxy 引擎（session 网络行为）。
+4. omnibox/history/autoUpdater/I18N（低嫌疑，批量门控一轮试）。
+
+若全部排除 → 差异回到"保留子集"（BrowserFrame/createWindow/registry 最小集），此时对照前置 electron-main 进程补齐它的独有项（autoplay-policy 已排除、server.mjs 站点、preload-error 诊断收集）。
+
+判据与产物：命中项修复后，selftest ok:true 且 controls>2 + Cookie-Editor 回归 PASS → issue 翻 resolved。
