@@ -67,6 +67,10 @@ import type { TFunc } from '../shared/i18n'
 // 永不触碰用户真实数据。背景：2026-09-12 修复轮曾用过期备份还原用户 sessions.json
 // 并误删分区目录（见 notes/process.md 执行决策记录「阶段 4 修复轮……数据事故记录」），
 // 此后一切运行时验证强制走本隔离。
+// selftest 实验：复刻前置进程的 app 级 switch（定位进程级 MV2 差异）
+if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1') {
+  app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+}
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
   try {
@@ -716,6 +720,15 @@ app.whenReady().then(async () => {
       if (mainWindow && !mainWindow.isDestroyed()) setShellWindow(mainWindow)
     })
     .catch(() => undefined)
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1') {
+    import('./extensions/dev-entry')
+      .then(({ runDarkPopupSelfTest }) => {
+        void runDarkPopupSelfTest(
+          '/tmp/msb-selftest/dark/eimadpbcbfnmbkopoojfekhnkhdbieeh-4.9.135'
+        )
+      })
+      .catch(() => undefined)
+  }
   import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({

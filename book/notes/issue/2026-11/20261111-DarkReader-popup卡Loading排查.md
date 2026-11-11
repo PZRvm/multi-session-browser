@@ -99,3 +99,7 @@ status: open
 **收敛后的剩余差异**：生产 index.ts 进程（用户实测卡 Loading）与前置 electron-main 进程（同代码 PASS）之间的**进程级全局差异**。下一实验：生产 index.ts 加诊断开关（env 门控的 WC/runtime 枚举探针）与前置进程逐项 diff app 级初始化（前置有 autoplay-policy switch；生产有大量其他初始化——autoUpdater/protocol/I18N 等，逐项二分）。
 
 **用户侧现状（本轮后）**：Cookie-Editor CRUD 可用；翻译/广告拦截可用；Dark Reader 待进程级差异定位。loader 原生化修复后用户应重启再验 Dark Reader（此前 bridge 访问路径的冲突隐患已消除，可能直接解决）。
+
+## 生产进程自检工具（2026-11-11 第九轮）
+
+新增 env 门控自检：`MSB_EXTENSIONS_SELFTEST=1` 启动生产应用，进程内自动加载 dark 解包目录 → 生产同构 popup → stdout 输出 `SELFTEST_RESULT`。**生产 index.ts 进程实测复现卡 Loading（ok:false, controls:0）**——排除用户环境残留与构建差异，实锤进程级。autoplay-policy switch 复刻实验同样无效（已排除）。诊断工具保留在 dev-entry（runDarkPopupSelfTest），下一轮逐项 diff 进程级初始化时一键复现。

@@ -180,3 +180,52 @@ export function invalidateEngineTabUrl(partition: string, wc: Electron.WebConten
   ).ctx?.store
   store?.tabDetailsCache?.delete(wc.id)
 }
+
+/** 生产进程自检（MSB_EXTENSIONS_SELFTEST=1 门控）：加载 dark 解包目录 → 生产同构
+ *  popup 窗口 → 探渲染（脱离 Loading 且控件>2）。用于在生产 index.ts 进程内判定
+ *  MV2 popup 初始化是否健康，结果走 stdout 供自动判定。 */
+export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<void> {
+  const { session: electronSession } = await import('electron')
+  const ses = electronSession.fromPartition('persist:selftest-dark')
+  const handle = getExtensionsHandle()
+  await handle.runtime.mountPartition('persist:selftest-dark', ses)
+  const native = await ses.loadExtension(darkUnpackedDir)
+  const manifest = native.manifest as {
+    browser_action?: { default_popup?: string }
+    action?: { default_popup?: string }
+  }
+  const popup = manifest.browser_action?.default_popup || manifest.action?.default_popup
+  if (!popup) {
+    console.log('SELFTEST_RESULT ' + JSON.stringify({ ok: false, reason: 'NO_POPUP' }))
+    return
+  }
+  const { BrowserWindow: BW } = await import('electron')
+  const win = new BW({
+    show: false,
+    frame: false,
+    resizable: false,
+    skipTaskbar: true,
+    backgroundColor: '#ffffff',
+    roundedCorners: false,
+    webPreferences: {
+      session: ses,
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      enablePreferredSizeMode: true
+    }
+  })
+  await win
+    .loadURL('chrome-extension://' + native.id + '/' + String(popup).replace(/^\//, ''))
+    .catch(() => undefined)
+  await new Promise((r) => setTimeout(r, 5000))
+  const text = await win.webContents
+    .executeJavaScript('(document.body.innerText || "").slice(0, 40)', true)
+    .catch(() => 'EXEC')
+  const controls = await win.webContents
+    .executeJavaScript('String(document.querySelectorAll("input,button,select").length)', true)
+    .catch(() => -1)
+  const ok = !/Loading/i.test(String(text)) && Number(controls) > 2
+  console.log('SELFTEST_RESULT ' + JSON.stringify({ ok, text: String(text).slice(0, 30), controls }))
+  win.destroy()
+}
