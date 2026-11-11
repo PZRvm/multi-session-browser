@@ -87,3 +87,19 @@ body.plugin-editor {
 .plugin-editor .chrome-capture-editor-flash {
   color: var(--msb-accent-deep);
 }
+
+/* PiP 无框形态：无系统红绿灯，取消 84px 左让位；工具行最左为关闭钮 */
+body.pip .chrome-capture-editor-topbar {
+  padding-left: 12px;
+}
+
+.pip-close-btn {
+  color: var(--msb-accent-deep);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pip-close-btn:hover {
+  background: var(--msb-accent-veil);
+  color: var(--danger, #d4380d);
+}

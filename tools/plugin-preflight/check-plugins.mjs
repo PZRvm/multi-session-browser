@@ -139,15 +139,31 @@ try {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
       let editorTarget
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 120; i++) {
         const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-        editorTarget = targetInfos.find(
-          (v) => v.type === 'page' && v.url.startsWith(`${shotUrl}editor.html?captureId=`)
-        )
+        // 只附着已稳定的 PiP：url=editor.html 且标题已继承非空。临时页标题为空且迁移后
+        // 即关闭，附着它会拿到死会话；8 秒未见 PiP 才回落未迁移页
+        editorTarget =
+          targetInfos.find(
+            (v) =>
+              v.type === 'page' &&
+              v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
+              v.title !== ''
+          ) ??
+          (i >= 80
+            ? targetInfos.find(
+                (v) =>
+                  v.type === 'page' &&
+                  v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
+                  v.title === ''
+              )
+            : undefined)
         if (editorTarget) break
         await delay(100)
       }
       assert(editorTarget, '编辑器页未打开')
+      // 等迁移结算（opener 拆窗 + PiP 落稳）再附着，避免拿到即将关闭的会话
+      await delay(1200)
       const session = await cdp.attach(editorTarget.targetId)
       editorSessions.push({ targetId: editorTarget.targetId, session, url: editorTarget.url })
       for (let i = 0; i < 60; i++) {
@@ -346,18 +362,32 @@ try {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
       let editorTarget
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 120; i++) {
         const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-        editorTarget = targetInfos.find(
-          (v) =>
-            v.type === 'page' &&
-            v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
-            !editorSessions.some((s) => s.targetId === v.targetId)
-        )
+        // 只附着已稳定的 PiP（标题非空），排除已附着目标；8 秒未见 PiP 再回落未迁移页
+        editorTarget =
+          targetInfos.find(
+            (v) =>
+              v.type === 'page' &&
+              v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
+              v.title !== '' &&
+              !editorSessions.some((s) => s.targetId === v.targetId)
+          ) ??
+          (i >= 80
+            ? targetInfos.find(
+                (v) =>
+                  v.type === 'page' &&
+                  v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
+                  v.title === '' &&
+                  !editorSessions.some((s) => s.targetId === v.targetId)
+              )
+            : undefined)
         if (editorTarget) break
         await delay(100)
       }
       assert(editorTarget, '第二次截图未打开新编辑器')
+      // 等迁移结算后再附着
+      await delay(1200)
       const session = await cdp.attach(editorTarget.targetId)
       editorSessions.push({ targetId: editorTarget.targetId, session, url: editorTarget.url })
       for (let i = 0; i < 60; i++) {
