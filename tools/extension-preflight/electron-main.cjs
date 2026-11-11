@@ -380,6 +380,45 @@ async function main() {
     assert(!/Loading/i.test(String(text)), 'popup 卡 Loading: ' + String(text))
     return { bgProbe, text }
   })
+
+  await record('dark popup 自研窗口对照（生产同构）', async () => {
+    // 生产 management.ts openExtensionPopup 的同构窗口（参数逐项一致）
+    const manifest = JSON.parse(await readFile(join(samples.find((v) => v.name === 'dark').path, 'manifest.json'), 'utf8'))
+    const pp = manifest.browser_action?.default_popup || manifest.action?.default_popup
+    const w = new BrowserWindow({
+      show: false,
+      frame: false,
+      parent: a.owner,
+      movable: false,
+      maximizable: false,
+      minimizable: false,
+      fullscreenable: false,
+      resizable: false,
+      skipTaskbar: true,
+      backgroundColor: '#ffffff',
+      roundedCorners: false,
+      webPreferences: {
+        session: a.targetSession,
+        sandbox: true,
+        nodeIntegration: false,
+        nodeIntegrationInWorker: false,
+        contextIsolation: true,
+        enablePreferredSizeMode: true
+      }
+    })
+    await w.loadURL('chrome-extension://' + samples.find((v) => v.name === 'dark').id + '/' + String(pp).replace(/^\//, '')).catch(() => {})
+    await delay(4000)
+    const text = await w.webContents.executeJavaScript(
+      '(document.body.innerText || "").slice(0, 60)',
+      true
+    ).catch((e) => 'EXEC:' + String(e).slice(0, 50))
+    const port = await w.webContents.executeJavaScript(
+      'new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })',
+      true
+    ).catch(() => 'EXEC')
+    w.destroy()
+    return { text, port }
+  })
   }
   async function inspectReact(a, expected, output) {
     await mkdir(output, { recursive: true })

@@ -26,3 +26,13 @@ status: open
 - 自研窗口正常 → 差异在 host-smoke/生产会话环境（逐项 diff：handleCRXProtocol 缺失、扩展加载时机、会话构造）
 
 新证据：前置 harness 新增探针记录（dark popup background 存活探针 ×3 分区）实证 getBackgroundPage 恒 NULL 但开关功能正常，已写入前置 harness 作为永久探针。
+
+## 突破（2026-11-11 第二轮）
+
+- **自研窗口代码无罪**：前置环境里生产同构自研窗口完整渲染（对照 PASS）。
+- **host-smoke 环境里 lib PopupView 与自研窗口同样卡**（lib popup 文本同为 Loading、端口同 DISCONNECTED）——差异在会话/环境层，不在窗口层。
+- **MV3 实测通过**：uBO Lite（广告拦截，service worker 架构）经生产路径安装→挂载→popup 正常渲染（"not a website" 正常文案，非 Loading）。**Electron 42 的 runtime 消息桥对 MV3 SW 工作**。
+- 收窄结论：问题 = **MV2 background page 在 host-smoke/生产会话里不启动**（同 Electron 的前置环境却启动，差异未知）；MV3 方向健康。
+- 生态背景：Chromium 2025 起弃用 MV2，`ExtensionManifestV2Disabled` 开关在 148 无效（代码已移除的可能性大）。Dark Reader 商店版 4.9.135 恰为 MV2。
+- 用户侧可操作：Dark Reader 存在 MV3 版本分支（开发版/测试版渠道），或等待 Electron 上游修复 MV2 background；宿主自己的录屏插件（会话2）走协议v1宿主桥不受影响。
+- 翻译类代表（沉浸式翻译）商店 ID 未获取到（omaha 404），需从商店页取真实 ID 后同法实测。

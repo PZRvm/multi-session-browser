@@ -48,6 +48,8 @@ app.whenReady().then(async () => {
         return true
       }
     }
+    const { ElectronChromeExtensions } = require('electron-chrome-extensions')
+    ElectronChromeExtensions.handleCRXProtocol(session.defaultSession)
     const handle = bundle.getExtensionsHandle(handleOpts)
     const partition1 = 'persist:host-smoke-1'
     hostTab.owner = new BrowserWindow({
@@ -82,6 +84,45 @@ app.whenReady().then(async () => {
     if (popup) {
       const pwc = popup.browserWindow?.webContents
       check('popup页面可执行', !!(pwc && !pwc.isDestroyed()), (await pwc.executeJavaScript('document.title.length', true).catch(() => -1)) >= 0)
+    // 同环境对照：lib popup 的渲染与端口状态
+    const libText = await pwc.executeJavaScript('(document.body.innerText || "").slice(0, 40)', true).catch(() => 'EXEC')
+    const libPort = await pwc.executeJavaScript(
+      'new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })',
+      true
+    ).catch(() => 'EXEC')
+    check('lib popup端口对照', /MSG/.test(String(libPort)), 'libText:' + String(libText).slice(0, 30) + ' libPort:' + String(libPort))
+    // MV3 实测：uBO Lite（广告拦截，service worker 架构）装→挂→popup 渲染探针
+    console.log('P16 ubo-mv3')
+    let uboResult = 'SKIPPED'
+    try {
+      const uboBuf = await readFile('/tmp/msb-crx-test/ddkjiahejlhfcafbddmgiahcphecmpfh.crx')
+      const uboService = bundle.createInstallService({ manifest, packagesRoot: join(outDir, 'packages'), onRemove: async () => {} })
+      const ubo = await uboService.installFromBuffer(uboBuf)
+      await handle.runtime.mountPartition(partition1, ses1)
+      const uboWin = new BrowserWindow({
+        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
+        backgroundColor: '#ffffff', roundedCorners: false,
+        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      const uboDir = join(outDir, 'packages', ubo.record.id + '-' + ubo.record.version)
+      const uboManifest = JSON.parse(await readFile(join(uboDir, 'manifest.json'), 'utf8'))
+      const uboPopup = uboManifest.action?.default_popup || uboManifest.browser_action?.default_popup
+      let uboState = 'NO_POPUP'
+      if (uboPopup) {
+        await uboWin.loadURL('chrome-extension://' + ubo.record.id + '/' + String(uboPopup).replace(/^\//, '')).catch((e) => { uboState = 'LOAD_ERR' })
+        await delay(5000)
+        const t = await uboWin.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 80)', true).catch(() => 'EXEC')
+        const sw = await uboWin.webContents.executeJavaScript(
+          'new Promise((res) => { try { chrome.runtime.getContexts ? chrome.runtime.getContexts({ contextTypes: ["SERVICE_WORKER"] }).then((cs) => res("SW:" + cs.length)) : res("NO_API") } catch (e) { res("THROW") } })',
+          true
+        ).catch(() => 'EXEC')
+        uboState = JSON.stringify({ text: t.slice(0, 60), sw })
+      }
+      check('uBO Lite MV3 实测', !/Loading|NO_POPUP|LOAD_ERR/.test(uboState), 'ubo:' + String(uboState).slice(0, 90))
+      uboWin.destroy()
+    } catch (e) {
+      check('uBO Lite MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
+    }
       popup.browserWindow && !popup.browserWindow.isDestroyed() && popup.browserWindow.close()
     }
     await hostTab.wc.loadURL(site.url + '/?session=smoke')

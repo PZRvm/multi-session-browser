@@ -26,14 +26,24 @@
       "detail": "true"
     },
     {
+      "name": "lib popup端口对照",
+      "ok": false,
+      "detail": "libText:Loading, please wait libPort:DISCONNECTED"
+    },
+    {
+      "name": "uBO Lite MV3 实测",
+      "ok": true,
+      "detail": "ubo:{\"text\":\"not a website\",\"sw\":\"THROW\"}"
+    },
+    {
       "name": "导航后扩展仍在",
       "ok": true,
-      "detail": "2"
+      "detail": "3"
     },
     {
       "name": "重载后扩展仍在",
       "ok": true,
-      "detail": "2"
+      "detail": "3"
     },
     {
       "name": "分区2挂载ready",
@@ -43,7 +53,7 @@
     {
       "name": "清单分区记录完整",
       "ok": true,
-      "detail": "2,2"
+      "detail": "2,2,2"
     },
     {
       "name": "分区2引擎就绪",
@@ -73,7 +83,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "fbckhklc"
+      "detail": "bhoogkem"
     },
     {
       "name": "事务分区3挂载v1.0.0",
