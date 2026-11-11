@@ -10,37 +10,39 @@
         --bg: #ffffff;
         --fg: #1f2329;
         --fg-soft: #6b7076;
-        --line: #d9dce1;
         --btn-bg: #ffffff;
         --btn-line: #b9bcc2;
         --danger: #c5493c;
         --error: #c5493c;
-        --tip-bg: #2a2e33;
-        --tip-fg: #e8eaed;
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #1e2126;
           --fg: #e8eaed;
           --fg-soft: #9aa0a6;
-          --line: #3c4043;
           --btn-bg: #2a2e33;
           --btn-line: #4a4f55;
           --danger: #e05a4c;
           --error: #ff8a7d;
-          --tip-bg: #e8eaed;
-          --tip-fg: #1f2329;
         }
       }
-      html,
-      body {
+      html {
         background: var(--bg);
+        border-radius: 12px;
+        overflow: hidden;
       }
       body {
-        font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
+        font:
+          13px/1.5 system-ui,
+          -apple-system,
+          'PingFang SC',
+          sans-serif;
         margin: 0;
         min-width: 280px;
         color: var(--fg);
+        background: var(--bg);
+        border-radius: 12px;
+        overflow: hidden;
       }
       main {
         padding: 12px 14px;
@@ -99,7 +101,7 @@
         margin-top: 12px;
         align-items: stretch;
       }
-      /* icon 按钮：tooltip 用 data-tip 呈现；结束录制为文字按钮（用户指定文案「结束」） */
+      /* tooltip 由浏览器原生 title 承载：越过 popup 原生边界，不扩大可滚动布局。 */
       .iconbtn {
         position: relative;
         width: 38px;
@@ -137,22 +139,9 @@
         color: var(--danger);
         border-color: var(--danger);
       }
-      .iconbtn[data-tip]:hover::after,
-      .iconbtn[data-tip]:focus-visible::after {
-        content: attr(data-tip);
-        position: absolute;
-        top: calc(100% + 6px);
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--tip-bg);
-        color: var(--tip-fg);
-        font-size: 11px;
-        line-height: 1.4;
-        padding: 5px 8px;
-        border-radius: 6px;
-        white-space: nowrap;
-        z-index: 10;
-        pointer-events: none;
+      .iconbtn:focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: 2px;
       }
       .iconbtn.audio.off {
         color: var(--fg-soft);
@@ -180,25 +169,50 @@
       <div class="result" id="result"></div>
       <div class="error" id="error" role="alert"></div>
       <div class="row">
-        <button id="start" class="iconbtn primary" data-tip="开始录制当前标签页" aria-label="开始录制">
+        <button id="start" class="iconbtn primary" title="开始录制当前标签页" aria-label="开始录制">
           <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" /></svg>
         </button>
-        <button id="pause" class="iconbtn" data-tip="暂停" aria-label="暂停" disabled>
-          <svg viewBox="0 0 16 16"><rect x="4" y="3" width="3" height="10" rx="1" /><rect x="9" y="3" width="3" height="10" rx="1" /></svg>
+        <button id="pause" class="iconbtn" title="暂停" aria-label="暂停" disabled>
+          <svg viewBox="0 0 16 16">
+            <rect x="4" y="3" width="3" height="10" rx="1" />
+            <rect x="9" y="3" width="3" height="10" rx="1" />
+          </svg>
         </button>
-        <button id="resume" class="iconbtn" data-tip="恢复" aria-label="恢复" disabled>
-          <svg viewBox="0 0 16 16"><path d="M5 3.5v9a.8.8 0 0 0 1.22.68l7-4.5a.8.8 0 0 0 0-1.36l-7-4.5A.8.8 0 0 0 5 3.5z" /></svg>
+        <button id="resume" class="iconbtn" title="恢复" aria-label="恢复" disabled>
+          <svg viewBox="0 0 16 16">
+            <path
+              d="M5 3.5v9a.8.8 0 0 0 1.22.68l7-4.5a.8.8 0 0 0 0-1.36l-7-4.5A.8.8 0 0 0 5 3.5z"
+            />
+          </svg>
         </button>
-        <button id="cancel" class="iconbtn danger-soft" data-tip="取消（丢弃本次录像）" aria-label="取消录制" disabled>
-          <svg viewBox="0 0 16 16"><path d="M4.1 4.1a.75.75 0 0 1 1.06 0L8 6.94l2.84-2.84a.75.75 0 1 1 1.06 1.06L9.06 8l2.84 2.84a.75.75 0 1 1-1.06 1.06L8 9.06l-2.84 2.84a.75.75 0 1 1-1.06-1.06L6.94 8 4.1 5.16a.75.75 0 0 1 0-1.06z" /></svg>
+        <button
+          id="cancel"
+          class="iconbtn danger-soft"
+          title="取消（丢弃本次录像）"
+          aria-label="取消录制"
+          disabled
+        >
+          <svg viewBox="0 0 16 16">
+            <path
+              d="M4.1 4.1a.75.75 0 0 1 1.06 0L8 6.94l2.84-2.84a.75.75 0 1 1 1.06 1.06L9.06 8l2.84 2.84a.75.75 0 1 1-1.06 1.06L8 9.06l-2.84 2.84a.75.75 0 1 1-1.06-1.06L6.94 8 4.1 5.16a.75.75 0 0 1 0-1.06z"
+            />
+          </svg>
         </button>
-        <button id="stop" class="iconbtn" data-tip="结束录制并保存 MP4" aria-label="结束录制" disabled>
+        <button id="stop" class="iconbtn" title="结束录制并保存 MP4" aria-label="结束录制" disabled>
           <svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg>
         </button>
-        <button id="audio" class="iconbtn audio" data-tip="录制 Tab 音频：改后下次生效；录制中切换为即时静音" aria-label="录制 Tab 音频">
+        <button
+          id="audio"
+          class="iconbtn audio"
+          title="录制 Tab 音频：改后下次生效；录制中切换为即时静音"
+          aria-label="录制 Tab 音频"
+        >
           <svg viewBox="0 0 16 16">
             <path d="M8 2a2.2 2.2 0 0 1 2.2 2.2v3.6a2.2 2.2 0 0 1-4.4 0V4.2A2.2 2.2 0 0 1 8 2z" />
-            <path class="wave" d="M4 7.8a.65.65 0 0 1 1.3 0 2.7 2.7 0 0 0 5.4 0 .65.65 0 0 1 1.3 0 4 4 0 0 1-3.35 3.94v1.31a.65.65 0 0 1-1.3 0v-1.31A4 4 0 0 1 4 7.8z" />
+            <path
+              class="wave"
+              d="M4 7.8a.65.65 0 0 1 1.3 0 2.7 2.7 0 0 0 5.4 0 .65.65 0 0 1 1.3 0 4 4 0 0 1-3.35 3.94v1.31a.65.65 0 0 1-1.3 0v-1.31A4 4 0 0 1 4 7.8z"
+            />
           </svg>
         </button>
       </div>
