@@ -22,6 +22,7 @@ import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/brows
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
 import type { VisitFact } from './history'
+import { notifyEngineTab } from '../extensions/dev-entry'
 import { escapeHtml } from './html'
 import { isOpenableUrl } from './url'
 
@@ -404,6 +405,9 @@ export function createTabManager(
     if (!win) return
     win.contentView.addChildView(tab.view)
     tab.view.setBounds(currentRect(tab.windowId))
+    // 插件引擎 tab 注册（幂等）：已挂载分区的内容脚本注入与 popup tab 语义前置；
+    // 未装插件（无引擎）时 no-op，零开销
+    notifyEngineTab(opts.partition, tab.view.webContents, win)
   }
 
   function detachView(tab: TabEntry): void {

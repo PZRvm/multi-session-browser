@@ -154,3 +154,16 @@ export function attachShellTab(handle: ExtensionsHandle, partition: string, shel
   ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(shell)
 }
 
+
+/** 把会话网页 tab 注册进引擎（addTab 幂等 + 激活标记）：内容脚本注入与 popup tab
+ *  语义的前置。manager.attachView 单点调用；未挂载分区 no-op。 */
+export function notifyEngineTab(
+  partition: string,
+  wc: Electron.WebContents,
+  win: Electron.BrowserWindow | undefined
+): void {
+  const engine = getExtensionsHandle().runtime.getEngine(partition)
+  if (!engine) return
+  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(wc, win)
+  ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(wc)
+}
