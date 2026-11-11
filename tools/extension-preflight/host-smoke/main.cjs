@@ -19,7 +19,7 @@ app.whenReady().then(async () => {
     writeFile(join(__dirname, 'host-smoke-results.json'), JSON.stringify(results, null, 2)).then(
       () => app.exit(2)
     )
-  }, 120000)
+  }, 300000)
   watchdog.unref?.()
 
   try {
@@ -241,6 +241,53 @@ app.whenReady().then(async () => {
       check('沉浸式翻译 MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
     }
     console.log('P18 done', immResult)
+    // 前置 attachSession 完整复刻（二分实验：会话构造层 vs 进程层）
+    console.log('P20 pf-replica')
+    let pfResult = 'SKIPPED'
+    try {
+      const sesP = session.fromPartition('persist:host-smoke-pf')
+      const pfOwner = new BrowserWindow({ show: false, webPreferences: { session: sesP, sandbox: true, contextIsolation: true, nodeIntegration: false } })
+      await pfOwner.loadFile(join(__dirname, 'shell.html'))
+      const compatibilityPreload = require.resolve('electron-chrome-extensions/preload')
+      const guardedPath = join(outDir, 'pf-guarded-preload.cjs')
+      await writeFile(guardedPath, 'if (process.type === "service-worker" || process.isMainFrame) {\n' + (await readFile(compatibilityPreload, 'utf8')) + '\n}')
+      const pfTab = { wc: null, owner: null }
+      const pfEngine = new ElectronChromeExtensions({
+        session: sesP,
+        createTab: async () => [pfTab.wc, pfOwner],
+        selectTab: (wc) => wc.focus(),
+        removeTab: (wc) => !wc.isDestroyed() && wc.close(),
+        requestPermissions: async () => true
+      })
+      for (const script of sesP.getPreloadScripts().filter((s2) => s2.filePath === compatibilityPreload)) {
+        sesP.unregisterPreloadScript(script.id)
+        sesP.registerPreloadScript({ id: script.id, type: script.type, filePath: guardedPath })
+      }
+      pfTab.owner = pfOwner
+      pfTab.wc = pfOwner.webContents
+      pfEngine.addTab(pfTab.wc, pfOwner)
+      pfEngine.selectTab(pfTab.wc)
+      const darkPath = join(outDir, 'packages', meta('dark').id + '-4.9.135')
+      const ext = await sesP.extensions.loadExtension(darkPath)
+      const pw = new BrowserWindow({
+        show: false, frame: false, parent: pfOwner, movable: false, resizable: false, skipTaskbar: true,
+        backgroundColor: '#ffffff', roundedCorners: false,
+        webPreferences: { session: sesP, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      const dmani = JSON.parse(await readFile(join(darkPath, 'manifest.json'), 'utf8'))
+      const dpp = dmani.browser_action?.default_popup || dmani.action?.default_popup
+      await pw.loadURL('chrome-extension://' + ext.id + '/' + String(dpp).replace(/^\//, '')).catch(() => {})
+      await delay(5000)
+      const ptext = await pw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 40)', true).catch(() => 'EXEC')
+      const pport = await pw.webContents.executeJavaScript('new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })', true).catch(() => 'EXEC')
+      pfResult = 'text:' + String(ptext).slice(0, 25) + ' port:' + String(pport)
+      check('前置复刻路径对照', /MSG/.test(String(pport)) && !/Loading/i.test(String(ptext)), pfResult)
+      pw.destroy()
+      pfOwner.destroy()
+    } catch (e) {
+      check('前置复刻路径对照', false, 'ERR:' + String(e).slice(0, 60))
+    }
+    console.log('P20 done', pfResult)
     console.log('P16 ubo-mv3')
 
       try {

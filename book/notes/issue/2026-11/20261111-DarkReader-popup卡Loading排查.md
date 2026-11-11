@@ -65,3 +65,11 @@ status: open
 - **Cookie-Editor 生产路径 CRUD 闭环 PASS**：探针按真实用户路径（浏览测试页→开 popup→授权）后，popup 列表真实读到测试站 msb_fixture cookie（LIST_HAS_COOKIE，28 控件）。此前 NO_COOKIE_ROW 系探针时序错误（popup 打开时壳 tab 停在 file:// 壳页，本来就没有站点 cookie）——探针已修正为先导航站点页。
 - **Dark Reader 仍卡 Loading**：tab 状态接线（URL 正确）不够——它的初始化还依赖 popup↔background 通信桥，该桥在生产会话断、前置环境活，此差异为剩余根因，维持本 issue open。
 - 可用性分类更新：Cookie-Editor 从"渲染可用"升级为"CRUD 可用"；Dark Reader 型（依赖 background 通信的 MV2 popup）仍待修。
+
+## 第五轮（2026-11-11）：完整复刻实验——差异收窄到进程级
+
+决定性实验：在 host-smoke 进程里**逐行复刻前置 attachSession 全部要素**（persist 分区、含全部回调的引擎、compatibilityPreload→guarded swap、lib 直接 loadExtension dark 解包目录、tab 注册、生产同构 popup 窗口）——**仍卡 Loading（text=Loading, please wait）**。
+
+结论：**会话构造层全部要素已排除**。差异在**进程级**：前置 electron-main.cjs 进程 vs host-smoke / 生产 index.ts 进程的某个全局状态（app 级 commandLine、protocol 注册、早期初始化副作用等候选）。前置进程里 MV2 background 通信活、复刻进程里死——同一 Electron。
+
+下一步（最小进程二分）：把 host-smoke main.cjs 削成"仅前置复刻路径"的最小进程，验证 popup 活；再逐块加回（bundle 挂载/事务/IPC 诊断/uBO）定位破坏源。另：移除实验残留的 disable-features switch（已证无效）。

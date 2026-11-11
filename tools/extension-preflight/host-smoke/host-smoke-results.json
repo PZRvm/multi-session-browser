@@ -41,6 +41,11 @@
       "detail": "imm:{\"text\":\"\",\"sw\":\"THROW\"}"
     },
     {
+      "name": "前置复刻路径对照",
+      "ok": false,
+      "detail": "text:Loading, please wait\nDark port:DISCONNECTED"
+    },
+    {
       "name": "uBO Lite MV3 实测",
       "ok": true,
       "detail": "ubo:{\"text\":\"not a website\",\"sw\":\"THROW\"}"
@@ -93,7 +98,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "cdfkfkhj"
+      "detail": "jmcdmoai"
     },
     {
       "name": "事务分区3挂载v1.0.0",
