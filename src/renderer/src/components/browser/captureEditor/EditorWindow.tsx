@@ -77,15 +77,23 @@ function initialHistoryOf(payload: CaptureEditImagePayload): EditorHistory {
   }
 }
 
-function EditorWindow(): React.JSX.Element {
+interface EditorWindowProps {
+  /** 插件开启滚轮缩放；原生编辑窗保持现有交互。 */
+  wheelZoom?: boolean
+}
+
+function EditorWindow({ wheelZoom = false }: EditorWindowProps): React.JSX.Element {
   const t = useT()
 
   // 建窗 query 的显示缩放系数（主进程按图幅与工作区现算，只缩不放）；缺省/非法
   // 回退 1（非法 query 的兜底，画布溢出可视区由滚动容器承接）
-  const scale = useMemo(() => {
+  const baseScale = useMemo(() => {
     const raw = Number.parseFloat(new URLSearchParams(window.location.search).get('scale') ?? '')
     return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 1) : 1
   }, [])
+  const [zoom, setZoom] = useState(1)
+  const scale = baseScale * zoom
+  const canvasHostRef = useRef<HTMLElement | null>(null)
 
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [captureId, setCaptureId] = useState<string | null>(null)
@@ -107,6 +115,19 @@ function EditorWindow(): React.JSX.Element {
   const [flash, setFlash] = useState<{ text: string; fading: boolean } | null>(null)
   const flashTimers = useRef<number[]>([])
   const stageHandleRef = useRef<AnnotationStageHandle | null>(null)
+
+  // 改 Stage 比例而非 CSS 放大位图：图像、标注、命中与 DOM 文本/裁剪控件同步重绘。
+  useEffect(() => {
+    const host = canvasHostRef.current
+    if (!wheelZoom || !host) return
+    function onWheel(event: WheelEvent): void {
+      if (!(event.ctrlKey || event.metaKey)) return
+      event.preventDefault()
+      setZoom((current) => Math.min(4, Math.max(0.25, current * (event.deltaY < 0 ? 1.1 : 0.9))))
+    }
+    host.addEventListener('wheel', onWheel, { passive: false })
+    return () => host.removeEventListener('wheel', onWheel)
+  }, [wheelZoom, image])
 
   // ===== 取图链（挂载即取；StrictMode 双挂载下旧跑以 cancelled 作废） =====
   useEffect(() => {
@@ -347,7 +368,7 @@ function EditorWindow(): React.JSX.Element {
           {exportError}
         </div>
       )}
-      <main className="chrome-capture-editor-canvas">
+      <main className="chrome-capture-editor-canvas" ref={canvasHostRef}>
         {/* key=captureId：产出成功续编后重挂清 Stage 内部草稿/选区/文本编辑态 */}
         <AnnotationStage
           key={captureId ?? 'boot'}

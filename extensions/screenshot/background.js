@@ -5,9 +5,6 @@
 
 const MAX_KEPT = 10
 
-/** 编辑弹窗仍需存活（Document PiP 不能活过 opener——opener 关闭即带走 PiP）：
- *  迁移后本窗最小化承载 PiP 生命周期，PiP 关闭时经 pip-closed 反向收回本窗 */
-
 /** 读取目标快照；captureId 缺失时回退最新一张 */
 async function loadCapture(captureId) {
   if (captureId) {
@@ -53,21 +50,13 @@ chrome.action.onClicked.addListener(async (tab) => {
     }
     bitmap.close()
     await saveCapture(payload)
-    // 与生产编辑窗同形态：chrome=hidden-titlebar 让 EditorWindow 呈现 84px 左让
-    // 红绿灯位 + 工具条拖动区（内容形态单源=生产组件）；scale 只按宽适配（只缩不放），
-    // 窗宽高按图幅现算并收口。原生标题栏为 Chrome 扩展窗口约束，无法隐藏——
-    // 编辑页提供浮动钮迁移 PiP 无框窗（页内点击供瞬态激活），本窗最小化承载
-    // PiP 生命周期（PiP 不能活过 opener），PiP 关闭后经 pip-closed 收回本窗
-    const scale = Math.min(1, 840 / payload.width)
+    // popup 无 Tab 栏，系统红绿灯行在网页工具条之上，不套用 Electron 的灯位让空。
+    // 按来源页 CSS 宽度显示（Retina 截图含设备像素），保留文字实际大小；超出窗口滚动查看。
+    const scale = Math.min(1, (tab.width ?? payload.width) / payload.width)
     const width = Math.min(1100, Math.round(payload.width * scale) + 24)
     const height = Math.min(900, Math.round(payload.height * scale) + 64)
     await chrome.windows.create({
-      url:
-        'editor.html?captureId=' +
-        payload.captureId +
-        '&scale=' +
-        scale +
-        '&chrome=hidden-titlebar',
+      url: 'editor.html?captureId=' + payload.captureId + '&scale=' + scale,
       type: 'popup',
       width,
       height
@@ -80,22 +69,6 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // 编辑器页直接经 chrome.storage 读取（editor-entry 适配器自行处理），后台仅提供续编入库。
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === 'screenshot.pip-migrated') {
-    // PiP 落地：承载窗（消息来源窗）最小化，PiP 随 opener 存活继续渲染
-    void (async () => {
-      if (sender.tab?.windowId != null)
-        await chrome.windows.update(sender.tab.windowId, { state: 'minimized' }).catch(() => {})
-    })()
-    return
-  }
-  if (message?.type === 'screenshot.pip-closed') {
-    // PiP 已关：收回承载窗（opener 的 leave 监听发出，消息来源 = 承载窗自身）
-    void (async () => {
-      if (sender.tab?.windowId != null)
-        await chrome.windows.remove(sender.tab.windowId).catch(() => {})
-    })()
-    return
-  }
   if (message?.type !== 'screenshot.save' && message?.type !== 'screenshot.load') return
   void (async () => {
     try {

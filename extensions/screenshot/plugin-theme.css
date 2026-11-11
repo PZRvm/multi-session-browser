@@ -13,7 +13,7 @@
    重定义。编辑器按钮语言（透明底 28px 圆钮、灰阶蒙版 hover/focus、select-veil
    选中）由生产 app.css 单源承载，插件不再覆写——与主应用雾蓝编辑窗完全一致。
    本文件只做：① 把 mist chrome 表面族灌入本页（生产由 theme.ts 运行期注入，
-   插件页无注入链，:root 缺省是琥珀值）；② PiP 无框形态专属样式。
+   插件页无注入链，:root 缺省是琥珀值）；② 画布溢出的安全居中。
    改 themeSystems.ts 雾蓝值必改此处（逐值对账义务）。
    ============================================================ */
 body.plugin-editor {
@@ -43,63 +43,8 @@ body.plugin-editor {
   }
 }
 
-/* ============================================================
-   PiP 无框形态（PiP 无系统红绿灯）：工具行最左放仿 macOS 三灯组——
-   红灯 = 关窗（功能灯），黄/绿 = 形态示意（PiP 无最小化/缩放能力，纯视觉）。
-   生产形态为系统真灯（84px 左让位），此处 84px 让位取消、灯组入行首。
-   ============================================================ */
-body.pip .chrome-capture-editor-topbar {
-  padding-left: 12px;
-}
-
-.pip-lights {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 10px;
-  flex: none;
-}
-
-.pip-lights .pip-light {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  padding: 0;
-}
-
-.pip-lights .pip-light.is-close {
-  background: #ff5f57;
-}
-
-.pip-lights .pip-light.is-close:hover {
-  background: #e0443e;
-}
-
-.pip-lights .pip-light.is-min {
-  background: #febc2e;
-}
-
-.pip-lights .pip-light.is-zoom {
-  background: #28c840;
-}
-
-/* 浮动钮（无调用态回退形态）：页内点击供瞬态激活 → 迁移无框 PiP。固定右下角
-   （#root 满窗编辑器之后的流内位置在视口外，真实用户也无法点击——必须有样式） */
-#pip-fallback {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2147483647;
-  padding: 5px 14px;
-  border: 1px solid var(--chrome-line);
-  border-radius: 14px;
-  background: var(--msb-accent, #a4bcd1);
-  color: #101c29;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#pip-fallback:hover {
-  background: var(--msb-accent-press, #90aec6);
+/* 放大时由滚动条承接，避免 flex 居中把画布左上角推到不可滚达的负坐标。 */
+body.plugin-editor .chrome-capture-editor-canvas {
+  align-items: safe center;
+  justify-content: safe center;
 }
