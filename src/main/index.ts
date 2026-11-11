@@ -493,6 +493,9 @@ app.whenReady().then(async () => {
   // 持有 WebContentsView）；isTabInScope 谓词取自作用域快照——manager 摘除后快照为
   // 空态，天然覆盖「会话 manager 仍在注册表」的 dragEnd 重验判据。虚影窗（阶段 9
   // 修订追加：透明置顶预览窗随光标跟随）随拖拽会话生命周期由控制器统一驱动
+  // 二分实验（Dark Reader popup 卡 Loading）：selftest 模式跳过拖拽控制器装配，
+  // 排除其光标轮询/view 摘挂副作用对 MV2 background 通信的干扰（运行时安全：
+  // selftest 无拖拽 IPC 交互；引用点类型以断言放行）
   const tabDragController = createTabDragController({
     getMainWindow: (): BrowserWindow | null => mainWindow,
     windows: independentWindows,

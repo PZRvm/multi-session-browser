@@ -122,3 +122,8 @@ status: open
 若全部排除 → 差异回到"保留子集"（BrowserFrame/createWindow/registry 最小集），此时对照前置 electron-main 进程补齐它的独有项（autoplay-policy 已排除、server.mjs 站点、preload-error 诊断收集）。
 
 判据与产物：命中项修复后，selftest ok:true 且 controls>2 + Cookie-Editor 回归 PASS → issue 翻 resolved。
+
+## 二分第一候选排除 + 新最高嫌疑（2026-11-11 第十一轮）
+
+- tabDragController 门控（selftest 跳过装配，引用点空值安全假对象）后 selftest **仍卡 Loading**——排除。
+- **新最高嫌疑**：permissions.ts 存在会话级 `setPermissionCheckHandler(() => false)` + `setPermissionRequestHandler` 形态（380—381 行），若其 target 覆盖扩展分区 session 且时机先于插件挂载，可能拒绝 MV2 background 初始化所需权限。下一实验：查该 handler 的 target/绑定时机，selftest 模式下门控后复跑探针。
