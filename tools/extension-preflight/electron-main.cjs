@@ -362,6 +362,76 @@ async function main() {
       return state
     })
 
+  await record('dark popup 生产mountPartition对照（双向夹逼）', async () => {
+    const root = join(__dirname, '../..')
+    const { build } = rootRequire('esbuild')
+    const bundlePath = join(output, 'pf-prod-bundle.cjs')
+    await build({
+      entryPoints: [join(root, 'src/main/extensions/dev-entry.ts')],
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      external: ['electron', 'electron-chrome-extensions', 'adm-zip'],
+      outfile: bundlePath
+    })
+    delete require.cache[bundlePath]
+    const prod = require(bundlePath)
+    const sesX = session.fromPartition('persist:preflight-prod')
+    const extRoot = join(output, 'prod-ext')
+    const darkMeta = samples.find((v) => v.name === 'dark')
+    const dest = join(extRoot, 'packages', darkMeta.id + '-4.9.135')
+    const { cp } = await import('node:fs/promises')
+    await cp(darkMeta.path, dest, { recursive: true })
+    const mstore = prod.createManifestStore(join(extRoot, 'installed.json'))
+    await mstore.upsertInstall({
+      id: darkMeta.id,
+      version: '4.9.135',
+      name: 'Dark Reader',
+      sha256: darkMeta.sha256,
+      source: { kind: 'unpacked', origin: dest },
+      partitions: []
+    })
+    const prodHandle = prod.getExtensionsHandle({
+      createTab: async () => [a.wc, a.owner],
+      selectTab: (wc) => wc.focus(),
+      removeTab: (wc) => !wc.isDestroyed() && wc.close(),
+      requestPermissions: async () => true
+    })
+    let m
+    try {
+      m = await prodHandle.runtime.mountPartition('persist:preflight-prod', sesX)
+    } catch (e) {
+      // A/B/C 分区循环各跑一遍本 record：重复挂载（lib per-session 去重）时引擎已就绪，直接复用
+      if (!/already exists/.test(String(e))) throw e
+      m = { state: 'ready' }
+    }
+    const manifest = JSON.parse(await readFile(join(dest, 'manifest.json'), 'utf8'))
+    const pp = manifest.browser_action?.default_popup || manifest.action?.default_popup
+    const w = new BrowserWindow({
+      show: false,
+      frame: false,
+      parent: a.owner,
+      movable: false,
+      resizable: false,
+      skipTaskbar: true,
+      webPreferences: { session: sesX, sandbox: true, contextIsolation: true, enablePreferredSizeMode: true }
+    })
+    await w.loadURL('chrome-extension://' + darkMeta.id + '/' + String(pp).replace(/^\//, '')).catch(() => {})
+    await delay(5000)
+    const text = await w.webContents.executeJavaScript(
+      '(document.body.innerText || "").slice(0, 40)',
+      true
+    ).catch((e) => 'EXEC:' + String(e).slice(0, 50))
+    const port = await w.webContents.executeJavaScript(
+      'new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })',
+      true
+    ).catch(() => 'EXEC')
+    w.destroy()
+    assert(!/Loading/i.test(String(text)), '生产mountPartition仍卡Loading: ' + String(text))
+    assert(/MSG/.test(String(port)), '端口未通: ' + String(port))
+    return { text, port }
+  })
+
   await record('dark popup background 存活探针', async () => {
     const target = samples.find((v) => v.name === 'dark')
     const manifest = JSON.parse(await readFile(join(target.path, 'manifest.json'), 'utf8'))

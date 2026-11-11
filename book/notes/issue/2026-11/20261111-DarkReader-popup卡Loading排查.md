@@ -91,3 +91,11 @@ status: open
 两进程 12 秒枚举形态**一致**：均无独立 `_generated_background_page.html` webContents（Electron 42 对 MV2 background 不再以独立页承载，`getBackgroundPage` 恒 NULL 与此吻合）；可见的只有 popup 页。**承载形态相同 → 差异不在形态层，而在"lib 引擎 ↔ Electron 内部 background 承载"的桥接初始化**（前置桥接通、host-smoke/生产桥接断）。
 
 剩余排查焦点收敛为一项：**前置 attachSession 与生产 mountPartition 中，引擎构造/初始化对 Electron 内部 background 承载的桥接差异**（下一轮第一实验：host-smoke 里把生产 mountPartition 换成逐字段复刻的引擎构造，再反向在前置里用生产 mountPartition 参数，双向夹逼）。
+
+## 双向夹逼结果（2026-11-11 第八轮）
+
+**生产 mountPartition 在前置环境：Dark Reader popup text 脱离 Loading（渲染 PASS）**——生产运行时（mountPartition/loader/tab 接线）**无罪**。附带发现：lib 的 `session.extensions` getter 首次访问会按 session 创建内置引擎实例，与我们引擎构造冲突（"instance already exists"）——**loader 已改为统一走原生 session.loadExtension**，不再触碰该命名空间（此修复本身即生产正确性问题：生产 loader 原先的 bridge 访问路径存在触发冲突的隐患）。
+
+**收敛后的剩余差异**：生产 index.ts 进程（用户实测卡 Loading）与前置 electron-main 进程（同代码 PASS）之间的**进程级全局差异**。下一实验：生产 index.ts 加诊断开关（env 门控的 WC/runtime 枚举探针）与前置进程逐项 diff app 级初始化（前置有 autoplay-policy switch；生产有大量其他初始化——autoUpdater/protocol/I18N 等，逐项二分）。
+
+**用户侧现状（本轮后）**：Cookie-Editor CRUD 可用；翻译/广告拦截可用；Dark Reader 待进程级差异定位。loader 原生化修复后用户应重启再验 Dark Reader（此前 bridge 访问路径的冲突隐患已消除，可能直接解决）。

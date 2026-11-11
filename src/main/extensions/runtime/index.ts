@@ -47,14 +47,12 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         engines.set(partition, new ElectronChromeExtensions(options))
         ensureGuardedPreload(session)
       }
-      const bridge = (
-        session as unknown as {
-          extensions?: { loadExtension(p: string): Promise<{ id: string }> }
-        }
-      ).extensions
+      // 加载统一走 Electron 原生 session.loadExtension：不触碰 lib 挂在 session 上的
+      // extensions 命名空间（首次访问会按 session 创建内置引擎实例，与我们的引擎
+      // 构造冲突——双向夹逼实验实证的 "instance already exists"）
       const adapter: LoaderSession = {
         getAllExtensions: () => session.getAllExtensions(),
-        loadExtension: (path) => (bridge ? bridge.loadExtension(path) : session.loadExtension(path))
+        loadExtension: (path) => session.loadExtension(path)
       }
       const installs = (await deps.manifest.read()).installs
       const results = await loadInstallsIntoSession(adapter, installs, partition, {
