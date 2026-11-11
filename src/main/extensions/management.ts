@@ -4,7 +4,7 @@
  * 与原生确认框；安装后对全部已挂载分区重挂载（loader 幂等去重，新插件即装即用）。
  * 确认框父窗取焦点窗口回退主窗。模块单例注册。
  */
-import { BrowserWindow, dialog, ipcMain, type Session } from 'electron'
+import { BrowserWindow, dialog, ipcMain, screen, type Session } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -254,8 +254,12 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       const viewBounds = win.getBounds()
       let x = winBounds.x + anchor.x + 30 - viewBounds.width
       let y = winBounds.y + anchor.y + 34 + PADDING
-      x = Math.floor(Math.max(winBounds.x + 4, x))
-      y = Math.floor(y)
+      // 屏幕工作区钳制：popup 永不越过屏幕右缘/下缘（内容自适应前先按 MAX 预留，
+      // 自适应缩小后再次钳制，保证短内容弹出也不出屏）
+      const workArea = screen.getDisplayMatching(mainWin.getBounds()).workArea
+      const width = viewBounds.width
+      x = Math.floor(Math.max(workArea.x + 4, Math.min(x, workArea.x + workArea.width - width - 4)))
+      y = Math.floor(Math.max(workArea.y + 4, Math.min(y, workArea.y + workArea.height - viewBounds.height - 4)))
       const b = win.getBounds()
       win.setBounds({ ...b, x, y })
     }
