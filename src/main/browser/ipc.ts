@@ -649,6 +649,15 @@ export function registerBrowserIpc(
     return windowId
   }
 
+  /** 扩展面板子窗身份解析：sender 须属扩展面板子窗池（与建议子窗池是两个独立池，
+   * 不可混用——反馈轮首版误复用 requireChildOwner 查错池，面板 pick/passthrough
+   * 全部被拒：无法关面板、点插件行无反应） */
+  function requirePanelChildOwner(event: IpcMainInvokeEvent): string {
+    const windowId = extensionsPanelWindows.resolveOwnerOf(event.sender)
+    if (windowId === null) throw new Error(t('errors.unknownCommandSource'))
+    return windowId
+  }
+
   // suggest-show：开/更新面板（幂等全量）。宿主解析 → 守卫 → 子窗池承载；返回
   // canPresent（2026-10-28 融合契约：主进程按锚点与工作区空间裁定可否呈现——空间
   // 不足拒绝展示时 shell 收回融合态并恢复输入框独立形态）
@@ -719,8 +728,9 @@ export function registerBrowserIpc(
   )
 
   // —— 扩展面板子窗域（原生子窗口化，白屏根除专项，契约见 shared/extensionsPanel.ts）——
-  // 身份解析复用建议子窗域的 requireOwnerWindow / requireChildOwner：show/hide 仅
-  // 宿主 shell，pick/passthrough 仅池内面板子窗
+  // 身份解析：show/hide 复用建议子窗域的 requireOwnerWindow（宿主 shell 专属）；
+  // pick/passthrough 用 requirePanelChildOwner（扩展面板子窗池专属——两池独立，
+  // 反馈轮教训：混用即全拒）
 
   // panel-show：开/更新面板（幂等全量）。返回 canPresent：工作区下方空间放不下
   // MIN 高度时主进程拒绝展示（不建不显），shell 据此不翻转开合态
@@ -747,7 +757,7 @@ export function registerBrowserIpc(
   // extensions.manage、close → hide；kind=open 时 id 须为 32 位扩展 ID）
   ipcMain.handle(EXTENSIONS_PANEL_CHANNELS.pick, (event, payload: unknown): OkResult =>
     logFailure(EXTENSIONS_PANEL_CHANNELS.pick, payload, () => {
-      const windowId = requireChildOwner(event)
+      const windowId = requirePanelChildOwner(event)
       const pick = parseExtensionsPanelPick(payload)
       const owner = windowForId(windowId)
       if (!owner) return { ok: true }
@@ -759,12 +769,12 @@ export function registerBrowserIpc(
   )
 
   // panel-set-mouse-passthrough：子窗渲染端按光标位置切换阴影环带点击穿透——sender
-  // 必须是池内面板子窗本人（requireChildOwner 白名单）
+  // 必须是池内面板子窗本人（requirePanelChildOwner 白名单）
   ipcMain.handle(
     EXTENSIONS_PANEL_CHANNELS.setMousePassthrough,
     (event, payload: unknown): OkResult =>
       logFailure(EXTENSIONS_PANEL_CHANNELS.setMousePassthrough, payload, () => {
-        const windowId = requireChildOwner(event)
+        const windowId = requirePanelChildOwner(event)
         if (!isRecord(payload) || typeof payload.enabled !== 'boolean') throw invalidParams()
         extensionsPanelWindows.setMousePassthrough(windowId, payload.enabled)
         return { ok: true }

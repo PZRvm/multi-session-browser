@@ -8,7 +8,8 @@
 //    整体失焦（无任何窗口 isFocused）不误关（action popup 同款守卫）；
 // 2. enablePreferredSizeMode 高度自适应（action popup 先例）：子窗高度随条目数变化，
 //    首个 preferred-size 到达前不显窗（缓存待 flush，免首帧闪烁），免行数度量常量配对。
-// 定位：面板右缘对齐锚点右缘、面板顶 = 锚点下沿 + 30（旧 DOM 面板同几何）；窗口矩形
+// 定位：面板右缘对齐锚点右缘、面板顶贴合锚点下沿（拼图按钮底部，2026-11-12 用户
+// 反馈定稿——旧 +30 间距被反馈太远）；窗口矩形
 // = 面板矩形外扩阴影环带；高度 clamp [MIN,MAX] 后再按工作区下缘收（收高走 CSS 滚动），
 // 放不下 MIN 即拒绝展示（canPresent=false，不建不显）。宿主 move/resize 以缓存锚点
 // 跟随重定位（监听随 show 挂、hide/dispose 摘）。本模块不含任何 IPC handler（通道
@@ -61,7 +62,7 @@ function panelHeight(preferred: number): number {
 
 /**
  * 合成子窗屏幕位并裁定可呈现性：面板右缘对齐锚点右缘（x = 锚右缘 − 宽 − 环带），
- * 面板顶 = 锚点下沿 + 30；x 左移钳制不越工作区右缘；高度先 clamp 再按工作区下缘收
+ * 面板顶贴合锚点下沿（按钮底部无缝贴合）；x 左移钳制不越工作区右缘；高度先 clamp 再按工作区下缘收
  * （CSS 滚动承担），连 MIN 都放不下时 canPresent=false 拒绝展示
  */
 function computeBounds(
@@ -75,7 +76,7 @@ function computeBounds(
   // 锚点矩形右缘（Toolbar 按钮约 30px 宽域，与旧 DOM 面板 right 对齐几何一致）
   const anchorRight = content.x + anchor.x + anchor.width
   let x = Math.round(anchorRight - EXTENSIONS_PANEL_WIDTH - m)
-  const top = Math.round(content.y + anchor.y + anchor.height + 30)
+  const top = Math.round(content.y + anchor.y + anchor.height)
   const y = top - m
   const area = screen.getDisplayMatching({ x: anchorRight, y: top, width, height: 1 }).workArea
   x = Math.max(area.x + 4, x) // 右缘对齐天然靠右，仅防窄屏越左界
