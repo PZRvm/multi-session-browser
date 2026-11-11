@@ -167,3 +167,16 @@ export function notifyEngineTab(
   ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(wc, win)
   ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(wc)
 }
+
+/** 导航后失效引擎的 tabDetails 缓存（lib 缓存首建后永不更新，导航新 URL 必须失效
+ *  重建——Cookie-Editor/Dark Reader 的 tabs.query URL 正确性依赖此点） */
+export function invalidateEngineTabUrl(partition: string, wc: Electron.WebContents): void {
+  const engine = getExtensionsHandle().runtime.getEngine(partition)
+  if (!engine) return
+  const store = (
+    engine as unknown as {
+      ctx?: { store?: { tabDetailsCache?: Map<number, unknown> } }
+    }
+  ).ctx?.store
+  store?.tabDetailsCache?.delete(wc.id)
+}

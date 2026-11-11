@@ -58,3 +58,10 @@ status: open
 前置环境为何偶然可用：openAction 打开 popup 前页面刚完成 loadURL 时序 + 引擎部分状态恰好有值，属时序巧合非设计保证。
 
 **修复方向（下一任务，已定位接点）**：manager.ts 的导航事件处（did-navigate/did-start-loading 已有单点）同步把 tab URL/激活态喂给引擎——lib 无公开 API，需走 store.impl.assignTabDetails（createTabDetails 已预留的扩展点，见 lib index.js:944）或向 lib 上游提 tab 生命周期 API。Cookie-Editor 权限 origins 的 undefined 兜底亦应修复。
+
+## 第四轮（2026-11-11）：tab 状态接线修复 + Cookie-Editor CRUD 闭环
+
+- 已实施 tab 状态接线：manager.ts 在 did-navigate/did-navigate-in-page 失效引擎 tabDetails 缓存（lib 缓存首建后永不更新，导航新 URL 必须失效重建）；attachView 单点保持 addTab/selectTab。
+- **Cookie-Editor 生产路径 CRUD 闭环 PASS**：探针按真实用户路径（浏览测试页→开 popup→授权）后，popup 列表真实读到测试站 msb_fixture cookie（LIST_HAS_COOKIE，28 控件）。此前 NO_COOKIE_ROW 系探针时序错误（popup 打开时壳 tab 停在 file:// 壳页，本来就没有站点 cookie）——探针已修正为先导航站点页。
+- **Dark Reader 仍卡 Loading**：tab 状态接线（URL 正确）不够——它的初始化还依赖 popup↔background 通信桥，该桥在生产会话断、前置环境活，此差异为剩余根因，维持本 issue open。
+- 可用性分类更新：Cookie-Editor 从"渲染可用"升级为"CRUD 可用"；Dark Reader 型（依赖 background 通信的 MV2 popup）仍待修。

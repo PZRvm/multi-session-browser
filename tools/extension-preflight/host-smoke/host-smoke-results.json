@@ -28,7 +28,12 @@
     {
       "name": "Cookie-Editor 生产路径实测",
       "ok": true,
-      "detail": "popup渲染控件数=14；列表读路径探针=NO_COOKIE_ROW（权限/activeTab 细节待调，不影响渲染结论）"
+      "detail": "listHas=LIST_HAS_COOKIE controls=28"
+    },
+    {
+      "name": "Dark Reader popup 渲染回归",
+      "ok": false,
+      "detail": "text=Loading, please wait\nDark Read controls=37"
     },
     {
       "name": "沉浸式翻译 MV3 实测",
@@ -72,7 +77,7 @@
     },
     {
       "name": "DevTools打开",
-      "ok": false,
+      "ok": true,
       "detail": "detached"
     },
     {
@@ -88,7 +93,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "jiaifkmc"
+      "detail": "cdfkfkhj"
     },
     {
       "name": "事务分区3挂载v1.0.0",
@@ -205,8 +210,8 @@
     "id": "hlkenndednhfkekhgcdicdfddnkalmdm",
     "permissions": {
       "origins": [
-        "file:///*",
-        "file://*.undefined./*"
+        "http://localhost/*",
+        "http://*.undefined.localhost/*"
       ]
     }
   }

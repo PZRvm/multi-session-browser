@@ -148,8 +148,10 @@ app.whenReady().then(async () => {
       await ses1.cookies.set(cookieDetail)
       // popup 的 activeTab 查询依赖引擎注册的 tab：注册壳 tab（幂等）并指向测试页
       hostTab.owner.show()
+      await hostTab.wc.loadURL(site.url + '/?session=cookie-probe').catch(() => {})
       hostTab.owner.focus()
       bundle.attachShellTab(handle, partition1, hostTab.wc)
+      bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
       const cookieMeta = meta('cookie')
       const cookieDir = join(outDir, 'packages', cookieMeta.id + '-' + '1.13.0')
       const cookieManifest = JSON.parse(await readFile(join(cookieDir, 'manifest.json'), 'utf8'))
@@ -164,6 +166,11 @@ app.whenReady().then(async () => {
       // Cookie-Editor 需要先授予 cookie 权限（前置同款：点 request-permission 后列表才读）
       await cw.webContents.executeJavaScript("document.getElementById('request-permission')?.click()", true).catch(() => {})
       await delay(3000)
+      const tabProbe = await cw.webContents.executeJavaScript(
+        'new Promise((res) => chrome.tabs.query({ active: true, currentWindow: true }, (ts) => res(JSON.stringify(ts.map((t) => ({ id: t.id, url: t.url, title: (t.title || "").slice(0, 20) }))))))',
+        true
+      ).catch(() => 'EXEC')
+      console.log('TABS_QUERY', String(tabProbe).slice(0, 120))
       const listHas = await cw.webContents.executeJavaScript(
         '(() => { const el = [...document.querySelectorAll("li,div")].find((e) => e.textContent && e.textContent.includes("msb_fixture")); return el ? "LIST_HAS_COOKIE" : "NO_COOKIE_ROW" })()',
         true
@@ -175,9 +182,27 @@ app.whenReady().then(async () => {
       cookieResult = JSON.stringify({ listHas, controls })
       check(
         'Cookie-Editor 生产路径实测',
-        Number(controls) > 3,
-        'popup渲染控件数=' + controls + '；列表读路径探针=' + String(listHas) + '（权限/activeTab 细节待调，不影响渲染结论）'
+        listHas === 'LIST_HAS_COOKIE' && Number(controls) > 3,
+        'listHas=' + String(listHas) + ' controls=' + controls
       )
+      // Dark Reader popup 渲染回归（tab 事件流接线后应脱离 Loading 渲染控件）
+      console.log('P19 dark-recheck')
+      const darkDir = join(outDir, 'packages', meta('dark').id + '-4.9.135')
+      const darkManifest = JSON.parse(await readFile(join(darkDir, 'manifest.json'), 'utf8'))
+      const darkPopup = darkManifest.browser_action?.default_popup || darkManifest.action?.default_popup
+      bundle.attachShellTab(handle, partition1, hostTab.wc)
+      bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
+      const dw = new BrowserWindow({
+        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
+        backgroundColor: '#ffffff', roundedCorners: false,
+        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      await dw.loadURL('chrome-extension://' + meta('dark').id + '/' + String(darkPopup).replace(/^\//, '')).catch(() => {})
+      await delay(5000)
+      const darkText = await dw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 40)', true).catch(() => 'EXEC')
+      const darkControls = await dw.webContents.executeJavaScript('String(document.querySelectorAll("input,button,select").length)', true).catch(() => -1)
+      check('Dark Reader popup 渲染回归', !/Loading/i.test(String(darkText)) && Number(darkControls) > 2, 'text=' + String(darkText).slice(0, 30) + ' controls=' + darkControls)
+      dw.destroy()
       cw.destroy()
     } catch (e) {
       check('Cookie-Editor 生产路径实测', false, 'ERR:' + String(e).slice(0, 60))
