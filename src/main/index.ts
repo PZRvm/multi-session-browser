@@ -737,12 +737,46 @@ app.whenReady().then(async () => {
       })
       .catch(() => undefined)
   }
+  const approveRuntimePermissions = async (
+    extension: { id: string; name?: string },
+    permissions: { origins?: string[]; permissions?: string[] }
+  ): Promise<boolean> => {
+    const { dialog } = await import('electron')
+    const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+    const detail = [
+      permissions.origins?.length ? '网站权限：' + permissions.origins.join('、') : '',
+      permissions.permissions?.length ? 'API 权限：' + permissions.permissions.join('、') : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const r = await (parent
+      ? dialog.showMessageBox(parent, {
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        })
+      : dialog.showMessageBox({
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        }))
+    return r.response === 1
+  }
   import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({
         getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
         openSettings: (pane) => settingsWindowController?.open(pane),
-        getShellWebContents: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
+        getShellWebContents: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+        approveRuntimePermissions
       })
     )
     .catch(() => undefined)

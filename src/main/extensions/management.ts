@@ -21,6 +21,11 @@ import {
 
 export interface ManagementDeps {
   getMainWindow: () => BrowserWindow | null
+  /** 插件运行时权限请求（Cookie-Editor 等对站点 host 权限的授予确认） */
+  approveRuntimePermissions: (
+    extension: { id: string; name?: string },
+    permissions: { origins?: string[]; permissions?: string[] }
+  ) => Promise<boolean>
   /** 打开设置窗并定位版面（工具栏面板「管理插件」入口） */
   openSettings?: (pane?: string) => void
   /** 应用壳页 webContents（引擎 tab 注册用） */
@@ -38,9 +43,43 @@ const readManifestFileSync = (dir: string): string =>
 export function registerExtensionsManagement(deps: ManagementDeps): void {
   if (registered) return
   registered = true
+  const approve = async (
+    extension: { id: string; name?: string },
+    permissions: { origins?: string[]; permissions?: string[] }
+  ): Promise<boolean> => {
+    const parent = BrowserWindow.getFocusedWindow() ?? deps.getMainWindow()
+    const detail = [
+      permissions.origins?.length ? '网站权限：' + permissions.origins.join('、') : '',
+      permissions.permissions?.length ? 'API 权限：' + permissions.permissions.join('、') : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const r = await (parent
+      ? dialog.showMessageBox(parent, {
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        })
+      : dialog.showMessageBox({
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        }))
+    return r.response === 1
+  }
   const paths = extensionsPaths()
   const manifest = createManifestStore(paths.manifestFile)
-  const handle = getExtensionsHandle()
+  const handle = getExtensionsHandle({
+    requestPermissions: async (extension, permissions) => approve(extension, permissions)
+  })
   const mountedSessions = (): Array<{ session: Session; partition: string }> => {
     const out: Array<{ session: Session; partition: string }> = []
     for (const [partition, session] of handle.mounted) out.push({ partition, session })
