@@ -143,3 +143,10 @@ status: open
 ## 批量门控结果（2026-11-11 第十三轮）
 
 proxy 引擎 + 录屏装配批量门控（selftest 同时跳过两者）后 **selftest 仍卡 Loading**——两者排除。生产代码门控残留已全部恢复。剩余候选仅 autoUpdater/I18N（低嫌疑批量，下一轮一轮判定）；若排除，差异收敛到"保留子集"（BrowserFrame/createWindow/registry 最小集 + loadSnapshot），按 issue 第五轮方案做保留子集内部二分。
+
+## 剩余候选清零（2026-11-11 第十四轮）
+
+- autoUpdater：生产 index.ts 无接线 → 排除。
+- I18N：纯字典函数（initMainProcessLanguage/t 取词），低嫌疑——归入保留子集内部二分一并处理。
+
+**whenReady 深处装配候选全部清零。差异收敛到"保留子集"内部**：createWindow 窗口创建链、registry/manager 完整装配、loadSnapshot 恢复链、菜单装配——即生产进程除了扩展接线外的**全部既有装配**与前置进程（无装配）的差异。下一轮二分：保留子集逐块门控（每块一轮完整启动），候选顺序建议 createWindow（窗口级 webPreferences/session 默认值）→ registry 完整装配（manager 内部 wc 事件区）→ loadSnapshot → 菜单。
