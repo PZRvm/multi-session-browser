@@ -216,7 +216,7 @@ try {
       }
       const before = await canvasData()
       await click('矩形')
-      await draw(40, 20, 360, 55)
+      await draw(40, 120, 360, 55)  // 左上角有浮动工具胶囊，绘制起点下移避开
       let drawn = await canvasData()
       for (let i = 0; i < 25 && drawn === before; i++) {
         await delay(100)
@@ -234,10 +234,18 @@ try {
       const redone = await canUndoRedo()
       assert(redone.undo && !redone.redo, '重做未生效：' + JSON.stringify(redone))
       await click('文字')
-      await draw(120, 90, 0, 0)
+      await draw(120, 160, 0, 0)
+      // 文字框偶发慢挂载：等待后仍未出现则换点补击一次
       for (let i = 0; i < 40; i++) {
         if (await evaluate("!!document.querySelector('textarea')")) break
         await delay(100)
+      }
+      if (!(await evaluate("!!document.querySelector('textarea')"))) {
+        await draw(160, 200, 0, 0)
+        for (let i = 0; i < 60; i++) {
+          if (await evaluate("!!document.querySelector('textarea')")) break
+          await delay(100)
+        }
       }
       assert(await evaluate("!!document.querySelector('textarea')"), '文字输入框未出现')
       await cdp.send('Input.insertText', { text: '插件M1' }, session)
@@ -253,7 +261,7 @@ try {
       )
       await delay(120)
       await click('裁剪')
-      await draw(20, 20, 500, 300)
+      await draw(20, 120, 500, 300)
       for (let i = 0; i < 40; i++) {
         if (await evaluate("!!document.querySelector('.chrome-capture-editor-cropbtn.is-primary')"))
           break

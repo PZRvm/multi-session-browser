@@ -10,15 +10,31 @@ body.plugin-editor {
   background: #f5f8fa;
 }
 
-/* 顶部不再使用色带：透明、紧凑，功能键行垂直居中，与系统红绿灯行视觉衔接 */
+/* 顶部 tabbar 整条移除：工具区悬浮为画布左上角的雾蓝胶囊
+   （系统红绿灯行正下方），功能键行垂直居中，无色带无分隔 */
+.plugin-editor .chrome-capture-editor {
+  position: relative;
+}
+
 .plugin-editor .chrome-capture-editor-topbar {
-  background: transparent;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: auto;
+  z-index: 20;
+  max-width: calc(100% - 16px);
+  background: rgba(111, 156, 196, 0.92);
+  backdrop-filter: blur(8px);
   border-bottom: none;
-  box-shadow: none;
-  min-height: 40px;
-  height: 40px;
-  padding: 0 10px 0 12px;
-  gap: 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(45, 90, 128, 0.25);
+  min-height: 36px;
+  padding: 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .plugin-editor .chrome-capture-editor-iconbtn {
@@ -42,7 +58,11 @@ body.plugin-editor {
   color: #fff;
 }
 
-/* 产出钮（复制/下载）与裁剪主操作：雾蓝主色 */
+/* 产出钮（复制/下载）随浮动行右侧对齐，雾蓝主色 */
+.plugin-editor .chrome-capture-editor-actions {
+  margin-left: auto;
+}
+
 .plugin-editor .chrome-capture-editor-actions .chrome-capture-editor-iconbtn {
   color: var(--msb-accent-strong);
 }
@@ -60,12 +80,12 @@ body.plugin-editor {
   background: var(--msb-accent);
 }
 
-/* inline 成功反馈与错误条沿用语义色，成功文案改雾蓝深色 */
+/* inline 成功反馈：雾蓝深色 */
 .plugin-editor .chrome-capture-editor-flash {
   color: var(--msb-accent-strong);
 }
 
-/* 滚轮缩放后的画布容器光标提示 */
+/* 浮动工具条之下的画布满幅呈现 */
 .plugin-editor .chrome-capture-editor-canvas {
   cursor: default;
 }

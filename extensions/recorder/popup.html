@@ -80,7 +80,6 @@
         color: var(--fg-soft);
         font-size: 11px;
         margin-top: 4px;
-        min-height: 0;
       }
       .result:empty {
         display: none;
@@ -98,8 +97,9 @@
         display: flex;
         gap: 8px;
         margin-top: 12px;
+        align-items: stretch;
       }
-      /* icon 按钮：tooltip 用 data-tip 呈现（popover） */
+      /* icon 按钮：tooltip 用 data-tip 呈现；结束录制为文字按钮（用户指定文案「结束」） */
       .iconbtn {
         position: relative;
         width: 38px;
@@ -125,6 +125,22 @@
         opacity: 0.35;
         cursor: not-allowed;
       }
+      .stopbtn {
+        flex: 1;
+        height: 34px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid var(--danger);
+        border-radius: 8px;
+        background: var(--danger);
+        color: #fff;
+        cursor: pointer;
+        position: relative;
+      }
+      .stopbtn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
       .iconbtn.primary {
         background: var(--danger);
         border-color: var(--danger);
@@ -138,10 +154,12 @@
         border-color: var(--danger);
       }
       .iconbtn[data-tip]:hover::after,
-      .iconbtn[data-tip]:focus-visible::after {
+      .iconbtn[data-tip]:focus-visible::after,
+      .stopbtn[data-tip]:hover::after,
+      .stopbtn[data-tip]:focus-visible::after {
         content: attr(data-tip);
         position: absolute;
-        bottom: calc(100% + 6px);
+        top: calc(100% + 6px);
         left: 50%;
         transform: translateX(-50%);
         background: var(--tip-bg);
@@ -192,8 +210,8 @@
         <button id="cancel" class="iconbtn danger-soft" data-tip="取消（丢弃本次录像）" aria-label="取消录制" disabled>
           <svg viewBox="0 0 16 16"><path d="M4.1 4.1a.75.75 0 0 1 1.06 0L8 6.94l2.84-2.84a.75.75 0 1 1 1.06 1.06L9.06 8l2.84 2.84a.75.75 0 1 1-1.06 1.06L8 9.06l-2.84 2.84a.75.75 0 1 1-1.06-1.06L6.94 8 4.1 5.16a.75.75 0 0 1 0-1.06z" /></svg>
         </button>
-        <button id="stop" class="iconbtn" data-tip="结束录制并保存 MP4" aria-label="结束录制" disabled>
-          <svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg>
+        <button id="stop" class="stopbtn" data-tip="结束录制并保存 MP4" aria-label="结束录制" disabled>
+          结束
         </button>
         <button id="audio" class="iconbtn audio" data-tip="录制 Tab 音频：改后下次生效；录制中切换为即时静音" aria-label="录制 Tab 音频">
           <svg viewBox="0 0 16 16">
