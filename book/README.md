@@ -54,6 +54,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](changelogs/2026-11/2026-11-06-bocode-adoption.md) — 引入 BoCode 规范、索引、技能与历史文档迁移
 - [2026-11-06-bocode-hook-mode.md](changelogs/2026-11/2026-11-06-bocode-hook-mode.md) — 修正提交钩子在新克隆仓库的执行权限
 - [2026-11-06-bocode-root-doc-links.md](changelogs/2026-11/2026-11-06-bocode-root-doc-links.md) — 同步根产品与设计入口的文档迁移路径
+- [2026-11-11-双插件图标与窗口修复.md](changelogs/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件新增四张图标，修复截图预览与标题区、录屏提示撑窗，Chrome十五项通过
+- [2026-11-11-双插件用户验收.md](changelogs/2026-11/2026-11-11-双插件用户验收.md) — 用户确认普通Chrome双插件验收通过，记录创建基分支与后续宿主接入边界
+- [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
+- [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
+- [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -209,7 +214,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-终局IPC与模型审阅.md](notes/issue/2026-11/20261110-终局IPC与模型审阅.md) — 终局23项运行与16项IPC的增量审阅，只记录三项发现，不现场修复，不代表正式Phase 5通过
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 
-**Resolved (43)**
+**Resolved (46)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -254,6 +259,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-非Windows补验增量审阅.md](notes/issue/2026-11/20261110-非Windows补验增量审阅.md) — 记录原录屏和本轮补验工具的八项增量审阅，发现厂商ZIP边界问题，整体仍非正式Phase5
 - [20261110112815-插件两项验证修复审阅与残留日志.md](notes/issue/2026-11/20261110112815-插件两项验证修复审阅与残留日志.md) — Cookie和React功能验证修复的定向审阅，记录仍存在的sandbox与SVG日志并保留原前置阻塞
 - [20261110125500-原生录屏在39与42均存在解码错误.md](notes/issue/2026-11/20261110125500-原生录屏在39与42均存在解码错误.md) — 原生录屏UI完整保存后H264严格解码失败，39和42均复现，需另行定位既有录屏链路
+- [20261111-双插件验收合并前审查.md](notes/issue/2026-11/20261111-双插件验收合并前审查.md) — 双插件验收修订合并前核对八项代码检查与交接事实，无新增阻塞项
+- [20261111171845-双插件界面修复审查.md](notes/issue/2026-11/20261111171845-双插件界面修复审查.md) — 审查双插件图标、编辑预览缩放、标题区与原生提示改动，未发现新增阻塞项
+- [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
 
 ### notes/learn/2026-09/
 
@@ -275,6 +283,8 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/learn/2026-11/
 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
+- [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
+- [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
 - [20261109154150-Chrome插件与截图录屏插件化可行性.md](notes/learn/2026-11/20261109154150-Chrome插件与截图录屏插件化可行性.md) — 全会话 Chrome 插件、CRX 与商店安装的可行性，以及截图录屏插件的 Chrome 和 Electron 双端适配路线
 - [20261109191500-插件加载成功不等于功能兼容.md](notes/learn/2026-11/20261109191500-插件加载成功不等于功能兼容.md) — Electron39与候选扩展兼容库的实测边界，以及双端Tab音频验证需要检查的真实产物
@@ -359,6 +369,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/summary/2026-11/
 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
+- [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -380,6 +391,8 @@ description: Master index of the book — the map of every document. Regenerate 
 ### plans/
 
 - [2026-11-06-bocode-adoption.md](plans/2026-11-06-bocode-adoption.md) — 从现有 Electron 项目接入 BoCode 的盘点、迁移边界、决策与验证记录
+- [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
+- [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -439,4 +452,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 321 documents -->
+<!-- 334 documents -->
