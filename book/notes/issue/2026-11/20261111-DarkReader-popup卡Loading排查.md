@@ -127,3 +127,10 @@ status: open
 
 - tabDragController 门控（selftest 跳过装配，引用点空值安全假对象）后 selftest **仍卡 Loading**——排除。
 - **新最高嫌疑**：permissions.ts 存在会话级 `setPermissionCheckHandler(() => false)` + `setPermissionRequestHandler` 形态（380—381 行），若其 target 覆盖扩展分区 session 且时机先于插件挂载，可能拒绝 MV2 background 初始化所需权限。下一实验：查该 handler 的 target/绑定时机，selftest 模式下门控后复跑探针。
+
+## 清单第一项排除（2026-11-11 第十二轮）
+
+- 权限 handler 绑定覆盖：permissions.ts 的 bindings 仅挂 registry 管理的分区，selftest 分区（dev-entry 自行 fromPartition）不在覆盖内 → 排除。
+- `setSessionPartitionResolver`：两环境均未设置（默认 session.fromPartition 即可）→ 排除。
+
+剩余清单：capture/recording 装配、proxy 引擎、autoUpdater/I18N 批量门控（每项一轮 MSB_EXTENSIONS_SELFTEST=1 完整启动，判据 SELFTEST_RESULT ok:true 且 controls>2）。工具与清单就绪，下轮继续。
