@@ -1,6 +1,6 @@
-# 自研插件（extensions/）
+# 浏览器扩展（extensions/）
 
-两个自研双端工具插件源码。宿主接线（Electron）归会话1范围；本目录只含插件本体与静态资源，产品结构按[双插件开发计划](../book/plans/20261110-截图与录屏插件开发计划.md)。
+**本目录是本项目开发的浏览器扩展**（Chrome MV3 插件，非第三方/外部依赖）：截图标注（screenshot/）与标签页录屏（recorder/）两个自研插件。宿主接线（Electron）归会话1范围；本目录只含插件本体与静态资源，产品结构按[双插件开发计划](../book/plans/20261110-截图与录屏插件开发计划.md)。
 
 2026-11-11 用户验收通过（普通 Chrome 插件本体）。最新真机检查 15/15；宿主接线另由集成任务推进。
 
@@ -20,6 +20,16 @@
 ## 图标
 
 每个插件各两张 SVG 源稿：`icons/icon.svg` 用于插件管理页，`icons/action.svg` 用于工具栏。两个入口均为带底色图标：截图为雾蓝底白色相机，录屏为珊瑚红底白色摄像机与录制点，轮廓沿用用户参考图。PNG 导数已入库并接入 manifest：标识 16/32/48/128px，工具栏 16/32px。修改源稿后运行 `node extensions/generate-icons.mjs`（仅生成时需要 librsvg 的 `rsvg-convert`，插件构建与运行不需要）。
+
+## 打包（CRX）
+
+安装包在 `extensions/dist/`（构建产物，git 不入库）：`screenshot.crx`、`recorder.crx` 及对应 `.pem` 私钥（私钥必须保留——同钥重打包才能保持插件 ID 与已装实例的更新链）。打包命令（Chrome for Testing 二进制，路径见前置验证产物）：
+
+```
+"Google Chrome for Testing" --pack-extension=extensions/screenshot --pack-extension-key=extensions/dist/screenshot.pem --no-first-run
+```
+
+打包后把生成的 `extensions/<名>.crx` 移入 `extensions/dist/`。CRX 为未上架商店的私有分发件：直接双击安装会被 Chrome 以「crx_required_proof_missing」拒绝，日常安装走开发者模式「加载已解压的扩展程序」选 `extensions/screenshot`（或 recorder）目录。
 
 ## 验证
 
