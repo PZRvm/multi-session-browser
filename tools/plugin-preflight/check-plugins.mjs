@@ -40,6 +40,7 @@ async function record(name, fn) {
 
 let cdp,
   child,
+  site,
   log = ''
 try {
   // 编辑器 bundle 构建（esbuild 与前置同链路）
@@ -54,6 +55,7 @@ try {
       '--enable-unsafe-extension-debugging',
       '--no-first-run',
       '--no-default-browser-check',
+      '--force-device-scale-factor=2',
       'about:blank'
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] }
@@ -85,10 +87,25 @@ try {
   const shotUrl = `chrome-extension://${shotExt.id}/`,
     recUrl = `chrome-extension://${recExt.id}/`
 
+  await record('双插件图标资源与manifest接入', async () => {
+    for (const plugin of ['screenshot', 'recorder']) {
+      const manifest = JSON.parse(await readFile(join(root, 'extensions', plugin, 'manifest.json')))
+      for (const icons of [manifest.icons, manifest.action.default_icon]) {
+        assert(icons && Object.keys(icons).length >= 2, '图标缺少多分辨率映射')
+        for (const [size, path] of Object.entries(icons)) {
+          const png = await readFile(join(root, 'extensions', plugin, path))
+          assert.equal(png.readUInt32BE(16), Number(size), '图标宽度不符')
+          assert.equal(png.readUInt32BE(20), Number(size), '图标高度不符')
+        }
+      }
+    }
+    return { plugins: 2, designs: 4 }
+  })
+
   // 测试站点 + 固定视口（控制截图体积，避免storage.local配额压力）。
   // 本 Chrome 中 filter 列表同一标签页出现 tab/page 两个 target：tab 型只用于
   // Extensions.triggerAction；attach/Emulation/evaluate 用 page 型。
-  const site = await startSite()
+  site = await startSite()
   await cdp.send('Target.createTarget', { url: `${site.url}/?session=A` })
   let tabId, pageTargetId
   for (let i = 0; i < 50; i++) {
@@ -113,7 +130,7 @@ try {
   }
   await cdp.send(
     'Emulation.setDeviceMetricsOverride',
-    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
+    { width: 1280, height: 900, deviceScaleFactor: 2, mobile: false },
     target
   )
   let siteReady = null
@@ -133,81 +150,23 @@ try {
 
   // ===== 截图插件 =====
   const editorSessions = []
+  let expectedExportSize
   const skipEditor = process.env.PLUGIN_CHECK_SKIP_EDITOR === '1'
-  /** 附着编辑页并确保其处于 PiP 无框形态。真机路径：requestWindow 需页内瞬态激活
-   *  （icon 点击的激活在 SW，编辑页没有）——页内浮动钮（pip-fallback）承载迁移，
-   *  经 Input.dispatchMouseEvent 真实点击取真实手势 → 迁移出 PiP（旧目标关闭 +
-   *  新目标出现）。也兼容未来 Chrome 放开手势限制时自动迁移（无浮动钮直附）。
-   *  迁移后断言灯组在 PiP 上下文真实挂载（pip-lifecycle.js 生效证据） */
-  async function attachEditorPip(urlPrefix, excludeIds) {
+  /** 直接附着 Chrome popup。popup 无浏览器标签栏，但仍保留系统标题栏。 */
+  async function attachEditor(urlPrefix, excludeIds) {
     let editorTarget
     for (let i = 0; i < 120; i++) {
       const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
       editorTarget = targetInfos.find(
-        (v) =>
-          v.type === 'page' &&
-          v.url.startsWith(urlPrefix) &&
-          !excludeIds.some((id) => id === v.targetId)
+        (v) => v.type === 'page' && v.url.startsWith(urlPrefix) && !excludeIds.includes(v.targetId)
       )
       if (editorTarget) break
       await delay(100)
     }
     assert(editorTarget, '编辑器页未打开')
-    let session = await cdp.attach(editorTarget.targetId)
-    let migrated = false
-    for (let i = 0; i < 60; i++) {
-      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-      const fresh = targetInfos.find(
-        (v) =>
-          v.type === 'page' &&
-          v.url.startsWith(urlPrefix) &&
-          v.targetId !== editorTarget.targetId &&
-          !excludeIds.some((id) => id === v.targetId)
-      )
-      if (fresh) {
-        // 自动迁移已发生（未来无手势门场景）：旧会话作废，直附新目标
-        migrated = true
-        editorTarget = fresh
-        session = await cdp.attach(fresh.targetId)
-        break
-      }
-      if (await cdp.evaluate("!!document.getElementById('pip-fallback')", session)) break
-      await delay(100)
-    }
-    if (!migrated && (await cdp.evaluate("!!document.getElementById('pip-fallback')", session))) {
-      const rect = await cdp.evaluate(
-        "document.getElementById('pip-fallback').getBoundingClientRect().toJSON()",
-        session
-      )
-      const cx = Math.round(rect.x + rect.width / 2)
-      const cy = Math.round(rect.y + rect.height / 2)
-      await cdp.send(
-        'Input.dispatchMouseEvent',
-        { type: 'mousePressed', x: cx, y: cy, button: 'left', buttons: 1, clickCount: 1 },
-        session
-      )
-      await cdp.send(
-        'Input.dispatchMouseEvent',
-        { type: 'mouseReleased', x: cx, y: cy, button: 'left', buttons: 1, clickCount: 1 },
-        session
-      )
-      // 新架构：PiP 非 CDP 目标——编辑器在 PiP 文档自举，经 opener 跨窗等待
-      // （画布 + 灯组挂载即自举完成）；承载窗（本会话）最小化承载 PiP 生命周期
-      let booted = false
-      for (let i = 0; i < 120; i++) {
-        booted = await cdp
-          .evaluate(
-            "!!documentPictureInPicture.window && !!documentPictureInPicture.window.document.querySelector('canvas') && !!documentPictureInPicture.window.document.querySelector('.pip-lights')",
-            session
-          )
-          .catch(() => false)
-        if (booted) break
-        await delay(100)
-      }
-      assert(booted, '浮动钮点击后 PiP 编辑窗未自举（画布+灯组）')
-      await delay(800)
-    }
-    for (let i = 0; i < 60; i++) {
+    const session = await cdp.attach(editorTarget.targetId)
+    await cdp.send('Page.bringToFront', {}, session)
+    for (let i = 0; i < 80; i++) {
       if (await cdp.evaluate("!!document.querySelector('canvas')", session)) break
       await delay(100)
     }
@@ -215,47 +174,106 @@ try {
     return { targetId: editorTarget.targetId, session, url: editorTarget.url }
   }
   if (!skipEditor)
-    await record('截图插件action截图并打开编辑器', async () => {
+    await record('截图插件直接打开编辑器且无浮动与PiP', async () => {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      const attached = await attachEditorPip(`${shotUrl}editor.html?captureId=`, [])
+      const attached = await attachEditor(`${shotUrl}editor.html?captureId=`, [])
       editorSessions.push(attached)
-      // 迁移自证：PiP 上下文灯组真实挂载（pip-lifecycle.js 在 PiP 文档自身上下文运行）
-      const lights = await cdp.evaluate(
-        "!!documentPictureInPicture.window && !!documentPictureInPicture.window.document.querySelector('.pip-lights') && documentPictureInPicture.window.document.querySelectorAll('.pip-light').length === 3",
+      const layout = await cdp.evaluate(
+        `(async () => {
+        const c = document.querySelector('canvas'), rect = c.getBoundingClientRect()
+        return { type: (await chrome.windows.getCurrent()).type,
+          toolsTop: document.querySelector('.chrome-capture-editor-topbar').getBoundingClientRect().top,
+          floating: !!document.querySelector('#pip-fallback, .pip-lights'),
+          pip: !!window.documentPictureInPicture?.window,
+          canvas: { width: c.width, displayWidth: rect.width, dpr: devicePixelRatio } }
+      })()`,
         attached.session
       )
-      assert(lights, 'PiP 编辑窗灯组未挂载')
-      return { editorUrl: attached.url }
+      assert.equal(layout.type, 'popup', '应使用直接编辑的 popup')
+      assert.equal(layout.toolsTop, 0, '页内工具区应贴顶，无额外空白行')
+      assert.equal(layout.floating, false, '不应有浮动入口或仿三灯')
+      assert.equal(layout.pip, false, '不应迁移到 PiP')
+      assert(
+        Math.abs(layout.canvas.width / layout.canvas.displayWidth - layout.canvas.dpr) < 0.02,
+        '画布设备像素密度不匹配'
+      )
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }, attached.session)
+      await writeFile(join(output, 'editor-popup.png'), Buffer.from(shot.data, 'base64'))
+      await writeFile(join(output, 'editor-layout.json'), JSON.stringify(layout, null, 2))
+      return { editorUrl: attached.url, layout, nativeTitleBar: 'Chrome管理，未隐藏' }
+    })
+
+  if (!skipEditor)
+    await record('画布滚轮缩放重绘与边界', async () => {
+      const session = editorSessions[0].session
+      const inspect = () =>
+        cdp.evaluate(
+          `(() => {
+        const d = document, c = d.querySelector('canvas')
+        return { width: c.width, height: c.height, displayWidth: c.getBoundingClientRect().width,
+          zoom: getComputedStyle(d.querySelector('.chrome-capture-editor-stage')).zoom }
+      })()`,
+          session
+        )
+      const wheel = async (deltaY, ctrlKey, count = 1) => {
+        await cdp.evaluate(
+          `(() => {
+          const host = document.querySelector('.chrome-capture-editor-canvas')
+          for (let i = 0; i < ${count}; i++) host.dispatchEvent(new WheelEvent('wheel',
+            { deltaY: ${deltaY}, ctrlKey: ${ctrlKey}, bubbles: true, cancelable: true }))
+        })()`,
+          session
+        )
+        await delay(200)
+      }
+      const before = await inspect()
+      await wheel(-100, false)
+      assert.deepEqual(await inspect(), before, '普通滚轮不应缩放')
+      await wheel(-100, true)
+      const enlarged = await inspect()
+      assert(
+        enlarged.width > before.width && enlarged.displayWidth > before.displayWidth,
+        '放大必须增大 backing canvas，不能只 CSS 放大'
+      )
+      assert.equal(Number(enlarged.zoom), 1, '不允许 CSS zoom')
+      await wheel(100, true, 50)
+      const minimum = await inspect()
+      assert(Math.abs(minimum.width / before.width - 0.25) < 0.01, '最小缩放边界错误')
+      await wheel(-100, true, 50)
+      const maximum = await inspect()
+      assert(Math.abs(maximum.width / before.width - 4) < 0.01, '最大缩放边界错误')
+      // 恢复一个放大的比例，接下来整套编辑/导出检查在缩放后执行。
+      await wheel(100, true, 12)
+      return { before, enlarged, minimum, maximum }
     })
 
   if (!skipEditor)
     await record('编辑器复用生产组件：绘制/撤销/重做/文字/裁剪', async () => {
       const session = editorSessions[0].session
+      await cdp.evaluate('window.focus()', session)
       const evaluate = (expr) => cdp.evaluate(expr, session)
-      // 编辑器 UI 活在 PiP 文档（PiP 非 CDP 目标）：一切 DOM/交互经 opener 跨窗
-      // （documentPictureInPicture.window.document）到达。焦点模拟供 clipboard 语义
+      // 在当前 popup 直接交互；焦点模拟供真实剪贴板验证。
       await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
-      const PIP = 'documentPictureInPicture.window.document'
+      const DOC = 'document'
       const click = (label) =>
         evaluate(
-          `(() => { const b = [...${PIP}.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`
+          `(() => { const b = [...${DOC}.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`
         )
       const canvasData = () =>
-        evaluate(`[...${PIP}.querySelectorAll('canvas')].map(c=>c.toDataURL()).join('')`)
+        evaluate(`[...${DOC}.querySelectorAll('canvas')].map(c=>c.toDataURL()).join('')`)
       const canUndoRedo = () =>
         evaluate(
-          `(() => { const b = (l) => ${PIP}.querySelector('button[aria-label=' + JSON.stringify(l) + ']'); return { undo: !b('撤销').disabled, redo: !b('重做').disabled } })()`
+          `(() => { const b = (l) => ${DOC}.querySelector('button[aria-label=' + JSON.stringify(l) + ']'); return { undo: !b('撤销').disabled, redo: !b('重做').disabled } })()`
         )
-      /** PiP 内绘制：向 PiP 画布派发合成 MouseEvent（Konva 接收合成指针事件），
-       *  坐标以 PiP 画布 rect 现算（PiP 窗口 880×640） */
+      /** 向画布派发指针事件，坐标按当前显示比例现算。 */
       async function draw(x, y, w, h) {
-        const r = await evaluate(`${PIP}.querySelector('canvas').getBoundingClientRect().toJSON()`)
+        const r = await evaluate(`${DOC}.querySelector('canvas').getBoundingClientRect().toJSON()`)
         const sx = r.x + x,
           sy = r.y + y
         const fire = (type, px, py, buttons) =>
           evaluate(
-            `(() => { ${PIP}.querySelector('canvas').dispatchEvent(new MouseEvent('${type}', { clientX: ${px}, clientY: ${py}, button: 0, buttons: ${buttons}, bubbles: true })) })()`
+            `(() => { ${DOC}.querySelector('canvas').dispatchEvent(new MouseEvent('${type}', { clientX: ${px}, clientY: ${py}, button: 0, buttons: ${buttons}, bubbles: true })) })()`
           )
         await fire('mousedown', sx, sy, 1)
         for (let i = 1; i <= 8; i++) await fire('mousemove', sx + (w * i) / 8, sy + (h * i) / 8, 1)
@@ -265,7 +283,7 @@ try {
       }
       const before = await canvasData()
       await click('矩形')
-      await draw(40, 120, 360, 55) // 左上角有浮动工具胶囊，绘制起点下移避开
+      await draw(40, 120, 360, 55)
       let drawn = await canvasData()
       for (let i = 0; i < 25 && drawn === before; i++) {
         await delay(100)
@@ -287,39 +305,48 @@ try {
       await draw(520, 320, 0, 0)
       // 文字框偶发慢挂载：等待后仍未出现则换点补击一次
       for (let i = 0; i < 40; i++) {
-        if (await evaluate('!!' + PIP + ".querySelector('textarea')")) break
+        if (await evaluate('!!' + DOC + ".querySelector('textarea')")) break
         await delay(100)
       }
-      if (!(await evaluate('!!' + PIP + ".querySelector('textarea')"))) {
+      if (!(await evaluate('!!' + DOC + ".querySelector('textarea')"))) {
         await draw(560, 360, 0, 0)
         for (let i = 0; i < 60; i++) {
-          if (await evaluate('!!' + PIP + ".querySelector('textarea')")) break
+          if (await evaluate('!!' + DOC + ".querySelector('textarea')")) break
           await delay(100)
         }
       }
-      assert(await evaluate('!!' + PIP + ".querySelector('textarea')"), '文字输入框未出现')
+      assert(await evaluate('!!' + DOC + ".querySelector('textarea')"), '文字输入框未出现')
       // 文本注入：textarea.value 现填 + input 事件 + 合成 Enter keydown（React
       // onKeyDown 读 e.key，commitTextEdit 从 ref 现读 textarea.value）
       await evaluate(`(() => {
-        const ta = ${PIP}.querySelector('textarea')
+        const ta = ${DOC}.querySelector('textarea')
         ta.value = '插件M1'
         ta.dispatchEvent(new Event('input', { bubbles: true }))
         ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       })()`)
       await delay(120)
       await click('裁剪')
+      const displayScale = await evaluate(`(async () => {
+        const win = window
+        const image = await win.api.capture.getEditImage()
+        return win.document.querySelector('canvas').getBoundingClientRect().width / image.width
+      })()`)
+      expectedExportSize = {
+        width: Math.round(500 / displayScale),
+        height: Math.round(300 / displayScale)
+      }
       await draw(20, 120, 500, 300)
       for (let i = 0; i < 40; i++) {
         if (
-          await evaluate('!!' + PIP + ".querySelector('.chrome-capture-editor-cropbtn.is-primary')")
+          await evaluate('!!' + DOC + ".querySelector('.chrome-capture-editor-cropbtn.is-primary')")
         )
           break
         await delay(100)
       }
-      await evaluate(PIP + ".querySelector('.chrome-capture-editor-cropbtn.is-primary').click()")
+      await evaluate(DOC + ".querySelector('.chrome-capture-editor-cropbtn.is-primary').click()")
       await delay(300)
-      // 证据 = PiP 画布成品（opener 是空承载壳，截屏无内容）
-      const dataUrl = await evaluate(`${PIP}.querySelector('canvas').toDataURL('image/png')`)
+      // 保存编辑成品，另保留真实 popup 界面截图。
+      const dataUrl = await evaluate(`${DOC}.querySelector('canvas').toDataURL('image/png')`)
       await writeFile(
         join(output, 'plugin-editor.png'),
         Buffer.from(dataUrl.split(',')[1], 'base64')
@@ -331,16 +358,29 @@ try {
   if (!skipEditor)
     await record('编辑器复制与下载PNG', async () => {
       const session = editorSessions[0].session
+      await cdp.evaluate(
+        `(() => {
+        const win = window
+        win.focus()
+        const original = win.api.capture.editCopy
+        win.api.capture.editCopy = async (input) => {
+          try { return await original(input) } catch(error) {
+            win.copyFailure = String(error)
+            throw error
+          }
+        }
+      })()`,
+        session
+      )
       await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
       await cdp.send('Browser.grantPermissions', {
         origin: shotUrl,
         permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite']
       })
-      // 复制/下载动作在 PiP 上下文执行（borrowed chrome + PiP 自己的 navigator），
-      // 按钮经 opener 跨窗点击；剪贴板读取在 opener（焦点模拟 + 系统剪贴板）
+      // popup 内操作与读取真实系统剪贴板，不替换复制/下载的实际行为。
       const click = (label) =>
         cdp.evaluate(
-          `(() => { const d = documentPictureInPicture.window.document; const b = [...d.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`,
+          `(() => { const d = document; const b = [...d.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`,
           session
         )
       await click('复制到剪贴板')
@@ -353,7 +393,23 @@ try {
         if (clipboard) break
         await delay(100)
       }
-      assert(clipboard, '剪贴板没有PNG')
+      const exportError = await cdp.evaluate(
+        "document.querySelector('.chrome-capture-editor-errorbar')?.textContent",
+        session
+      )
+      const focus = await cdp.evaluate(
+        `({ focused: document.hasFocus(), error: window.copyFailure })`,
+        session
+      )
+      assert(clipboard, '剪贴板没有PNG：' + exportError + ' ' + JSON.stringify(focus))
+      assert(
+        Math.abs(clipboard.width - expectedExportSize.width) <= 1,
+        '放大后导出宽度应还原图像像素：' + JSON.stringify({ clipboard, expectedExportSize })
+      )
+      assert(
+        Math.abs(clipboard.height - expectedExportSize.height) <= 1,
+        '放大后导出高度应还原图像像素：' + JSON.stringify({ clipboard, expectedExportSize })
+      )
       const downloadsBefore = await cdp.evaluate(
         'chrome.downloads.search({limit:100})',
         await attachWorker(shotExt.id)
@@ -397,7 +453,7 @@ try {
     await record('第二张截图快照独立', async () => {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      const attached = await attachEditorPip(
+      const attached = await attachEditor(
         `${shotUrl}editor.html?captureId=`,
         editorSessions.map((s) => s.targetId)
       )
@@ -425,6 +481,77 @@ try {
   }
 
   const recControl = await attachWorker(recExt.id)
+
+  await record('录屏原生提示不改变popup布局', async () => {
+    const { targetId } = await cdp.send('Target.createTarget', { url: recUrl + 'popup.html' })
+    const session = await cdp.attach(targetId)
+    await cdp.send('Page.enable', {}, session)
+    for (let i = 0; i < 50; i++) {
+      if (await cdp.evaluate("!!document.getElementById('audio')", session)) break
+      await delay(100)
+    }
+    const dimensions = () =>
+      cdp.evaluate(
+        `(() => {
+      const main = document.querySelector('main').getBoundingClientRect()
+      return { width: main.width, height: main.height,
+        scrollWidth: document.body.scrollWidth, scrollHeight: document.body.scrollHeight }
+    })()`,
+        session
+      )
+    const evidence = []
+    for (const width of [296, 360]) {
+      await cdp.send(
+        'Emulation.setDeviceMetricsOverride',
+        {
+          width,
+          height: 120,
+          deviceScaleFactor: 2,
+          mobile: false
+        },
+        session
+      )
+      const before = await dimensions()
+      const buttons = await cdp.evaluate(
+        `Array.from(document.querySelectorAll('button')).map(b => ({
+        title: b.title, after: getComputedStyle(b, '::after').content,
+        rect: b.getBoundingClientRect().toJSON() }))`,
+        session
+      )
+      for (const b of buttons) {
+        assert(b.title, '每个图标须有原生提示')
+        assert(['none', 'normal'].includes(b.after), '不得用 DOM 伪元素承载跨窗提示')
+        await cdp.send(
+          'Input.dispatchMouseEvent',
+          {
+            type: 'mouseMoved',
+            x: b.rect.x + b.rect.width / 2,
+            y: b.rect.y + b.rect.height / 2
+          },
+          session
+        )
+        assert.deepEqual(await dimensions(), before, 'hover 不应扩大 popup')
+      }
+      assert(before.scrollWidth <= width, '面板存在横向溢出')
+      for (const theme of ['light', 'dark']) {
+        await cdp.send(
+          'Emulation.setEmulatedMedia',
+          {
+            features: [{ name: 'prefers-color-scheme', value: theme }]
+          },
+          session
+        )
+        const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }, session)
+        await writeFile(
+          join(output, `recorder-${width}-${theme}.png`),
+          Buffer.from(shot.data, 'base64')
+        )
+      }
+      evidence.push({ width, dimensions: before })
+    }
+    await cdp.send('Target.closeTarget', { targetId })
+    return evidence
+  })
   const rec = () =>
     cdp.evaluate('chrome.storage.local.get("rec")', recControl).then((v) => v?.rec ?? null)
   async function waitForState(pred, reason, timeout = 15000) {
@@ -462,11 +589,11 @@ try {
     const session = await cdp.attach(popupId)
     await cdp.send('Page.bringToFront', {}, session)
     await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
-    // popup 页面加载是异步的，必须等目标按钮挂载后再点
+    // DOM 挂载早于 popup.js 监听器注册；load 完成且按钮可用后再点，避免空点击。
     for (let i = 0; i < 50; i++) {
       if (
         await cdp.evaluate(
-          `(() => { const el = document.getElementById('${id}'); return !!el && !el.disabled })()`,
+          `(() => { const el = document.getElementById('${id}'); return document.readyState === 'complete' && !!el && !el.disabled })()`,
           session
         )
       )
@@ -673,6 +800,7 @@ try {
     await delay(500)
     if (child.exitCode === null) child.kill('SIGTERM')
   }
+  if (site) await site.close()
   await writeFile(join(output, 'process.log'), log)
   await writeFile(join(output, 'results.json'), JSON.stringify(results, null, 2))
   console.log(`插件检查证据目录：${output}`)
