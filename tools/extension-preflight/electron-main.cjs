@@ -398,11 +398,11 @@ async function main() {
       requestPermissions: async () => true
     })
     try {
-      m = await prodHandle.runtime.mountPartition('persist:preflight-prod', sesX)
+      await prodHandle.runtime.mountPartition('persist:preflight-prod', sesX)
     } catch (e) {
       // A/B/C 分区循环各跑一遍本 record：重复挂载（lib per-session 去重）时引擎已就绪，直接复用
       if (!/already exists/.test(String(e))) throw e
-      m = { state: 'ready' }
+      // 已挂载：引擎就绪，直接复用
     }
     const manifest = JSON.parse(await readFile(join(dest, 'manifest.json'), 'utf8'))
     const pp = manifest.browser_action?.default_popup || manifest.action?.default_popup
