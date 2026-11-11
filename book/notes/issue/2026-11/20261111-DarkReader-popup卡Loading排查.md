@@ -103,3 +103,9 @@ status: open
 ## 生产进程自检工具（2026-11-11 第九轮）
 
 新增 env 门控自检：`MSB_EXTENSIONS_SELFTEST=1` 启动生产应用，进程内自动加载 dark 解包目录 → 生产同构 popup → stdout 输出 `SELFTEST_RESULT`。**生产 index.ts 进程实测复现卡 Loading（ok:false, controls:0）**——排除用户环境残留与构建差异，实锤进程级。autoplay-policy switch 复刻实验同样无效（已排除）。诊断工具保留在 dev-entry（runDarkPopupSelfTest），下一轮逐项 diff 进程级初始化时一键复现。
+
+## 二分进度（2026-11-11 第十轮）
+
+- `installWarningChannelFilter`（生产进程 ready 前唯一独有全局调用）已门控排除——禁用后 selftest 仍卡 Loading。
+- 生产独有剩余候选全部位于 whenReady 深处装配（registry/tabDrag/capture/recording/proxy/omnibox/autoUpdater/I18N 等），逐项二分需多轮完整 dev 启动，移交下轮继续。
+- selftest 工具（MSB_EXTENSIONS_SELFTEST=1 + SELFTEST_RESULT 日志 + /tmp/msb-selftest/dark 解包目录已备）就位，下一轮每个候选一轮即可二分。
