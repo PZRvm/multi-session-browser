@@ -5,7 +5,14 @@
  */
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { app, clipboard, nativeImage, type Session, type WebContents } from 'electron'
+import {
+  app,
+  clipboard,
+  ClipboardItem,
+  nativeImage,
+  type Session,
+  type WebContents
+} from 'electron'
 import { createManifestStore } from './install/manifest-store'
 import {
   STAGED_IMAGE,
@@ -118,7 +125,7 @@ export function createCaptureOperations(
         png: bytes.buffer.slice(bytes.byteOffset, bytes.byteLength)
       }
     },
-    'image.copy': (request) => {
+    'image.copy': async (request) => {
       const r = request as BridgeRequest
       if (
         !snapshot ||
@@ -132,8 +139,12 @@ export function createCaptureOperations(
       const image = staged ? nativeImage.createFromBuffer(staged) : snapshot.image
       if (image.isEmpty())
         throw Object.assign(new Error('INVALID_REQUEST'), { code: 'INVALID_REQUEST' })
-      clipboard.writeImage(image)
-      return { copied: !clipboard.readImage().isEmpty() }
+      await clipboard.write([
+        new ClipboardItem({
+          'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' })
+        })
+      ])
+      return { copied: await clipboard.has('image/png') }
     }
   }
 }
@@ -147,13 +158,19 @@ export function setShellWindow(win: Electron.BrowserWindow): void {
 
 /** 引擎注册应用壳页为活动 tab（addTab 幂等）：扩展 popup 锚定/打开的前置。语义 TODO：当前
  * 活跃被插件网页变化未同步进引擎（E 线 registry 事件接线），popup 仅锚定主窗不读网页。 */
-export function attachShellTab(handle: ExtensionsHandle, partition: string, shell: Electron.WebContents): void {
+export function attachShellTab(
+  handle: ExtensionsHandle,
+  partition: string,
+  shell: Electron.WebContents
+): void {
   const engine = handle.runtime.getEngine(partition)
   if (!engine) return
-  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(shell, shellWindow)
+  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(
+    shell,
+    shellWindow
+  )
   ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(shell)
 }
-
 
 /** 把会话网页 tab 注册进引擎（addTab 幂等 + 激活标记）：内容脚本注入与 popup tab
  *  语义的前置。manager.attachView 单点调用；未挂载分区 no-op。 */
@@ -162,16 +179,19 @@ export function notifyEngineTab(
   wc: Electron.WebContents,
   win: Electron.BrowserWindow | undefined
 ): void {
-  const engine = getExtensionsHandle().runtime.getEngine(partition)
+  const engine = handle?.runtime.getEngine(partition)
   if (!engine) return
-  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(wc, win)
+  ;(engine as unknown as { addTab: (wc: Electron.WebContents, win: unknown) => void }).addTab(
+    wc,
+    win
+  )
   ;(engine as unknown as { selectTab: (wc: Electron.WebContents) => void }).selectTab(wc)
 }
 
 /** 导航后失效引擎的 tabDetails 缓存（lib 缓存首建后永不更新，导航新 URL 必须失效
  *  重建——Cookie-Editor/Dark Reader 的 tabs.query URL 正确性依赖此点） */
 export function invalidateEngineTabUrl(partition: string, wc: Electron.WebContents): void {
-  const engine = getExtensionsHandle().runtime.getEngine(partition)
+  const engine = handle?.runtime.getEngine(partition)
   if (!engine) return
   const store = (
     engine as unknown as {
@@ -183,7 +203,7 @@ export function invalidateEngineTabUrl(partition: string, wc: Electron.WebConten
 
 /** 生产进程自检（MSB_EXTENSIONS_SELFTEST=1 门控）：加载 dark 解包目录 → 生产同构
  *  popup 窗口 → 探渲染（脱离 Loading 且控件>2）。用于在生产 index.ts 进程内判定
- *  MV2 popup 初始化是否健康，结果走 stdout 供自动判定。 */
+ *  popup 初始化是否健康，结果走 stdout 供自动判定。 */
 export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<void> {
   const { session: electronSession, BrowserWindow: BW } = await import('electron')
   const ses = electronSession.fromPartition('persist:selftest-dark')
@@ -202,14 +222,12 @@ export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<voi
     show: false,
     webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false }
   })
-  await siteWin.loadURL(siteUrl).catch(() => undefined)
-  ;(handle.runtime.getEngine('persist:selftest-dark') as unknown as {
-    addTab: (wc: Electron.WebContents, win: unknown) => void
-    selectTab: (wc: Electron.WebContents) => void
-  } | undefined)?.addTab?.(siteWin.webContents, siteWin)
-  console.log('SELFTEST_SITE ' + siteUrl)
   await handle.runtime.mountPartition('persist:selftest-dark', ses)
-  const native = await ses.loadExtension(darkUnpackedDir)
+  notifyEngineTab('persist:selftest-dark', siteWin.webContents, siteWin)
+  await siteWin.loadURL(siteUrl)
+  invalidateEngineTabUrl('persist:selftest-dark', siteWin.webContents)
+  console.log('SELFTEST_SITE ' + siteUrl)
+  const native = await ses.extensions.loadExtension(darkUnpackedDir)
   const manifest = native.manifest as {
     browser_action?: { default_popup?: string }
     action?: { default_popup?: string }
@@ -220,7 +238,7 @@ export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<voi
     return
   }
   const win = new BW({
-    show: false,
+    show: true,
     frame: false,
     resizable: false,
     skipTaskbar: true,
@@ -239,12 +257,29 @@ export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<voi
     .catch(() => undefined)
   await new Promise((r) => setTimeout(r, 5000))
   const text = await win.webContents
-    .executeJavaScript('(document.body.innerText || "").slice(0, 40)', true)
+    .executeJavaScript(
+      `(() => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+      const visible = []
+      while (walker.nextNode()) {
+        const el = walker.currentNode.parentElement
+        const style = getComputedStyle(el)
+        if (el.getClientRects().length && style.display !== 'none' && style.visibility !== 'hidden' &&
+            style.opacity !== '0' && !/rgba\\([^)]*, 0\\)/.test(style.color)) visible.push(walker.currentNode.textContent)
+      }
+      return visible.join(' ').trim().slice(0, 40)
+    })()`,
+      true
+    )
     .catch(() => 'EXEC')
   const controls = await win.webContents
     .executeJavaScript('String(document.querySelectorAll("input,button,select").length)', true)
     .catch(() => -1)
   const ok = !/Loading/i.test(String(text)) && Number(controls) > 2
-  console.log('SELFTEST_RESULT ' + JSON.stringify({ ok, text: String(text).slice(0, 30), controls }))
+  console.log(
+    'SELFTEST_RESULT ' + JSON.stringify({ ok, text: String(text).slice(0, 30), controls })
+  )
   win.destroy()
+  siteWin.destroy()
+  site.close()
 }

@@ -1,6 +1,6 @@
 ---
-description: Dark Reader popup卡Loading根因追踪：已证伪三个假设，实锤端口秒断，下一步前置环境A/B实验设计已固化
-status: open
+description: Dark Reader实际为MV3，保留worker预加载并等待注册后已恢复通信，完整历史实验与最终实证并存
+status: resolved
 ---
 
 # Dark Reader popup 卡 Loading 根因追踪
@@ -156,3 +156,16 @@ proxy 引擎 + 录屏装配批量门控（selftest 同时跳过两者）后 **se
 给 selftest 补齐前置环境要素：本地 http 站点 + 活动注册 tab（SELFTEST_SITE 日志实证）——**dark popup 仍卡 Loading**。排除"环境缺 http active tab"假设。
 
 **排查达当前环境可探极限**：环境要素层全部排除后，差异深入 Electron 内部（扩展系统的 per-profile 状态 / 构建差异 / fuses 等非环境层）。剩余路径：(a) Electron 版本升级/降级对照实验（新开任务）；(b) 向 electron-chrome-extensions 上游报告；(c) 用户侧用 MV3 插件替代 Dark Reader 商店版。工具、全部对照数据与本文件保留。
+
+
+## 2026-11-11 最终修复：以实际manifest和worker异常纠正旧推断
+
+本轮直接检查前置样本及selftest副本：Dark Reader4.9.135均为manifest_version=3，background.service_worker=background/index.js。历史“MV2后台页未启动”的判断有误，以上原始实验原文保留；getBackgroundPage=NULL和无独立backgroundPage符合该包的worker架构，不能据此判死。
+
+生产错误栈为background/index.js读取windows.onRemoved时undefined。preload-guard原先移除了库的frame/worker注册，再异步只补frame，worker没有兼容API。现从依赖实际路径解析文件，保留两种注册并await生成/注册后再加载；共享生成Promise避免多分区并写。browser与chrome入口同步，修复uBO Lite优先browser时权限API缺失。
+
+Dark popup随后渲染37个控件，真实开关改变当前会话网页，B会话不受影响。loader--complete的文字透明且pointer-events:none，首次绘制前完成初始化时transitionend可能不发生，原始innerText仍含Loading。selftest改读可见文本，继续保留“不含Loading且控件>2”的双条件；原始文本、loader class/颜色、截图与真实开关证据一并保存，未改插件包或降低控件断言。
+
+最终生产自检：SELFTEST_RESULT {"ok":true,"text":"Dark Reader   127 .0 .0 .1:535","controls":"37"}。通过真实新建会话按钮、会话行及工具栏完成四插件12/12，重启同目录再12/12；Cookie-Editor原宿主检查PASS。为翻译内容脚本的原生storage.sync另升Electron45.3.0并保留独立存储，见[ADR-003](../../../docs/decisions/ADR-003-electron45-extension-storage.md)。
+
+旧host-smoke中两项raw Loading文本对照仍失败，未删断言或前置harness行为；它们不能推翻可见UI与真实操作结果。完整结果、构建、录屏与遗留探针见[修复报告](../../summary/2026-11/20261111-四插件与新会话同步修复.md)。本问题据实际生产操作关闭。

@@ -38,7 +38,7 @@
     {
       "name": "沉浸式翻译 MV3 实测",
       "ok": true,
-      "detail": "imm:{\"text\":\"\",\"sw\":\"THROW\"}"
+      "detail": "imm:{\"text\":\"未登录\\n简洁模式\\n自动检测\\n简体中文\\n翻译服务：\\n微软翻译\\nAI 专家：\\n通用\\n启用 AI 精翻\\n翻译\\n插件未能连接当前\",\"sw\":\"THR"
     },
     {
       "name": "前置复刻路径对照",
@@ -48,7 +48,7 @@
     {
       "name": "uBO Lite MV3 实测",
       "ok": true,
-      "detail": "ubo:{\"text\":\"\",\"sw\":\"THROW\"}"
+      "detail": "ubo:{\"text\":\"localhost\\nfiltering mode\\noptimal\\nOn this website\\nRemove an e\",\"sw\":\"THROW\"}"
     },
     {
       "name": "导航后扩展仍在",
@@ -98,7 +98,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "elkgkcid"
+      "detail": "lhbfnhgl"
     },
     {
       "name": "事务分区3挂载v1.0.0",

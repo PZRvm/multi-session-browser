@@ -22,7 +22,7 @@
 // 推送已随 2026-10-29 截图快捷键退役删除。IPC 装配面仅
 // registerCaptureIpc（src/main/index.ts 步骤 5 装配，registerChromeImportIpc 先例）。
 
-import { app, clipboard, ipcMain, nativeImage } from 'electron'
+import { app, clipboard, ClipboardItem, ipcMain, nativeImage } from 'electron'
 import type { NativeImage, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
 import { rm, rename, writeFile } from 'fs/promises'
@@ -130,7 +130,7 @@ async function capturePageWithRetry(wc: WebContents): Promise<NativeImage> {
 /**
  * capture 编排（契约见 shared/capture.ts）：来源窗口作用域解析 → 该作用域激活 Tab
  * 的 webContents → capturePage（空图等一帧重试，见 capturePageWithRetry）→ 空图/零
- * 尺寸守卫 → toPNG → clipboard.writeImage → 单槽缓存（整体覆盖）→ 返回 captureId。
+ * 尺寸守卫 → toPNG → clipboard.write → 单槽缓存（整体覆盖）→ 返回 captureId。
  * webContents 销毁/无 Tab 如实抛「当前没有可截图的标签页」，空图如实抛
  * 「截图失败，请重试」（不进剪贴板）
  */
@@ -164,7 +164,9 @@ async function captureActiveTab(
     throw new Error(t('errors.captureFailed'))
   }
   const png = image.toPNG()
-  clipboard.writeImage(image)
+  await clipboard.write([
+    new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })
+  ])
   // 单槽缓存：新截图整体覆盖（含 captureId 更换），旧截图的 save-last 随之「过期」
   const captureId = randomUUID()
   lastCapture = {
@@ -440,7 +442,12 @@ export function registerCaptureIpc(deps: {
       if (slot.captureId !== captureId) throw new Error(t('errors.captureExpired'))
       let result: CaptureSaveResult | undefined
       if (download) result = await writePngToDownloads(slot.sessionName, png)
-      else clipboard.writeImage(image)
+      else
+        await clipboard.write([
+          new ClipboardItem({
+            'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' })
+          })
+        ])
       const next = { ...slot, captureId: randomUUID(), png }
       // 已受理的文件可完成，但关闭窗口不复活条目，也不回写最近槽。
       if (

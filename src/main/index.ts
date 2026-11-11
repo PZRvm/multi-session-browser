@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu, session } from 'electron'
+import { app, shell, BrowserWindow, Menu } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -67,9 +67,9 @@ import type { TFunc } from '../shared/i18n'
 // 永不触碰用户真实数据。背景：2026-09-12 修复轮曾用过期备份还原用户 sessions.json
 // 并误删分区目录（见 notes/process.md 执行决策记录「阶段 4 修复轮……数据事故记录」），
 // 此后一切运行时验证强制走本隔离。
-// selftest 实验：复刻前置进程的 app 级 switch（定位进程级 MV2 差异）
-if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1') {
-  app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+// 隔离功能验收站点：使用保留测试域，避免第三方插件主动忽略 localhost。
+if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
+  app.commandLine.appendSwitch('host-resolver-rules', 'MAP msb-fixture.test 127.0.0.1')
 }
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
@@ -470,6 +470,10 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     windows: independentWindows,
+    prepareExtensions: async (partition, target) => {
+      const { mountDevExtensions } = await import('./extensions/dev-entry')
+      return mountDevExtensions(target, partition)
+    },
     ensureMainWindow: () => {
       if (!mainWindow || mainWindow.isDestroyed()) createWindow()
       return mainWindow!
@@ -493,9 +497,6 @@ app.whenReady().then(async () => {
   // 持有 WebContentsView）；isTabInScope 谓词取自作用域快照——manager 摘除后快照为
   // 空态，天然覆盖「会话 manager 仍在注册表」的 dragEnd 重验判据。虚影窗（阶段 9
   // 修订追加：透明置顶预览窗随光标跟随）随拖拽会话生命周期由控制器统一驱动
-  // 二分实验（Dark Reader popup 卡 Loading）：selftest 模式跳过拖拽控制器装配，
-  // 排除其光标轮询/view 摘挂副作用对 MV2 background 通信的干扰（运行时安全：
-  // selftest 无拖拽 IPC 交互；引用点类型以断言放行）
   const tabDragController = createTabDragController({
     getMainWindow: (): BrowserWindow | null => mainWindow,
     windows: independentWindows,
@@ -675,7 +676,7 @@ app.whenReady().then(async () => {
   // （非本应用会话分区/会话未配凭据）放行默认取消并留痕。告警只打会话与原因，
   // 凭据不落日志
   app.on('login', (event, webContents, _details, authInfo, callback) => {
-    if (!authInfo.isProxy) return
+    if (!authInfo.isProxy || !webContents) return
     const sessionId = engine.findSessionIdBySession(webContents.session)
     const credentials = sessionId !== null ? engine.getCredentials(sessionId) : null
     if (sessionId !== null && credentials !== null) {
@@ -690,52 +691,18 @@ app.whenReady().then(async () => {
     )
   })
 
-  // 启动恢复（PRD 3.1.4）：读盘取上次激活会话交注册表恢复（init 内部会再读一次盘缓存
-  // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
-  // 到达时 registry 的 initHandled 守卫已兜底（见 registry.ts 注释）。浏览器 Tab 结构
-  // 不持久化，重启每会话回到单 Tab。全量会话 id 同步缓存进引擎反查兜底集（独立代理）
-  // 二分（Dark Reader popup）：selftest 模式空快照 = 无会话创建 = registry/manager
-  // 装配链不活动，隔离该链对 MV2 background 通信的干扰
-  void (process.env['MSB_EXTENSIONS_SELFTEST'] === '1'
-    ? Promise.resolve({ sessions: [], activeId: null })
-    : loadSnapshot()
-  )
-    .then((snapshot) => {
-      knownSessionIds = snapshot.sessions.map((item) => item.id)
-      registry?.init(snapshot.activeId)
-    })
-    .catch(() => undefined)
-
-  // 插件宿主装配（正式接线）：对全部会话分区挂载运行时（mounted 幂等去重），启动即
-  // 装、新会话 2 秒内自动跟上；挂载失败吞错不阻塞启动。管理 IPC（设置窗插件页）
-  // 同点注册：列表/商店安装/CRX 导入/卸载，安装后重挂载全部分区即装即用。
-  const seenPartitions = new Set<string>()
-  import('./extensions/dev-entry')
-    .then(({ mountDevExtensions }) => {
-      const poll = setInterval(() => {
-        for (const id of knownSessionIds) {
-          const partition = partitionFor(id)
-          if (seenPartitions.has(partition)) continue
-          seenPartitions.add(partition)
-          void mountDevExtensions(session.fromPartition(partition), partition)
-        }
-      }, 2000)
-      poll.unref?.()
-    })
-    .catch(() => undefined)
+  // 插件随 registry 激活链在首个网页创建前挂载，无需轮询启动时的会话快照。
   import('./extensions/dev-entry')
     .then(({ setShellWindow }) => {
       if (mainWindow && !mainWindow.isDestroyed()) setShellWindow(mainWindow)
     })
     .catch(() => undefined)
-  if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1') {
-    import('./extensions/dev-entry')
-      .then(({ runDarkPopupSelfTest }) => {
-        void runDarkPopupSelfTest(
-          '/tmp/msb-selftest/dark/eimadpbcbfnmbkopoojfekhnkhdbieeh-4.9.135'
-        )
-      })
-      .catch(() => undefined)
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1' && !app.isPackaged) {
+    void import('./extensions/dev-entry')
+      .then(({ runDarkPopupSelfTest }) =>
+        runDarkPopupSelfTest('/tmp/msb-selftest/dark/eimadpbcbfnmbkopoojfekhnkhdbieeh-4.9.135')
+      )
+      .catch((error: unknown) => console.error('SELFTEST_ERROR', error))
   }
   const approveRuntimePermissions = async (
     extension: { id: string; name?: string },
@@ -770,16 +737,54 @@ app.whenReady().then(async () => {
         }))
     return r.response === 1
   }
-  import('./extensions/management')
+  await import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({
         getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
         openSettings: (pane) => settingsWindowController?.open(pane),
-        getShellWebContents: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+        getPopupTarget: (sender) => {
+          const scope = created.resolveSenderScope(sender)
+          if (!scope.sessionId) return null
+          const wc = created.getActiveWebContents(scope.windowId)
+          const win = BrowserWindow.fromWebContents(sender)
+          return wc && win ? { wc, win, partition: partitionFor(scope.sessionId) } : null
+        },
+        onPopupTargetChanged: (callback) => created.onSnapshotChanged(callback),
         approveRuntimePermissions
       })
     )
     .catch(() => undefined)
+
+  // 启动恢复（PRD 3.1.4）：读盘取上次激活会话交注册表恢复（init 内部会再读一次盘缓存
+  // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
+  // 到达时 registry 的 initHandled 守卫已兜底（见 registry.ts 注释）。浏览器 Tab 结构
+  // 不持久化，重启每会话回到单 Tab。全量会话 id 同步缓存进引擎反查兜底集（独立代理）
+  void loadSnapshot()
+    .then((snapshot) => {
+      knownSessionIds = snapshot.sessions.map((item) => item.id)
+      registry?.init(snapshot.activeId)
+    })
+    .catch(() => undefined)
+
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
+    const { pathToFileURL } = await import('node:url')
+    const probe = await import(
+      /* @vite-ignore */ pathToFileURL(
+        join(app.getAppPath(), 'tools/extension-preflight/production-plugins.mjs')
+      ).href
+    )
+    void probe
+      .run({
+        registry: created,
+        mainWindow,
+        ...(await import('./extensions/dev-entry')),
+        ...(await import('./store'))
+      })
+      .catch((error: unknown) => {
+        console.error('PLUGINS_ERROR', error)
+        app.exit(1)
+      })
+  }
 
   // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl/tabs）并关全部独立窗口。
   // 时序（阶段 10 翻转）：先冲刷（含封笔）后关窗——旧序「先关窗后冲刷」的前提

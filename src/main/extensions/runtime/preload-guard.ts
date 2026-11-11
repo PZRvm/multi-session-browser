@@ -1,50 +1,70 @@
-/**
- * 库 preload 守卫副本（A3，前置实证：service-worker 注入会造成 sandbox 目标错误）。
- * 首次挂载时把库默认 preload 换成主 frame 限定副本；副本异步生成、生成失败退化为空桥。
- * M2/E 可改为构建期产物；生成逻辑与前置 harness 同源（guard: 主 frame 或非 service-worker）。
- */
+/** 在加载扩展前注册守卫 preload，保留 frame 与 service-worker 两种桥。 */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { app, type Session } from 'electron'
 
-const LIB_PRELOAD_RELATIVE = join(
-  'node_modules',
-  'electron-chrome-extensions',
-  'dist',
-  'chrome-extension-api.preload.js'
-)
-const GUARDED_ID = 'msb-extension-bridge-guarded'
+const ready = new WeakMap<Session, Promise<void>>()
+let generated: Promise<string> | undefined
 
-const swapped = new WeakSet<Session>()
+export function ensureGuardedPreload(session: Session): Promise<void> {
+  const pending = ready.get(session)
+  if (pending) return pending
+  // 从依赖实际入口解析；appPath 在独立验证程序中不是仓库根目录。
+  const libPreload = createRequire(join(app.getAppPath(), 'package.json')).resolve(
+    'electron-chrome-extensions/preload'
+  )
+  generated ??= generate(libPreload).catch((error) => {
+    generated = undefined
+    throw error
+  })
+  const task = generated
+    .then((guarded) => {
+      for (const script of session.getPreloadScripts().filter((s) => s.filePath === libPreload)) {
+        session.unregisterPreloadScript(script.id)
+        session.registerPreloadScript({ id: script.id, type: script.type, filePath: guarded })
+      }
+    })
+    .catch((error) => {
+      ready.delete(session)
+      throw error
+    })
+  ready.set(session, task)
+  return task
+}
 
-export function ensureGuardedPreload(session: Session): void {
-  if (swapped.has(session)) return
-  swapped.add(session)
-  const libPreload = join(app.getAppPath(), LIB_PRELOAD_RELATIVE)
-  for (const script of session.getPreloadScripts().filter((s) => s.filePath === libPreload)) {
-    session.unregisterPreloadScript(script.id)
-  }
+async function generate(libPreload: string): Promise<string> {
   const guarded = join(
     app.getPath('userData'),
     'extensions',
     'runtime',
     'chrome-extension-api.preload.js'
   )
-  void generate(guarded, libPreload)
-    .then(() => session.registerPreloadScript({ id: GUARDED_ID, type: 'frame', filePath: guarded }))
-    .catch((error) => console.warn('[extensions.runtime] preload守卫副本生成失败', error))
-}
-
-async function generate(guarded: string, libPreload: string): Promise<void> {
-  await mkdir(dirname(guarded), { recursive: true })
-  let content = ''
-  try {
-    content = await readFile(libPreload, 'utf8')
-  } catch {
-    content = '' // 库文件不可读：副本退化为空，桥不可用但宿主不崩（M2 改构建期产物）
+  let content = await readFile(libPreload, 'utf8')
+  if (Number(process.versions.electron.split('.')[0]) >= 45) {
+    // 库4.10把sync/managed别名到local；Electron45已有原生独立存储，保留原生实现。
+    const fallback = 'managed: local,\n              sync: local'
+    if (!content.includes(fallback)) throw new Error('插件兼容preload的存储实现已变化，请重新核验')
+    content = content.replace(fallback, 'managed: base.managed,\n              sync: base.sync')
   }
-  // 只排除 service-worker（沙箱错误来源）；background 页（MV2）必须放行——
-  // 扩展页间 runtime.sendMessage/connect 由库 preload 聚合，挡掉即断全部通信
-  const guard = `if (process.type !== 'service-worker') {`
-  await writeFile(guarded, `${guard}\n${content}\n}`)
+  await mkdir(dirname(guarded), { recursive: true })
+  // Worker 也依赖 tabs/windows 等兼容 API；排除它会令 background 启动即异常。
+  await writeFile(
+    guarded,
+    `if (process.type === 'service-worker' || process.isMainFrame) {\n${content}
+// Chromium 同时提供 browser 命名空间；兼容库只补 chrome，两个入口必须一致。
+if (process.type === 'service-worker' || location.protocol === 'chrome-extension:') {
+  require('electron').contextBridge.executeInMainWorld({ func: () => {
+    if (!globalThis.chrome?.runtime?.id || !globalThis.browser || globalThis.browser === globalThis.chrome) return
+    for (const key of Object.keys(globalThis.chrome)) {
+      const descriptor = Object.getOwnPropertyDescriptor(globalThis.browser, key)
+      if (!descriptor || descriptor.configurable) {
+        Object.defineProperty(globalThis.browser, key, { value: globalThis.chrome[key], enumerable: true, configurable: true })
+      }
+    }
+  } })
+}
+}`
+  )
+  return guarded
 }

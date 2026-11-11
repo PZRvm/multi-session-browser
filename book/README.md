@@ -57,6 +57,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
+- [20261111-修复四插件与新会话同步.md](changelogs/2026-11/20261111-修复四插件与新会话同步.md) — 修复扩展worker通信与browser入口，新会话首导航自动加载，popup绑定当前Tab，并升级Electron45原生存储
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -77,6 +78,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [ADR-001-adopt-bocode.md](docs/decisions/ADR-001-adopt-bocode.md) — 接入 BoCode、保留根目录源码并迁移历史文档的决定与代价
 - [ADR-002-electron42-and-react-devtools-fork.md](docs/decisions/ADR-002-electron42-and-react-devtools-fork.md) — 用户同意升级Electron42并单独维护React DevTools图标修复版，同时保留商店原版验收基线
+- [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -207,10 +209,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
-- [20261111-DarkReader-popup卡Loading排查.md](notes/issue/2026-11/20261111-DarkReader-popup卡Loading排查.md) — Dark Reader popup卡Loading根因追踪：已证伪三个假设，实锤端口秒断，下一步前置环境A/B实验设计已固化
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
+- [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
 
-**Resolved (44)**
+**Resolved (45)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -256,6 +258,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-非Windows补验增量审阅.md](notes/issue/2026-11/20261110-非Windows补验增量审阅.md) — 记录原录屏和本轮补验工具的八项增量审阅，发现厂商ZIP边界问题，整体仍非正式Phase5
 - [20261110112815-插件两项验证修复审阅与残留日志.md](notes/issue/2026-11/20261110112815-插件两项验证修复审阅与残留日志.md) — Cookie和React功能验证修复的定向审阅，记录仍存在的sandbox与SVG日志并保留原前置阻塞
 - [20261110125500-原生录屏在39与42均存在解码错误.md](notes/issue/2026-11/20261110125500-原生录屏在39与42均存在解码错误.md) — 原生录屏UI完整保存后H264严格解码失败，39和42均复现，需另行定位既有录屏链路
+- [20261111-DarkReader-popup卡Loading排查.md](notes/issue/2026-11/20261111-DarkReader-popup卡Loading排查.md) — Dark Reader实际为MV3，保留worker预加载并等待注册后已恢复通信，完整历史实验与最终实证并存
 
 ### notes/learn/2026-09/
 
@@ -284,6 +287,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-奇数采集宽度导致H264损坏.md](notes/learn/2026-11/20261110-奇数采集宽度导致H264损坏.md) — 1倍显示缩放的奇数采集宽度可重现H264损坏，固定偶数轨道尺寸修正，字节哈希可排除写入篡改
 - [20261110-插件界面验证先等状态再查真实数据.md](notes/learn/2026-11/20261110-插件界面验证先等状态再查真实数据.md) — Cookie表单动画导致错误保存目标，React面板折叠与输入值读取导致验证误判的实测经验
 - [20261111-媒体回归前必须清理残留Electron进程.md](notes/learn/2026-11/20261111-媒体回归前必须清理残留Electron进程.md) — 真实采集/录制回归前必须清理残留Electron进程，否则负载干扰会伪造解码损坏
+- [20261111-插件后台与双API入口验证.md](notes/learn/2026-11/20261111-插件后台与双API入口验证.md) — Dark Reader实际为MV3，service-worker preload和browser命名空间须实测，透明Loading文本不能代替页面验收
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -372,6 +376,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110113000-Cookie与React前置验证修复.md](notes/summary/2026-11/20261110113000-Cookie与React前置验证修复.md) — 修复Cookie保存时序和React面板验证误判，真实增改删与组件属性和Profiler通过，原生日志仍未消除
 - [20261110115700-sandbox与SVG告警根因及修复选项.md](notes/summary/2026-11/20261110115700-sandbox与SVG告警根因及修复选项.md) — 最小对照确认Electron39引擎问题与React原版SVG错误，给出隔离验证过的引擎方案和未应用的补丁
 - [20261110125000-Electron升级与React图标修复.md](notes/summary/2026-11/20261110125000-Electron升级与React图标修复.md) — Electron42消除sandbox错误，独立React修复版在项目宿主和普通Chrome通过属性与Profiler验证，原应用录屏产物暴露既有解码问题
+- [20261111-四插件与新会话同步修复.md](notes/summary/2026-11/20261111-四插件与新会话同步修复.md) — 四插件经真实会话和工具栏完成操作，新会话首导航同步和重启通过，说明Electron45升级与保留的旧探针失败
 - [20261111-宿主兼容开发完成报告.md](notes/summary/2026-11/20261111-宿主兼容开发完成报告.md) — 宿主兼容开发计划M1—M4完成报告：安装/运行时/商店/协议桥真实Electron证据与边界清单
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
@@ -443,4 +448,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 325 documents -->
+<!-- 330 documents -->

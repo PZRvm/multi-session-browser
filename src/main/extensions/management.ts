@@ -4,7 +4,7 @@
  * 与原生确认框；安装后对全部已挂载分区重挂载（loader 幂等去重，新插件即装即用）。
  * 确认框父窗取焦点窗口回退主窗。模块单例注册。
  */
-import { BrowserWindow, dialog, ipcMain, screen, type Session } from 'electron'
+import { BrowserWindow, dialog, ipcMain, screen, type Session, type WebContents } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -28,8 +28,11 @@ export interface ManagementDeps {
   ) => Promise<boolean>
   /** 打开设置窗并定位版面（工具栏面板「管理插件」入口） */
   openSettings?: (pane?: string) => void
-  /** 应用壳页 webContents（引擎 tab 注册用） */
-  getShellWebContents?: () => BrowserWindow | null
+  /** 从受信壳窗口解析当前网页，禁止用全局首个挂载分区代替活动会话。 */
+  getPopupTarget: (
+    sender: WebContents
+  ) => { win: BrowserWindow; wc: WebContents; partition: string } | null
+  onPopupTargetChanged: (callback: () => void) => () => void
 }
 
 interface InstallOutcome extends InstallResult {
@@ -124,7 +127,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     onRemove: async (id) => {
       for (const { session } of mountedSessions()) {
         try {
-          await session.removeExtension(id)
+          await session.extensions.removeExtension(id)
         } catch {
           /* 未挂载该插件的分区幂等跳过 */
         }
@@ -244,22 +247,32 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     if (w && !w.isDestroyed()) destroy ? w.destroy() : w.close()
   }
   const openExtensionPopup = (
+    sender: WebContents,
     extensionId: string,
     anchor: { x: number; y: number }
   ): { ok: boolean; error?: string } => {
+    const target = deps.getPopupTarget(sender)
+    if (!target || target.wc.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    const { win: mainWin, wc, partition } = target
+    const engine = handle.runtime.getEngine(partition)
+    if (!engine || !wc.session.extensions.getExtension(extensionId))
+      return { ok: false, error: 'EXTENSION_NOT_LOADED' }
+    engine.addTab(wc, mainWin)
+    engine.selectTab(wc)
     // 同插件重复点击 = 关闭（Chrome 切换语义）
-    if (activePopup.win && !activePopup.win.isDestroyed() && activePopup.id === extensionId) {
+    if (
+      activePopup.win &&
+      !activePopup.win.isDestroyed() &&
+      activePopup.id === extensionId &&
+      activePopup.win.getParentWindow() === mainWin
+    ) {
       closeActivePopup()
       return { ok: true }
     }
     closeActivePopup()
-    const mainWin = deps.getMainWindow()
-    if (!mainWin) return { ok: false, error: 'NO_SHELL' }
     const popupPath = readPopupPath(extensionId)
     if (!popupPath) return { ok: false, error: 'NO_POPUP' }
-    const mounted = mountedSessions()
-    if (mounted.length === 0) return { ok: false, error: 'NO_MOUNTED_PARTITION' }
-    const { session } = mounted[0]
+    const session = wc.session
     const url = `chrome-extension://${extensionId}/${popupPath.replace(/^\//, '')}`
     const win = new BrowserWindow({
       show: false,
@@ -284,6 +297,9 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     })
     activePopup.win = win
     activePopup.id = extensionId
+    const closeThisPopup = (): void => {
+      if (activePopup.win === win) closeActivePopup()
+    }
     const MIN = { w: 25, h: 25 }
     const MAX = { w: 800, h: 600 }
     const PADDING = 5
@@ -298,7 +314,9 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       const workArea = screen.getDisplayMatching(mainWin.getBounds()).workArea
       const width = viewBounds.width
       x = Math.floor(Math.max(workArea.x + 4, Math.min(x, workArea.x + workArea.width - width - 4)))
-      y = Math.floor(Math.max(workArea.y + 4, Math.min(y, workArea.y + workArea.height - viewBounds.height - 4)))
+      y = Math.floor(
+        Math.max(workArea.y + 4, Math.min(y, workArea.y + workArea.height - viewBounds.height - 4))
+      )
       const b = win.getBounds()
       win.setBounds({ ...b, x, y })
     }
@@ -314,24 +332,48 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       positionAt()
       if (!win.isVisible()) win.show()
     })
-    win.on('blur', () => closeActivePopup())
-    win.on('closed', () => {
-      activePopup.win = null
-      activePopup.id = ''
+    win.on('blur', () => {
+      // 与库PopupView一致：应用外的焦点切换、DevTools不销毁正在初始化的popup。
+      if (win.webContents.isDevToolsOpened()) return
+      if (!BrowserWindow.getAllWindows().some((window) => window.isFocused())) return
+      closeThisPopup()
     })
-    mainWin.once('closed', () => closeActivePopup())
-    void win.loadURL(url).catch(() => closeActivePopup())
+    const unsubscribe = deps.onPopupTargetChanged(() => {
+      try {
+        const current = deps.getPopupTarget(sender)
+        if (!current || current.wc !== wc || wc.isDestroyed()) closeThisPopup()
+      } catch {
+        closeThisPopup()
+      }
+    })
+    const closeOnParent = (): void => closeThisPopup()
+    mainWin.once('closed', closeOnParent)
+    win.on('closed', () => {
+      unsubscribe()
+      mainWin.removeListener('closed', closeOnParent)
+      if (activePopup.win === win) {
+        activePopup.win = null
+        activePopup.id = ''
+      }
+    })
+    void win.loadURL(url).catch(() => closeThisPopup())
     return { ok: true }
   }
   ipcMain.handle(
     EXTENSIONS_CHANNELS.openPopup,
     async (
-      _e,
+      event,
       payload: { id?: unknown; anchor?: { x: number; y: number } }
     ): Promise<{ ok: boolean; error?: string }> => {
       try {
-        if (typeof payload?.id !== 'string') return { ok: false, error: 'INVALID_ID' }
-        return openExtensionPopup(payload.id, payload.anchor ?? { x: 0, y: 0 })
+        if (event.senderFrame !== event.sender.mainFrame)
+          return { ok: false, error: 'UNAUTHORIZED' }
+        if (typeof payload?.id !== 'string' || !/^[a-p]{32}$/.test(payload.id))
+          return { ok: false, error: 'INVALID_ID' }
+        const anchor = payload.anchor ?? { x: 0, y: 0 }
+        if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y))
+          return { ok: false, error: 'INVALID_ANCHOR' }
+        return openExtensionPopup(event.sender, payload.id, anchor)
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
       }

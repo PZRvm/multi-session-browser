@@ -40,34 +40,43 @@ export interface ExtensionRuntime {
 
 export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
   const engines = new Map<string, ElectronChromeExtensions>()
+  const pending = new Map<string, Promise<MountResult>>()
+  async function mount(partition: string, session: Session): Promise<MountResult> {
+    if (!engines.has(partition)) {
+      const options = { session, ...deps.engineOptions }
+      engines.set(partition, new ElectronChromeExtensions(options))
+    }
+    await ensureGuardedPreload(session)
+    const adapter: LoaderSession = {
+      getAllExtensions: () => session.extensions.getAllExtensions(),
+      loadExtension: (path) => session.extensions.loadExtension(path)
+    }
+    const installs = (await deps.manifest.read()).installs
+    const results = await loadInstallsIntoSession(adapter, installs, partition, {
+      resolvePath: (record) =>
+        record.source.kind === 'unpacked'
+          ? (record.source.origin ?? '')
+          : join(deps.packagesRoot, `${record.id}-${record.version}`),
+      recordPartition: (id, p, ok) => deps.manifest.recordPartition(id, p, ok)
+    })
+    const records = (await deps.manifest.read()).installs
+    const thisPartition = records
+      .map((r) => r.partitions.find((p) => p.partition === partition))
+      .filter((v) => v !== undefined)
+    const state = classifyInstall(thisPartition)
+    return { partition, results, state }
+  }
   return {
-    async mountPartition(partition, session) {
-      if (!engines.has(partition)) {
-        const options = { session, ...deps.engineOptions }
-        engines.set(partition, new ElectronChromeExtensions(options))
-        ensureGuardedPreload(session)
-      }
-      // 加载统一走 Electron 原生 session.loadExtension：不触碰 lib 挂在 session 上的
-      // extensions 命名空间（首次访问会按 session 创建内置引擎实例，与我们的引擎
-      // 构造冲突——双向夹逼实验实证的 "instance already exists"）
-      const adapter: LoaderSession = {
-        getAllExtensions: () => session.getAllExtensions(),
-        loadExtension: (path) => session.loadExtension(path)
-      }
-      const installs = (await deps.manifest.read()).installs
-      const results = await loadInstallsIntoSession(adapter, installs, partition, {
-        resolvePath: (record) =>
-          record.source.kind === 'unpacked'
-            ? (record.source.origin ?? '')
-            : join(deps.packagesRoot, `${record.id}-${record.version}`),
-        recordPartition: (id, p, ok) => deps.manifest.recordPartition(id, p, ok)
-      })
-      const records = (await deps.manifest.read()).installs
-      const thisPartition = records
-        .map((r) => r.partitions.find((p) => p.partition === partition))
-        .filter((v) => v !== undefined)
-      const state = classifyInstall(thisPartition)
-      return { partition, results, state }
+    mountPartition(partition, session) {
+      const previous = pending.get(partition) ?? Promise.resolve()
+      const task = previous.catch(() => undefined).then(() => mount(partition, session))
+      pending.set(partition, task)
+      void task
+        .finally(() => {
+          if (pending.get(partition) === task) pending.delete(partition)
+        })
+        .catch(() => undefined)
+      return task
     },
     getEngine: (partition) => engines.get(partition)
   }
