@@ -667,7 +667,7 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send(SESSIONS_CHANNELS.statusChanged, payload)
   })
 
-  createWindow()
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] !== '1') createWindow()
 
   // 代理认证供给（独立代理专项步骤 2，PRD 4.14）：仅接管代理认证（authInfo.isProxy，
   // 非代理认证不 preventDefault，走 Electron 默认取消）；按 webContents.session 对象
@@ -694,7 +694,12 @@ app.whenReady().then(async () => {
   // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
   // 到达时 registry 的 initHandled 守卫已兜底（见 registry.ts 注释）。浏览器 Tab 结构
   // 不持久化，重启每会话回到单 Tab。全量会话 id 同步缓存进引擎反查兜底集（独立代理）
-  void loadSnapshot()
+  // 二分（Dark Reader popup）：selftest 模式空快照 = 无会话创建 = registry/manager
+  // 装配链不活动，隔离该链对 MV2 background 通信的干扰
+  void (process.env['MSB_EXTENSIONS_SELFTEST'] === '1'
+    ? Promise.resolve({ sessions: [], activeId: null })
+    : loadSnapshot()
+  )
     .then((snapshot) => {
       knownSessionIds = snapshot.sessions.map((item) => item.id)
       registry?.init(snapshot.activeId)

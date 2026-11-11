@@ -185,9 +185,29 @@ export function invalidateEngineTabUrl(partition: string, wc: Electron.WebConten
  *  popup 窗口 → 探渲染（脱离 Loading 且控件>2）。用于在生产 index.ts 进程内判定
  *  MV2 popup 初始化是否健康，结果走 stdout 供自动判定。 */
 export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<void> {
-  const { session: electronSession } = await import('electron')
+  const { session: electronSession, BrowserWindow: BW } = await import('electron')
   const ses = electronSession.fromPartition('persist:selftest-dark')
   const handle = getExtensionsHandle()
+
+  // 前置环境合流要素①：起一个本地 http 站点并挂一个活动 tab（前置 popup 打开时
+  // 总有 localhost http 活动页；无 tab 环境下 Dark Reader popup 等 active tab 会卡）
+  const { createServer } = await import('node:http')
+  const site = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    res.end('<!doctype html><html><body><h1>selftest-site</h1></body></html>')
+  })
+  await new Promise<void>((r) => site.listen(0, '127.0.0.1', r))
+  const siteUrl = 'http://127.0.0.1:' + (site.address() as { port: number }).port + '/'
+  const siteWin = new BW({
+    show: false,
+    webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false }
+  })
+  await siteWin.loadURL(siteUrl).catch(() => undefined)
+  ;(handle.runtime.getEngine('persist:selftest-dark') as unknown as {
+    addTab: (wc: Electron.WebContents, win: unknown) => void
+    selectTab: (wc: Electron.WebContents) => void
+  } | undefined)?.addTab?.(siteWin.webContents, siteWin)
+  console.log('SELFTEST_SITE ' + siteUrl)
   await handle.runtime.mountPartition('persist:selftest-dark', ses)
   const native = await ses.loadExtension(darkUnpackedDir)
   const manifest = native.manifest as {
@@ -199,7 +219,6 @@ export async function runDarkPopupSelfTest(darkUnpackedDir: string): Promise<voi
     console.log('SELFTEST_RESULT ' + JSON.stringify({ ok: false, reason: 'NO_POPUP' }))
     return
   }
-  const { BrowserWindow: BW } = await import('electron')
   const win = new BW({
     show: false,
     frame: false,

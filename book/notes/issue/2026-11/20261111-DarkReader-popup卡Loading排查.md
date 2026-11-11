@@ -150,3 +150,9 @@ proxy 引擎 + 录屏装配批量门控（selftest 同时跳过两者）后 **se
 - I18N：纯字典函数（initMainProcessLanguage/t 取词），低嫌疑——归入保留子集内部二分一并处理。
 
 **whenReady 深处装配候选全部清零。差异收敛到"保留子集"内部**：createWindow 窗口创建链、registry/manager 完整装配、loadSnapshot 恢复链、菜单装配——即生产进程除了扩展接线外的**全部既有装配**与前置进程（无装配）的差异。下一轮二分：保留子集逐块门控（每块一轮完整启动），候选顺序建议 createWindow（窗口级 webPreferences/session 默认值）→ registry 完整装配（manager 内部 wc 事件区）→ loadSnapshot → 菜单。
+
+## 前置要素合流实验（2026-11-11 最终轮）
+
+给 selftest 补齐前置环境要素：本地 http 站点 + 活动注册 tab（SELFTEST_SITE 日志实证）——**dark popup 仍卡 Loading**。排除"环境缺 http active tab"假设。
+
+**排查达当前环境可探极限**：环境要素层全部排除后，差异深入 Electron 内部（扩展系统的 per-profile 状态 / 构建差异 / fuses 等非环境层）。剩余路径：(a) Electron 版本升级/降级对照实验（新开任务）；(b) 向 electron-chrome-extensions 上游报告；(c) 用户侧用 MV3 插件替代 Dark Reader 商店版。工具、全部对照数据与本文件保留。
