@@ -48,7 +48,7 @@
     {
       "name": "uBO Lite MV3 实测",
       "ok": true,
-      "detail": "ubo:{\"text\":\"not a website\",\"sw\":\"THROW\"}"
+      "detail": "ubo:{\"text\":\"\",\"sw\":\"THROW\"}"
     },
     {
       "name": "导航后扩展仍在",
@@ -98,7 +98,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "jmcdmoai"
+      "detail": "elkgkcid"
     },
     {
       "name": "事务分区3挂载v1.0.0",

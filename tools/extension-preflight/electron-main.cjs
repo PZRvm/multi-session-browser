@@ -20,6 +20,15 @@ if (!output || !output.includes('.artifacts')) throw new Error('必须指定工�
 const mode = process.argv[3] || 'auto'
 app.setPath('userData', join(output, 'profile-electron'))
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+app.whenReady().then(() => {
+  setTimeout(() => {
+    const list = require('electron').webContents
+      .getAllWebContents()
+      .map((w) => w.getURL().slice(0, 70))
+      .filter((u) => u.includes('chrome-extension'))
+    console.log('WC_EXT_LIST ' + JSON.stringify(list))
+  }, 12000)
+})
 app.on('window-all-closed', () => {})
 const results = {
   platform: process.platform,

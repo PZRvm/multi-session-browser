@@ -11,6 +11,15 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 process.on('uncaughtException', (e) => console.log('TEARDOWN_ERR', String(e).slice(0, 100)))
 process.on('unhandledRejection', (e) => console.log('TEARDOWN_REJ', String(e).slice(0, 100)))
 app.setPath('userData', '/tmp/host-smoke-userdata')
+app.whenReady().then(() => {
+  setTimeout(() => {
+    const list = require('electron').webContents
+      .getAllWebContents()
+      .map((w) => w.getURL().slice(0, 70))
+      .filter((u) => u.includes('chrome-extension'))
+    console.log('WC_EXT_LIST ' + JSON.stringify(list))
+  }, 12000)
+})
 app.whenReady().then(async () => {
   const watchdog = setTimeout(() => {
     console.log('WATCHDOG_FIRED')

@@ -85,3 +85,9 @@ status: open
 
 命中后按 Electron 源码定位 background 启动条件差异（对比两进程的 session/app 级配置）。
 另：已移除 host-smoke 中无效的 disable-features 实验残留。
+
+## webContents 枚举结果（第七轮）
+
+两进程 12 秒枚举形态**一致**：均无独立 `_generated_background_page.html` webContents（Electron 42 对 MV2 background 不再以独立页承载，`getBackgroundPage` 恒 NULL 与此吻合）；可见的只有 popup 页。**承载形态相同 → 差异不在形态层，而在"lib 引擎 ↔ Electron 内部 background 承载"的桥接初始化**（前置桥接通、host-smoke/生产桥接断）。
+
+剩余排查焦点收敛为一项：**前置 attachSession 与生产 mountPartition 中，引擎构造/初始化对 Electron 内部 background 承载的桥接差异**（下一轮第一实验：host-smoke 里把生产 mountPartition 换成逐字段复刻的引擎构造，再反向在前置里用生产 mountPartition 参数，双向夹逼）。
