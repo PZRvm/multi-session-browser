@@ -1,66 +1,89 @@
 /* 插件编辑器主题：雾蓝（仅插件编辑器页生效，不改生产组件样式源）。
-   窗口内容形态 = 生产 chrome=hidden-titlebar 形态（84px 左让红绿灯位、工具条拖动区），
-   由生产样式单源承载，本文件只做雾蓝配色，不做布局改写 */
+   Token 单源 = 主应用 src/shared/themeSystems.ts 雾蓝系（逐值对账，改一处必改另一处）：
+   accent #a4bcd1 / accentStrong #b2c7d9 / accentPress #90aec6 / accentDeep #31536e /
+   accentInk #101c29；亮表面 bg #eef1f3、raised #e3e7ea、hairline #ccd2d9、
+   ink #1c242c、inkDim #5c6875、controlLine #b5bfc8；
+   暗表面 bg #11151a、raised #1b222b、hairline #252e39、ink #edf0f3、inkDim #909ba8、
+   controlLine #3b4754、accent（基）#a4bcd1。
+   内容形态 = 生产 chrome=hidden-titlebar 形态（84px 左让红绿灯位、工具条拖动区），
+   布局由生产样式单源承载，本文件只做雾蓝配色，不做布局改写 */
 :root {
-  --msb-accent: #6f9cc4;
-  --msb-accent-strong: #4d7fa6;
-  --msb-accent-soft: #a8c4da;
-  --msb-accent-pale: #eef4f8;
+  --msb-accent: #a4bcd1;
+  --msb-accent-strong: #b2c7d9;
+  --msb-accent-press: #90aec6;
+  --msb-accent-deep: #31536e;
+  --msb-accent-ink: #101c29;
+  --msb-accent-veil: rgba(16, 28, 41, 0.12);
+  --msb-board-bg: #eef1f3;
+  --msb-raised: #e3e7ea;
+  --msb-hairline: #ccd2d9;
+  --msb-ink: #1c242c;
+  --msb-ink-dim: #5c6875;
+  --msb-control-line: #b5bfc8;
+  --msb-hover-veil: rgba(28, 36, 44, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --msb-board-bg: #11151a;
+    --msb-raised: #1b222b;
+    --msb-hairline: #252e39;
+    --msb-ink: #edf0f3;
+    --msb-ink-dim: #909ba8;
+    --msb-control-line: #3b4754;
+    --msb-hover-veil: rgba(255, 255, 255, 0.08);
+  }
 }
 
 body.plugin-editor {
-  background: #f5f8fa;
+  background: var(--msb-board-bg);
+  color: var(--msb-ink);
 }
 
+/* 工具/产出按钮：raised 砖面 + 发丝线，hover 雾蓝纱 */
 .plugin-editor .chrome-capture-editor-iconbtn {
-  border-radius: 8px;
+  border-color: var(--msb-hairline);
+  background: var(--msb-raised);
+  color: var(--msb-ink);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .plugin-editor .chrome-capture-editor-iconbtn:hover:not(:disabled) {
-  background: var(--msb-accent-pale);
-  color: var(--msb-accent-strong);
+  background: var(--msb-accent-veil);
+  color: var(--msb-accent-deep);
 }
 
-/* 选中工具：雾蓝实底 */
+/* 选中工具：雾蓝强调底 + 强调墨（主按钮语言：accent 底配 accentInk 字） */
 .plugin-editor .chrome-capture-editor-iconbtn.is-active {
   background: var(--msb-accent);
-  color: #fff;
+  color: var(--msb-accent-ink);
 }
 
 .plugin-editor .chrome-capture-editor-iconbtn.is-active:hover {
-  background: var(--msb-accent-strong);
-  color: #fff;
+  background: var(--msb-accent-press);
+  color: var(--msb-accent-ink);
 }
 
-/* 产出钮（复制/下载）随浮动行右侧对齐，雾蓝主色 */
-.plugin-editor .chrome-capture-editor-actions {
-  margin-left: auto;
-}
-
+/* 产出钮（复制/下载）用 accentDeep 墨色 */
 .plugin-editor .chrome-capture-editor-actions .chrome-capture-editor-iconbtn {
-  color: var(--msb-accent-strong);
+  color: var(--msb-accent-deep);
 }
 
+/* 裁剪主操作钮：accentDeep 实底白字（强调信号，不越界用色） */
 .plugin-editor .chrome-capture-editor-cropbtn {
-  border-radius: 8px;
+  border-color: var(--msb-hairline);
 }
 
 .plugin-editor .chrome-capture-editor-cropbtn.is-primary {
-  background: var(--msb-accent-strong);
+  background: var(--msb-accent-deep);
   color: #fff;
 }
 
 .plugin-editor .chrome-capture-editor-cropbtn.is-primary:hover {
-  background: var(--msb-accent);
+  background: #27455c;
 }
 
-/* inline 成功反馈：雾蓝深色 */
+/* inline 成功反馈：accentDeep */
 .plugin-editor .chrome-capture-editor-flash {
-  color: var(--msb-accent-strong);
-}
-
-/* 浮动工具条之下的画布满幅呈现 */
-.plugin-editor .chrome-capture-editor-canvas {
-  cursor: default;
+  color: var(--msb-accent-deep);
 }
