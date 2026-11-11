@@ -3,10 +3,12 @@ import {
   CameraOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
-  VideoCameraOutlined
+  VideoCameraOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
+import { useExtensionsPanelWindow } from './useExtensionsPanelWindow'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
@@ -143,6 +145,12 @@ function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
+  // 扩展面板（Chrome 拼图菜单还原，原生子窗口化——白屏根除专项）：编排整体在
+  // useExtensionsPanelWindow hook（开面板现读 rect 锚点 + list 现取 + show 全量，
+  // pick 三语义与 blur 关闭的 mousedown-toggle 竞态处理均在 hook），本组件只供
+  // 按钮事件与 presented 镜像；页面保持可见，不再经 overlayDepth 收起原生层
+  const extBtnRef = useRef<HTMLButtonElement | null>(null)
+  const extPanel = useExtensionsPanelWindow(extBtnRef)
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
@@ -679,6 +687,27 @@ function Toolbar(): React.JSX.Element {
           {toolsPopKeyText && <span className="chrome-tools-pop-key">{toolsPopKeyText}</span>}
         </div>
       )}
+      {/* 与截图/录屏组同容器度量（.chrome-tools 28×28 圆钮 + gap 2px），
+          中心线自然对齐 DevTools 文本钮与左侧功能键 */}
+      <div className="chrome-tools">
+        <TooltipSlot
+          label={t('browser.toolbar.extensions')}
+          onEnter={showToolsPop}
+          onLeave={hideToolsPop}
+        >
+          <button
+            type="button"
+            ref={extBtnRef}
+            aria-label={t('browser.toolbar.extensions')}
+            aria-expanded={extPanel.presented}
+            disabled={!activeTab}
+            onMouseDown={extPanel.onButtonMouseDown}
+            onClick={extPanel.onButtonClick}
+          >
+            <AppstoreOutlined />
+          </button>
+        </TooltipSlot>
+      </div>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button
         type="button"

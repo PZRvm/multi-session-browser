@@ -13,6 +13,7 @@ export const settings: Dictionary['settings'] = {
   },
   categories: {
     general: 'General',
+    extensions: 'Extensions',
     browsing: 'Browsing',
     shortcuts: 'Shortcuts',
     about: 'About',
@@ -94,5 +95,31 @@ export const settings: Dictionary['settings'] = {
     consequenceSettings: 'All settings restored to defaults',
     confirmButton: 'Reset',
     resetFailed: 'Factory reset failed: {message}'
-  }
+  },
+
+  /** Extensions pane (2026-11-11): installed list / store ID install / CRX import / uninstall */
+  extensions: {
+    paneTitle: 'Extensions',
+    paneDesc: 'Install Chrome extensions; they apply to every session immediately',
+    storePlaceholder: 'Enter a Chrome Web Store extension ID (32 lowercase letters)',
+    installStore: 'Install from store',
+    importCrx: 'Import CRX file',
+    badId: 'Invalid extension ID: expected 32 lowercase letters',
+    installed: 'Extension installed and active in every session',
+    duplicate: 'This extension version already exists; nothing was reinstalled',
+    installFailed: 'Installation failed',
+    uninstalled: 'Extension uninstalled',
+    uninstallFailed: 'Uninstall failed',
+    uninstall: 'Remove',
+    uninstallAria: 'Remove extension {name}',
+    empty: 'No extensions installed yet',
+    loadedStat: 'Loaded in {n}/{m} sessions',
+    hint: 'Install via store ID or import a local CRX2/CRX3 file; installs confirm once and apply to every session.',
+    openStore: 'Open Chrome Web Store',
+    source: {
+      crx: 'Local file',
+      store: 'Chrome Web Store',
+      unpacked: 'Dev folder'
+    }
+  },
 }

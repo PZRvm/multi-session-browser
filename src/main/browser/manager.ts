@@ -22,6 +22,7 @@ import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/brows
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
 import type { VisitFact } from './history'
+import { invalidateEngineTabUrl, notifyEngineTab } from '../extensions/dev-entry'
 import { escapeHtml } from './html'
 import { isOpenableUrl } from './url'
 
@@ -404,6 +405,9 @@ export function createTabManager(
     if (!win) return
     win.contentView.addChildView(tab.view)
     tab.view.setBounds(currentRect(tab.windowId))
+    // 插件引擎 tab 注册（幂等）：已挂载分区的内容脚本注入与 popup tab 语义前置；
+    // 未装插件（无引擎）时 no-op，零开销
+    notifyEngineTab(opts.partition, tab.view.webContents, win)
   }
 
   function detachView(tab: TabEntry): void {
@@ -540,6 +544,10 @@ export function createTabManager(
     tabs.set(id, tab)
     const wc = view.webContents
 
+    // 插件引擎 tabDetails 缓存失效：导航后 tabs.query 的 URL 才正确（Cookie-Editor
+    // 等依赖当前页 URL 的插件 popup 依赖此点；缓存首建后 lib 永不更新，必须主动失效）
+    wc.on('did-navigate', () => invalidateEngineTabUrl(opts.partition, wc))
+    wc.on('did-navigate-in-page', () => invalidateEngineTabUrl(opts.partition, wc))
     // 任一加载/导航事件后重算快照并触发回调（含 canGoBack/canGoForward 现读）
     wc.on('did-start-loading', () => {
       // 新导航开启即清失败态：错误卡随后续结果重新裁决（重试成功自然清除）

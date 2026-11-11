@@ -17,6 +17,7 @@ export const settings = {
   /** 侧栏五分类名（键 = 版面 id；侧栏用短词、版面壳标题可长文，两组分用） */
   categories: {
     general: '通用',
+    extensions: '插件',
     browsing: '浏览',
     shortcuts: '快捷键',
     about: '关于',
@@ -121,5 +122,31 @@ export const settings = {
     consequenceSettings: '全部设置恢复默认',
     confirmButton: '确认重置',
     resetFailed: '恢复出厂失败：{message}'
-  }
+  },
+
+  /** 插件版面（2026-11-11 增量）：已装列表 / 商店 ID 安装 / 本地 CRX 导入 / 卸载 */
+  extensions: {
+    paneTitle: '插件',
+    paneDesc: '安装 Chrome 插件，安装后对全部会话生效',
+    storePlaceholder: '输入 Chrome 商店插件 ID（32 位小写字母）',
+    installStore: '从商店安装',
+    importCrx: '导入 CRX 文件',
+    badId: '插件 ID 格式不正确：应为 32 位小写字母',
+    installed: '插件已安装，全部会话已生效',
+    duplicate: '该版本插件已存在，未重复安装',
+    installFailed: '安装失败',
+    uninstalled: '插件已卸载',
+    uninstallFailed: '卸载失败',
+    uninstall: '卸载',
+    uninstallAria: '卸载插件 {name}',
+    empty: '还没有安装任何插件',
+    loadedStat: '已加载 {n}/{m} 个会话',
+    hint: '支持商店 ID 安装与本地 CRX2/CRX3 导入；安装需确认，全部会话即时生效。',
+    openStore: '打开 Chrome 商店',
+    source: {
+      crx: '本地导入',
+      store: 'Chrome 商店',
+      unpacked: '开发目录'
+    }
+  },
 }

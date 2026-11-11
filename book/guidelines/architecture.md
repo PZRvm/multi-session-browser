@@ -35,7 +35,7 @@ status: draft
 
 ## 技术基线
 
-Electron 42.11.7（[ADR-002](../docs/decisions/ADR-002-electron42-and-react-devtools-fork.md)）、开发 Node≥22.12、React 19、antd 6、zustand 5、TypeScript 5、electron-vite 5；npm 管理依赖。静态资源由 resources/ 和 build/ 提供，out/ 与 dist/ 为生成产物。项目运行态以本地 Electron 分区与 JSON 数据为主，不引入远程浏览器或新的服务端。
+Electron 45.3.0（[ADR-003](../docs/decisions/ADR-003-electron45-extension-storage.md)）、开发 Node≥22.12、React 19、antd 6、zustand 5、TypeScript 5、electron-vite 5；npm 管理依赖。静态资源由 resources/ 和 build/ 提供，out/ 与 dist/ 为生成产物。项目运行态以本地 Electron 分区与 JSON 数据为主，不引入远程浏览器或新的服务端。
 
 ## 数据所有权
 

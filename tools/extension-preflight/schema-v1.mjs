@@ -35,6 +35,8 @@ export function checkInstallRecord(record) {
   demand(
     record &&
       /^[a-p]{32}$/.test(record.id) &&
+      (record.name === undefined ||
+        (typeof record.name === 'string' && record.name.length > 0 && record.name.length <= 100)) &&
       /^\d+(\.\d+){0,3}$/.test(record.version) &&
       /^[a-f0-9]{64}$/.test(record.sha256)
   )

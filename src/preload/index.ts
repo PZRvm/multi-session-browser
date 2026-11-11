@@ -25,6 +25,7 @@ import type {
 import { HISTORY_CHANNELS } from '../shared/history'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import { OMNIBOX_SUGGEST_CHANNELS } from '../shared/omniboxSuggest'
+import { EXTENSIONS_PANEL_CHANNELS } from '../shared/extensionsPanel'
 import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
@@ -32,6 +33,12 @@ import type {
   OmniboxSuggestShowPayload,
   OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
+import type {
+  ExtensionsPanelDataPayload,
+  ExtensionsPanelPickedPayload,
+  ExtensionsPanelPickPayload,
+  ExtensionsPanelShowPayload
+} from '../shared/extensionsPanel'
 import { CHROME_IMPORT_CHANNELS } from '../shared/chromeImport'
 import type {
   ChromeImportCancelPayload,
@@ -102,6 +109,7 @@ import type {
   SettingsSnapshot
 } from '../shared/settings'
 import { DIALOG_CHANNELS } from '../shared/dialog'
+import { EXTENSIONS_CHANNELS } from '../shared/extensions/management'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -508,6 +516,63 @@ const api = {
   // 工作区选择模态框（PRD 4.11，2026-09-21 增量）：三通道三侧各取所需——show 归
   // 主窗 shell（发起 + 等待最终结论），payload/pick 归 sheet 页面（拉展示上下文 /
   // 提交选择）；主进程持单请求 pending 态，模态阻塞由窗口系统承担
+  extensions: {
+    list: (): Promise<import('../shared/extensions/management').ExtensionListItem[]> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.list),
+    installFromStore: (
+      id: string
+    ): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.installStore, id),
+    importCrx: (): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrx),
+    uninstall: (id: string): Promise<import('../shared/extensions/management').UninstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.uninstall, id),
+    openPopup: (
+      id: string,
+      anchor: { x: number; y: number }
+    ): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.openPopup, { id, anchor }),
+    manage: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(EXTENSIONS_CHANNELS.manage)
+  },
+  // 扩展面板原生子窗口（承载机制见 shared/extensionsPanel.ts 头注释）：宿主 shell 用
+  // show/hide 编排开合 + onPicked/onClosed 消费子窗转发与主进程关闭推送；面板子窗用
+  // pick 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需
+  extensionsPanel: {
+    show: (payload: ExtensionsPanelShowPayload): Promise<{ ok: boolean; canPresent: boolean }> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.show, payload),
+    hide: (): Promise<OkResult> => ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.hide),
+    pick: (payload: ExtensionsPanelPickPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.pick, payload),
+    setMousePassthrough: (enabled: boolean): Promise<OkResult> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.setMousePassthrough, { enabled }),
+    onData: (callback: (payload: ExtensionsPanelDataPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: ExtensionsPanelDataPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.data, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.data, listener)
+      }
+    },
+    onPicked: (callback: (payload: ExtensionsPanelPickedPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: ExtensionsPanelPickedPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.picked, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.picked, listener)
+      }
+    },
+    onClosed: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.closed, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.closed, listener)
+      }
+    }
+  },
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload),

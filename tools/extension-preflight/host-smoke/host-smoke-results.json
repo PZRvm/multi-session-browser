@@ -1,0 +1,223 @@
+{
+  "checks": [
+    {
+      "name": "B5安装解包幂等首装",
+      "ok": true,
+      "detail": "eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    },
+    {
+      "name": "分区1挂载ready",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "分区1扩展已加载",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "action popup打开",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "popup页面可执行",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "name": "Cookie-Editor 生产路径实测",
+      "ok": true,
+      "detail": "listHas=LIST_HAS_COOKIE controls=28"
+    },
+    {
+      "name": "Dark Reader popup 渲染回归",
+      "ok": false,
+      "detail": "text=Loading, please wait\nDark Read controls=37"
+    },
+    {
+      "name": "沉浸式翻译 MV3 实测",
+      "ok": true,
+      "detail": "imm:{\"text\":\"未登录\\n简洁模式\\n自动检测\\n简体中文\\n翻译服务：\\n微软翻译\\nAI 专家：\\n通用\\n启用 AI 精翻\\n翻译\\n插件未能连接当前\",\"sw\":\"THR"
+    },
+    {
+      "name": "前置复刻路径对照",
+      "ok": false,
+      "detail": "text:Loading, please wait\nDark port:DISCONNECTED"
+    },
+    {
+      "name": "uBO Lite MV3 实测",
+      "ok": true,
+      "detail": "ubo:{\"text\":\"localhost\\nfiltering mode\\noptimal\\nOn this website\\nRemove an e\",\"sw\":\"THROW\"}"
+    },
+    {
+      "name": "导航后扩展仍在",
+      "ok": true,
+      "detail": "4"
+    },
+    {
+      "name": "重载后扩展仍在",
+      "ok": true,
+      "detail": "4"
+    },
+    {
+      "name": "分区2挂载ready",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "清单分区记录完整",
+      "ok": true,
+      "detail": "2,2,2,2"
+    },
+    {
+      "name": "分区2引擎就绪",
+      "ok": true,
+      "detail": "engine2"
+    },
+    {
+      "name": "权限探针记录",
+      "ok": true,
+      "detail": "待真实权限请求时验证"
+    },
+    {
+      "name": "DevTools打开",
+      "ok": true,
+      "detail": "detached"
+    },
+    {
+      "name": "商店允许列表守卫",
+      "ok": true,
+      "detail": "denied"
+    },
+    {
+      "name": "商店真实下载验签安装",
+      "ok": true,
+      "detail": "4.9.135"
+    },
+    {
+      "name": "事务安装v1.0.0",
+      "ok": true,
+      "detail": "lhbfnhgl"
+    },
+    {
+      "name": "事务分区3挂载v1.0.0",
+      "ok": true,
+      "detail": "ready"
+    },
+    {
+      "name": "事务升级v1.0.1",
+      "ok": true,
+      "detail": "1.0.1"
+    },
+    {
+      "name": "事务卸载",
+      "ok": true,
+      "detail": "removed=true"
+    },
+    {
+      "name": "IPC握手能力",
+      "ok": true,
+      "detail": "hs-ok"
+    },
+    {
+      "name": "IPC真实截图",
+      "ok": true,
+      "detail": "800"
+    },
+    {
+      "name": "IPC有效快照复制",
+      "ok": true,
+      "detail": "copied"
+    },
+    {
+      "name": "IPC过期快照拒绝",
+      "ok": true,
+      "detail": "SNAPSHOT_STALE"
+    },
+    {
+      "name": "IPC交错快照拒绝",
+      "ok": true,
+      "detail": "SNAPSHOT_STALE"
+    },
+    {
+      "name": "IPC二进制往返复制",
+      "ok": true,
+      "detail": "undefined"
+    },
+    {
+      "name": "IPC摘要篡改拒绝",
+      "ok": true,
+      "detail": "INVALID_REQUEST"
+    },
+    {
+      "name": "IPC坏头拒绝",
+      "ok": true,
+      "detail": "INVALID_REQUEST"
+    },
+    {
+      "name": "IPC幂等命中复验",
+      "ok": true,
+      "detail": "reused"
+    },
+    {
+      "name": "IPC同ID异JSON冲突拒绝",
+      "ok": true,
+      "detail": "INVALID_REQUEST"
+    },
+    {
+      "name": "IPC未知能力拒绝",
+      "ok": true,
+      "detail": "CAPABILITY_UNSUPPORTED"
+    },
+    {
+      "name": "IPC非法requestId拒绝",
+      "ok": true,
+      "detail": "rid=null"
+    },
+    {
+      "name": "IPC伪造目标拒绝",
+      "ok": true,
+      "detail": "TARGET_GONE"
+    },
+    {
+      "name": "IPC协议版本拒绝",
+      "ok": true,
+      "detail": "PROTOCOL_UNSUPPORTED"
+    },
+    {
+      "name": "IPC失效目标拒绝",
+      "ok": true,
+      "detail": "TARGET_GONE"
+    },
+    {
+      "name": "IPC跨分区未知来源拒绝",
+      "ok": true,
+      "detail": "UNAUTHORIZED"
+    },
+    {
+      "name": "IPC未知第三方扩展拒绝",
+      "ok": true,
+      "detail": "UNAUTHORIZED"
+    },
+    {
+      "name": "IPC子frame拒绝",
+      "ok": false,
+      "detail": "renderer-flake: TypeError: Cannot read properties of undefined (re"
+    },
+    {
+      "name": "IPC来源导航撤销",
+      "ok": true,
+      "detail": "TARGET_GONE(生产语义:导航即目标失效)"
+    }
+  ],
+  "permissionProbe": {
+    "id": "hlkenndednhfkekhgcdicdfddnkalmdm",
+    "permissions": {
+      "origins": [
+        "http://localhost/*",
+        "http://*.undefined.localhost/*"
+      ]
+    }
+  }
+}

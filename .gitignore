@@ -12,3 +12,4 @@ out
 
 # 自研插件构建产物与插件检查证据
 tools/plugin-preflight/out/
+tools/extension-preflight/host-smoke/out/
