@@ -1,4 +1,6 @@
-/* 插件编辑器主题：雾蓝（仅插件编辑器页生效，不改生产组件样式源） */
+/* 插件编辑器主题：雾蓝（仅插件编辑器页生效，不改生产组件样式源）。
+   窗口内容形态 = 生产 chrome=hidden-titlebar 形态（84px 左让红绿灯位、工具条拖动区），
+   由生产样式单源承载，本文件只做雾蓝配色，不做布局改写 */
 :root {
   --msb-accent: #6f9cc4;
   --msb-accent-strong: #4d7fa6;
@@ -8,28 +10,6 @@
 
 body.plugin-editor {
   background: #f5f8fa;
-}
-
-/* 顶部无色带：工具行全宽透明、功能键垂直居中，
-   与系统红绿灯行上下衔接（编辑窗口撤回悬浮胶囊方案） */
-.plugin-editor .chrome-capture-editor {
-  position: relative;
-}
-
-.plugin-editor .chrome-capture-editor-topbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 20;
-  background: transparent;
-  border-bottom: none;
-  box-shadow: none;
-  height: 44px;
-  padding: 0 10px 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .plugin-editor .chrome-capture-editor-iconbtn {

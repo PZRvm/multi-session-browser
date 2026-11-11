@@ -50,14 +50,22 @@ chrome.action.onClicked.addListener(async (tab) => {
     }
     bitmap.close()
     await saveCapture(payload)
-    // 弹窗形态：与生产编辑器子窗一致（独立窗口承载，不占用标签页）；
-    // scale 只按宽适配（view-fit 只缩不放），超高内容经生产滚动容器（overflow:auto）承接
+    // 与生产编辑窗同形态：chrome=hidden-titlebar 让 EditorWindow 呈现 84px 左让
+    // 红绿灯位 + 工具条拖动区（内容形态单源=生产组件）；scale 只按宽适配（只缩不放），
+    // 窗宽高按图幅现算并收口。原生标题栏为 Chrome 扩展窗口约束，无法隐藏
     const scale = Math.min(1, 840 / payload.width)
+    const width = Math.min(1100, Math.round(payload.width * scale) + 24)
+    const height = Math.min(900, Math.round(payload.height * scale) + 64)
     await chrome.windows.create({
-      url: 'editor.html?captureId=' + payload.captureId + '&scale=' + scale,
+      url:
+        'editor.html?captureId=' +
+        payload.captureId +
+        '&scale=' +
+        scale +
+        '&chrome=hidden-titlebar',
       type: 'popup',
-      width: 900,
-      height: 680
+      width,
+      height
     })
   } catch (error) {
     await chrome.storage.local.set({ lastError: String(error) })

@@ -61,6 +61,8 @@ async function start(): Promise<void> {
   } as typeof window.api
 
   document.body.classList.add('plugin-editor')
+  // 与生产编辑窗一致：隐藏标题条形态下窗口顶条即工具条，浏览器原生标题条只留红绿灯
+  document.title = ''
   setupWheelZoom()
   createRoot(document.getElementById('root')!).render(<EditorWindow />)
 }
