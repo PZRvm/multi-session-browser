@@ -139,7 +139,7 @@ app.whenReady().then(async () => {
       )
       // MV3 实测：uBO Lite（广告拦截，service worker 架构）装→挂→popup 渲染探针
       console.log('P16 ubo-mv3')
-      let uboResult = 'SKIPPED'
+
       try {
         const uboBuf = await readFile('/tmp/msb-crx-test/ddkjiahejlhfcafbddmgiahcphecmpfh.crx')
         const uboService = bundle.createInstallService({
@@ -176,7 +176,7 @@ app.whenReady().then(async () => {
             .loadURL(
               'chrome-extension://' + ubo.record.id + '/' + String(uboPopup).replace(/^\//, '')
             )
-            .catch((e) => {
+            .catch(() => {
               uboState = 'LOAD_ERR'
             })
           await delay(5000)
@@ -197,8 +197,8 @@ app.whenReady().then(async () => {
           'ubo:' + String(uboState).slice(0, 90)
         )
         uboWin.destroy()
-      } catch (e) {
-        check('uBO Lite MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
+      } catch {
+        check('uBO Lite MV3 实测', false, 'ERR')
       }
       popup.browserWindow && !popup.browserWindow.isDestroyed() && popup.browserWindow.close()
     }
@@ -540,7 +540,7 @@ app.whenReady().then(async () => {
     const darkManifest = JSON.parse(await readFile(join(darkDir, 'manifest.json'), 'utf8'))
     const popupPath =
       darkManifest.browser_action?.default_popup || darkManifest.action?.default_popup
-    let diagState = 'NO_PATH'
+
     if (popupPath) {
       await diagWin
         .loadURL('chrome-extension://' + meta('dark').id + '/' + popupPath.replace(/^\//, ''))
