@@ -10,8 +10,6 @@ const check = (name, ok, detail) => {
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 process.on('uncaughtException', (e) => console.log('TEARDOWN_ERR', String(e).slice(0, 100)))
 process.on('unhandledRejection', (e) => console.log('TEARDOWN_REJ', String(e).slice(0, 100)))
-// MV2 弃用开关（Chromium 148 停用 MV2 background 的策略等效开关实验）
-app.commandLine.appendSwitch('disable-features', 'ExtensionManifestV2Disabled')
 app.setPath('userData', '/tmp/host-smoke-userdata')
 app.whenReady().then(async () => {
   const watchdog = setTimeout(() => {

@@ -73,3 +73,15 @@ status: open
 结论：**会话构造层全部要素已排除**。差异在**进程级**：前置 electron-main.cjs 进程 vs host-smoke / 生产 index.ts 进程的某个全局状态（app 级 commandLine、protocol 注册、早期初始化副作用等候选）。前置进程里 MV2 background 通信活、复刻进程里死——同一 Electron。
 
 下一步（最小进程二分）：把 host-smoke main.cjs 削成"仅前置复刻路径"的最小进程，验证 popup 活；再逐块加回（bundle 挂载/事务/IPC 诊断/uBO）定位破坏源。另：移除实验残留的 disable-features switch（已证无效）。
+
+## 第六轮收口（2026-11-11）：进程级差异的确证方法已固化
+
+完整复刻实验（第五轮）证明会话构造层全部排除后，剩余差异在**进程级**。下一轮决定性实验（已设计，约 20 行探针）：
+
+两个进程（前置 electron-main 进程 / host-smoke 进程）各自在 whenReady 后 8 秒执行：
+`webContents.getAllWebContents().map(w => w.getURL())` 枚举全部 webContents——
+- 前置进程应能看到 `chrome-extension://<darkId>/_generated_background_page.html`（MV2 background 的宿主 webContents）
+- host-smoke 进程若**无**此条目 = MV2 background 页确实未启动（实锤至 Electron 内部层）；若**有**则 background 存在但通信桥断（转向 runtime 桥实现差异）
+
+命中后按 Electron 源码定位 background 启动条件差异（对比两进程的 session/app 级配置）。
+另：已移除 host-smoke 中无效的 disable-features 实验残留。
