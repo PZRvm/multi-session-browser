@@ -696,23 +696,26 @@ function Toolbar(): React.JSX.Element {
       {extPanelOpen && activeTab && (
         <ExtensionsPanel anchor={extAnchor} onClose={() => setExtPanelOpen(false)} />
       )}
-      <TooltipSlot
-        label={t('browser.toolbar.extensions')}
-        onEnter={showToolsPop}
-        onLeave={hideToolsPop}
-      >
-        <button
-          type="button"
-          className="chrome-ext-toggle"
-          ref={extBtnRef}
-          aria-label={t('browser.toolbar.extensions')}
-          aria-expanded={extPanelOpen}
-          disabled={!activeTab}
-          onClick={toggleExtPanel}
+      {/* 与截图/录屏组同容器度量（.chrome-tools 28×28 圆钮 + gap 2px），
+          中心线自然对齐 DevTools 文本钮与左侧功能键 */}
+      <div className="chrome-tools">
+        <TooltipSlot
+          label={t('browser.toolbar.extensions')}
+          onEnter={showToolsPop}
+          onLeave={hideToolsPop}
         >
-          <AppstoreOutlined />
-        </button>
-      </TooltipSlot>
+          <button
+            type="button"
+            ref={extBtnRef}
+            aria-label={t('browser.toolbar.extensions')}
+            aria-expanded={extPanelOpen}
+            disabled={!activeTab}
+            onClick={toggleExtPanel}
+          >
+            <AppstoreOutlined />
+          </button>
+        </TooltipSlot>
+      </div>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
       <button
         type="button"
