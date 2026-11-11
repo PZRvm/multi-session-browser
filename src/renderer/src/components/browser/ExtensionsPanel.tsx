@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { SettingOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, SettingOutlined } from '@ant-design/icons'
 import { useT } from '../../i18n'
 import { useUiStore } from '../../stores/ui'
-import { PuzzleIcon } from './PuzzleIcon'
 import type { ExtensionListItem } from '../../../../shared/extensions/management'
 
 // 工具栏扩展面板（2026-11-11 增量，Chrome 拼图菜单还原）：
@@ -112,7 +111,7 @@ export function ExtensionsPanel({ anchor, onClose }: ExtensionsPanelProps): Reac
                   {item.icon ? (
                     <img src={item.icon} alt="" width="20" height="20" />
                   ) : (
-                    <PuzzleIcon size={18} />
+                    <AppstoreOutlined />
                   )}
                 </span>
                 <span className="chrome-ext-panel-name">{item.name}</span>

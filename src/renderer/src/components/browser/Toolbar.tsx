@@ -3,12 +3,12 @@ import {
   CameraOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
-  VideoCameraOutlined
+  VideoCameraOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { ExtensionsPanel } from './ExtensionsPanel'
-import { PuzzleIcon } from './PuzzleIcon'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
@@ -710,7 +710,7 @@ function Toolbar(): React.JSX.Element {
           disabled={!activeTab}
           onClick={toggleExtPanel}
         >
-          <PuzzleIcon size={15} />
+          <AppstoreOutlined />
         </button>
       </TooltipSlot>
       {/* 开发者工具开关：按下态跟随主进程快照 devtoolsOpen，点击经 IPC 切换，不乐观更新 */}
