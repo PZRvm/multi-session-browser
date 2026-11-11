@@ -10,6 +10,8 @@ const check = (name, ok, detail) => {
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 process.on('uncaughtException', (e) => console.log('TEARDOWN_ERR', String(e).slice(0, 100)))
 process.on('unhandledRejection', (e) => console.log('TEARDOWN_REJ', String(e).slice(0, 100)))
+// MV2 弃用开关（Chromium 148 停用 MV2 background 的策略等效开关实验）
+app.commandLine.appendSwitch('disable-features', 'ExtensionManifestV2Disabled')
 app.setPath('userData', '/tmp/host-smoke-userdata')
 app.whenReady().then(async () => {
   const watchdog = setTimeout(() => {
@@ -272,6 +274,150 @@ app.whenReady().then(async () => {
     trustedW.destroy()
     unknownW.destroy()
     extW.destroy()
+    // 诊断：生产同构 popup 窗口加载 Dark Reader popup 页，抓渲染状态与控制台
+    console.log('P12 popup-diag')
+    const diagWin = new BrowserWindow({
+      show: false,
+      frame: false,
+      parent: hostTab.owner,
+      movable: false,
+      maximizable: false,
+      minimizable: false,
+      fullscreenable: false,
+      resizable: false,
+      skipTaskbar: true,
+      backgroundColor: '#ffffff',
+      roundedCorners: false,
+      webPreferences: {
+        session: ses1,
+        sandbox: true,
+        nodeIntegration: false,
+        nodeIntegrationInWorker: false,
+        contextIsolation: true,
+        enablePreferredSizeMode: true
+      }
+    })
+    const diagLogs = []
+    diagWin.webContents.on('console-message', (_e, level, message) => {
+      diagLogs.push(String(message).slice(0, 120))
+    })
+    const darkDir = join(outDir, 'packages', meta('dark').id + '-4.9.135')
+    const darkManifest = JSON.parse(await readFile(join(darkDir, 'manifest.json'), 'utf8'))
+    const popupPath = darkManifest.browser_action?.default_popup || darkManifest.action?.default_popup
+    let diagState = 'NO_PATH'
+    if (popupPath) {
+      await diagWin.loadURL('chrome-extension://' + meta('dark').id + '/' + popupPath.replace(/^\//, '')).catch((e) => { diagState = 'LOAD_ERR:' + String(e).slice(0, 60) })
+      await delay(4000)
+      try {
+        diagState = await diagWin.webContents.executeJavaScript(
+          '(() => ({ ready: document.readyState, text: (document.body.innerText || "").slice(0, 60), controls: !!document.querySelector(".darkreader--controls, [class*=control], input, button") }))()',
+          true
+        )
+        diagState = JSON.stringify(diagState)
+      } catch (e) {
+        diagState = 'EXEC_ERR:' + String(e).slice(0, 60)
+      }
+    }
+    const probe = await diagWin.webContents.executeJavaScript(
+      'new Promise((res) => { try { const out = { runtime: typeof chrome !== "undefined" && !!chrome.runtime }; chrome.runtime.sendMessage({ type: "get-settings" }, (r) => { out.reply = r ? "got" : "null"; out.err = chrome.runtime.lastError ? String(chrome.runtime.lastError.message).slice(0, 60) : null; res(JSON.stringify(out)) }); setTimeout(() => res(JSON.stringify({ ...out, reply: "TIMEOUT" })), 2500) } catch (e) { res("THROW:" + String(e).slice(0, 60)) } })',
+      true
+    )
+    const bgProbe = await diagWin.webContents.executeJavaScript(
+      'new Promise((res) => { try { chrome.runtime.getBackgroundPage((bg) => { res(JSON.stringify({ bg: bg ? "ALIVE" : "NULL", url: bg && bg.location ? bg.location.href.slice(0, 50) : null, err: chrome.runtime.lastError ? String(chrome.runtime.lastError.message).slice(0, 50) : null })) }) } catch (e) { res("THROW:" + String(e).slice(0, 50)) } })',
+      true
+    ).catch((e) => 'EXEC:' + String(e).slice(0, 50))
+    // 决定性对照：lib PopupView 链路（activateClick）打开同一插件 popup，探同一 background
+    let libPath = 'SKIPPED'
+    try {
+      const engine2 = handle.runtime.getEngine('persist:host-smoke-1')
+      engine2.selectTab(hostTab.wc)
+      engine2.browserAction.activateClick({
+        eventType: 'click',
+        extensionId: meta('dark').id,
+        tabId: hostTab.wc.id,
+        alignment: 'bottom left',
+        anchorRect: { x: 40, y: 20, width: 30, height: 30 }
+      })
+      await delay(3500)
+      const libPopupWin = handle.runtime.getEngine('persist:host-smoke-1') ? null : null
+      // lib popup 是私有对象——经 engine 事件拿不到引用，改为探针全部 BrowserWindow 里 chrome-extension://dark 的窗口
+      const allWins = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w.webContents.getURL().includes(meta('dark').id))
+      libPath = allWins.length === 0 ? 'NO_LIB_POPUP_WIN' : await allWins[0].webContents.executeJavaScript(
+        'new Promise((res) => { try { chrome.runtime.getBackgroundPage((bg) => { res(JSON.stringify({ bg: bg ? "ALIVE" : "NULL" })) }) } catch (e) { res("THROW") } })',
+        true
+      ).catch((e) => 'EXEC:' + String(e).slice(0, 40))
+      for (const w of allWins) w.destroy()
+    } catch (e) {
+      libPath = 'ERR:' + String(e).slice(0, 50)
+    }
+    // 假设检验：Electron 原生 loadExtension 加载夹具，探其 background 是否存活
+    let nativeBg = 'SKIPPED'
+    try {
+      const { generateKeyPairSync } = require('node:crypto')
+      const { makeCrx2 } = await import(new URL('../crx.mjs', 'file://' + __dirname + '/').href)
+      const AdmZip = require('adm-zip')
+      const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const spk2 = publicKey.export({ type: 'spki', format: 'der' })
+      const fixId = bundle.extensionId(spk2)
+      const mkCrx = async (version) => {
+        const s = new AdmZip()
+        s.addLocalFolder(join(samplesDir, 'unpacked', 'hlkenndednhfkekhgcdicdfddnkalmdm-1.13.0'))
+        const o = new AdmZip()
+        for (const e of s.getEntries()) {
+          if (e.isDirectory) continue
+          if (e.entryName === 'manifest.json') {
+            const mm = JSON.parse(e.getData().toString('utf8'))
+            mm.version = version
+            o.addFile('manifest.json', Buffer.from(JSON.stringify(mm, null, 2)))
+          } else o.addFile(e.entryName, e.getData())
+        }
+        return makeCrx2(o.toBuffer(), publicKey, privateKey)
+      }
+      const fx = await service.installFromBuffer(await mkCrx('2.0.0'))
+      const nat = await ses1.loadExtension(fx.extracted.path)
+      console.log('P13 native-loaded ' + nat.id)
+      const d2 = new BrowserWindow({
+        show: false, frame: false, parent: hostTab.owner, resizable: false, skipTaskbar: true,
+        webPreferences: { session: ses1, sandbox: true, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      const mp = nat.manifest.browser_action?.default_popup || nat.manifest.action?.default_popup
+      await d2.loadURL('chrome-extension://' + fixId + '/' + String(mp).replace(/^\//, '')).catch(() => {})
+      await delay(3000)
+      nativeBg = await d2.webContents.executeJavaScript(
+        'new Promise((res) => { try { chrome.runtime.getBackgroundPage((bg) => res(bg ? "ALIVE" : "NULL")) } catch (e) { res("THROW") } })',
+        true
+      ).catch((e) => 'EXEC:' + String(e).slice(0, 40))
+      console.log('P14 nativeBg=' + nativeBg)
+      d2.destroy()
+      await service.uninstall(fixId)
+    } catch (e) {
+      nativeBg = 'ERR:' + String(e).slice(0, 60)
+    }
+    // 最小 MV2 background 夹具实验：分辨宿主级 vs Dark Reader 特有
+    let minBg = 'SKIPPED'
+    try {
+      const { mkdtempSync, writeFileSync } = require('node:fs')
+      const osd = mkdtempSync(join('/tmp', 'min-ext-'))
+      writeFileSync(join(osd, 'manifest.json'), JSON.stringify({ manifest_version: 2, name: 'bgprobe', version: '1.0', background: { scripts: ['bg.js'] } }))
+      writeFileSync(join(osd, 'bg.js'), 'window.bgAlive = true')
+      writeFileSync(join(osd, 'popup.html'), '<!doctype html><title>p</title><b id=s>pending</b><script>chrome.runtime.getBackgroundPage((bg)=>{document.getElementById("s").textContent = bg && bg.bgAlive ? "ALIVE" : "NULL"})</script>')
+      const nat2 = await ses1.loadExtension(osd)
+      const d3 = new BrowserWindow({ show: false, frame: false, parent: hostTab.owner, resizable: false, skipTaskbar: true, webPreferences: { session: ses1, sandbox: true, contextIsolation: true } })
+      await d3.loadURL('chrome-extension://' + nat2.id + '/popup.html').catch(() => {})
+      await delay(2500)
+      minBg = await d3.webContents.executeJavaScript('document.getElementById("s").textContent', true).catch((e) => 'EXEC')
+      console.log('P15 minBg=' + minBg)
+      d3.destroy()
+      await ses1.removeExtension(nat2.id).catch(() => {})
+    } catch (e) {
+      minBg = 'ERR:' + String(e).slice(0, 60)
+    }
+    const portProbe = await diagWin.webContents.executeJavaScript(
+      'new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener((m) => { got = m ? "MSG" : "EMPTY" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(JSON.stringify({ port: got || "SILENT" })), 2000) } catch (e) { res("THROW") } })',
+      true
+    ).catch((e) => 'EXEC')
+    check('popup真实渲染诊断', /MSG/.test(String(portProbe)), 'portProbe:' + String(portProbe).slice(0, 90))
+    diagWin.destroy()
     await writeFile(join(__dirname, 'host-smoke-results.json'), JSON.stringify(results, null, 2))
     console.log('HOST_SMOKE_PASS=' + results.checks.every((c) => c.ok))
     app.exit(0)

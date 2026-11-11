@@ -43,6 +43,8 @@ async function generate(guarded: string, libPreload: string): Promise<void> {
   } catch {
     content = '' // 库文件不可读：副本退化为空，桥不可用但宿主不崩（M2 改构建期产物）
   }
-  const guard = `if (process.type === 'service-worker' || process.isMainFrame) {`
+  // 只排除 service-worker（沙箱错误来源）；background 页（MV2）必须放行——
+  // 扩展页间 runtime.sendMessage/connect 由库 preload 聚合，挡掉即断全部通信
+  const guard = `if (process.type !== 'service-worker') {`
   await writeFile(guarded, `${guard}\n${content}\n}`)
 }

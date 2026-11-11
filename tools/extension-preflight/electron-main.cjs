@@ -352,6 +352,34 @@ async function main() {
       currentPopup.destroy()
       return state
     })
+
+  await record('dark popup background 存活探针', async () => {
+    const target = samples.find((v) => v.name === 'dark')
+    const manifest = JSON.parse(await readFile(join(target.path, 'manifest.json'), 'utf8'))
+    const pp = manifest.browser_action?.default_popup || manifest.action?.default_popup
+    const w = new BrowserWindow({
+      show: false,
+      frame: false,
+      parent: a.owner,
+      resizable: false,
+      skipTaskbar: true,
+      webPreferences: { session: a.targetSession, sandbox: true, contextIsolation: true }
+    })
+    await w.loadURL('chrome-extension://' + target.id + '/' + String(pp).replace(/^\//, '')).catch(() => {})
+    await delay(3000)
+    const bgProbe = await w.webContents.executeJavaScript(
+      'new Promise((res) => { chrome.runtime.getBackgroundPage((bg) => res(bg ? "ALIVE" : "NULL")) })',
+      true
+    ).catch((e) => 'EXEC:' + String(e).slice(0, 50))
+    const text = await w.webContents.executeJavaScript(
+      '(document.body.innerText || "").slice(0, 50)',
+      true
+    ).catch(() => 'EXEC')
+    w.destroy()
+    assert(bgProbe === 'ALIVE', 'background 页未运行: ' + String(bgProbe))
+    assert(!/Loading/i.test(String(text)), 'popup 卡 Loading: ' + String(text))
+    return { bgProbe, text }
+  })
   }
   async function inspectReact(a, expected, output) {
     await mkdir(output, { recursive: true })

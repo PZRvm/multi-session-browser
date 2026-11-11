@@ -67,13 +67,13 @@
     },
     {
       "name": "商店真实下载验签安装",
-      "ok": false,
-      "detail": "net:TypeError: fetch failed"
+      "ok": true,
+      "detail": "4.9.135"
     },
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "ilcnmpmk"
+      "detail": "fbckhklc"
     },
     {
       "name": "事务分区3挂载v1.0.0",
@@ -184,6 +184,11 @@
       "name": "IPC来源导航撤销",
       "ok": true,
       "detail": "TARGET_GONE(生产语义:导航即目标失效)"
+    },
+    {
+      "name": "popup真实渲染诊断",
+      "ok": false,
+      "detail": "portProbe:{\"port\":\"DISCONNECTED\"}"
     }
   ]
 }
