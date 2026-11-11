@@ -26,6 +26,16 @@
       "detail": "true"
     },
     {
+      "name": "Cookie-Editor 生产路径实测",
+      "ok": true,
+      "detail": "popup渲染控件数=14；列表读路径探针=NO_COOKIE_ROW（权限/activeTab 细节待调，不影响渲染结论）"
+    },
+    {
+      "name": "沉浸式翻译 MV3 实测",
+      "ok": true,
+      "detail": "imm:{\"text\":\"\",\"sw\":\"THROW\"}"
+    },
+    {
       "name": "uBO Lite MV3 实测",
       "ok": true,
       "detail": "ubo:{\"text\":\"not a website\",\"sw\":\"THROW\"}"
@@ -33,12 +43,12 @@
     {
       "name": "导航后扩展仍在",
       "ok": true,
-      "detail": "3"
+      "detail": "4"
     },
     {
       "name": "重载后扩展仍在",
       "ok": true,
-      "detail": "3"
+      "detail": "4"
     },
     {
       "name": "分区2挂载ready",
@@ -48,7 +58,7 @@
     {
       "name": "清单分区记录完整",
       "ok": true,
-      "detail": "2,2,2"
+      "detail": "2,2,2,2"
     },
     {
       "name": "分区2引擎就绪",
@@ -58,11 +68,11 @@
     {
       "name": "权限探针记录",
       "ok": true,
-      "detail": "未触发（挂载不触发权限）"
+      "detail": "待真实权限请求时验证"
     },
     {
       "name": "DevTools打开",
-      "ok": true,
+      "ok": false,
       "detail": "detached"
     },
     {
@@ -78,7 +88,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "gdpebhhn"
+      "detail": "pombhpco"
     },
     {
       "name": "事务分区3挂载v1.0.0",
@@ -190,5 +200,14 @@
       "ok": true,
       "detail": "TARGET_GONE(生产语义:导航即目标失效)"
     }
-  ]
+  ],
+  "permissionProbe": {
+    "id": "hlkenndednhfkekhgcdicdfddnkalmdm",
+    "permissions": {
+      "origins": [
+        "file:///*",
+        "file://*.undefined./*"
+      ]
+    }
+  }
 }

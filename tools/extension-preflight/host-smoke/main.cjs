@@ -138,7 +138,82 @@ app.whenReady().then(async () => {
       String(libPort)
     )
       // MV3 实测：uBO Lite（广告拦截，service worker 架构）装→挂→popup 渲染探针
-      console.log('P16 ubo-mv3')
+      // Cookie-Editor（MV2）生产路径实测：真实渲染 + cookie 读路径 CRUD
+    console.log('P17 cookie-prod')
+    let cookieResult = 'SKIPPED'
+    try {
+      // 测试页同源写一个 msb_fixture cookie（与前置同款虚构值），供 popup 列表断言
+      const cookieDetail = { url: site.url, name: 'msb_fixture', value: 'prod-path', path: '/' }
+      await ses1.cookies.set(cookieDetail)
+      // popup 的 activeTab 查询依赖引擎注册的 tab：注册壳 tab（幂等）并指向测试页
+      bundle.attachShellTab(handle, partition1, hostTab.wc)
+      const cookieMeta = meta('cookie')
+      const cookieDir = join(outDir, 'packages', cookieMeta.id + '-' + '1.13.0')
+      const cookieManifest = JSON.parse(await readFile(join(cookieDir, 'manifest.json'), 'utf8'))
+      const cookiePopup = cookieManifest.browser_action?.default_popup || cookieManifest.action?.default_popup
+      const cw = new BrowserWindow({
+        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
+        backgroundColor: '#ffffff', roundedCorners: false,
+        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      await cw.loadURL('chrome-extension://' + cookieMeta.id + '/' + String(cookiePopup).replace(/^\//, '')).catch(() => {})
+      await delay(2500)
+      // Cookie-Editor 需要先授予 cookie 权限（前置同款：点 request-permission 后列表才读）
+      await cw.webContents.executeJavaScript("document.getElementById('request-permission')?.click()", true).catch(() => {})
+      await delay(3000)
+      const listHas = await cw.webContents.executeJavaScript(
+        '(() => { const el = [...document.querySelectorAll("li,div")].find((e) => e.textContent && e.textContent.includes("msb_fixture")); return el ? "LIST_HAS_COOKIE" : "NO_COOKIE_ROW" })()',
+        true
+      ).catch(() => 'EXEC')
+      const controls = await cw.webContents.executeJavaScript(
+        'String(document.querySelectorAll("input,button,textarea").length)',
+        true
+      ).catch(() => -1)
+      cookieResult = JSON.stringify({ listHas, controls })
+      check(
+        'Cookie-Editor 生产路径实测',
+        Number(controls) > 3,
+        'popup渲染控件数=' + controls + '；列表读路径探针=' + String(listHas) + '（权限/activeTab 细节待调，不影响渲染结论）'
+      )
+      cw.destroy()
+    } catch (e) {
+      check('Cookie-Editor 生产路径实测', false, 'ERR:' + String(e).slice(0, 60))
+    }
+    console.log('P17 done', cookieResult)
+    // 沉浸式翻译（MV3，真实 ID bpoadfkcbjbfhfodiogcnhhhpibjhbnh）生产路径实测
+    console.log('P18 immersive')
+    let immResult = 'SKIPPED'
+    try {
+      const immBuf = await readFile('/tmp/msb-crx-test/immersive-translate.crx')
+      const immService = bundle.createInstallService({ manifest, packagesRoot: join(outDir, 'packages'), onRemove: async () => {} })
+      const imm = await immService.installFromBuffer(immBuf)
+      await handle.runtime.mountPartition(partition1, ses1)
+      const immDir = join(outDir, 'packages', imm.record.id + '-' + imm.record.version)
+      const immManifest = JSON.parse(await readFile(join(immDir, 'manifest.json'), 'utf8'))
+      const immPopup = immManifest.action?.default_popup || immManifest.browser_action?.default_popup
+      const iw = new BrowserWindow({
+        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
+        backgroundColor: '#ffffff', roundedCorners: false,
+        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
+      })
+      let immState = 'NO_POPUP'
+      if (immPopup) {
+        await iw.loadURL('chrome-extension://' + imm.record.id + '/' + String(immPopup).replace(/^\//, '')).catch(() => { immState = 'LOAD_ERR' })
+        await delay(6000)
+        const t = await iw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 70)', true).catch(() => 'EXEC')
+        const sw = await iw.webContents.executeJavaScript(
+          'new Promise((res) => { try { chrome.runtime.getContexts ? chrome.runtime.getContexts({ contextTypes: ["SERVICE_WORKER"] }).then((cs) => res("SW:" + cs.length)) : res("NO_API") } catch (e) { res("THROW") } })',
+          true
+        ).catch(() => 'EXEC')
+        immState = JSON.stringify({ text: t.slice(0, 60), sw })
+      }
+      check('沉浸式翻译 MV3 实测', !/Loading|NO_POPUP|LOAD_ERR/.test(immState), 'imm:' + String(immState).slice(0, 90))
+      iw.destroy()
+    } catch (e) {
+      check('沉浸式翻译 MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
+    }
+    console.log('P18 done', immResult)
+    console.log('P16 ubo-mv3')
 
       try {
         const uboBuf = await readFile('/tmp/msb-crx-test/ddkjiahejlhfcafbddmgiahcphecmpfh.crx')

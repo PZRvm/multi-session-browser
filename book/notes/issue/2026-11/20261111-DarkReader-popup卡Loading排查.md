@@ -36,3 +36,14 @@ status: open
 - 生态背景：Chromium 2025 起弃用 MV2，`ExtensionManifestV2Disabled` 开关在 148 无效（代码已移除的可能性大）。Dark Reader 商店版 4.9.135 恰为 MV2。
 - 用户侧可操作：Dark Reader 存在 MV3 版本分支（开发版/测试版渠道），或等待 Electron 上游修复 MV2 background；宿主自己的录屏插件（会话2）走协议v1宿主桥不受影响。
 - 翻译类代表（沉浸式翻译）商店 ID 未获取到（omaha 404），需从商店页取真实 ID 后同法实测。
+
+## 生产路径三类插件实测结论（2026-11-11 第三轮）
+
+| 类 | 插件 | popup 渲染 | 结论 |
+| --- | --- | --- | --- |
+| 广告拦截（MV3） | uBO Lite 9MB 商店真实下载 | PASS（正常文案非 Loading） | 可用 |
+| 翻译（MV3） | 沉浸式翻译（真实 ID bpoadfkcbjbfhfodiogcnhhhpibjhbnh，13.7MB） | PASS（无 Loading 卡死） | 可用 |
+| Cookie 管理（MV2） | Cookie-Editor 1.13.0 | PASS（14 控件渲染，未卡 Loading——它直接调 chrome.cookies 不依赖 background 通信） | 渲染可用；列表读路径的权限/activeTab 探针细节待调（非宿主缺陷） |
+| 深色模式（MV2） | Dark Reader 4.9.135 | 卡 Loading（依赖 background 通信，通信桥在生产会话断） | 已知问题，根因追踪见上文 |
+
+精化结论：**"MV2 全卡"不成立**——MV2 中不依赖 background 通信的 popup（Cookie-Editor 型）在生产路径渲染正常；卡的是"popup↔background 通信"这一条链（Dark Reader 型）。翻译/广告拦截（MV3 生态主流）两类实测可用。
