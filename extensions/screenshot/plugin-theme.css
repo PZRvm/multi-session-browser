@@ -10,31 +10,26 @@ body.plugin-editor {
   background: #f5f8fa;
 }
 
-/* 顶部 tabbar 整条移除：工具区悬浮为画布左上角的雾蓝胶囊
-   （系统红绿灯行正下方），功能键行垂直居中，无色带无分隔 */
+/* 顶部无色带：工具行全宽透明、功能键垂直居中，
+   与系统红绿灯行上下衔接（编辑窗口撤回悬浮胶囊方案） */
 .plugin-editor .chrome-capture-editor {
   position: relative;
 }
 
 .plugin-editor .chrome-capture-editor-topbar {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  right: auto;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 20;
-  max-width: calc(100% - 16px);
-  background: rgba(111, 156, 196, 0.92);
-  backdrop-filter: blur(8px);
+  background: transparent;
   border-bottom: none;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(45, 90, 128, 0.25);
-  min-height: 36px;
-  padding: 3px 8px;
+  box-shadow: none;
+  height: 44px;
+  padding: 0 10px 0 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  gap: 8px;
 }
 
 .plugin-editor .chrome-capture-editor-iconbtn {

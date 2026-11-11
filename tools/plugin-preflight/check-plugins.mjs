@@ -234,14 +234,15 @@ try {
       const redone = await canUndoRedo()
       assert(redone.undo && !redone.redo, '重做未生效：' + JSON.stringify(redone))
       await click('文字')
-      await draw(120, 160, 0, 0)
+      // 文字落点必须在矩形标注之外（落点在可拖拽标注上会触发 Konva 原生拖拽而非开文本框）
+      await draw(520, 320, 0, 0)
       // 文字框偶发慢挂载：等待后仍未出现则换点补击一次
       for (let i = 0; i < 40; i++) {
         if (await evaluate("!!document.querySelector('textarea')")) break
         await delay(100)
       }
       if (!(await evaluate("!!document.querySelector('textarea')"))) {
-        await draw(160, 200, 0, 0)
+        await draw(560, 360, 0, 0)
         for (let i = 0; i < 60; i++) {
           if (await evaluate("!!document.querySelector('textarea')")) break
           await delay(100)
