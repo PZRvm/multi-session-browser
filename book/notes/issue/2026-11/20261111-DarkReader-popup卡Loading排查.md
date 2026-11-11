@@ -139,3 +139,7 @@ status: open
 
 - **capture/recording 装配**（index.ts 637—648）：recordingHooks 被 routeBrowserLifecycleToRecording、recordedWindowIdHolder.get、capture 反馈条三处引用——门控需三处同步空值安全（holder.get 返回 null 即可，capture 已容忍）。proxy 引擎（461 行）与 autoUpdater/I18N 为独立装配，直接条件跳过即可。
 - 建议一轮批量门控（三候选同时跳过）先判方向：活 = 再逐项二分；仍死 = 三候选全排除，差异回收到"保留子集"（BrowserFrame/createWindow/registry 最小集 + loadSnapshot），下一层再做保留子集内部的二分。
+
+## 批量门控结果（2026-11-11 第十三轮）
+
+proxy 引擎 + 录屏装配批量门控（selftest 同时跳过两者）后 **selftest 仍卡 Loading**——两者排除。生产代码门控残留已全部恢复。剩余候选仅 autoUpdater/I18N（低嫌疑批量，下一轮一轮判定）；若排除，差异收敛到"保留子集"（BrowserFrame/createWindow/registry 最小集 + loadSnapshot），按 issue 第五轮方案做保留子集内部二分。
