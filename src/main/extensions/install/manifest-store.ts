@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
 /**
@@ -129,13 +130,61 @@ async function readRaw(file: string): Promise<GlobalManifest> {
   try {
     return validateManifest(JSON.parse(text))
   } catch (error) {
+    // 自愈：损坏形态常为两实例写入拼接（Unexpected non-whitespace after }）——
+    // 逐段扫描首个语法完整对象，能过 schema 即恢复并原子落盘
+    const recovered = recoverManifest(text)
+    if (recovered) {
+      await backupCorrupt(file, text)
+      await persistAtomic(file, recovered)
+      return recovered
+    }
+    // 不可救：备份坏文件供排查，再如实拒绝
+    await backupCorrupt(file, text).catch(() => undefined)
     throw new Error(`插件清单损坏，拒绝加载：${file}（${String(error)}）`)
   }
 }
 
+/** 字符串感知的平衡花括号扫描，逐段尝试解析并过 schema（两实例拼接损坏的恢复路径） */
+function recoverManifest(text: string): GlobalManifest | null {
+  let depth = 0
+  let inString = false
+  let escape = false
+  let start = -1
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escape) escape = false
+      else if (ch === '\\') escape = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') inString = true
+    else if (ch === '{') {
+      if (depth === 0) start = i
+      depth += 1
+    } else if (ch === '}') {
+      depth -= 1
+      if (depth === 0 && start >= 0) {
+        try {
+          return validateManifest(JSON.parse(text.slice(start, i + 1)))
+        } catch {
+          start = -1
+        }
+      }
+    }
+  }
+  return null
+}
+
+/** 损坏文件留档（installed.json.corrupt-<时间戳>），供排查与人工恢复 */
+async function backupCorrupt(file: string, text: string): Promise<void> {
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(`${file}.corrupt-${Date.now()}`, text)
+}
+
 async function persistAtomic(file: string, manifest: GlobalManifest): Promise<void> {
   await mkdir(dirname(file), { recursive: true })
-  const tmp = join(dirname(file), `.installed-${Date.now()}.json`)
+  const tmp = join(dirname(file), `.installed-${Date.now()}-${randomUUID().slice(0, 8)}.json`)
   await writeFile(tmp, JSON.stringify(manifest, null, 2))
   await rename(tmp, file)
 }
