@@ -134,101 +134,134 @@ try {
   // ===== 截图插件 =====
   const editorSessions = []
   const skipEditor = process.env.PLUGIN_CHECK_SKIP_EDITOR === '1'
+  /** 附着编辑页并确保其处于 PiP 无框形态。真机路径：requestWindow 需页内瞬态激活
+   *  （icon 点击的激活在 SW，编辑页没有）——页内浮动钮（pip-fallback）承载迁移，
+   *  经 Input.dispatchMouseEvent 真实点击取真实手势 → 迁移出 PiP（旧目标关闭 +
+   *  新目标出现）。也兼容未来 Chrome 放开手势限制时自动迁移（无浮动钮直附）。
+   *  迁移后断言灯组在 PiP 上下文真实挂载（pip-lifecycle.js 生效证据） */
+  async function attachEditorPip(urlPrefix, excludeIds) {
+    let editorTarget
+    for (let i = 0; i < 120; i++) {
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      editorTarget = targetInfos.find(
+        (v) =>
+          v.type === 'page' &&
+          v.url.startsWith(urlPrefix) &&
+          !excludeIds.some((id) => id === v.targetId)
+      )
+      if (editorTarget) break
+      await delay(100)
+    }
+    assert(editorTarget, '编辑器页未打开')
+    let session = await cdp.attach(editorTarget.targetId)
+    let migrated = false
+    for (let i = 0; i < 60; i++) {
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      const fresh = targetInfos.find(
+        (v) =>
+          v.type === 'page' &&
+          v.url.startsWith(urlPrefix) &&
+          v.targetId !== editorTarget.targetId &&
+          !excludeIds.some((id) => id === v.targetId)
+      )
+      if (fresh) {
+        // 自动迁移已发生（未来无手势门场景）：旧会话作废，直附新目标
+        migrated = true
+        editorTarget = fresh
+        session = await cdp.attach(fresh.targetId)
+        break
+      }
+      if (await cdp.evaluate("!!document.getElementById('pip-fallback')", session)) break
+      await delay(100)
+    }
+    if (!migrated && (await cdp.evaluate("!!document.getElementById('pip-fallback')", session))) {
+      const rect = await cdp.evaluate(
+        "document.getElementById('pip-fallback').getBoundingClientRect().toJSON()",
+        session
+      )
+      const cx = Math.round(rect.x + rect.width / 2)
+      const cy = Math.round(rect.y + rect.height / 2)
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mousePressed', x: cx, y: cy, button: 'left', buttons: 1, clickCount: 1 },
+        session
+      )
+      await cdp.send(
+        'Input.dispatchMouseEvent',
+        { type: 'mouseReleased', x: cx, y: cy, button: 'left', buttons: 1, clickCount: 1 },
+        session
+      )
+      // 新架构：PiP 非 CDP 目标——编辑器在 PiP 文档自举，经 opener 跨窗等待
+      // （画布 + 灯组挂载即自举完成）；承载窗（本会话）最小化承载 PiP 生命周期
+      let booted = false
+      for (let i = 0; i < 120; i++) {
+        booted = await cdp
+          .evaluate(
+            "!!documentPictureInPicture.window && !!documentPictureInPicture.window.document.querySelector('canvas') && !!documentPictureInPicture.window.document.querySelector('.pip-lights')",
+            session
+          )
+          .catch(() => false)
+        if (booted) break
+        await delay(100)
+      }
+      assert(booted, '浮动钮点击后 PiP 编辑窗未自举（画布+灯组）')
+      await delay(800)
+    }
+    for (let i = 0; i < 60; i++) {
+      if (await cdp.evaluate("!!document.querySelector('canvas')", session)) break
+      await delay(100)
+    }
+    assert(await cdp.evaluate("!!document.querySelector('canvas')", session), '编辑器未挂载画布')
+    return { targetId: editorTarget.targetId, session, url: editorTarget.url }
+  }
   if (!skipEditor)
     await record('截图插件action截图并打开编辑器', async () => {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      let editorTarget
-      for (let i = 0; i < 120; i++) {
-        const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-        // 只附着已稳定的 PiP：url=editor.html 且标题已继承非空。临时页标题为空且迁移后
-        // 即关闭，附着它会拿到死会话；8 秒未见 PiP 才回落未迁移页
-        editorTarget =
-          targetInfos.find(
-            (v) =>
-              v.type === 'page' &&
-              v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
-              v.title !== ''
-          ) ??
-          (i >= 80
-            ? targetInfos.find(
-                (v) =>
-                  v.type === 'page' &&
-                  v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
-                  v.title === ''
-              )
-            : undefined)
-        if (editorTarget) break
-        await delay(100)
-      }
-      assert(editorTarget, '编辑器页未打开')
-      // 等迁移结算（opener 拆窗 + PiP 落稳）再附着，避免拿到即将关闭的会话
-      await delay(1200)
-      const session = await cdp.attach(editorTarget.targetId)
-      editorSessions.push({ targetId: editorTarget.targetId, session, url: editorTarget.url })
-      for (let i = 0; i < 60; i++) {
-        if (await cdp.evaluate("!!document.querySelector('canvas')", session)) break
-        await delay(100)
-      }
-      const ok = await cdp.evaluate("!!document.querySelector('canvas')", session)
-      assert(ok, '编辑器未挂载画布')
-      return { editorUrl: editorTarget.url }
+      const attached = await attachEditorPip(`${shotUrl}editor.html?captureId=`, [])
+      editorSessions.push(attached)
+      // 迁移自证：PiP 上下文灯组真实挂载（pip-lifecycle.js 在 PiP 文档自身上下文运行）
+      const lights = await cdp.evaluate(
+        "!!documentPictureInPicture.window && !!documentPictureInPicture.window.document.querySelector('.pip-lights') && documentPictureInPicture.window.document.querySelectorAll('.pip-light').length === 3",
+        attached.session
+      )
+      assert(lights, 'PiP 编辑窗灯组未挂载')
+      return { editorUrl: attached.url }
     })
 
   if (!skipEditor)
     await record('编辑器复用生产组件：绘制/撤销/重做/文字/裁剪', async () => {
       const session = editorSessions[0].session
       const evaluate = (expr) => cdp.evaluate(expr, session)
-      // 弹窗被遮挡时 rAF 节流会冻结 Konva 重绘，交互前强制前台化并模拟焦点
-      await cdp.send('Target.activateTarget', { targetId: editorSessions[0].targetId })
-      await cdp.send('Page.bringToFront', {}, session)
+      // 编辑器 UI 活在 PiP 文档（PiP 非 CDP 目标）：一切 DOM/交互经 opener 跨窗
+      // （documentPictureInPicture.window.document）到达。焦点模拟供 clipboard 语义
       await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
-      await delay(200)
-      await cdp.send(
-        'Emulation.setDeviceMetricsOverride',
-        { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false },
-        session
-      )
+      const PIP = 'documentPictureInPicture.window.document'
       const click = (label) =>
         evaluate(
-          `[...document.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}||b.textContent===${JSON.stringify(label)}).click()`
+          `(() => { const b = [...${PIP}.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`
         )
       const canvasData = () =>
-        evaluate("[...document.querySelectorAll('canvas')].map(c=>c.toDataURL()).join('')")
+        evaluate(`[...${PIP}.querySelectorAll('canvas')].map(c=>c.toDataURL()).join('')`)
       const canUndoRedo = () =>
         evaluate(
-          "({undo:!document.querySelector('button[aria-label=撤销]').disabled,redo:!document.querySelector('button[aria-label=重做]').disabled})"
+          `(() => { const b = (l) => ${PIP}.querySelector('button[aria-label=' + JSON.stringify(l) + ']'); return { undo: !b('撤销').disabled, redo: !b('重做').disabled } })()`
         )
+      /** PiP 内绘制：向 PiP 画布派发合成 MouseEvent（Konva 接收合成指针事件），
+       *  坐标以 PiP 画布 rect 现算（PiP 窗口 880×640） */
       async function draw(x, y, w, h) {
-        const r = await evaluate(
-          "document.querySelector('canvas').getBoundingClientRect().toJSON()"
-        )
+        const r = await evaluate(`${PIP}.querySelector('canvas').getBoundingClientRect().toJSON()`)
         const sx = r.x + x,
           sy = r.y + y
-        await cdp.send(
-          'Input.dispatchMouseEvent',
-          { type: 'mousePressed', x: sx, y: sy, button: 'left', buttons: 1, clickCount: 1 },
-          session
-        )
-        for (let i = 1; i <= 8; i++)
-          await cdp.send(
-            'Input.dispatchMouseEvent',
-            { type: 'mouseMoved', x: sx + (w * i) / 8, y: sy + (h * i) / 8, buttons: 1 },
-            session
+        const fire = (type, px, py, buttons) =>
+          evaluate(
+            `(() => { ${PIP}.querySelector('canvas').dispatchEvent(new MouseEvent('${type}', { clientX: ${px}, clientY: ${py}, button: 0, buttons: ${buttons}, bubbles: true })) })()`
           )
-        await cdp.send(
-          'Input.dispatchMouseEvent',
-          {
-            type: 'mouseReleased',
-            x: sx + w,
-            y: sy + h,
-            button: 'left',
-            buttons: 0,
-            clickCount: 1
-          },
-          session
-        )
-        await delay(150)
+        await fire('mousedown', sx, sy, 1)
+        for (let i = 1; i <= 8; i++) await fire('mousemove', sx + (w * i) / 8, sy + (h * i) / 8, 1)
+        await fire('mouseup', sx + w, sy + h, 0)
+        // Konva 拖拽态结算 + 重绘节拍
+        await delay(260)
       }
       const before = await canvasData()
       await click('矩形')
@@ -254,40 +287,43 @@ try {
       await draw(520, 320, 0, 0)
       // 文字框偶发慢挂载：等待后仍未出现则换点补击一次
       for (let i = 0; i < 40; i++) {
-        if (await evaluate("!!document.querySelector('textarea')")) break
+        if (await evaluate('!!' + PIP + ".querySelector('textarea')")) break
         await delay(100)
       }
-      if (!(await evaluate("!!document.querySelector('textarea')"))) {
+      if (!(await evaluate('!!' + PIP + ".querySelector('textarea')"))) {
         await draw(560, 360, 0, 0)
         for (let i = 0; i < 60; i++) {
-          if (await evaluate("!!document.querySelector('textarea')")) break
+          if (await evaluate('!!' + PIP + ".querySelector('textarea')")) break
           await delay(100)
         }
       }
-      assert(await evaluate("!!document.querySelector('textarea')"), '文字输入框未出现')
-      await cdp.send('Input.insertText', { text: '插件M1' }, session)
-      await cdp.send(
-        'Input.dispatchKeyEvent',
-        { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 },
-        session
-      )
-      await cdp.send(
-        'Input.dispatchKeyEvent',
-        { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 },
-        session
-      )
+      assert(await evaluate('!!' + PIP + ".querySelector('textarea')"), '文字输入框未出现')
+      // 文本注入：textarea.value 现填 + input 事件 + 合成 Enter keydown（React
+      // onKeyDown 读 e.key，commitTextEdit 从 ref 现读 textarea.value）
+      await evaluate(`(() => {
+        const ta = ${PIP}.querySelector('textarea')
+        ta.value = '插件M1'
+        ta.dispatchEvent(new Event('input', { bubbles: true }))
+        ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })()`)
       await delay(120)
       await click('裁剪')
       await draw(20, 120, 500, 300)
       for (let i = 0; i < 40; i++) {
-        if (await evaluate("!!document.querySelector('.chrome-capture-editor-cropbtn.is-primary')"))
+        if (
+          await evaluate('!!' + PIP + ".querySelector('.chrome-capture-editor-cropbtn.is-primary')")
+        )
           break
         await delay(100)
       }
-      await evaluate("document.querySelector('.chrome-capture-editor-cropbtn.is-primary').click()")
-      await delay(200)
-      const shot = await cdp.send('Page.captureScreenshot', {}, session)
-      await writeFile(join(output, 'plugin-editor.png'), Buffer.from(shot.data, 'base64'))
+      await evaluate(PIP + ".querySelector('.chrome-capture-editor-cropbtn.is-primary').click()")
+      await delay(300)
+      // 证据 = PiP 画布成品（opener 是空承载壳，截屏无内容）
+      const dataUrl = await evaluate(`${PIP}.querySelector('canvas').toDataURL('image/png')`)
+      await writeFile(
+        join(output, 'plugin-editor.png'),
+        Buffer.from(dataUrl.split(',')[1], 'base64')
+      )
       assert.equal(pageErrors.length, 0, '编辑器页有运行时异常：' + pageErrors.join(';'))
       return { annotated: true }
     })
@@ -295,16 +331,16 @@ try {
   if (!skipEditor)
     await record('编辑器复制与下载PNG', async () => {
       const session = editorSessions[0].session
-      await cdp.send('Target.activateTarget', { targetId: editorSessions[0].targetId })
-      await cdp.send('Page.bringToFront', {}, session)
       await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, session)
       await cdp.send('Browser.grantPermissions', {
         origin: shotUrl,
         permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite']
       })
+      // 复制/下载动作在 PiP 上下文执行（borrowed chrome + PiP 自己的 navigator），
+      // 按钮经 opener 跨窗点击；剪贴板读取在 opener（焦点模拟 + 系统剪贴板）
       const click = (label) =>
         cdp.evaluate(
-          `[...document.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}||b.textContent===${JSON.stringify(label)}).click()`,
+          `(() => { const d = documentPictureInPicture.window.document; const b = [...d.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`,
           session
         )
       await click('复制到剪贴板')
@@ -361,39 +397,11 @@ try {
     await record('第二张截图快照独立', async () => {
       await cdp.send('Target.activateTarget', { targetId: tabId })
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      let editorTarget
-      for (let i = 0; i < 120; i++) {
-        const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
-        // 只附着已稳定的 PiP（标题非空），排除已附着目标；8 秒未见 PiP 再回落未迁移页
-        editorTarget =
-          targetInfos.find(
-            (v) =>
-              v.type === 'page' &&
-              v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
-              v.title !== '' &&
-              !editorSessions.some((s) => s.targetId === v.targetId)
-          ) ??
-          (i >= 80
-            ? targetInfos.find(
-                (v) =>
-                  v.type === 'page' &&
-                  v.url.startsWith(`${shotUrl}editor.html?captureId=`) &&
-                  v.title === '' &&
-                  !editorSessions.some((s) => s.targetId === v.targetId)
-              )
-            : undefined)
-        if (editorTarget) break
-        await delay(100)
-      }
-      assert(editorTarget, '第二次截图未打开新编辑器')
-      // 等迁移结算后再附着
-      await delay(1200)
-      const session = await cdp.attach(editorTarget.targetId)
-      editorSessions.push({ targetId: editorTarget.targetId, session, url: editorTarget.url })
-      for (let i = 0; i < 60; i++) {
-        if (await cdp.evaluate("!!document.querySelector('canvas')", session)) break
-        await delay(100)
-      }
+      const attached = await attachEditorPip(
+        `${shotUrl}editor.html?captureId=`,
+        editorSessions.map((s) => s.targetId)
+      )
+      editorSessions.push(attached)
       assert(
         editorSessions[0].url.split('captureId=')[1] !==
           editorSessions[1].url.split('captureId=')[1],

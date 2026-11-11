@@ -5,8 +5,8 @@
 
 const MAX_KEPT = 10
 
-/** 常规编辑弹窗窗口 id：编辑页迁移 PiP 成功后由后台收回 */
-let editorWindowId = null
+/** 编辑弹窗仍需存活（Document PiP 不能活过 opener——opener 关闭即带走 PiP）：
+ *  迁移后本窗最小化承载 PiP 生命周期，PiP 关闭时经 pip-closed 反向收回本窗 */
 
 /** 读取目标快照；captureId 缺失时回退最新一张 */
 async function loadCapture(captureId) {
@@ -56,11 +56,12 @@ chrome.action.onClicked.addListener(async (tab) => {
     // 与生产编辑窗同形态：chrome=hidden-titlebar 让 EditorWindow 呈现 84px 左让
     // 红绿灯位 + 工具条拖动区（内容形态单源=生产组件）；scale 只按宽适配（只缩不放），
     // 窗宽高按图幅现算并收口。原生标题栏为 Chrome 扩展窗口约束，无法隐藏——
-    // 编辑页加载后自动迁移到 Document PiP 无框窗口（工具行内含关闭钮），本窗随之关闭
+    // 编辑页提供浮动钮迁移 PiP 无框窗（页内点击供瞬态激活），本窗最小化承载
+    // PiP 生命周期（PiP 不能活过 opener），PiP 关闭后经 pip-closed 收回本窗
     const scale = Math.min(1, 840 / payload.width)
     const width = Math.min(1100, Math.round(payload.width * scale) + 24)
     const height = Math.min(900, Math.round(payload.height * scale) + 64)
-    const win = await chrome.windows.create({
+    await chrome.windows.create({
       url:
         'editor.html?captureId=' +
         payload.captureId +
@@ -71,7 +72,6 @@ chrome.action.onClicked.addListener(async (tab) => {
       width,
       height
     })
-    editorWindowId = win?.id ?? null
   } catch (error) {
     await chrome.storage.local.set({ lastError: String(error) })
     console.error('截图失败:', error)
@@ -79,13 +79,20 @@ chrome.action.onClicked.addListener(async (tab) => {
 })
 
 // 编辑器页直接经 chrome.storage 读取（editor-entry 适配器自行处理），后台仅提供续编入库。
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'screenshot.pip-migrated') {
+    // PiP 落地：承载窗（消息来源窗）最小化，PiP 随 opener 存活继续渲染
     void (async () => {
-      if (editorWindowId !== null) {
-        await chrome.windows.remove(editorWindowId).catch(() => {})
-        editorWindowId = null
-      }
+      if (sender.tab?.windowId != null)
+        await chrome.windows.update(sender.tab.windowId, { state: 'minimized' }).catch(() => {})
+    })()
+    return
+  }
+  if (message?.type === 'screenshot.pip-closed') {
+    // PiP 已关：收回承载窗（opener 的 leave 监听发出，消息来源 = 承载窗自身）
+    void (async () => {
+      if (sender.tab?.windowId != null)
+        await chrome.windows.remove(sender.tab.windowId).catch(() => {})
     })()
     return
   }

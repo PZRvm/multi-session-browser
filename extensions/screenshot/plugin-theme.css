@@ -1,105 +1,105 @@
-/* 插件编辑器主题：雾蓝（仅插件编辑器页生效，不改生产组件样式源）。
-   Token 单源 = 主应用 src/shared/themeSystems.ts 雾蓝系（逐值对账，改一处必改另一处）：
-   accent #a4bcd1 / accentStrong #b2c7d9 / accentPress #90aec6 / accentDeep #31536e /
-   accentInk #101c29；亮表面 bg #eef1f3、raised #e3e7ea、hairline #ccd2d9、
-   ink #1c242c、inkDim #5c6875、controlLine #b5bfc8；
-   暗表面 bg #11151a、raised #1b222b、hairline #252e39、ink #edf0f3、inkDim #909ba8、
-   controlLine #3b4754、accent（基）#a4bcd1。
-   内容形态 = 生产 chrome=hidden-titlebar 形态（84px 左让红绿灯位、工具条拖动区），
-   布局由生产样式单源承载，本文件只做雾蓝配色，不做布局改写 */
-:root {
-  --msb-accent: #a4bcd1;
-  --msb-accent-strong: #b2c7d9;
-  --msb-accent-press: #90aec6;
-  --msb-accent-deep: #31536e;
-  --msb-accent-ink: #101c29;
-  --msb-accent-veil: rgba(16, 28, 41, 0.12);
-  --msb-board-bg: #eef1f3;
-  --msb-raised: #e3e7ea;
-  --msb-hairline: #ccd2d9;
-  --msb-ink: #1c242c;
-  --msb-ink-dim: #5c6875;
-  --msb-control-line: #b5bfc8;
-  --msb-hover-veil: rgba(28, 36, 44, 0.08);
+/* 插件编辑器主题：雾蓝对账（仅插件编辑器页生效，不改生产组件样式源）。
+   ============================================================
+   色值单源 = 主应用 src/shared/themeSystems.ts 雾蓝（mist）系，经生产注入链
+   themeCssVariables('mist', …) 的逐条映射对账（themeSystems.ts:334-370）：
+   chrome 表面族亮态 chromeToolbar #f1f3f4 / chromeLine #c7cbd1 / chromeTabbar
+   #dee1e6 / chromeTabSeparator #b8bcc1 / chromeSurface #ffffff / chromeOmniboxBg
+   #ffffff / chromeTabbarDragTarget #c4c7cc；暗态 chromeToolbar #292a2d /
+   chromeLine #3c4043 / chromeTabbar #202124 / chromeTabSeparator #3c4043 /
+   chromeSurface #202124 / chromeOmniboxBg #202124 / chromeTabbarDragTarget
+   #444548。
+   chrome 墨族与蒙版族（--chrome-ink/-ink-dim/-disabled/-error、各 veil）为主题
+   全局常量（themeSystems.ts:329-332 收录口径），app.css :root 已定义同值，不在此
+   重定义。编辑器按钮语言（透明底 28px 圆钮、灰阶蒙版 hover/focus、select-veil
+   选中）由生产 app.css 单源承载，插件不再覆写——与主应用雾蓝编辑窗完全一致。
+   本文件只做：① 把 mist chrome 表面族灌入本页（生产由 theme.ts 运行期注入，
+   插件页无注入链，:root 缺省是琥珀值）；② PiP 无框形态专属样式。
+   改 themeSystems.ts 雾蓝值必改此处（逐值对账义务）。
+   ============================================================ */
+body.plugin-editor {
+  --chrome-toolbar: #f1f3f4;
+  --chrome-tab-active: #f1f3f4;
+  --chrome-line: #c7cbd1;
+  --chrome-tabbar: #dee1e6;
+  --chrome-tab-separator: #b8bcc1;
+  --chrome-surface: #ffffff;
+  --chrome-omnibox-bg: #ffffff;
+  --chrome-tabbar-drag-target: #c4c7cc;
+  /* 生产 body[data-role='capture-editor'] 同款：纸面底 + 墨色 */
+  background: var(--chrome-toolbar);
+  color: var(--chrome-ink);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --msb-board-bg: #11151a;
-    --msb-raised: #1b222b;
-    --msb-hairline: #252e39;
-    --msb-ink: #edf0f3;
-    --msb-ink-dim: #909ba8;
-    --msb-control-line: #3b4754;
-    --msb-hover-veil: rgba(255, 255, 255, 0.08);
+  body.plugin-editor {
+    --chrome-toolbar: #292a2d;
+    --chrome-tab-active: #292a2d;
+    --chrome-line: #3c4043;
+    --chrome-tabbar: #202124;
+    --chrome-tab-separator: #3c4043;
+    --chrome-surface: #202124;
+    --chrome-omnibox-bg: #202124;
+    --chrome-tabbar-drag-target: #444548;
   }
 }
 
-body.plugin-editor {
-  background: var(--msb-board-bg);
-  color: var(--msb-ink);
-}
-
-/* 工具/产出按钮：raised 砖面 + 发丝线，hover 雾蓝纱 */
-.plugin-editor .chrome-capture-editor-iconbtn {
-  border-color: var(--msb-hairline);
-  background: var(--msb-raised);
-  color: var(--msb-ink);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.plugin-editor .chrome-capture-editor-iconbtn:hover:not(:disabled) {
-  background: var(--msb-accent-veil);
-  color: var(--msb-accent-deep);
-}
-
-/* 选中工具：雾蓝强调底 + 强调墨（主按钮语言：accent 底配 accentInk 字） */
-.plugin-editor .chrome-capture-editor-iconbtn.is-active {
-  background: var(--msb-accent);
-  color: var(--msb-accent-ink);
-}
-
-.plugin-editor .chrome-capture-editor-iconbtn.is-active:hover {
-  background: var(--msb-accent-press);
-  color: var(--msb-accent-ink);
-}
-
-/* 产出钮（复制/下载）用 accentDeep 墨色 */
-.plugin-editor .chrome-capture-editor-actions .chrome-capture-editor-iconbtn {
-  color: var(--msb-accent-deep);
-}
-
-/* 裁剪主操作钮：accentDeep 实底白字（强调信号，不越界用色） */
-.plugin-editor .chrome-capture-editor-cropbtn {
-  border-color: var(--msb-hairline);
-}
-
-.plugin-editor .chrome-capture-editor-cropbtn.is-primary {
-  background: var(--msb-accent-deep);
-  color: #fff;
-}
-
-.plugin-editor .chrome-capture-editor-cropbtn.is-primary:hover {
-  background: #27455c;
-}
-
-/* inline 成功反馈：accentDeep */
-.plugin-editor .chrome-capture-editor-flash {
-  color: var(--msb-accent-deep);
-}
-
-/* PiP 无框形态：无系统红绿灯，取消 84px 左让位；工具行最左为关闭钮 */
+/* ============================================================
+   PiP 无框形态（PiP 无系统红绿灯）：工具行最左放仿 macOS 三灯组——
+   红灯 = 关窗（功能灯），黄/绿 = 形态示意（PiP 无最小化/缩放能力，纯视觉）。
+   生产形态为系统真灯（84px 左让位），此处 84px 让位取消、灯组入行首。
+   ============================================================ */
 body.pip .chrome-capture-editor-topbar {
   padding-left: 12px;
 }
 
-.pip-close-btn {
-  color: var(--msb-accent-deep);
-  font-size: 13px;
-  line-height: 1;
+.pip-lights {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+  flex: none;
 }
 
-.pip-close-btn:hover {
-  background: var(--msb-accent-veil);
-  color: var(--danger, #d4380d);
+.pip-lights .pip-light {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 0;
+}
+
+.pip-lights .pip-light.is-close {
+  background: #ff5f57;
+}
+
+.pip-lights .pip-light.is-close:hover {
+  background: #e0443e;
+}
+
+.pip-lights .pip-light.is-min {
+  background: #febc2e;
+}
+
+.pip-lights .pip-light.is-zoom {
+  background: #28c840;
+}
+
+/* 浮动钮（无调用态回退形态）：页内点击供瞬态激活 → 迁移无框 PiP。固定右下角
+   （#root 满窗编辑器之后的流内位置在视口外，真实用户也无法点击——必须有样式） */
+#pip-fallback {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  padding: 5px 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 14px;
+  background: var(--msb-accent, #a4bcd1);
+  color: #101c29;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#pip-fallback:hover {
+  background: var(--msb-accent-press, #90aec6);
 }
