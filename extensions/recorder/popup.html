@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>多会话录屏</title>
     <style>
-      /* 深浅双主题：跟随系统，变量单源；对比度按可读性校准 */
+      /* 深浅双主题：跟随系统；单层表面铺满弹窗 */
       :root {
         color-scheme: light dark;
         --bg: #ffffff;
@@ -15,6 +15,8 @@
         --btn-line: #b9bcc2;
         --danger: #c5493c;
         --error: #c5493c;
+        --tip-bg: #2a2e33;
+        --tip-fg: #e8eaed;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -26,6 +28,8 @@
           --btn-line: #4a4f55;
           --danger: #e05a4c;
           --error: #ff8a7d;
+          --tip-bg: #e8eaed;
+          --tip-fg: #1f2329;
         }
       }
       html,
@@ -35,10 +39,9 @@
       body {
         font: 13px/1.5 system-ui, -apple-system, 'PingFang SC', sans-serif;
         margin: 0;
-        min-width: 300px;
+        min-width: 260px;
         color: var(--fg);
       }
-      /* 单层表面：内容铺满弹窗，圆角由弹窗窗口自身承担 */
       main {
         padding: 12px 14px;
       }
@@ -46,9 +49,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 2px;
       }
-      /* 状态指示灯：空闲灰 / 启动黄 / 录制红闪 / 暂停蓝 / 收尾灰 */
       .dot {
         width: 10px;
         height: 10px;
@@ -72,14 +73,17 @@
         }
       }
       .state {
-        font-size: 17px;
+        font-size: 15px;
         font-weight: 600;
       }
-      .meta {
+      .result {
         color: var(--fg-soft);
         font-size: 11px;
-        min-height: 15px;
-        margin-top: 2px;
+        margin-top: 4px;
+        min-height: 0;
+      }
+      .result:empty {
+        display: none;
       }
       .error {
         color: var(--error);
@@ -87,46 +91,83 @@
         white-space: pre-wrap;
         word-break: break-all;
       }
+      .error:empty {
+        display: none;
+      }
       .row {
         display: flex;
-        gap: 6px;
+        gap: 8px;
         margin-top: 12px;
       }
-      button {
-        flex: 1;
-        font-size: 12px;
-        padding: 7px 0;
+      /* icon 按钮：tooltip 用 data-tip 呈现（popover） */
+      .iconbtn {
+        position: relative;
+        width: 38px;
+        height: 34px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border: 1px solid var(--btn-line);
-        border-radius: 6px;
+        border-radius: 8px;
         background: var(--btn-bg);
         color: var(--fg);
         cursor: pointer;
+        padding: 0;
       }
-      button:disabled {
-        opacity: 0.45;
+      .iconbtn svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+        fill: currentColor;
+      }
+      .iconbtn:disabled {
+        opacity: 0.35;
         cursor: not-allowed;
       }
-      button.primary {
+      .iconbtn.primary {
         background: var(--danger);
+        border-color: var(--danger);
         color: #fff;
+      }
+      .iconbtn.primary:disabled {
+        opacity: 0.45;
+      }
+      .iconbtn.danger-soft:hover:not(:disabled) {
+        color: var(--danger);
         border-color: var(--danger);
       }
-      button.primary:disabled {
-        opacity: 0.55;
-      }
-      label.audio {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        font-size: 12px;
-        color: var(--fg);
-      }
-      .hint {
-        margin-top: 10px;
-        color: var(--fg-soft);
+      .iconbtn[data-tip]:hover::after,
+      .iconbtn[data-tip]:focus-visible::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--tip-bg);
+        color: var(--tip-fg);
         font-size: 11px;
-        line-height: 1.6;
+        line-height: 1.4;
+        padding: 5px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        z-index: 10;
+        pointer-events: none;
+      }
+      .iconbtn.audio.off {
+        color: var(--fg-soft);
+      }
+      .iconbtn.audio.off svg .wave {
+        display: none;
+      }
+      .iconbtn.audio.off::before {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 1.5px;
+        background: var(--danger);
+        transform: rotate(-45deg);
+        border-radius: 1px;
       }
     </style>
   </head>
@@ -136,20 +177,31 @@
         <span class="dot" id="dot"></span>
         <span class="state" id="state">未知</span>
       </div>
-      <div class="meta" id="meta"></div>
+      <div class="result" id="result"></div>
       <div class="error" id="error" role="alert"></div>
       <div class="row">
-        <button id="start" class="primary">开始</button>
-        <button id="pause" disabled>暂停</button>
-        <button id="resume" disabled>恢复</button>
-        <button id="cancel" disabled>取消</button>
-        <button id="stop" disabled>停止</button>
+        <button id="start" class="iconbtn primary" data-tip="开始录制当前标签页" aria-label="开始录制">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" /></svg>
+        </button>
+        <button id="pause" class="iconbtn" data-tip="暂停" aria-label="暂停" disabled>
+          <svg viewBox="0 0 16 16"><rect x="4" y="3" width="3" height="10" rx="1" /><rect x="9" y="3" width="3" height="10" rx="1" /></svg>
+        </button>
+        <button id="resume" class="iconbtn" data-tip="恢复" aria-label="恢复" disabled>
+          <svg viewBox="0 0 16 16"><path d="M5 3.5v9a.8.8 0 0 0 1.22.68l7-4.5a.8.8 0 0 0 0-1.36l-7-4.5A.8.8 0 0 0 5 3.5z" /></svg>
+        </button>
+        <button id="cancel" class="iconbtn danger-soft" data-tip="取消（丢弃本次录像）" aria-label="取消录制" disabled>
+          <svg viewBox="0 0 16 16"><path d="M4.1 4.1a.75.75 0 0 1 1.06 0L8 6.94l2.84-2.84a.75.75 0 1 1 1.06 1.06L9.06 8l2.84 2.84a.75.75 0 1 1-1.06 1.06L8 9.06l-2.84 2.84a.75.75 0 1 1-1.06-1.06L6.94 8 4.1 5.16a.75.75 0 0 1 0-1.06z" /></svg>
+        </button>
+        <button id="stop" class="iconbtn" data-tip="结束录制并保存 MP4" aria-label="结束录制" disabled>
+          <svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg>
+        </button>
+        <button id="audio" class="iconbtn audio" data-tip="录制 Tab 音频：改后下次生效；录制中切换为即时静音" aria-label="录制 Tab 音频">
+          <svg viewBox="0 0 16 16">
+            <path d="M8 2a2.2 2.2 0 0 1 2.2 2.2v3.6a2.2 2.2 0 0 1-4.4 0V4.2A2.2 2.2 0 0 1 8 2z" />
+            <path class="wave" d="M4 7.8a.65.65 0 0 1 1.3 0 2.7 2.7 0 0 0 5.4 0 .65.65 0 0 1 1.3 0 4 4 0 0 1-3.35 3.94v1.31a.65.65 0 0 1-1.3 0v-1.31A4 4 0 0 1 4 7.8z" />
+          </svg>
+        </button>
       </div>
-      <label class="audio">
-        <input type="checkbox" id="audio" checked />
-        录制当前 Tab 音频（改后下次录制生效；录制中切换为即时静音）
-      </label>
-      <p class="hint">对当前标签页开始录制；关闭本弹窗录制继续，再次点图标查看状态。产物下载为 MP4。</p>
     </main>
     <script src="popup.js"></script>
   </body>

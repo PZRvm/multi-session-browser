@@ -35,24 +35,22 @@ async function ensureOffscreen() {
     })
 }
 
-// popup 启动指令：popup 打开即扩展调用态，SW 在该窗口内取 tabCapture 流并分发
+// popup 启动指令：popup 点击即调用事件，streamId 已在 popup 同步取好移交 SW 分发
 async function startRecording(message) {
   const rec = await readRec()
   if (rec.state !== 'idle') return
-  if (!message.targetTabId) throw new Error('缺少目标标签页')
+  if (!message.streamId) throw new Error('缺少采集流ID')
   await ensureOffscreen()
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: message.targetTabId })
   const next = await patchRec({
     state: 'starting',
     generation: rec.generation + 1,
     error: null,
-    info: null,
-    targetTabId: message.targetTabId
+    info: null
   })
   await chrome.runtime.sendMessage({
     target: 'offscreen',
     type: 'start',
-    streamId,
+    streamId: message.streamId,
     audio: rec.audioEnabled,
     generation: next.generation
   })

@@ -1,0 +1,71 @@
+/* 插件编辑器主题：雾蓝（仅插件编辑器页生效，不改生产组件样式源） */
+:root {
+  --msb-accent: #6f9cc4;
+  --msb-accent-strong: #4d7fa6;
+  --msb-accent-soft: #a8c4da;
+  --msb-accent-pale: #eef4f8;
+}
+
+body.plugin-editor {
+  background: #f5f8fa;
+}
+
+/* 顶部不再使用色带：透明、紧凑，功能键行垂直居中，与系统红绿灯行视觉衔接 */
+.plugin-editor .chrome-capture-editor-topbar {
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
+  min-height: 40px;
+  height: 40px;
+  padding: 0 10px 0 12px;
+  gap: 8px;
+}
+
+.plugin-editor .chrome-capture-editor-iconbtn {
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.plugin-editor .chrome-capture-editor-iconbtn:hover:not(:disabled) {
+  background: var(--msb-accent-pale);
+  color: var(--msb-accent-strong);
+}
+
+/* 选中工具：雾蓝实底 */
+.plugin-editor .chrome-capture-editor-iconbtn.is-active {
+  background: var(--msb-accent);
+  color: #fff;
+}
+
+.plugin-editor .chrome-capture-editor-iconbtn.is-active:hover {
+  background: var(--msb-accent-strong);
+  color: #fff;
+}
+
+/* 产出钮（复制/下载）与裁剪主操作：雾蓝主色 */
+.plugin-editor .chrome-capture-editor-actions .chrome-capture-editor-iconbtn {
+  color: var(--msb-accent-strong);
+}
+
+.plugin-editor .chrome-capture-editor-cropbtn {
+  border-radius: 8px;
+}
+
+.plugin-editor .chrome-capture-editor-cropbtn.is-primary {
+  background: var(--msb-accent-strong);
+  color: #fff;
+}
+
+.plugin-editor .chrome-capture-editor-cropbtn.is-primary:hover {
+  background: var(--msb-accent);
+}
+
+/* inline 成功反馈与错误条沿用语义色，成功文案改雾蓝深色 */
+.plugin-editor .chrome-capture-editor-flash {
+  color: var(--msb-accent-strong);
+}
+
+/* 滚轮缩放后的画布容器光标提示 */
+.plugin-editor .chrome-capture-editor-canvas {
+  cursor: default;
+}

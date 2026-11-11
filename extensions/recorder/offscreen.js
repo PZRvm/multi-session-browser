@@ -76,7 +76,13 @@ async function start(message) {
         generation,
         reason: 'cancelled',
         url: null,
-        info: { mimeType: null, duration: 0, audioIncluded: false, audioMutedLive: false, chunkCount: 0 }
+        info: {
+          mimeType: null,
+          duration: 0,
+          audioIncluded: false,
+          audioMutedLive: false,
+          chunkCount: 0
+        }
       })
       return
     }

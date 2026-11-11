@@ -60,7 +60,36 @@ async function start(): Promise<void> {
     }
   } as typeof window.api
 
+  document.body.classList.add('plugin-editor')
+  setupWheelZoom()
   createRoot(document.getElementById('root')!).render(<EditorWindow />)
+}
+
+/** 滚轮缩放：Ctrl/⌘+滚轮在画布区缩放（0.25–4），普通滚轮保持滚动；
+ *  zoom 施加于 Konva 容器（CSS zoom），续编重挂后由 MutationObserver 重新应用 */
+function setupWheelZoom(): void {
+  let zoom = 1
+  const apply = (): void => {
+    const host = document.querySelector('.chrome-capture-editor-canvas')
+    const konva = host?.firstElementChild as HTMLElement | null
+    if (konva) konva.style.zoom = String(zoom)
+  }
+  document.addEventListener(
+    'wheel',
+    (event) => {
+      const host = document.querySelector('.chrome-capture-editor-canvas')
+      if (!host || !host.contains(event.target as Node)) return
+      if (!(event.ctrlKey || event.metaKey)) return
+      event.preventDefault()
+      zoom = Math.min(4, Math.max(0.25, zoom * (event.deltaY < 0 ? 1.1 : 0.9)))
+      apply()
+    },
+    { passive: false }
+  )
+  new MutationObserver(apply).observe(document.getElementById('root')!, {
+    childList: true,
+    subtree: true
+  })
 }
 
 void start().catch((error) => {
