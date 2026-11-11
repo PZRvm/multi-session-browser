@@ -63,6 +63,7 @@ app.whenReady().then(async () => {
       removeTab: (wc) => !wc.isDestroyed() && wc.close(),
       requestPermissions: async (extension, permissions) => {
         results.permissionProbe = { id: extension.id, permissions }
+        console.log('PERM_REQ ' + extension.id + ' ' + JSON.stringify(permissions).slice(0, 80))
         return true
       }
     }
@@ -146,6 +147,8 @@ app.whenReady().then(async () => {
       const cookieDetail = { url: site.url, name: 'msb_fixture', value: 'prod-path', path: '/' }
       await ses1.cookies.set(cookieDetail)
       // popup 的 activeTab 查询依赖引擎注册的 tab：注册壳 tab（幂等）并指向测试页
+      hostTab.owner.show()
+      hostTab.owner.focus()
       bundle.attachShellTab(handle, partition1, hostTab.wc)
       const cookieMeta = meta('cookie')
       const cookieDir = join(outDir, 'packages', cookieMeta.id + '-' + '1.13.0')

@@ -47,3 +47,14 @@ status: open
 | 深色模式（MV2） | Dark Reader 4.9.135 | 卡 Loading（依赖 background 通信，通信桥在生产会话断） | 已知问题，根因追踪见上文 |
 
 精化结论：**"MV2 全卡"不成立**——MV2 中不依赖 background 通信的 popup（Cookie-Editor 型）在生产路径渲染正常；卡的是"popup↔background 通信"这一条链（Dark Reader 型）。翻译/广告拦截（MV3 生态主流）两类实测可用。
+
+## 第三轮根因收口（2026-11-11 深夜）
+
+**共同根因锁定**：扩展插件的"当前 tab"状态依赖 lib 的 tabs 事件流（onActivated/onUpdated/tabDetails），而生产接线只做了 addTab/selectTab——**URL/激活变化从未喂给引擎**。后果链：
+
+1. Cookie-Editor popup：tabs 查询拿到 `url: undefined` → 权限请求 origins 退化为 `file://*.undefined./*`（PERM_REQ 日志实证）→ 读不到站点 cookie → 列表空。
+2. Dark Reader popup：初始化第一步等 active tab 信息 → 拿不到 → 永远卡 Loading。
+
+前置环境为何偶然可用：openAction 打开 popup 前页面刚完成 loadURL 时序 + 引擎部分状态恰好有值，属时序巧合非设计保证。
+
+**修复方向（下一任务，已定位接点）**：manager.ts 的导航事件处（did-navigate/did-start-loading 已有单点）同步把 tab URL/激活态喂给引擎——lib 无公开 API，需走 store.impl.assignTabDetails（createTabDetails 已预留的扩展点，见 lib index.js:944）或向 lib 上游提 tab 生命周期 API。Cookie-Editor 权限 origins 的 undefined 兜底亦应修复。
