@@ -18,6 +18,7 @@ import {
 import { createSessionProxyEngine } from './browser/proxy'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
+import { createExtensionsPanelWindows, type ExtensionsPanelWindows } from './extensions/panel'
 import {
   createCaptureFeedbackWindows,
   type CaptureFeedbackWindows
@@ -101,6 +102,7 @@ let mainWindow: BrowserWindow | null = null
 // 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
 // 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
 let suggestWindows: OmniboxSuggestWindows | null = null
+let extensionsPanelWindows: ExtensionsPanelWindows | null = null
 
 // 截图反馈子窗池（快速截图专项反馈轮三）：宿主窗口 closed 级联销毁各自子窗——
 // 主窗 closed 钩子与独立窗 onWindowClosed 调用（同建议子窗池）；whenReady 创建回填
@@ -338,6 +340,7 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
     suggestWindows?.dispose(WINDOW_ID_MAIN)
+    extensionsPanelWindows?.dispose(WINDOW_ID_MAIN)
     captureFeedbackWindows?.dispose(WINDOW_ID_MAIN)
     settingsWindowController?.dispose()
     // 全部编辑窗一并级联关闭（controller 内自清引用，重开主窗后可再次开窗）
@@ -408,6 +411,7 @@ app.whenReady().then(async () => {
     },
     onWindowClosed: (sessionId: string, windowId: string): void => {
       suggestWindows?.dispose(windowId)
+      extensionsPanelWindows?.dispose(windowId)
       captureFeedbackWindows?.dispose(windowId)
       registry?.onIndependentWindowClosed(sessionId, windowId)
     }
@@ -419,6 +423,16 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     // 建窗 query sys 现取（子窗统一注入不特判，主窗/独立窗同款契约）
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
+  })
+
+  // 扩展面板子窗池（原生子窗口化，白屏根除专项）：拼图菜单面板原生子窗承载（页面
+  // 保持可见，overlayDepth 不再登记），机制同建议子窗池（懒创建/隐藏复用/宿主
+  // move-resize 跟随/closed 级联）；分歧 focusable+blur 关闭与 preferred-size 自适应
+  // 见 extensions/panel.ts 头注
+  extensionsPanelWindows = createExtensionsPanelWindows({
+    getWindow: (windowId: string): BrowserWindow | null =>
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     getThemeColor: () => appearanceController.getSnapshot().themeColor
   })
 
@@ -526,7 +540,8 @@ app.whenReady().then(async () => {
     getMainWindow: () => mainWindow,
     windows: independentWindows,
     dragController: tabDragController,
-    suggestWindows
+    suggestWindows,
+    extensionsPanelWindows
   })
   registerToolbarTooltipIpc(created)
   registerAppearanceIpc(appearanceController)

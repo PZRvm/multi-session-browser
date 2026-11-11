@@ -51,6 +51,12 @@ import type {
   OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
 import type {
+  ExtensionsPanelDataPayload,
+  ExtensionsPanelPickedPayload,
+  ExtensionsPanelPickPayload,
+  ExtensionsPanelShowPayload
+} from '../shared/extensionsPanel'
+import type {
   AppearanceSnapshot,
   SetAppearanceModePayload,
   SetThemeColorPayload
@@ -223,7 +229,9 @@ declare global {
       }
       extensions: {
         list(): Promise<import('../../shared/extensions/management').ExtensionListItem[]>
-        installFromStore(id: string): Promise<import('../../shared/extensions/management').InstallResult>
+        installFromStore(
+          id: string
+        ): Promise<import('../../shared/extensions/management').InstallResult>
         importCrx(): Promise<import('../../shared/extensions/management').InstallResult>
         uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
         openPopup(
@@ -231,6 +239,18 @@ declare global {
           anchor: { x: number; y: number }
         ): Promise<{ ok: boolean; error?: string }>
         manage(): Promise<{ ok: boolean }>
+      }
+      /** 扩展面板原生子窗口（契约 shared/extensionsPanel.ts）：宿主 shell 用
+       *  show/hide 编排开合 + onPicked/onClosed 消费转发与关闭推送；面板子窗用
+       *  pick 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需 */
+      extensionsPanel: {
+        show(payload: ExtensionsPanelShowPayload): Promise<{ ok: boolean; canPresent: boolean }>
+        hide(): Promise<OkResult>
+        pick(payload: ExtensionsPanelPickPayload): Promise<OkResult>
+        setMousePassthrough(enabled: boolean): Promise<OkResult>
+        onData(callback: (payload: ExtensionsPanelDataPayload) => void): () => void
+        onPicked(callback: (payload: ExtensionsPanelPickedPayload) => void): () => void
+        onClosed(callback: () => void): () => void
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>

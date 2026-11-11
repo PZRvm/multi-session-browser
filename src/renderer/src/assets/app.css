@@ -3519,11 +3519,14 @@ body[data-role='capture-editor'] {
 
 /* 扩展面板（2026-11-11，Chrome 拼图菜单还原）：chrome 表面族世界，亮暗随
    --chrome-* token 自动翻转；宽度/圆角/行距对齐 Chrome 原生气泡节奏 */
+/* 扩展面板（原生子窗口承载态，白屏根除专项）：面板 div 渲染在 ?role=extensions-panel
+   子窗内——窗口边界即面板边界外扩 24px 阴影环带（EXTENSIONS_PANEL_SHADOW_MARGIN 单源
+   对账），div 以 margin 缩进同值；宽度 360 与 EXTENSIONS_PANEL_WIDTH 对账（改一处必
+   改另一处）；高度由主进程 preferred-size 自适应 clamp [120,600] 后窗口边界承担，超出
+   走本元素滚动；旧 fixed/overlayDepth 让位路线（页面白屏代价）已退役 */
 .chrome-ext-panel {
-  position: fixed;
-  z-index: 1000;
   width: 360px;
-  max-height: 70vh;
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding: 16px 0 0;
   border-radius: 16px;
@@ -3532,6 +3535,15 @@ body[data-role='capture-editor'] {
     0 4px 16px rgba(0, 0, 0, 0.18),
     0 1px 4px rgba(0, 0, 0, 0.12);
   border: 1px solid var(--chrome-line);
+}
+
+/* 子窗窗体透明（环带透出页面）；主题随 nativeTheme 的 prefers-color-scheme 自动亮暗 */
+body[data-role='extensions-panel'] {
+  background: transparent;
+}
+
+body[data-role='extensions-panel'] .chrome-ext-panel {
+  margin: 24px; /* EXTENSIONS_PANEL_SHADOW_MARGIN 阴影环带 */
 }
 .chrome-ext-panel-head {
   display: flex;

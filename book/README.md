@@ -289,6 +289,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-插件界面验证先等状态再查真实数据.md](notes/learn/2026-11/20261110-插件界面验证先等状态再查真实数据.md) — Cookie表单动画导致错误保存目标，React面板折叠与输入值读取导致验证误判的实测经验
 - [20261111-媒体回归前必须清理残留Electron进程.md](notes/learn/2026-11/20261111-媒体回归前必须清理残留Electron进程.md) — 真实采集/录制回归前必须清理残留Electron进程，否则负载干扰会伪造解码损坏
 - [20261111-插件后台与双API入口验证.md](notes/learn/2026-11/20261111-插件后台与双API入口验证.md) — Dark Reader实际为MV3，service-worker preload和browser命名空间须实测，透明Loading文本不能代替页面验收
+- [20261111-渲染弹层压不过原生层的路线选型.md](notes/learn/2026-11/20261111-渲染弹层压不过原生层的路线选型.md) — 本应用 shell DOM 弹层必被 WebContentsView 原生层遮挡——四条可行路线的选型经验与踩坑记录（overlayDepth 收起白屏、action popup 层级）
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -379,6 +380,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110125000-Electron升级与React图标修复.md](notes/summary/2026-11/20261110125000-Electron升级与React图标修复.md) — Electron42消除sandbox错误，独立React修复版在项目宿主和普通Chrome通过属性与Profiler验证，原应用录屏产物暴露既有解码问题
 - [20261111-四插件与新会话同步修复.md](notes/summary/2026-11/20261111-四插件与新会话同步修复.md) — 四插件经真实会话和工具栏完成操作，新会话首导航同步和重启通过，说明Electron45升级与保留的旧探针失败
 - [20261111-宿主兼容开发完成报告.md](notes/summary/2026-11/20261111-宿主兼容开发完成报告.md) — 宿主兼容开发计划M1—M4完成报告：安装/运行时/商店/协议桥真实Electron证据与边界清单
+- [20261111-扩展面板原生子窗口化.md](notes/summary/2026-11/20261111-扩展面板原生子窗口化.md) — 扩展面板唤出浏览器区全白根除——面板由 shell DOM 弹层迁主进程原生子窗（omniboxSuggest 同款池），页面保持可见，overlayDepth 登记退役
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
 ### notes/task/
@@ -447,6 +449,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-完成非Windows插件前置验证.md](plans/20261110-完成非Windows插件前置验证.md) — 按用户授权补齐除Windows外的插件前置验证，修复工具阻塞与原录屏解码，逐项保留实证和无法完成的外部限制
 - [20261110-截图与录屏插件开发计划.md](plans/20261110-截图与录屏插件开发计划.md) — 会话2专用：截图与录屏两个自研插件（C/D），Chrome真机与前置夹具先行，宿主端到端待会话1
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
+- [20261111-扩展面板原生子窗口化.md](plans/20261111-扩展面板原生子窗口化.md) — 扩展面板白屏根除——参照地址栏建议先例迁主进程原生子窗口，页面保持可见可交互，overlayDepth 登记退役
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 331 documents -->
+<!-- 334 documents -->

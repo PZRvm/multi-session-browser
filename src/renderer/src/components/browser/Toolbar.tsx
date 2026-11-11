@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
-import { ExtensionsPanel } from './ExtensionsPanel'
+import { useExtensionsPanelWindow } from './useExtensionsPanelWindow'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
@@ -145,16 +145,12 @@ function Toolbar(): React.JSX.Element {
   const tabs = useBrowserStore((s) => s.tabs)
   const activeTabId = useBrowserStore((s) => s.activeTabId)
   const devtoolsOpen = useBrowserStore((s) => s.devtoolsOpen)
-  // 扩展面板（Chrome 拼图菜单还原）：开关态 + 打开瞬时的按钮锚点（面板定位与 popup
-  // 锚定复用；rect 在点击事件里读取，不违反渲染期 ref 纪律）
-  const [extPanelOpen, setExtPanelOpen] = useState(false)
-  const [extAnchor, setExtAnchor] = useState({ x: 0, y: 0 })
+  // 扩展面板（Chrome 拼图菜单还原，原生子窗口化——白屏根除专项）：编排整体在
+  // useExtensionsPanelWindow hook（开面板现读 rect 锚点 + list 现取 + show 全量，
+  // pick 三语义与 blur 关闭的 mousedown-toggle 竞态处理均在 hook），本组件只供
+  // 按钮事件与 presented 镜像；页面保持可见，不再经 overlayDepth 收起原生层
   const extBtnRef = useRef<HTMLButtonElement | null>(null)
-  const toggleExtPanel = (): void => {
-    const rect = extBtnRef.current?.getBoundingClientRect()
-    if (rect) setExtAnchor({ x: Math.round(rect.left), y: Math.round(rect.top) })
-    setExtPanelOpen((v) => !v)
-  }
+  const extPanel = useExtensionsPanelWindow(extBtnRef)
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
@@ -691,11 +687,6 @@ function Toolbar(): React.JSX.Element {
           {toolsPopKeyText && <span className="chrome-tools-pop-key">{toolsPopKeyText}</span>}
         </div>
       )}
-      {/* 扩展入口（Chrome 拼图菜单还原，置于开发者工具左侧）：面板列出已装插件，
-          行点击经主进程引擎打开该插件 action popup；底部管理入口深链设置窗插件版面 */}
-      {extPanelOpen && activeTab && (
-        <ExtensionsPanel anchor={extAnchor} onClose={() => setExtPanelOpen(false)} />
-      )}
       {/* 与截图/录屏组同容器度量（.chrome-tools 28×28 圆钮 + gap 2px），
           中心线自然对齐 DevTools 文本钮与左侧功能键 */}
       <div className="chrome-tools">
@@ -708,9 +699,10 @@ function Toolbar(): React.JSX.Element {
             type="button"
             ref={extBtnRef}
             aria-label={t('browser.toolbar.extensions')}
-            aria-expanded={extPanelOpen}
+            aria-expanded={extPanel.presented}
             disabled={!activeTab}
-            onClick={toggleExtPanel}
+            onMouseDown={extPanel.onButtonMouseDown}
+            onClick={extPanel.onButtonClick}
           >
             <AppstoreOutlined />
           </button>
