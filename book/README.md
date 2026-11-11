@@ -464,6 +464,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-截图与录屏插件开发计划.md](plans/20261110-截图与录屏插件开发计划.md) — 会话2专用：截图与录屏两个自研插件（C/D），Chrome真机与前置夹具先行，宿主端到端待会话1
 - [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
 - [20261111-扩展面板原生子窗口化.md](plans/20261111-扩展面板原生子窗口化.md) — 扩展面板白屏根除——参照地址栏建议先例迁主进程原生子窗口，页面保持可见可交互，overlayDepth 登记退役
+- [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 348 documents -->
+<!-- 349 documents -->

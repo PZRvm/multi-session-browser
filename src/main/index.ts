@@ -19,6 +19,7 @@ import { createSessionProxyEngine } from './browser/proxy'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import { createExtensionsPanelWindows, type ExtensionsPanelWindows } from './extensions/panel'
+import { registerExtensionShims } from './extensions/shims'
 import {
   createCaptureFeedbackWindows,
   type CaptureFeedbackWindows
@@ -769,6 +770,24 @@ app.whenReady().then(async () => {
       })
     )
     .catch(() => undefined)
+
+  // 自研插件宿主 shim（计划 20261112 M1）：库缺 tabs.captureVisibleTab，截图插件
+  // 点击链经 preload 生成链注入的 shim 走此通道。库 windowId = BrowserWindow.id，
+  // 映射宿主 scope 后取激活会话网页截图。
+  registerExtensionShims({
+    resolveActivePage: (windowId) => {
+      let scope: string | undefined
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.id === windowId) {
+        scope = WINDOW_ID_MAIN
+      } else if (windowId !== null) {
+        const hit = BrowserWindow.fromId(windowId)
+        for (const entry of independentWindows.listAll()) {
+          if (entry.win === hit) scope = entry.windowId
+        }
+      }
+      return created.getActiveWebContents(scope)
+    }
+  })
 
   // 启动恢复（PRD 3.1.4）：读盘取上次激活会话交注册表恢复（init 内部会再读一次盘缓存
   // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
