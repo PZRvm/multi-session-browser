@@ -397,7 +397,7 @@ async function main() {
       removeTab: (wc) => !wc.isDestroyed() && wc.close(),
       requestPermissions: async () => true
     })
-    let m
+    let _mResult // 结果仅用于探针上下文，未直接消费
     try {
       m = await prodHandle.runtime.mountPartition('persist:preflight-prod', sesX)
     } catch (e) {
