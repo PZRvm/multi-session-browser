@@ -216,7 +216,7 @@ try {
       }
       const before = await canvasData()
       await click('矩形')
-      await draw(40, 120, 360, 55)  // 左上角有浮动工具胶囊，绘制起点下移避开
+      await draw(40, 120, 360, 55) // 左上角有浮动工具胶囊，绘制起点下移避开
       let drawn = await canvasData()
       for (let i = 0; i < 25 && drawn === before; i++) {
         await delay(100)
