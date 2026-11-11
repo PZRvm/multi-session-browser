@@ -4,6 +4,15 @@
   "version": "0.1.0",
   "description": "截取当前标签页可见区域并打开编辑器（复用主应用编辑器组件）",
   "permissions": ["activeTab", "storage", "downloads", "clipboardWrite"],
-  "action": { "default_title": "截取当前页面并编辑" },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "截取当前页面并编辑",
+    "default_icon": { "16": "icons/action-16.png", "32": "icons/action-32.png" }
+  },
   "background": { "service_worker": "background.js" }
 }
