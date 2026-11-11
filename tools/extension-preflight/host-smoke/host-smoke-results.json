@@ -26,11 +26,6 @@
       "detail": "true"
     },
     {
-      "name": "lib popup端口对照",
-      "ok": false,
-      "detail": "libText:Loading, please wait libPort:DISCONNECTED"
-    },
-    {
       "name": "uBO Lite MV3 实测",
       "ok": true,
       "detail": "ubo:{\"text\":\"not a website\",\"sw\":\"THROW\"}"
@@ -83,7 +78,7 @@
     {
       "name": "事务安装v1.0.0",
       "ok": true,
-      "detail": "bhoogkem"
+      "detail": "gdpebhhn"
     },
     {
       "name": "事务分区3挂载v1.0.0",
@@ -194,11 +189,6 @@
       "name": "IPC来源导航撤销",
       "ok": true,
       "detail": "TARGET_GONE(生产语义:导航即目标失效)"
-    },
-    {
-      "name": "popup真实渲染诊断",
-      "ok": false,
-      "detail": "portProbe:{\"port\":\"DISCONNECTED\"}"
     }
   ]
 }
