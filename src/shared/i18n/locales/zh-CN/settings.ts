@@ -144,6 +144,10 @@ export const settings = {
     empty: '还没有安装任何插件',
     loadedStat: '已加载 {n}/{m} 个会话',
     hint: '支持商店 ID 安装与本地 CRX2/CRX3 导入；安装需确认，全部会话即时生效。',
+    dropHint: '支持拖拽 .crx 安装包到本页直接导入',
+    dropInvalid: '仅支持 .crx 安装包文件',
+    importFailed: '导入失败：',
+    importDone: '插件导入成功',
     openStore: '打开 Chrome 商店',
     source: {
       crx: '本地导入',

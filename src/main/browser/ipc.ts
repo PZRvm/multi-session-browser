@@ -176,6 +176,9 @@ function parseExtensionsPanelShow(value: unknown): ExtensionsPanelShowPayload {
       source: text(item.source, ''),
       icon: typeof item.icon === 'string' ? item.icon : undefined,
       hasAction: item.hasAction === true,
+      // 钉态（2026-11-13 插件固定增量）：白名单漏此字段会让面板子窗永远收不到
+      // 钉态——钉钮只能置顶不能取消、样式不变（实测根因）
+      pinned: item.pinned === true,
       loadedPartitions:
         typeof item.loadedPartitions === 'number' && Number.isFinite(item.loadedPartitions)
           ? item.loadedPartitions

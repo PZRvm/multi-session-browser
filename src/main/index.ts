@@ -103,7 +103,8 @@ if (process.env['MSB_USER_DATA']) {
 const isAgentDebug = process.argv.includes('--agent-debug')
 if (isAgentDebug) {
   // appendSwitch 须在 app ready 前执行才有生效窗口（Chromium 开关在命令行阶段读取）
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? '9222'
+  app.commandLine.appendSwitch('remote-debugging-port', port)
 }
 
 // warning 通道接管（须在任何窗口加载页面前安装——Electron 对失败主 frame 导航的
@@ -787,6 +788,11 @@ app.whenReady().then(async () => {
       registerExtensionsManagement({
         getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
         openSettings: (pane) => settingsWindowController?.open(pane),
+        openInActiveSession: (url) => {
+          // 设置窗无会话作用域：宿主代为导航激活会话当前标签（商店入口）
+          const wc = created.getActiveWebContents(WINDOW_ID_MAIN)
+          if (wc) void wc.loadURL(url).catch(() => {})
+        },
         getPopupTarget: (sender) => {
           const scope = created.resolveSenderScope(sender)
           if (!scope.sessionId) return null

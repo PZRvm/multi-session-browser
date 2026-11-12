@@ -6,6 +6,15 @@
 
 const IDLE = { state: 'idle', generation: 0, seq: 0, audioEnabled: true, error: null, info: null }
 
+// SW 启动扫尾：上次会话若卡在 finalizing（收尾链异常中断且看门狗随 SW 一起消亡），
+// 启动即自愈回 idle，避免永久楔死（start/cancel 都要求非 finalizing）
+void (async () => {
+  const rec = await readRec()
+  if (rec.state === 'finalizing') {
+    await patchRec({ state: 'idle', error: '上次收尾异常中断，已恢复' })
+  }
+})()
+
 async function readRec() {
   const stored = await chrome.storage.local.get('rec')
   return stored.rec ?? { ...IDLE }

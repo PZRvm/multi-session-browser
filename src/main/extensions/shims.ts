@@ -219,7 +219,13 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
         // audio 传同一 WebFrameMain：Electron 捕获该 frame 所属 webContents 的音频
         // （= tab 音频等价物，无平台限制；loopback 才是 Windows-only）——录屏由此
         // 带上当前标签页声音（2026-11-13 翻案：此前"无等价物"的降级判断过时）
-        callback({ video: target.mainFrame ?? undefined, audio: target.mainFrame })
+        // enableLocalEcho: true——录制期间被录页面本地播放不静音（捕获的是
+        // webContents 音频非麦克风，无回声风险；默认 false 会把页面声音闷掉）
+        callback({
+          video: target.mainFrame ?? undefined,
+          audio: target.mainFrame,
+          enableLocalEcho: true
+        })
       } else {
         callback({})
       }
@@ -248,6 +254,9 @@ async function readBlobAsDataUrl(extId: string, url: string): Promise<string> {
   const entry = offscreenByExtension.get(extId)
   if (!entry || entry.win.isDestroyed()) throw new Error('NO_OFFSCREEN')
   if (!url.startsWith(`blob:chrome-extension://${extId}/`)) throw new Error('INVALID_URL')
+  if (!url.includes(';base64,') && !url.startsWith('blob:')) {
+    throw new Error('UNSUPPORTED_URL')
+  }
   const dataUrl = await entry.win.webContents.executeJavaScript(
     `(async () => {
   const resp = await fetch(${JSON.stringify(url)})

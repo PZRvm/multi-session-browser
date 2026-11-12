@@ -32,6 +32,8 @@ export interface ManagementDeps {
   ) => Promise<boolean>
   /** 打开设置窗并定位版面（工具栏面板「管理插件」入口） */
   openSettings?: (pane?: string) => void
+  /** 在激活会话当前标签打开 URL（设置窗商店入口用；index.ts 注入） */
+  openInActiveSession?: (url: string) => void
   /** 从受信壳窗口解析当前网页，禁止用全局首个挂载分区代替活动会话。 */
   getPopupTarget: (
     sender: WebContents
@@ -411,6 +413,42 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       }
     }
   )
+  /** 拖拽 CRX 落插件页自动导入：路径必须 .crx 结尾（防任意文件读取），走既有安装事务 */
+  ipcMain.handle(
+    EXTENSIONS_CHANNELS.importCrxPath,
+    async (_e, payload: unknown): Promise<InstallOutcome> => {
+      try {
+        if (_e.senderFrame !== _e.sender.mainFrame) return { ok: false, error: 'UNAUTHORIZED' }
+        const p = payload as { path?: unknown } | undefined
+        if (
+          typeof p?.path !== 'string' ||
+          !p.path.toLowerCase().endsWith('.crx') ||
+          p.path.length > 512
+        )
+          return { ok: false, error: 'INVALID_PATH' }
+        const outcome = await install.installFromFile(p.path)
+        await refreshManifestCache()
+        await remountAll()
+        broadcastExtensionsChanged()
+        return { ok: true, record: outcome.record, duplicate: outcome.duplicate }
+      } catch (error) {
+        return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+      }
+    }
+  )
+  /** 设置窗打开 Chrome 商店（审查修复）：设置窗无会话作用域不能直走 browser:navigate，
+   *  由宿主导航激活会话当前标签（openInActiveSession 由 index.ts 注入） */
+  ipcMain.handle(
+    EXTENSIONS_CHANNELS.openStore,
+    async (): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        deps.openInActiveSession?.('https://chromewebstore.google.com')
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+      }
+    }
+  )
   /** pins/安装集变更的统一广播（零载荷）：全窗推送（settings:changed 先例），消费者重取 list——list 恒唯一数据源 */
   const broadcastExtensionsChanged = (): void => {
     for (const w of BrowserWindow.getAllWindows()) {
@@ -428,6 +466,10 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         if (!p || !isValidExtensionId(p.id) || typeof p.pinned !== 'boolean')
           return { ok: false, error: 'INVALID_PAYLOAD' }
         const m = await manifest.read()
+        // 未安装 ID 不入 pins（审查三轮 2.6：与 orderPinned 的 installed 过滤对齐，
+        // 防 pins 积累非安装 ID 垃圾项）
+        const installed = new Set(m.installs.map((r) => r.id))
+        if (!installed.has(p.id)) return { ok: false, error: 'NOT_INSTALLED' }
         const current = m.pins ?? []
         const next = p.pinned
           ? current.includes(p.id)
@@ -515,6 +557,21 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     async (_e, id: unknown): Promise<UninstallResult> => {
       try {
         if (typeof id !== 'string') return { ok: false, error: 'INVALID_ID' }
+        // 原生确认框（PRD 4.10 破坏性确认语义）：卸载不可逆，须用户显式确认
+        const record = manifestCache.get(id)
+        const name = record?.name ?? id
+        const win = BrowserWindow.fromWebContents(_e.sender) ?? deps.getMainWindow()
+        const dialogOpts = {
+          type: 'warning' as const,
+          message: `卸载插件「${name}」？`,
+          detail: '将移除插件及其数据，操作不可恢复。',
+          buttons: ['取消', '卸载'],
+          defaultId: 0,
+          cancelId: 0,
+          ...(win ? { window: win } : {})
+        }
+        const { response } = await dialog.showMessageBox(dialogOpts)
+        if (response !== 1) return { ok: false, error: 'CANCELED' }
         const ok = await install.uninstall(id)
         if (ok) broadcastExtensionsChanged()
         return ok ? { ok: true } : { ok: false, error: 'NOT_FOUND' }

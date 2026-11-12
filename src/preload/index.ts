@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { webUtils, contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { BROWSER_CHANNELS } from '../shared/browser'
 import { TOOLBAR_TOOLTIP_CHANNELS } from '../shared/toolbarTooltip'
@@ -542,6 +542,16 @@ const api = {
     /** 固定全序覆盖（拖拽重排提交），落库后主进程广播 changed */
     orderPinned: (ids: string[]): Promise<import('../shared/extensions/management').PinResult> =>
       ipcRenderer.invoke(EXTENSIONS_CHANNELS.orderPinned, { ids }),
+    /** 设置窗打开 Chrome 商店：宿主导航激活会话当前标签 */
+    openStore: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.openStore),
+    /** 拖拽 CRX 导入：path 由 webUtils.getPathForFile 取得（file 落盘路径） */
+    importCrxFromPath: (
+      path: string
+    ): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrxPath, { path }),
+    /** File → 落盘路径（webUtils 必须在 preload 调用；contextBridge 可传 File 对象） */
+    getCrxPath: (file: File): string => webUtils.getPathForFile(file),
     /** pins/安装集变更广播订阅：重取 list（list 恒唯一数据源），返回退订函数 */
     onChanged: (callback: () => void): (() => void) => {
       const listener = (): void => callback()

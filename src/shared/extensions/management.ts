@@ -14,7 +14,11 @@ export const EXTENSIONS_CHANNELS = {
   /** 固定图标拖拽重排：ids 为全序覆盖（顺序即工具栏显示顺序），持久化后广播 changed */
   orderPinned: 'extensions:order-pinned',
   /** 主进程 → 全窗广播（零载荷）：pins/安装集变更，消费者重取 list（list 恒唯一数据源） */
-  changed: 'extensions:changed'
+  changed: 'extensions:changed',
+  /** 设置窗打开 Chrome 商店：宿主导航激活会话当前标签（设置窗无会话作用域，不能直走 browser:navigate） */
+  openStore: 'extensions:open-store',
+  /** 拖拽 CRX 落插件页自动导入：renderer 经 webUtils 取 File 落盘路径后调本通道 */
+  importCrxPath: 'extensions:import-crx-path'
 } as const
 
 export interface ExtensionListItem {

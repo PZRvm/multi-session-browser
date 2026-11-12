@@ -234,6 +234,14 @@ declare global {
         ): Promise<import('../../shared/extensions/management').InstallResult>
         importCrx(): Promise<import('../../shared/extensions/management').InstallResult>
         uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
+        openStore(): Promise<{ ok: boolean; error?: string }>
+        /** 拖拽 CRX 导入：path 为落盘路径（webUtils 取得） */
+        importCrxFromPath(path: string): Promise<{
+          ok: boolean
+          error?: string
+        }>
+        /** File → 落盘路径（webUtils） */
+        getCrxPath(file: File): string
         openPopup(
           id: string,
           anchor: { x: number; y: number }

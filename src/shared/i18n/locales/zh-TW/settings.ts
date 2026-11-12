@@ -139,6 +139,10 @@ export const settings: Dictionary['settings'] = {
     empty: '還沒有安裝任何外掛',
     loadedStat: '已載入 {n}/{m} 個工作階段',
     hint: '支援商店 ID 安裝與本地 CRX2/CRX3 匯入；安裝需確認，全部工作階段即時生效。',
+    dropHint: '支援拖曳 .crx 安裝包到本頁直接匯入',
+    dropInvalid: '僅支援 .crx 安裝包檔案',
+    importFailed: '匯入失敗：',
+    importDone: '外掛匯入成功',
     openStore: '開啟 Chrome 線上應用程式商店',
     source: {
       crx: '本地匯入',

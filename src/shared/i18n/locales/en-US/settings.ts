@@ -117,6 +117,10 @@ export const settings: Dictionary['settings'] = {
     empty: 'No extensions installed yet',
     loadedStat: 'Loaded in {n}/{m} sessions',
     hint: 'Install via store ID or import a local CRX2/CRX3 file; installs confirm once and apply to every session.',
+    dropHint: 'Drag a .crx package onto this page to install',
+    dropInvalid: 'Only .crx package files are supported',
+    importFailed: 'Import failed: ',
+    importDone: 'Extension imported',
     openStore: 'Open Chrome Web Store',
     source: {
       crx: 'Local file',
