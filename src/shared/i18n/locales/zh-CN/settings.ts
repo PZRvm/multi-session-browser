@@ -139,6 +139,8 @@ export const settings = {
     uninstallFailed: '卸载失败',
     uninstall: '卸载',
     uninstallAria: '卸载插件 {name}',
+    pinAria: '固定到工具栏',
+    unpinAria: '从工具栏取消固定',
     empty: '还没有安装任何插件',
     loadedStat: '已加载 {n}/{m} 个会话',
     hint: '支持商店 ID 安装与本地 CRX2/CRX3 导入；安装需确认，全部会话即时生效。',
@@ -148,5 +150,5 @@ export const settings = {
       store: 'Chrome 商店',
       unpacked: '开发目录'
     }
-  },
+  }
 }

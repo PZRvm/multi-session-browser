@@ -154,13 +154,16 @@ export const browser = {
     adjustWidth: '调整面板宽度'
   },
 
-    extpanel: {
-      aria: '扩展程序面板',
-      title: '扩展程序',
-      closeAria: '关闭面板',
-      hintTitle: '无需访问权限',
-      hintBody: '这些插件无需查看或更改此网站上的信息。',
-      empty: '还没有安装任何插件，到设置的插件页安装',
-      noAction: '该插件没有弹窗界面',
-      manage: '管理插件'
-    },}
+  extpanel: {
+    aria: '扩展程序面板',
+    title: '扩展程序',
+    closeAria: '关闭面板',
+    hintTitle: '无需访问权限',
+    hintBody: '这些插件无需查看或更改此网站上的信息。',
+    empty: '还没有安装任何插件，到设置的插件页安装',
+    noAction: '该插件没有弹窗界面',
+    manage: '管理插件',
+    pinAria: '固定到工具栏',
+    unpinAria: '从工具栏取消固定'
+  }
+}

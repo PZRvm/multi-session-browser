@@ -112,6 +112,8 @@ export const settings: Dictionary['settings'] = {
     uninstallFailed: 'Uninstall failed',
     uninstall: 'Remove',
     uninstallAria: 'Remove extension {name}',
+    pinAria: 'Pin to toolbar',
+    unpinAria: 'Unpin from toolbar',
     empty: 'No extensions installed yet',
     loadedStat: 'Loaded in {n}/{m} sessions',
     hint: 'Install via store ID or import a local CRX2/CRX3 file; installs confirm once and apply to every session.',
@@ -121,5 +123,5 @@ export const settings: Dictionary['settings'] = {
       store: 'Chrome Web Store',
       unpacked: 'Dev folder'
     }
-  },
+  }
 }

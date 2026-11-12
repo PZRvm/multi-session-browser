@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { AppstoreOutlined, SettingOutlined } from '@ant-design/icons'
+import {
+  AppstoreOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
 import { useT } from '../../i18n'
 import { EXTENSIONS_PANEL_SHADOW_MARGIN } from '../../../../shared/extensionsPanel'
 import type { ExtensionsPanelDataPayload } from '../../../../shared/extensionsPanel'
@@ -131,6 +136,25 @@ export default function ExtensionsPanelWindow(): React.JSX.Element | null {
                   )}
                 </span>
                 <span className="chrome-ext-panel-name">{item.name}</span>
+              </button>
+              {/* 钉子开关（插件固定专项 2026-11-13）：Chrome 拼图菜单行尾 pin 语义——
+                  固定态填充钉（PushpinFilled），取消态描边钉；不参与行 disabled
+                 （hasAction 只约束开弹窗，固定不限）。pick togglePin 转发宿主 shell
+                  落库，面板经 refreshTick 重发 show 刷新钉态，全程不关面板 */}
+              <button
+                type="button"
+                className="chrome-ext-panel-pin"
+                aria-label={t(
+                  item.pinned ? 'browser.extpanel.unpinAria' : 'browser.extpanel.pinAria'
+                )}
+                aria-pressed={!!item.pinned}
+                onClick={() => {
+                  void window.api.extensionsPanel
+                    .pick({ kind: 'togglePin', id: item.id, pinned: !item.pinned })
+                    .catch(() => {})
+                }}
+              >
+                {item.pinned ? <PushpinFilled /> : <PushpinOutlined />}
               </button>
             </li>
           ))}

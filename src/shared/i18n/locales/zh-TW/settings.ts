@@ -134,6 +134,8 @@ export const settings: Dictionary['settings'] = {
     uninstallFailed: '解除安裝失敗',
     uninstall: '解除安裝',
     uninstallAria: '解除安裝外掛 {name}',
+    pinAria: '釘選到工具列',
+    unpinAria: '從工具列取消釘選',
     empty: '還沒有安裝任何外掛',
     loadedStat: '已載入 {n}/{m} 個工作階段',
     hint: '支援商店 ID 安裝與本地 CRX2/CRX3 匯入；安裝需確認，全部工作階段即時生效。',
@@ -143,5 +145,5 @@ export const settings: Dictionary['settings'] = {
       store: 'Chrome 商店',
       unpacked: '開發目錄'
     }
-  },
+  }
 }

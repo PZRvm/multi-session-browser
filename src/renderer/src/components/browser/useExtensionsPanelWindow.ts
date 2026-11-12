@@ -25,6 +25,9 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
   const [open, setOpen] = useState(false)
   // 面板实际呈现态（主进程 canPresent 裁定的镜像）
   const [presented, setPresented] = useState(false)
+  // 面板刷新计数（插件固定专项 2026-11-13）：面板钉子 togglePin 后 +1 重跑开面板
+  // effect（list 现取 → show 全量），面板不关、钉态即时翻转（Chrome 菜单语义）
+  const [refreshTick, setRefreshTick] = useState(0)
   const openRef = useRef(open)
   // 最新开合态镜像供 mousedown 快照读取（commit 后更新；事件回调读，不涉渲染期访问）
   useEffect(() => {
@@ -41,6 +44,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
   }
 
   // 开面板：现读按钮 rect（打开瞬时的视口坐标）→ list 现取 → show 全量
+  //（refreshTick 变化即重跑：面板钉子 togglePin 后刷新钉态，面板保持打开）
   useEffect(() => {
     if (!open) return
     let alive = true
@@ -52,7 +56,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
     anchorRef.current = { x: Math.round(rect.left), y: Math.round(rect.top) }
     void window.api.extensions
       .list()
-      .then((items) => {
+      .then((r) => {
         if (!alive || !openRef.current) return
         return window.api.extensionsPanel.show({
           anchor: {
@@ -61,7 +65,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
             width: Math.round(rect.width),
             height: Math.round(rect.height)
           },
-          items
+          items: r.items
         })
       })
       .then((result) => {
@@ -79,7 +83,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
     return () => {
       alive = false
     }
-  }, [open, hostRef])
+  }, [open, refreshTick, hostRef])
 
   // 收面板：open 翻 false 即 hide（closed 推送驱动的关闭也经 setOpen 汇入本 effect）
   useEffect(() => {
@@ -94,8 +98,20 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
         void window.api.extensions.openPopup(payload.id, anchor).catch(() => undefined)
       } else if (payload.kind === 'manage') {
         void window.api.extensions.manage().catch(() => undefined)
+      } else if (
+        payload.kind === 'togglePin' &&
+        payload.id &&
+        typeof payload.pinned === 'boolean'
+      ) {
+        // 面板钉子开关（插件固定专项 2026-11-13）：setPinned 落库 → refreshTick 重跑
+        // 开面板 effect 刷新钉态，面板保持打开（Chrome 菜单语义：切固定不关菜单）
+        void window.api.extensions
+          .setPinned({ id: payload.id, pinned: payload.pinned })
+          .then(() => setRefreshTick((t) => t + 1))
+          .catch(() => setRefreshTick((t) => t + 1))
       }
-      setOpen(false)
+      // togglePin 不关面板（其余三语义维持既有关闭语义）
+      if (payload.kind !== 'togglePin') setOpen(false)
     })
     const offClosed = window.api.extensionsPanel.onClosed(() => {
       setOpen(false)
