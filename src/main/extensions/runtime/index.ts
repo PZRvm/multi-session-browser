@@ -8,6 +8,7 @@
  */
 import type { BaseWindow, Session, WebContents } from 'electron'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
+import { extensionIdFromPath } from '../install/crx'
 import { classifyInstall, type InstallState, type ManifestStore } from '../install/manifest-store'
 import {
   ensurePartitionExtensionCopy,
@@ -86,7 +87,7 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
       resolvePath: (record) => pathsById.get(record.id) ?? '',
       resolveExpectedId: (record) =>
         record.source.kind === 'unpacked'
-          ? record.id
+          ? extensionIdFromPath(record.source.origin ?? '')
           : partitionExtensionId(deps.packagesRoot, record.id, partition),
       recordPartition: (id, p, ok) => deps.manifest.recordPartition(id, p, ok)
     })
@@ -140,7 +141,8 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
     resolveLoadedId: async (partition, installId) => {
       const record = await deps.manifest.get(installId)
       if (!record) return undefined
-      if (record.source.kind === 'unpacked') return record.id
+      // unpacked 的实际加载 ID 同为路径哈希（manifest 无 key 时），与 crx/store 同构推导
+      if (record.source.kind === 'unpacked') return extensionIdFromPath(record.source.origin ?? '')
       await ensurePartitionExtensionCopy(record, deps.packagesRoot, partition)
       return partitionExtensionId(deps.packagesRoot, installId, partition)
     }

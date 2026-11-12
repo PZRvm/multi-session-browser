@@ -41,7 +41,27 @@ export function partitionExtensionId(
  * 确保分区副本就绪并返回副本目录。标记一致复用；不一致（首装/升级/内容变化）重拷：
  * rm 后整体 cp 安装目录（剔除 .package.json），manifest 重写去除 key。
  */
-export async function ensurePartitionExtensionCopy(
+/** 按 dir 为 key 的在途互斥（审查清单 2.3）：mount 挂载与 openPopup/卸载的
+ *  resolveLoadedId 可并发进入同一分区换装，staging 路径互踩即半成品目录——
+ *  manifest-store locked() 同款模式，mount 与 resolveLoadedId 共用。 */
+const ensureInflight = new Map<string, Promise<{ dir: string; recopied: boolean }>>()
+
+export function ensurePartitionExtensionCopy(
+  record: InstallRecord,
+  packagesRoot: string,
+  partition: string
+): Promise<{ dir: string; recopied: boolean }> {
+  const dir = partitionExtensionDir(packagesRoot, record.id, partition)
+  const existing = ensureInflight.get(dir)
+  if (existing) return existing
+  const task = ensurePartitionExtensionCopyImpl(record, packagesRoot, partition).finally(() => {
+    ensureInflight.delete(dir)
+  })
+  ensureInflight.set(dir, task)
+  return task
+}
+
+async function ensurePartitionExtensionCopyImpl(
   record: InstallRecord,
   packagesRoot: string,
   partition: string

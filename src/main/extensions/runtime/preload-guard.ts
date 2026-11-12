@@ -16,6 +16,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { app, type Session } from 'electron'
+import {
+  EXT_SHIM_CAPTURE_TAB,
+  EXT_SHIM_CONTEXTS,
+  EXT_SHIM_DOWNLOAD,
+  EXT_SHIM_OFFSCREEN_CREATE,
+  EXT_SHIM_TAB_STREAM
+} from '../shims'
 
 const ready = new WeakMap<Session, Promise<void>>()
 let generated: Promise<string> | undefined
@@ -72,46 +79,44 @@ async function generate(libPreload: string): Promise<string> {
   content = content.replace(freezeAnchor, MSB_PAGE_SHIMS + '\n      ' + freezeAnchor)
   await mkdir(dirname(guarded), { recursive: true })
   // Worker 也依赖 tabs/windows 等兼容 API；排除它会令 background 启动即异常。
+  // 通道名单源：EXT_SHIM_* 常量由 shims.ts 导出，此处模板插值引用（审查清单 2.1）。
   await writeFile(
     guarded,
     `if (process.type === 'service-worker' || process.isMainFrame) {\n${content}
 // —— 宿主 shim 桥定义（声明提升先于库 IIFE；由补丁调用点在库注入前调用）——
 function __msbExposeShimBridge() {
   const { ipcRenderer } = require('electron')
-  // extId 调用时惰性读取：桥暴露先于库注入，创建期读 runtime.id 为 undefined
+  // 统一信封解包：{ok:true} 放行，其余按 fallback 码抛错；extId 调用时惰性读取
+  // （桥暴露先于库注入，创建期读 runtime.id 为 undefined）
+  const unwrap = (result, fallback) => {
+    if (!result || result.ok !== true) throw new Error(result?.error ?? fallback)
+    return result
+  }
+  const invokeShim = (channel, payload) =>
+    ipcRenderer.invoke(channel, { ...payload, extId: globalThis.chrome?.runtime?.id })
   const bridge = {
     captureVisibleTab: async (windowId, _options) => {
-      const result = await ipcRenderer.invoke('msb-ext-shim-capture-visible-tab', {
-        windowId: typeof windowId === 'number' ? windowId : null,
-        extId: globalThis.chrome?.runtime?.id
+      const result = await invokeShim('${EXT_SHIM_CAPTURE_TAB}', {
+        windowId: typeof windowId === 'number' ? windowId : null
       })
-      if (!result || result.ok !== true) throw new Error(result?.error ?? 'CAPTURE_FAILED')
-      return result.dataUrl
+      return unwrap(result, 'CAPTURE_FAILED').dataUrl
     },
-    download: async (options) => {
-      const result = await ipcRenderer.invoke('msb-ext-shim-download', {
-        url: options?.url,
-        filename: options?.filename,
-        extId: globalThis.chrome?.runtime?.id
-      })
-      if (!result || result.ok !== true) throw new Error(result?.error ?? 'DOWNLOAD_FAILED')
-      return result.id
-    },
-    tabStream: async () => {
-      const r = await ipcRenderer.invoke('msb-ext-shim-tab-stream', { extId: globalThis.chrome?.runtime?.id })
-      if (!r || r.ok !== true) throw new Error(r?.error ?? 'TAB_CAPTURE_FAILED')
-      return r.streamId
-    },
+    download: async (options) =>
+      unwrap(
+        await invokeShim('${EXT_SHIM_DOWNLOAD}', {
+          url: options?.url,
+          filename: options?.filename
+        }),
+        'DOWNLOAD_FAILED'
+      ).id,
+    tabStream: async () =>
+      unwrap(await invokeShim('${EXT_SHIM_TAB_STREAM}', {}), 'TAB_CAPTURE_FAILED').streamId,
     contexts: async () => {
-      const r = await ipcRenderer.invoke('msb-ext-shim-contexts', { extId: globalThis.chrome?.runtime?.id })
+      const r = await invokeShim('${EXT_SHIM_CONTEXTS}', {})
       return r?.ok === true ? r.contexts ?? [] : []
     },
     offscreenCreate: async (options) => {
-      const r = await ipcRenderer.invoke('msb-ext-shim-offscreen-create', {
-        url: options?.url,
-        extId: globalThis.chrome?.runtime?.id
-      })
-      if (!r || r.ok !== true) throw new Error(r?.error ?? 'OFFSCREEN_FAILED')
+      unwrap(await invokeShim('${EXT_SHIM_OFFSCREEN_CREATE}', { url: options?.url }), 'OFFSCREEN_FAILED')
     }
   }
   // Electron45 的 SW preload 同样隔离（process.contextIsolated=true），预挂全局在
@@ -187,5 +192,8 @@ const MSB_PAGE_SHIMS = `if (globalThis.__msbShimBridge) {
     }
     msbMedia.getUserMedia.__msbShim = true
   }
+  // 桥残留接受（审查清单 2.6 低危项）：contextBridge 键可能不可配置致 delete 失败，
+  // 扩展页脚本可直接触达宿主 shim IPC——与 chrome.* 同信任域（同为一等扩展上下文），
+  // 无提权面；delete 失败静默，不阻塞注入链。
   try { delete globalThis.__msbShimBridge } catch {}
 }`

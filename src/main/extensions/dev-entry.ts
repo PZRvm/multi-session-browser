@@ -86,7 +86,11 @@ function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow
   win.once('ready-to-show', () => {
     if (!win.isDestroyed()) win.show()
   })
-  void win.loadURL(url)
+  win.loadURL(url).catch((error) => {
+    // 加载失败（目标文件缺失等）销毁空窗并留痕，不留 unhandled rejection（审查清单 2.6）
+    console.warn('[extensions] 扩展窗加载失败:', url.slice(0, 60), String(error).slice(0, 120))
+    if (!win.isDestroyed()) win.destroy()
+  })
   return Promise.resolve(win)
 }
 
