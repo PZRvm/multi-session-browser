@@ -179,13 +179,14 @@ const MSB_PAGE_SHIMS = `if (globalThis.__msbShimBridge) {
     msbMedia.getUserMedia = async (constraints) => {
       const mandatory = constraints?.video?.mandatory
       if (mandatory?.chromeMediaSource === 'tab') {
+        // 音频透传：audio 为真时宿主授 WebFrameMain 音轨（= tab 音频等价物），否则纯视频
         return await msbMedia.getDisplayMedia({
           video: {
             width: { ideal: mandatory.maxWidth ?? 1280 },
             height: { ideal: mandatory.maxHeight ?? 720 },
             frameRate: { ideal: mandatory.maxFrameRate ?? 15 }
           },
-          audio: false
+          audio: !!constraints.audio
         })
       }
       return msbRawGetUserMedia(constraints)

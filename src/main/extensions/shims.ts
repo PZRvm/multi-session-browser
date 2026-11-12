@@ -216,7 +216,10 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
         request.frame === request.frame.top &&
         request.frame.url.startsWith(`chrome-extension://${extId}/`)
       if (fromSelf && !target.isDestroyed()) {
-        callback({ video: target.mainFrame ?? undefined })
+        // audio 传同一 WebFrameMain：Electron 捕获该 frame 所属 webContents 的音频
+        // （= tab 音频等价物，无平台限制；loopback 才是 Windows-only）——录屏由此
+        // 带上当前标签页声音（2026-11-13 翻案：此前"无等价物"的降级判断过时）
+        callback({ video: target.mainFrame ?? undefined, audio: target.mainFrame })
       } else {
         callback({})
       }
