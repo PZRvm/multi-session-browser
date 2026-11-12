@@ -189,12 +189,21 @@ function parseExtensionsPanelShow(value: unknown): ExtensionsPanelShowPayload {
   return { anchor, items }
 }
 
-/** 扩展面板子窗 pick 载荷运行时守卫：三语义枚举；kind=open 时 id 必为 32 位扩展 ID */
+/** 扩展面板子窗 pick 载荷运行时守卫：四语义枚举；open/togglePin 时 id 必为 32 位扩展 ID，togglePin 另核 pinned 目标态 */
 function parseExtensionsPanelPick(value: unknown): ExtensionsPanelPickPayload {
   if (!isRecord(value)) throw invalidParams()
   if (value.kind === 'manage' || value.kind === 'close') return { kind: value.kind }
   if (value.kind === 'open' && typeof value.id === 'string' && /^[a-p]{32}$/.test(value.id)) {
     return { kind: 'open', id: value.id }
+  }
+  // togglePin（2026-11-13 插件固定增量）：id 校验同 open + pinned 目标态 boolean 必填
+  if (
+    value.kind === 'togglePin' &&
+    typeof value.id === 'string' &&
+    /^[a-p]{32}$/.test(value.id) &&
+    typeof value.pinned === 'boolean'
+  ) {
+    return { kind: 'togglePin', id: value.id, pinned: value.pinned }
   }
   throw invalidParams()
 }
@@ -752,9 +761,10 @@ export function registerBrowserIpc(
     })
   )
 
-  // panel-pick：子窗行点击/管理入口/Esc/关闭钮上报 → 转发宿主 shell（open/manage/
-  // close 三语义状态机唯一在宿主 shell：open → extensions.openPopup、manage →
-  // extensions.manage、close → hide；kind=open 时 id 须为 32 位扩展 ID）
+  // panel-pick：子窗行点击/钉子开关/管理入口/Esc/关闭钮上报 → 转发宿主 shell（open/
+  // manage/close/togglePin 四语义状态机唯一在宿主 shell：open → extensions.openPopup、
+  // manage → extensions.manage、togglePin → extensions.setPinned、close → hide；
+  // open/togglePin 时 id 须为 32 位扩展 ID，togglePin 另核 pinned 目标态）
   ipcMain.handle(EXTENSIONS_PANEL_CHANNELS.pick, (event, payload: unknown): OkResult =>
     logFailure(EXTENSIONS_PANEL_CHANNELS.pick, payload, () => {
       const windowId = requirePanelChildOwner(event)
@@ -762,7 +772,11 @@ export function registerBrowserIpc(
       const owner = windowForId(windowId)
       if (!owner) return { ok: true }
       const forward: ExtensionsPanelPickedPayload =
-        pick.kind === 'open' ? { kind: 'open', id: pick.id } : { kind: pick.kind }
+        pick.kind === 'togglePin'
+          ? { kind: 'togglePin', id: pick.id, pinned: pick.pinned }
+          : pick.kind === 'open'
+            ? { kind: 'open', id: pick.id }
+            : { kind: pick.kind }
       owner.webContents.send(EXTENSIONS_PANEL_CHANNELS.picked, forward)
       return { ok: true }
     })

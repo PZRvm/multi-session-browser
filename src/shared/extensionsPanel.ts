@@ -14,7 +14,7 @@
 //
 // 数据流单源：面板数据由宿主 shell 经 show 命令全量推送（打开时现取 extensions:list
 // 一发全量），主进程只做承载（建窗/定位/转发），子窗纯渲染零自治零拉取；pick 仅上报
-// 经主进程转发回宿主 shell，open/manage/close 三语义状态机唯一在宿主 shell。类型只
+// 经主进程转发回宿主 shell，open/manage/close/togglePin 四语义状态机唯一在宿主 shell。类型只
 // 是编译期约定——跨 IPC 边界的运行时守卫在 main 侧落实。
 
 import type { ExtensionListItem } from './extensions/management'
@@ -50,17 +50,20 @@ export interface ExtensionsPanelDataPayload {
   items: ExtensionListItem[]
 }
 
-/** pick 上报载荷（子窗 → 主进程转发回宿主 shell，三语义） */
+/** pick 上报载荷（子窗 → 主进程转发回宿主 shell，四语义） */
 export interface ExtensionsPanelPickPayload {
-  kind: 'open' | 'manage' | 'close'
-  /** kind=open 时必填的扩展 ID */
+  kind: 'open' | 'manage' | 'close' | 'togglePin'
+  /** kind=open/togglePin 时必填的扩展 ID */
   id?: string
+  /** kind=togglePin 时必填的固定目标态（面板按 item.pinned 取反后传入） */
+  pinned?: boolean
 }
 
 /** 主进程 → 宿主 shell 的 picked 转发载荷（与 pick 同构，主进程白名单校验后定向转发） */
 export interface ExtensionsPanelPickedPayload {
-  kind: 'open' | 'manage' | 'close'
+  kind: 'open' | 'manage' | 'close' | 'togglePin'
   id?: string
+  pinned?: boolean
 }
 
 export interface ExtensionsPanelChannels {

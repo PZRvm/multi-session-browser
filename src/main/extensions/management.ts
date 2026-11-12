@@ -14,10 +14,14 @@ import { createStoreInstall } from './install/store'
 import { extensionsPaths, getExtensionsHandle, mountDevExtensions } from './dev-entry'
 import {
   EXTENSIONS_CHANNELS,
-  type ExtensionListItem,
+  type ExtensionListResult,
   type InstallResult,
+  type OrderPinnedPayload,
+  type PinResult,
+  type SetPinnedPayload,
   type UninstallResult
 } from '../../shared/extensions/management'
+import { isValidExtensionId } from './install/manifest-store'
 
 export interface ManagementDeps {
   getMainWindow: () => BrowserWindow | null
@@ -210,36 +214,42 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       return { hasAction: false }
     }
   }
-  ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListItem[]> => {
+  ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListResult> => {
     await refreshManifestCache()
     const m = await manifest.read()
-    return Promise.all(
-      m.installs.map(async (r) => {
-        const extra = await readManifestExtra(r)
-        // 名称自愈：早期安装的记录无 name 字段（后加），从解包 manifest 回填清单
-        if (!r.name && extra.displayName) {
-          await manifest
-            .update((cur) => ({
-              ...cur,
-              installs: cur.installs.map((v) =>
-                v.id === r.id ? { ...v, name: extra.displayName } : v
-              )
-            }))
-            .catch(() => undefined)
-        }
-        const displayName = r.name ?? extra.displayName ?? r.id
-        return {
-          id: r.id,
-          name: displayName,
-          version: r.version,
-          source: r.source.kind,
-          icon: extra.icon,
-          hasAction: extra.hasAction,
-          loadedPartitions: r.partitions.filter((p) => p.ok).length,
-          totalPartitions: r.partitions.length
-        }
-      })
-    )
+    const pins = m.pins ?? []
+    const pinSet = new Set(pins)
+    return {
+      items: await Promise.all(
+        m.installs.map(async (r) => {
+          const extra = await readManifestExtra(r)
+          // 名称自愈：早期安装的记录无 name 字段（后加），从解包 manifest 回填清单
+          if (!r.name && extra.displayName) {
+            await manifest
+              .update((cur) => ({
+                ...cur,
+                installs: cur.installs.map((v) =>
+                  v.id === r.id ? { ...v, name: extra.displayName } : v
+                )
+              }))
+              .catch(() => undefined)
+          }
+          const displayName = r.name ?? extra.displayName ?? r.id
+          return {
+            id: r.id,
+            name: displayName,
+            version: r.version,
+            source: r.source.kind,
+            icon: extra.icon,
+            hasAction: extra.hasAction,
+            pinned: pinSet.has(r.id),
+            loadedPartitions: r.partitions.filter((p) => p.ok).length,
+            totalPartitions: r.partitions.length
+          }
+        })
+      ),
+      pins
+    }
   })
   /** 插件 action popup 窗口（自研，参数与定位算法照 electron-chrome-extensions
    *  PopupView 同源：无边框子窗 + preferred-size 自适应 + blur 关闭 + 父窗锚定） */
@@ -401,6 +411,64 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       }
     }
   )
+  /** pins/安装集变更的统一广播（零载荷）：全窗推送（settings:changed 先例），消费者重取 list——list 恒唯一数据源 */
+  const broadcastExtensionsChanged = (): void => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send(EXTENSIONS_CHANNELS.changed)
+    }
+  }
+  /** 固定/取消固定单个插件（显式目标态）：清单幂等集合语义，落库后广播 */
+  ipcMain.handle(
+    EXTENSIONS_CHANNELS.setPinned,
+    async (event, payload: unknown): Promise<PinResult> => {
+      try {
+        if (event.senderFrame !== event.sender.mainFrame)
+          return { ok: false, error: 'UNAUTHORIZED' }
+        const p = payload as Partial<SetPinnedPayload> | undefined
+        if (!p || !isValidExtensionId(p.id) || typeof p.pinned !== 'boolean')
+          return { ok: false, error: 'INVALID_PAYLOAD' }
+        const m = await manifest.read()
+        const current = m.pins ?? []
+        const next = p.pinned
+          ? current.includes(p.id)
+            ? current
+            : [...current, p.id]
+          : current.filter((v) => v !== p.id)
+        await manifest.setPins(next)
+        broadcastExtensionsChanged()
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+      }
+    }
+  )
+  /** 固定图标拖拽重排提交：ids 全序覆盖（逐项 ID 校验 + 去重 + 过滤未安装 + 上限 64），落库后广播 */
+  ipcMain.handle(
+    EXTENSIONS_CHANNELS.orderPinned,
+    async (event, payload: unknown): Promise<PinResult> => {
+      try {
+        if (event.senderFrame !== event.sender.mainFrame)
+          return { ok: false, error: 'UNAUTHORIZED' }
+        const p = payload as Partial<OrderPinnedPayload> | undefined
+        if (
+          !p ||
+          !Array.isArray(p.ids) ||
+          p.ids.length === 0 ||
+          p.ids.length > 64 ||
+          !p.ids.every((id) => isValidExtensionId(id))
+        )
+          return { ok: false, error: 'INVALID_PAYLOAD' }
+        const m = await manifest.read()
+        const installed = new Set(m.installs.map((r) => r.id))
+        const ids = [...new Set(p.ids)].filter((id) => installed.has(id))
+        await manifest.setPins(ids)
+        broadcastExtensionsChanged()
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+      }
+    }
+  )
   ipcMain.handle(
     EXTENSIONS_CHANNELS.installStore,
     async (_e, id: unknown): Promise<InstallOutcome> => {
@@ -410,6 +478,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         }
         const outcome = await store.installFromStore(id)
         await remountAll()
+        broadcastExtensionsChanged()
         return { ok: true, record: await manifest.get(outcome.id), duplicate: outcome.duplicate }
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
@@ -435,6 +504,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       const outcome = await install.installFromBuffer(buffer)
       await refreshManifestCache()
       await remountAll()
+      broadcastExtensionsChanged()
       return { ok: true, record: outcome.record, duplicate: outcome.duplicate }
     } catch (error) {
       return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
@@ -446,6 +516,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       try {
         if (typeof id !== 'string') return { ok: false, error: 'INVALID_ID' }
         const ok = await install.uninstall(id)
+        if (ok) broadcastExtensionsChanged()
         return ok ? { ok: true } : { ok: false, error: 'NOT_FOUND' }
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }

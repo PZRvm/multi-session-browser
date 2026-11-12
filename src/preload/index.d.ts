@@ -228,7 +228,7 @@ declare global {
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
       extensions: {
-        list(): Promise<import('../../shared/extensions/management').ExtensionListItem[]>
+        list(): Promise<import('../../shared/extensions/management').ExtensionListResult>
         installFromStore(
           id: string
         ): Promise<import('../../shared/extensions/management').InstallResult>
@@ -239,6 +239,15 @@ declare global {
           anchor: { x: number; y: number }
         ): Promise<{ ok: boolean; error?: string }>
         manage(): Promise<{ ok: boolean }>
+        /** 固定/取消固定单个插件（显式目标态），落库后主进程广播 changed */
+        setPinned(payload: {
+          id: string
+          pinned: boolean
+        }): Promise<import('../../shared/extensions/management').PinResult>
+        /** 固定全序覆盖（拖拽重排提交），落库后主进程广播 changed */
+        orderPinned(ids: string[]): Promise<import('../../shared/extensions/management').PinResult>
+        /** pins/安装集变更广播订阅：消费者重取 list（list 恒唯一数据源） */
+        onChanged(callback: () => void): () => void
       }
       /** 扩展面板原生子窗口（契约 shared/extensionsPanel.ts）：宿主 shell 用
        *  show/hide 编排开合 + onPicked/onClosed 消费转发与关闭推送；面板子窗用

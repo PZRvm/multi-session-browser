@@ -32,11 +32,22 @@ export interface GlobalManifest {
   version: 1
   generation: number
   installs: InstallRecord[]
+  /**
+   * 已固定到工具栏的扩展 ID 全序（顺序即工具栏显示顺序；2026-11-13 增量可选字段，
+   * 旧清单缺省视为空数组，向后兼容不升协议版本）。与 installs 同文件同锁同原子写，
+   * 卸载时随 removeInstall 一并清理
+   */
+  pins?: string[]
 }
 
 export type InstallState = 'ready' | 'partial' | 'failed' | 'not-loaded'
 
 export const EMPTY_MANIFEST: GlobalManifest = { version: 1, generation: 1, installs: [] }
+
+/** 扩展 ID 形态校验（与安装记录同规：32 位小写字母表 [a-p]） */
+export function isValidExtensionId(id: unknown): id is string {
+  return typeof id === 'string' && /^[a-p]{32}$/.test(id)
+}
 
 function demand(value: unknown, reason: string): asserts value {
   if (!value) throw new Error(`INVALID_MANIFEST: ${reason}`)
@@ -102,7 +113,7 @@ export function validateInstallRecord(record: unknown): InstallRecord {
   }
 }
 
-/** 清单整体校验：version/generation/记录去重 */
+/** 清单整体校验：version/generation/记录去重/pins 增量字段 */
 export function validateManifest(value: unknown): GlobalManifest {
   demand(value && typeof value === 'object', '清单非对象')
   const m = value as Record<string, unknown>
@@ -116,7 +127,20 @@ export function validateManifest(value: unknown): GlobalManifest {
     ids.add(record.id)
     return record
   })
-  return { version: 1, generation: m.generation as number, installs }
+  // pins 增量字段（2026-11-13）：缺省视为无 pins 键（返回对象不给 pins，下次写入
+  // 自然落为 []）；逐项 ID 形态校验 + 去重
+  let pins: string[] | undefined
+  if (m.pins !== undefined) {
+    demand(Array.isArray(m.pins), 'pins 非法：必须为数组')
+    const seen = new Set<string>()
+    pins = (m.pins as unknown[]).map((id) => {
+      demand(isValidExtensionId(id), `pins 项非法：${String(id)}`)
+      demand(!seen.has(id), `pins 重复：${id}`)
+      seen.add(id)
+      return id
+    })
+  }
+  return { version: 1, generation: m.generation as number, installs, ...(pins ? { pins } : {}) }
 }
 
 async function readRaw(file: string): Promise<GlobalManifest> {
@@ -212,6 +236,8 @@ export interface ManifestStore {
   recordPartition(id: string, partition: string, ok: boolean): Promise<InstallRecord | undefined>
   /** 移除安装记录（清单层面）；存在返回 true，不存在返回 false */
   removeInstall(id: string): Promise<boolean>
+  /** 覆盖 pins 全序（固定切换/拖拽重排共用底层；入参去重幂等） */
+  setPins(ids: string[]): Promise<string[]>
 }
 
 export function createManifestStore(file: string): ManifestStore {
@@ -276,14 +302,25 @@ export function createManifestStore(file: string): ManifestStore {
     removeInstall: (id) =>
       locked(async () => {
         const current = await readRaw(file)
-        if (!current.installs.some((v) => v.id === id)) return false
+        if (!current.installs.some((v) => v.id !== id)) return false
         const next: GlobalManifest = {
           ...current,
-          installs: current.installs.filter((v) => v.id !== id)
+          installs: current.installs.filter((v) => v.id !== id),
+          pins: (current.pins ?? []).filter((v) => v !== id)
         }
         validateManifest(next)
         await persistAtomic(file, next)
         return true
+      }),
+    setPins: (ids) =>
+      locked(async () => {
+        const current = await readRaw(file)
+        // 入参去重幂等；不在此校验 ID 形态（validateManifest 兜底），未安装 ID 由上层过滤
+        const pins = ids.filter((v, i) => ids.indexOf(v) === i)
+        const next: GlobalManifest = { ...current, pins }
+        validateManifest(next)
+        await persistAtomic(file, next)
+        return pins
       })
   }
 }
