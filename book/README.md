@@ -219,7 +219,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (48)**
+**Resolved (49)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -269,6 +269,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111-双插件验收合并前审查.md](notes/issue/2026-11/20261111-双插件验收合并前审查.md) — 双插件验收修订合并前核对八项代码检查与交接事实，无新增阻塞项
 - [20261111171845-双插件界面修复审查.md](notes/issue/2026-11/20261111171845-双插件界面修复审查.md) — 审查双插件图标、编辑预览缩放、标题区与原生提示改动，未发现新增阻塞项
 - [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
+- [20261112133000-自研插件页面上下文shim失效.md](notes/issue/2026-11/20261112133000-自研插件页面上下文shim失效.md) — 自研插件页面上下文shim失效已修复（主世界注入+SW ipc接线+onClicked派发），2026-11-12端到端全绿；本文档转修复记录
 
 ### notes/learn/2026-09/
 
@@ -301,6 +302,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111-媒体回归前必须清理残留Electron进程.md](notes/learn/2026-11/20261111-媒体回归前必须清理残留Electron进程.md) — 真实采集/录制回归前必须清理残留Electron进程，否则负载干扰会伪造解码损坏
 - [20261111-插件后台与双API入口验证.md](notes/learn/2026-11/20261111-插件后台与双API入口验证.md) — Dark Reader实际为MV3，service-worker preload和browser命名空间须实测，透明Loading文本不能代替页面验收
 - [20261111-渲染弹层压不过原生层的路线选型.md](notes/learn/2026-11/20261111-渲染弹层压不过原生层的路线选型.md) — 本应用 shell DOM 弹层必被 WebContentsView 原生层遮挡——四条可行路线的选型经验与踩坑记录（overlayDepth 收起白屏、action popup 层级）
+- [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/summary/2026-09/
@@ -467,4 +469,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 349 documents -->
+<!-- 351 documents -->
