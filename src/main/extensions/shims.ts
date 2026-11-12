@@ -182,14 +182,9 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
       session ?? (event as { sender?: { session?: Session } }).sender?.session ?? undefined
     if (!bound) return { ok: false, error: 'NO_SESSION' }
     const win = new BrowserWindow({
-      // show:false 的隐藏扩展页会被 Chromium 页面冻结挂起（FileReader.onload 永不
-      // 投递，录制收尾永久收尾中）——改为可见但移出屏幕坐标：页面保持前台调度，
-      // 用户不可见（审查修复轮实测：隐藏窗 onloadstart 后 onload 永不触发）
-      x: -2400,
-      y: 0,
-      width: 480,
-      height: 360,
-      show: true,
+      // 隐藏采集窗：取 blob 的 FileReader 卡死已改为 arrayBuffer+btoa 绕开（不再依赖
+      // 可见窗事件投递）；backgroundThrottling:false 保全速，应用级还有禁渲染降级开关
+      show: false,
       frame: false,
       skipTaskbar: true,
       focusable: false,
