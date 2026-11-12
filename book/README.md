@@ -312,6 +312,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/review-todo/
 
 - [20261113014627-自研插件修复二轮.md](notes/review-todo/20261113014627-自研插件修复二轮.md) — 自研插件修复二轮（4f4a892..HEAD）八项审查：中2低5——tab本地静音体验缺陷、保存提示名与落盘名不一致等，六条旧清单已闭环
+- [20261113020713-插件固定与工具栏扩展区.md](notes/review-todo/20261113020713-插件固定与工具栏扩展区.md) — 插件固定与工具栏扩展区功能（44865a2+5d93cf7）八项审查：高1（removeInstall存在性判断反置致多插件卸载全废）中2低2
 
 ### notes/summary/2026-09/
 
@@ -478,4 +479,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 356 documents -->
+<!-- 357 documents -->
