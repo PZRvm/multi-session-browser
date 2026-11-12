@@ -2382,7 +2382,8 @@ img.chrome-tab-favicon {
 }
 
 .chrome-nav button,
-.chrome-tools button {
+.chrome-tools button,
+.chrome-ext-bar button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2397,7 +2398,8 @@ img.chrome-tab-favicon {
 }
 
 .chrome-nav button:not(:disabled),
-.chrome-tools button:not(:disabled) {
+.chrome-tools button:not(:disabled),
+.chrome-ext-bar button:not(:disabled) {
   color: var(--chrome-ink-dim);
   cursor: pointer;
   transition:
@@ -2406,20 +2408,64 @@ img.chrome-tab-favicon {
 }
 
 .chrome-nav button:not(:disabled):hover,
-.chrome-tools button:not(:disabled):hover {
+.chrome-tools button:not(:disabled):hover,
+.chrome-ext-bar button:not(:disabled):hover {
   background: var(--chrome-hover-veil);
   color: var(--chrome-ink);
 }
 
 .chrome-nav button:focus-visible,
-.chrome-tools button:focus-visible {
+.chrome-tools button:focus-visible,
+.chrome-ext-bar button:focus-visible {
   outline: none;
 }
 
 .chrome-nav button:not(:disabled):focus-visible,
-.chrome-tools button:not(:disabled):focus-visible {
+.chrome-tools button:not(:disabled):focus-visible,
+.chrome-ext-bar button:not(:disabled):focus-visible {
   background: var(--chrome-pressed-veil);
   color: var(--chrome-ink);
+}
+
+/* 扩展区胶囊（插件固定专项 2026-11-13，用户截图形态）：固定图标 + 拼图按钮收进圆角
+   胶囊——常态 hairline 描边 + 透明底（Chrome 工具栏分组惯例），hover 显淡底
+   （--chrome-hover-veil，即截图的填充形态）；内部按钮沿用 .chrome-tools button 28px
+   圆钮语言（上方选择器组并入）。槽位间距对账：EXT_PIN_PITCH = 28 按钮宽 + 2 gap =
+   30（useExtPinReorder.ts 常量），padding 只衬两端不进间距 */
+.chrome-ext-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 999px;
+  background: transparent;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.chrome-ext-bar:hover {
+  background: var(--chrome-hover-veil);
+  border-color: transparent;
+}
+
+/* 拖拽滑移动画（useExtPinReorder 槽位 transform）：邻居钮 transform 过渡承担 Chrome
+   式让位滑移；拖动钮（.dragging）跟手零过渡；提交落地帧容器 settle 类全组禁过渡
+   （DOM 位移与 transform 清零等效换位，放任过渡会「先滑回再跳位」伪动画） */
+.chrome-ext-pin {
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    transform 0.15s ease;
+}
+
+.chrome-ext-pin.dragging {
+  transition: none;
+}
+
+.chrome-ext-bar-settle .chrome-ext-pin {
+  transition: none;
 }
 
 /* 真实地址栏输入框：flex:1 填满导航组与开发者工具开关之间的剩余宽度（Chrome 同款），
@@ -3594,13 +3640,17 @@ body[data-role='extensions-panel'] .chrome-ext-panel {
   padding: 0;
 }
 .chrome-ext-panel-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin: 0 8px;
 }
 .chrome-ext-panel-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 40px;
   padding: 6px 10px;
   border: none;
@@ -3615,6 +3665,32 @@ body[data-role='extensions-panel'] .chrome-ext-panel {
 .chrome-ext-panel-row:disabled {
   cursor: default;
   opacity: 0.55;
+}
+/* 面板行尾钉子开关（插件固定专项 2026-11-13）：28px 圆钮同工具栏圆钮语言，固定态
+   填充钉转 accent 色（主题三系一致），取消态描边钉墨灰；hover 淡蒙版（--chrome-hover-veil） */
+.chrome-ext-panel-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.chrome-ext-panel-pin:hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-ext-panel-pin[aria-pressed='true'] {
+  color: var(--accent);
 }
 .chrome-ext-panel-icon {
   display: inline-flex;

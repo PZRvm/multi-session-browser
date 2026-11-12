@@ -157,13 +157,16 @@ export const browser: Dictionary['browser'] = {
     adjustWidth: '調整面板寬度'
   },
 
-    extpanel: {
-      aria: '擴充功能面板',
-      title: '擴充功能',
-      closeAria: '關閉面板',
-      hintTitle: '無需存取權限',
-      hintBody: '這些外掛無需查看或變更此網站上的資訊。',
-      empty: '還沒有安裝任何外掛，到設定的外掛頁安裝',
-      noAction: '該外掛沒有彈出介面',
-      manage: '管理外掛'
-    },}
+  extpanel: {
+    aria: '擴充功能面板',
+    title: '擴充功能',
+    closeAria: '關閉面板',
+    hintTitle: '無需存取權限',
+    hintBody: '這些外掛無需查看或變更此網站上的資訊。',
+    empty: '還沒有安裝任何外掛，到設定的外掛頁安裝',
+    noAction: '該外掛沒有彈出介面',
+    manage: '管理外掛',
+    pinAria: '釘選到工具列',
+    unpinAria: '從工具列取消釘選'
+  }
+}

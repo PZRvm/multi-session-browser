@@ -517,7 +517,7 @@ const api = {
   // 主窗 shell（发起 + 等待最终结论），payload/pick 归 sheet 页面（拉展示上下文 /
   // 提交选择）；主进程持单请求 pending 态，模态阻塞由窗口系统承担
   extensions: {
-    list: (): Promise<import('../shared/extensions/management').ExtensionListItem[]> =>
+    list: (): Promise<import('../shared/extensions/management').ExtensionListResult> =>
       ipcRenderer.invoke(EXTENSIONS_CHANNELS.list),
     installFromStore: (
       id: string
@@ -532,7 +532,24 @@ const api = {
       anchor: { x: number; y: number }
     ): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke(EXTENSIONS_CHANNELS.openPopup, { id, anchor }),
-    manage: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(EXTENSIONS_CHANNELS.manage)
+    manage: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(EXTENSIONS_CHANNELS.manage),
+    /** 固定/取消固定单个插件（显式目标态），落库后主进程广播 changed */
+    setPinned: (payload: {
+      id: string
+      pinned: boolean
+    }): Promise<import('../shared/extensions/management').PinResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.setPinned, payload),
+    /** 固定全序覆盖（拖拽重排提交），落库后主进程广播 changed */
+    orderPinned: (ids: string[]): Promise<import('../shared/extensions/management').PinResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.orderPinned, { ids }),
+    /** pins/安装集变更广播订阅：重取 list（list 恒唯一数据源），返回退订函数 */
+    onChanged: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(EXTENSIONS_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_CHANNELS.changed, listener)
+      }
+    }
   },
   // 扩展面板原生子窗口（承载机制见 shared/extensionsPanel.ts 头注释）：宿主 shell 用
   // show/hide 编排开合 + onPicked/onClosed 消费子窗转发与主进程关闭推送；面板子窗用

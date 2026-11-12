@@ -117,13 +117,16 @@ export const browser: Dictionary['browser'] = {
     adjustWidth: 'Adjust panel width'
   },
 
-    extpanel: {
-      aria: 'Extensions panel',
-      title: 'Extensions',
-      closeAria: 'Close panel',
-      hintTitle: 'No access needed',
-      hintBody: "These extensions don't need to see or change information on this site.",
-      empty: 'No extensions installed yet — install from the Extensions settings page',
-      noAction: 'This extension has no popup',
-      manage: 'Manage extensions'
-    },}
+  extpanel: {
+    aria: 'Extensions panel',
+    title: 'Extensions',
+    closeAria: 'Close panel',
+    hintTitle: 'No access needed',
+    hintBody: "These extensions don't need to see or change information on this site.",
+    empty: 'No extensions installed yet — install from the Extensions settings page',
+    noAction: 'This extension has no popup',
+    manage: 'Manage extensions',
+    pinAria: 'Pin to toolbar',
+    unpinAria: 'Unpin from toolbar'
+  }
+}

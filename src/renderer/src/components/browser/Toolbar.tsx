@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   CameraOutlined,
   PauseCircleOutlined,
@@ -9,10 +9,13 @@ import {
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
 import { useExtensionsPanelWindow } from './useExtensionsPanelWindow'
+import { ENGAGE_RADIUS_PX, EXT_PIN_PITCH, useExtPinReorder } from './useExtPinReorder'
+import type { ExtPinReorderApi } from './useExtPinReorder'
 import { useT } from '../../i18n'
 import { shortcutDisplay, type SettingsAppInfo } from '../../../../shared/settings'
 import { BROWSER_SHORTCUTS } from '../../../../shared/browserShortcuts'
 import { TOOLTIP_FONT_STACK, TOOLTIP_METRICS } from '../../../../shared/toolbarTooltip'
+import type { ExtensionListItem } from '../../../../shared/extensions/management'
 import { useOmniboxSuggestWindow } from './useOmniboxSuggestWindow'
 import { normalizeForMatch, suggest } from './omniboxSuggest'
 
@@ -123,6 +126,158 @@ function ToolGlyph({ paths }: { paths: readonly string[] }): React.JSX.Element {
 
 const INVALID_HINT_MS = 2500
 
+/**
+ * 固定图标钮（插件固定专项 2026-11-13）：28px 圆钮（.chrome-tools button 同语言）+
+ * 指针拖拽重排手势 + 点击开 popup。手势三态照搬 TabStrip（armed→reordering，
+ * ENGAGE_RADIUS 过阈值分流）：未过阈值释放 = 点击开 popup（canOpen 核对 activeTab，
+ * 无 tab no-op——Chrome 对齐：无 tab 仍可拖拽重排）；重排中释放 = 提交新序、Esc 放回；
+ * suppressClick 吞拖拽后的随尾 click。位移渲染：拖动钮 translateX=dragOffsetX
+ * （CSS 无过渡），邻居按 slotOffsets 滑移（CSS 过渡承担 Chrome 式让位动画）。
+ */
+function ExtPinButton({
+  item,
+  offset,
+  isDragging,
+  reorder,
+  canOpen,
+  onOpen
+}: {
+  item: ExtensionListItem
+  /** 内联 translateX（px）：拖动钮=跟手位移，邻居=槽位差 */
+  offset: number
+  isDragging: boolean
+  reorder: ExtPinReorderApi
+  canOpen: boolean
+  onOpen: (item: ExtensionListItem, el: HTMLElement) => void
+}): React.JSX.Element {
+  const gestureRef = useRef<{
+    mode: 'idle' | 'armed' | 'reordering'
+    pointerId: number
+    originX: number
+    originY: number
+    downClientX: number
+  }>({
+    mode: 'idle',
+    pointerId: -1,
+    originX: 0,
+    originY: 0,
+    downClientX: 0
+  })
+  const suppressClickRef = useRef(false)
+  const escRef = useRef<((e: KeyboardEvent) => void) | null>(null)
+  useEffect(
+    () => () => {
+      if (escRef.current !== null) {
+        document.removeEventListener('keydown', escRef.current, true)
+        escRef.current = null
+      }
+    },
+    []
+  )
+  const detachEsc = (): void => {
+    if (escRef.current !== null) {
+      document.removeEventListener('keydown', escRef.current, true)
+      escRef.current = null
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className={`chrome-ext-pin${isDragging ? ' dragging' : ''}`}
+      data-ext-pin-id={item.id}
+      aria-label={item.name}
+      style={offset ? { transform: `translateX(${offset}px)` } : undefined}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        const g = gestureRef.current
+        if (g.mode !== 'idle') return
+        g.mode = 'armed'
+        g.pointerId = e.pointerId
+        g.originX = e.screenX
+        g.originY = e.screenY
+        g.downClientX = e.clientX
+        suppressClickRef.current = false
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* 窗内手势仍由元素自身事件覆盖 */
+        }
+      }}
+      onPointerMove={(e) => {
+        const g = gestureRef.current
+        if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
+        if (g.mode === 'reordering') {
+          // 换位增量平移跟手基准（保留抓取偏移——槽位差承接已过位移，拖动钮跨换位
+          // 刚性跟随无对中跳动；基准重置版会在每次换位把图标重新对中指针 ≤14px）
+          const delta = reorder.move(item.id, e.clientX)
+          if (delta !== 0) g.downClientX += delta * EXT_PIN_PITCH
+          reorder.setDragOffsetX(e.clientX - g.downClientX)
+          return
+        }
+        const dx = e.screenX - g.originX
+        const dy = e.screenY - g.originY
+        if (dx * dx + dy * dy < ENGAGE_RADIUS_PX * ENGAGE_RADIUS_PX) return
+        // 过阈值 → 栏内重排（仅胶囊内水平重排，不升级拖出）
+        g.mode = 'reordering'
+        reorder.begin(item.id)
+        const onEsc = (ev: KeyboardEvent): void => {
+          if (ev.key !== 'Escape') return
+          ev.preventDefault()
+          ev.stopPropagation()
+          detachEsc()
+          suppressClickRef.current = true
+          reorder.cancel()
+        }
+        escRef.current = onEsc
+        document.addEventListener('keydown', onEsc, true)
+      }}
+      onPointerUp={(e) => {
+        const g = gestureRef.current
+        if (g.mode === 'idle' || e.pointerId !== g.pointerId) return
+        if (g.mode === 'reordering') {
+          detachEsc()
+          suppressClickRef.current = true
+          void reorder.commit()
+          g.mode = 'idle'
+        } else {
+          g.mode = 'idle'
+        }
+      }}
+      onPointerCancel={() => {
+        const g = gestureRef.current
+        if (g.mode === 'reordering') {
+          detachEsc()
+          suppressClickRef.current = true
+          reorder.cancel()
+        }
+        g.mode = 'idle'
+      }}
+      onClick={(e) => {
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false
+          return
+        }
+        if (!canOpen) return
+        onOpen(item, e.currentTarget)
+      }}
+    >
+      {item.icon ? (
+        <img
+          className="chrome-ext-pin-icon"
+          src={item.icon}
+          alt=""
+          width="18"
+          height="18"
+          draggable={false}
+        />
+      ) : (
+        <AppstoreOutlined />
+      )}
+    </button>
+  )
+}
+
 /** 地址栏瞬态作用域键 (sessionId, activeTabId)：Tab id 是每会话独立计数器，跨会话
  * 同名（新会话首 Tab 与旧会话 Tab 同名 tab-1），判据必须双维度才可靠（融合专项
  * 步骤 1 复现 S2/S3b 的根因）；null = 零会话或无激活 Tab。窗口维度由 renderer
@@ -151,6 +306,53 @@ function Toolbar(): React.JSX.Element {
   // 按钮事件与 presented 镜像；页面保持可见，不再经 overlayDepth 收起原生层
   const extBtnRef = useRef<HTMLButtonElement | null>(null)
   const extPanel = useExtensionsPanelWindow(extBtnRef)
+  // 插件固定（Chrome 钉子交互，2026-11-13）：list 现取 + changed 广播订阅重取
+  //（list 恒唯一数据源）；拖拽进行中抑制重取（dragActiveRef 镜像，防覆盖本地预览序）。
+  // pinnedItems 按 pins 全序渲染（顺序即工具栏显示顺序），拖拽预览由 useExtPinReorder
+  // 承担（槽位 transform 动画 + 回执后同帧落地），提交走 extensions:order-pinned
+  const [extItems, setExtItems] = useState<ExtensionListItem[]>([])
+  const [pinsOrder, setPinsOrder] = useState<string[]>([])
+  const applyPinsOrder = useCallback((next: string[]): void => {
+    setPinsOrder(next)
+  }, [])
+  const extReorder = useExtPinReorder(pinsOrder, applyPinsOrder)
+  useEffect(() => {
+    let alive = true
+    const pull = (): void => {
+      window.api.extensions
+        .list()
+        .then((r) => {
+          if (!alive) return
+          setExtItems(r.items)
+          setPinsOrder(r.pins)
+        })
+        .catch(() => undefined)
+    }
+    pull()
+    const off = window.api.extensions.onChanged(() => {
+      // 拖拽进行中抑制重取（数据照推，提交回执后下一次广播幂等收敛）
+      if (extReorder.dragActiveRef.current) return
+      pull()
+    })
+    return () => {
+      alive = false
+      off()
+    }
+  }, [extReorder.dragActiveRef])
+  /** 固定图标点击开 popup：现读按钮 rect 传锚点（openPopup 定位公式按 28px 钮调的，同构沿用） */
+  const openPinnedPopup = (item: ExtensionListItem, el: HTMLElement): void => {
+    const rect = el.getBoundingClientRect()
+    void window.api.extensions
+      .openPopup(item.id, { x: Math.round(rect.left), y: Math.round(rect.top) })
+      .catch((error: unknown) => console.warn('打开插件弹窗失败:', error))
+  }
+  /** 固定图标渲染清单：items 按 pins 全序排（顺序即工具栏显示顺序） */
+  const pinnedItems = useMemo(() => {
+    const byId = new Map(extItems.map((i) => [i.id, i] as const))
+    return pinsOrder
+      .map((id) => byId.get(id))
+      .filter((i): i is ExtensionListItem => i !== undefined)
+  }, [extItems, pinsOrder])
   const focusTick = useBrowserStore((s) => s.focusTick)
   const sessionId = useBrowserStore((s) => s.sessionId)
   const history = useBrowserStore((s) => s.history)
@@ -212,6 +414,9 @@ function Toolbar(): React.JSX.Element {
     keyText: string | null,
     kind?: 'pause-toggle' | 'reload-toggle'
   ): void => {
+    // 拖拽重排进行中抑制气泡（拖动掠过相邻图标时会触发其 TooltipSlot，Chrome 同款
+    // 拖拽中不弹提示；extReorder 闭包随渲染刷新，重排态翻转即生效）
+    if (extReorder.reorderId !== null) return
     if (popDelayTimer.current !== null) window.clearTimeout(popDelayTimer.current)
     const rect = anchor.getBoundingClientRect()
     popDelayTimer.current = window.setTimeout(() => {
@@ -687,9 +892,35 @@ function Toolbar(): React.JSX.Element {
           {toolsPopKeyText && <span className="chrome-tools-pop-key">{toolsPopKeyText}</span>}
         </div>
       )}
-      {/* 与截图/录屏组同容器度量（.chrome-tools 28×28 圆钮 + gap 2px），
-          中心线自然对齐 DevTools 文本钮与左侧功能键 */}
-      <div className="chrome-tools">
+      {/* 扩展区胶囊（插件固定专项 2026-11-13，用户截图形态）：固定图标 + 拼图按钮收进
+          圆角胶囊容器（.chrome-ext-bar）；固定图标钮不随 !activeTab 禁用（Chrome 对齐：
+          无 tab 可重排，点击 no-op）；拼图按钮保留既有 disabled/mousedown-toggle 语义。
+          拖拽中 showToolsPop 抑制气泡（见其守卫）；视觉与动画手感走 impeccable 定稿 */}
+      <div
+        className={`chrome-ext-bar${extReorder.settling ? ' chrome-ext-bar-settle' : ''}`}
+        data-reordering={extReorder.reorderId !== null || undefined}
+      >
+        {pinnedItems.map((item) => (
+          <TooltipSlot
+            key={item.id}
+            label={item.name}
+            onEnter={showToolsPop}
+            onLeave={hideToolsPop}
+          >
+            <ExtPinButton
+              item={item}
+              offset={
+                extReorder.reorderId === item.id
+                  ? (extReorder.slotOffsets?.get(item.id) ?? 0) + extReorder.dragOffsetX
+                  : (extReorder.slotOffsets?.get(item.id) ?? 0)
+              }
+              isDragging={extReorder.reorderId === item.id}
+              reorder={extReorder}
+              canOpen={!!activeTab}
+              onOpen={openPinnedPopup}
+            />
+          </TooltipSlot>
+        ))}
         <TooltipSlot
           label={t('browser.toolbar.extensions')}
           onEnter={showToolsPop}

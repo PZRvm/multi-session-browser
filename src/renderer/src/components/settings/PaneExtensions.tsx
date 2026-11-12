@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Input } from 'antd'
-import { ApiOutlined, ExportOutlined, GlobalOutlined, InboxOutlined } from '@ant-design/icons'
+import {
+  ApiOutlined,
+  ExportOutlined,
+  GlobalOutlined,
+  InboxOutlined,
+  PushpinFilled,
+  PushpinOutlined
+} from '@ant-design/icons'
 import { useT } from '../../i18n'
 import type { DictKey } from '../../../../shared/i18n'
 import type { ExtensionListItem, InstallResult } from '../../../../shared/extensions/management'
@@ -30,8 +37,8 @@ export function PaneExtensions(): React.JSX.Element {
   })
 
   const refresh = useCallback(async (): Promise<void> => {
-    const items = await window.api.extensions.list()
-    setState((s) => ({ ...s, items, loading: false }))
+    const r = await window.api.extensions.list()
+    setState((s) => ({ ...s, items: r.items, loading: false }))
   }, [])
 
   // 首拉：挂载后异步取清单（取消守卫防卸载后写入）
@@ -39,8 +46,8 @@ export function PaneExtensions(): React.JSX.Element {
     let alive = true
     window.api.extensions
       .list()
-      .then((items) => {
-        if (alive) setState((s) => ({ ...s, items, loading: false }))
+      .then((r) => {
+        if (alive) setState((s) => ({ ...s, items: r.items, loading: false }))
       })
       .catch(() => {
         if (alive) setState((s) => ({ ...s, loading: false }))
@@ -193,6 +200,22 @@ export function PaneExtensions(): React.JSX.Element {
                     .replace('{m}', String(item.totalPartitions))}
                 </span>
               </span>
+              {/* 钉子开关（插件固定专项 2026-11-13）：与面板钉子同语义——固定态填充钉、
+                  取消态描边钉；setPinned 落库后主进程广播 changed，工具栏即时联动 */}
+              <Button
+                size="small"
+                type={item.pinned ? 'primary' : 'default'}
+                icon={item.pinned ? <PushpinFilled /> : <PushpinOutlined />}
+                aria-label={t(
+                  item.pinned ? 'settings.extensions.unpinAria' : 'settings.extensions.pinAria'
+                )}
+                onClick={() => {
+                  void window.api.extensions
+                    .setPinned({ id: item.id, pinned: !item.pinned })
+                    .then(() => refresh())
+                    .catch(() => undefined)
+                }}
+              />
               <Button
                 size="small"
                 danger
