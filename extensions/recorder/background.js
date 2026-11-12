@@ -73,6 +73,16 @@ chrome.runtime.onMessage.addListener((message) => {
       if (rec.state === 'idle' || rec.state === 'finalizing') return
       await patchRec({ state: 'finalizing' })
       await chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' }).catch(() => {})
+      // 收尾看门狗：下载链异常挂起时状态机永久收尾中、start/cancel 全部被忽略——
+      // 15s 后仍未离开 finalizing 则解楔报错，用户可重试而非永久卡死
+      setTimeout(() => {
+        void (async () => {
+          const cur = await readRec()
+          if (cur.state === 'finalizing') {
+            await patchRec({ state: 'idle', error: '录制收尾超时，请重试' })
+          }
+        })()
+      }, 15000)
       return
     }
     if (message.type === 'cancel' && ['starting', 'recording', 'paused'].includes(rec.state)) {

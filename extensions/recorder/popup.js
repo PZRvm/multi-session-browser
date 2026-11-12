@@ -13,7 +13,10 @@ const STATE_TEXT = {
 let rec = null
 
 function render() {
-  if (!rec) return
+  if (!rec) {
+    // 状态被清除（如解楔）时重置全部控件，避免残留上一轮的陈旧状态显示
+    rec = { state: 'idle', audioEnabled: true }
+  }
   $('state').textContent = STATE_TEXT[rec.state] ?? rec.state
   $('dot').className = 'dot' + (rec.state === 'idle' ? '' : ' ' + rec.state)
   const result = $('result')
