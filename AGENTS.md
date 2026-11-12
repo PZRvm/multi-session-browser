@@ -136,6 +136,7 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 ## 坑点
 
+- **agent 调试本应用一律用 `npm run dev:agent`，不要裸 `npm run dev` 反复重启**（2026-11-13）：agent 模式经 `--agent-debug` 开 CDP 端口 9222（chrome-devtools-mcp，六个 agent 已配置 electron-devtools MCP）+ 主窗静默隐藏不激活，agent 靠 CDP 截图/DOM/console 自主验证——renderer 改动走 HMR、主进程改动重启应用也全程不抢用户前台焦点。隐藏窗 CDP 截图已实测无黑帧（backgroundThrottling:false 保障）；并发实例用 MSB_DEV_PORT 换端口 + MSB_USER_DATA 隔离数据。用户日常 `npm run dev` 行为不变
 - `.npmrc` 配了 npmmirror 镜像下载 Electron 二进制（国内网络环境），不要删除；npm 11 对 `electron_mirror` 等键的 "Unknown project config" 警告无害，勿因警告删配置
 - `postinstall`（electron-builder install-app-deps）已移除（2026-10-30）：唯一原生依赖 classic-level 自带全平台 N-API 预编译二进制（Node/Electron 通用），源码重编译无必要、还要求 Windows 装 VS C++ 工具链；将来新增非 N-API 原生依赖时需恢复该步骤
 - 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
