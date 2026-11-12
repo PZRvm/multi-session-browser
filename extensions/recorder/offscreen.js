@@ -61,8 +61,10 @@ async function start(message) {
         }
       }
     })
-    // 音频轨在才回放保活（与前置验证一致）；纯视频录制不建音频上下文
-    if (message.audio) {
+    // 音频轨在才回放保活（与前置验证普通 Chrome 一致）；纯视频录制不建音频上下文。
+    // 宿主下音频请求如实降级为无音轨（tab 音频无 Electron 等价物），此时跳过
+    // AudioContext 保活，纯视频录制照常。
+    if (message.audio && stream.getAudioTracks().length > 0) {
       audioCtx = new AudioContext()
       audioCtx.createMediaStreamSource(stream).connect(audioCtx.destination)
       await audioCtx.resume()
