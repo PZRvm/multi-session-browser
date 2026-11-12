@@ -37,7 +37,6 @@ description: Master index of the book — the map of every document. Regenerate 
 | `notes/learn/2026-09/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-10/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-11/` | Archived under notes/learn/, grouped by month |
-| `notes/review-todo/` | Archived under notes/, grouped by month |
 | `notes/summary/2026-09/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-10/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-11/` | Archived under notes/summary/, grouped by month |
@@ -220,7 +219,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (49)**
+**Resolved (50)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -271,6 +270,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111171845-双插件界面修复审查.md](notes/issue/2026-11/20261111171845-双插件界面修复审查.md) — 审查双插件图标、编辑预览缩放、标题区与原生提示改动，未发现新增阻塞项
 - [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
 - [20261112133000-自研插件页面上下文shim失效.md](notes/issue/2026-11/20261112133000-自研插件页面上下文shim失效.md) — 自研插件页面上下文shim失效已修复（主世界注入+SW ipc接线+onClicked派发），2026-11-12端到端全绿；本文档转修复记录
+- [20261112175039-自研插件宿主修复波.md](notes/issue/2026-11/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
 
 ### notes/learn/2026-09/
 
@@ -305,10 +305,6 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111-渲染弹层压不过原生层的路线选型.md](notes/learn/2026-11/20261111-渲染弹层压不过原生层的路线选型.md) — 本应用 shell DOM 弹层必被 WebContentsView 原生层遮挡——四条可行路线的选型经验与踩坑记录（overlayDepth 收起白屏、action popup 层级）
 - [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
-
-### notes/review-todo/
-
-- [20261112175039-自研插件宿主修复波.md](notes/review-todo/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
 
 ### notes/summary/2026-09/
 
