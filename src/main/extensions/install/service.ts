@@ -62,6 +62,8 @@ export function createInstallService(deps: InstallServiceDeps): InstallService {
       if (!removed) return false
       await deps.onRemove?.(id)
       await removeDir(join(root, `${id}-${record.version}`))
+      // 分区副本目录（路径即身份的每分区加载副本）一并清理
+      await removeDir(join(root, `${id}.partitions`))
       return true
     },
     upgrade: async (id, buffer) => {

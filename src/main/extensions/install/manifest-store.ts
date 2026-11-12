@@ -91,6 +91,7 @@ export function validateInstallRecord(record: unknown): InstallRecord {
   return {
     id: r.id as string,
     version: r.version as string,
+    ...(typeof r.name === 'string' && r.name.length > 0 ? { name: r.name as string } : {}),
     sha256: r.sha256 as string,
     source: {
       kind: src.kind as InstallSourceKind,

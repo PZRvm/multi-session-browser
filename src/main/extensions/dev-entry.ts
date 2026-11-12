@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import {
   app,
+  BrowserWindow,
   clipboard,
   ClipboardItem,
   nativeImage,
@@ -50,6 +51,45 @@ export interface ExtensionsHandle {
 
 let handle: ExtensionsHandle | undefined
 
+/** 库 windows.create 需宿主 impl.createWindow（缺省抛 "createWindow is not implemented"）。
+ *  自研截图插件编辑器窗经 SW 内 chrome.windows.create 走此链。宿主默认实现：按扩展 ID
+ *  反查挂载会话，建 BrowserWindow 加载 chrome-extension:// URL（会话级 guarded preload
+ *  自动生效，编辑器页拿到 shim 完备的 chrome）。返回 window 供引擎纳入 window 表面。 */
+function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow> {
+  const d = details as { url?: unknown; width?: unknown; height?: unknown; type?: unknown }
+  const url = typeof d?.url === 'string' ? d.url : ''
+  const extId = /^chrome-extension:\/\/([a-p]{32})\//.exec(url)?.[1]
+  if (!extId) return Promise.reject(new Error('INVALID_EXTENSION_URL'))
+  const h = handle
+  let session: Session | undefined
+  if (h) {
+    for (const s of h.mounted.values()) {
+      if (s.extensions.getExtension(extId)) {
+        session = s
+        break
+      }
+    }
+  }
+  if (!session) return Promise.reject(new Error('EXTENSION_NOT_MOUNTED'))
+  const width = typeof d.width === 'number' ? Math.min(Math.max(d.width, 200), 2000) : 800
+  const height = typeof d.height === 'number' ? Math.min(Math.max(d.height, 150), 1600) : 600
+  const win = new BrowserWindow({
+    width,
+    height,
+    show: false,
+    webPreferences: {
+      session,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+  win.once('ready-to-show', () => {
+    if (!win.isDestroyed()) win.show()
+  })
+  void win.loadURL(url)
+  return Promise.resolve(win)
+}
+
 /** 幂等创建运行时（进程内单例；engineOptions 由调用方传入 tab 表面回调） */
 export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHandle {
   if (!handle) {
@@ -58,7 +98,10 @@ export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHa
       runtime: createExtensionRuntime({
         manifest: createManifestStore(paths.manifestFile),
         packagesRoot: paths.packagesRoot,
-        engineOptions
+        engineOptions: {
+          createWindow: createExtensionWindow,
+          ...engineOptions
+        }
       }),
       paths,
       mounted: new Map()

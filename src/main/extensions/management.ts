@@ -125,9 +125,13 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     manifest,
     packagesRoot: paths.packagesRoot,
     onRemove: async (id) => {
-      for (const { session } of mountedSessions()) {
+      for (const { partition, session } of mountedSessions()) {
         try {
-          await session.extensions.removeExtension(id)
+          // 分区副本加载 ID 与安装 ID 不同，按分区重映射后移除
+          const loadedId = await handle.runtime.resolveLoadedId(partition, id)
+          if (loadedId && session.extensions.getExtension(loadedId)) {
+            await session.extensions.removeExtension(loadedId)
+          }
         } catch {
           /* 未挂载该插件的分区幂等跳过 */
         }
@@ -246,16 +250,18 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     activePopup.id = ''
     if (w && !w.isDestroyed()) destroy ? w.destroy() : w.close()
   }
-  const openExtensionPopup = (
+  const openExtensionPopup = async (
     sender: WebContents,
     extensionId: string,
     anchor: { x: number; y: number }
-  ): { ok: boolean; error?: string } => {
+  ): Promise<{ ok: boolean; error?: string }> => {
     const target = deps.getPopupTarget(sender)
     if (!target || target.wc.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
     const { win: mainWin, wc, partition } = target
     const engine = handle.runtime.getEngine(partition)
-    if (!engine || !wc.session.extensions.getExtension(extensionId))
+    // 面板传安装 ID；实际加载 ID 是分区副本路径派生 ID（多分区隔离），先重映射
+    const loadedId = await handle.runtime.resolveLoadedId(partition, extensionId)
+    if (!engine || !loadedId || !wc.session.extensions.getExtension(loadedId))
       return { ok: false, error: 'EXTENSION_NOT_LOADED' }
     engine.addTab(wc, mainWin)
     engine.selectTab(wc)
@@ -271,9 +277,25 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     }
     closeActivePopup()
     const popupPath = readPopupPath(extensionId)
-    if (!popupPath) return { ok: false, error: 'NO_POPUP' }
+    if (!popupPath) {
+      // popup-less 插件（自研截图）：派发 chrome.action.onClicked（引擎
+      // activateBrowserAction 无 popup 分支同构——tabDetails 供 SW 组装截图目标）。
+      // tabDetailsCache 被导航失效删除后 getTabDetails 会按当前 URL 重建。
+      const ctx = (
+        engine as unknown as {
+          ctx?: {
+            store?: { getTabDetails?: (wc: Electron.WebContents) => unknown }
+            router?: { sendEvent: (id: string, event: string, ...args: unknown[]) => void }
+          }
+        }
+      ).ctx
+      const details = ctx?.store?.getTabDetails?.(wc) ?? { id: wc.id, windowId: mainWin.id }
+      if (!ctx?.router) return { ok: false, error: 'NO_ACTION_DISPATCH' }
+      ctx.router.sendEvent(loadedId, 'browserAction.onClicked', details)
+      return { ok: true }
+    }
     const session = wc.session
-    const url = `chrome-extension://${extensionId}/${popupPath.replace(/^\//, '')}`
+    const url = `chrome-extension://${loadedId}/${popupPath.replace(/^\//, '')}`
     const win = new BrowserWindow({
       show: false,
       frame: false,
@@ -373,7 +395,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         const anchor = payload.anchor ?? { x: 0, y: 0 }
         if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y))
           return { ok: false, error: 'INVALID_ANCHOR' }
-        return openExtensionPopup(event.sender, payload.id, anchor)
+        return await openExtensionPopup(event.sender, payload.id, anchor)
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
       }

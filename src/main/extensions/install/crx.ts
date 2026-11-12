@@ -21,6 +21,20 @@ export function extensionId(publicKey: Buffer): string {
     .slice(0, 32)
     .replace(/[0-9a-f]/g, (v) => String.fromCharCode(97 + parseInt(v, 16)))
 }
+
+/**
+ * 未打包扩展（manifest 无 key）的 ID 由绝对路径哈希派生（Chromium id_util GenerateIdForPath
+ * 同构：SHA256(path UTF-8) 取前 16 字节 hex，0-9a-f → a-p）。路径即身份：分区副本目录
+ * 稳定 → ID 分区稳定（跨重启一致），分区间不同 → native 消息/存储/事件天然按分区隔离。
+ */
+export function extensionIdFromPath(path: string): string {
+  return createHash('sha256')
+    .update(path, 'utf8')
+    .digest()
+    .subarray(0, 16)
+    .toString('hex')
+    .replace(/[0-9a-f]/g, (v) => String.fromCharCode(97 + parseInt(v, 16)))
+}
 function fields(data: Buffer): Array<{ field: number; data: Buffer }> {
   let cursor = 0
   const result: Array<{ field: number; data: Buffer }> = []
