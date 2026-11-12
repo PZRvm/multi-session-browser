@@ -37,6 +37,7 @@ description: Master index of the book — the map of every document. Regenerate 
 | `notes/learn/2026-09/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-10/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-11/` | Archived under notes/learn/, grouped by month |
+| `notes/review-todo/` | Archived under notes/, grouped by month |
 | `notes/summary/2026-09/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-10/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-11/` | Archived under notes/summary/, grouped by month |
@@ -305,6 +306,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
+### notes/review-todo/
+
+- [20261112175039-自研插件宿主修复波.md](notes/review-todo/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
+
 ### notes/summary/2026-09/
 
 - [20260910184241-波次1-契约冻结验收.md](notes/summary/2026-09/20260910184241-波次1-契约冻结验收.md) — "阶段1会话持久化开发计划的波次1-契约冻结验收"
@@ -469,4 +474,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 351 documents -->
+<!-- 352 documents -->
