@@ -84,6 +84,18 @@ if (process.env['MSB_USER_DATA']) {
   app.setPath('userData', override)
 }
 
+// Agent 无焦点调试通道（2026-11-12）：`npm run dev:agent` 经 electron-vite 的 `--`
+// 把 --agent-debug 转发进主进程 argv。该模式服务 AI agent 调试：CDP 端口 9222 开给
+// 外部调试客户端（chrome-devtools-mcp 等，MCP 配置见 ~/.zcode/cli/config.json 等
+// 六处），主窗不显示不激活（showOnce 静默路径），agent 验证全走 CDP 截图/DOM/console，
+// 不再反复重启应用抢夺用户前台焦点（绕开 electron/electron#30904 的「show 即激活」
+// 框架默认行为）。argv 门控而非环境变量：三个平台 shell 语义一致，脚本零依赖
+const isAgentDebug = process.argv.includes('--agent-debug')
+if (isAgentDebug) {
+  // appendSwitch 须在 app ready 前执行才有生效窗口（Chromium 开关在命令行阶段读取）
+  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+}
+
 // warning 通道接管（须在任何窗口加载页面前安装——Electron 对失败主 frame 导航的
 // 固定警告经此通道打印，拦截见 ./warnings.ts 头注）
 installWarningChannelFilter()
@@ -294,7 +306,10 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // agent 调试模式：关闭渲染节流，主窗隐藏后页面仍持续出帧，CDP 截图/DOM 检查
+      // 才有新帧可用（正常模式不动——后台节流是隐藏窗省资源的默认行为）
+      ...(isAgentDebug ? { backgroundThrottling: false } : {})
     }
   })
   win.on('page-title-updated', (event) => event.preventDefault())
@@ -314,6 +329,15 @@ function createWindow(): void {
   const showOnce = (via: string): void => {
     if (shown || win.isDestroyed()) return
     shown = true
+    // agent 调试模式：主窗保持隐藏——不 show 不 showInactive，窗口存在、页面照常
+    // 渲染（渲染连续性由下方 webPreferences.backgroundThrottling:false 保障），agent
+    // 验证全走 CDP。已知风险：隐藏窗 CDP 截图可能黑帧（Chromium fromSurface 依赖可见
+    // surface），首次使用须实测；若黑帧退一档改 showInactive()（显示但不激活，遮挡换
+    // 取截图可靠）
+    if (isAgentDebug) {
+      console.log(`[main] agent 调试模式：主窗保持隐藏，不激活不抢焦点（经 ${via}）`)
+      return
+    }
     console.log(`[main] 主窗显示（经 ${via}）`)
     win.show()
   }
