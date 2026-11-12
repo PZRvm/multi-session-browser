@@ -182,7 +182,14 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
       session ?? (event as { sender?: { session?: Session } }).sender?.session ?? undefined
     if (!bound) return { ok: false, error: 'NO_SESSION' }
     const win = new BrowserWindow({
-      show: false,
+      // show:false 的隐藏扩展页会被 Chromium 页面冻结挂起（FileReader.onload 永不
+      // 投递，录制收尾永久收尾中）——改为可见但移出屏幕坐标：页面保持前台调度，
+      // 用户不可见（审查修复轮实测：隐藏窗 onloadstart 后 onload 永不触发）
+      x: -2400,
+      y: 0,
+      width: 480,
+      height: 360,
+      show: true,
       frame: false,
       skipTaskbar: true,
       focusable: false,
@@ -190,7 +197,8 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
       webPreferences: {
         session: bound,
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: true,
+        backgroundThrottling: false
       }
     })
     offscreenByExtension.set(extId, { win, target })
@@ -247,12 +255,16 @@ async function readBlobAsDataUrl(extId: string, url: string): Promise<string> {
   const resp = await fetch(${JSON.stringify(url)})
   if (!resp.ok) throw new Error('FETCH_FAILED')
   const blob = await resp.blob()
-  return await new Promise((resolve, reject) => {
-    const fr = new FileReader()
-    fr.onload = () => resolve(fr.result)
-    fr.onerror = () => reject(new Error('READ_FAILED'))
-    fr.readAsDataURL(blob)
-  })
+  // FileReader.readAsDataURL 在扩展页 + executeJavaScript 上下文会挂死（onloadstart
+  // 后 onload 永不投递，实测多轮）——绕开：arrayBuffer（同上下文实测可用）+ 分块 btoa
+  const buf = new Uint8Array(await blob.arrayBuffer())
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, buf.subarray(i, Math.min(i + CHUNK, buf.length)))
+  }
+  const dataUrl = 'data:' + (blob.type || 'application/octet-stream') + ';base64,' + btoa(binary)
+  return dataUrl
 })()`,
     true
   )
@@ -275,7 +287,11 @@ async function writeDownloadFile(dataUrl: string, filename: unknown): Promise<st
   // 重名加序号（存在性探测循环，低频路径可接受）
   while (true) {
     try {
-      const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+      // 分隔符必须找 ';base64,' 标记而非首个逗号——MIME 的 codecs 参数自带逗号
+      //（data:video/mp4;codecs=avc1,mp4a.40.2;base64,...），用逗号会把
+      // 'mp4a.40.2;base64,' 混进主体，base64 对齐整体错位、产物全坏（实测根因）
+      const marker = ';base64,'
+      const b64 = dataUrl.slice(dataUrl.indexOf(marker) + marker.length)
       await writeFile(target, Buffer.from(b64, 'base64'), { flag: 'wx' })
       return target
     } catch (error) {

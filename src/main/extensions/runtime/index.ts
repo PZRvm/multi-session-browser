@@ -61,11 +61,30 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
     }
     // SW invoke 不进 ipcMain（Electron35+ 走 ServiceWorkerMain.ipc，逐实例注册）；
     // 每会话接线一次，SW 启动时由 shims 侧按 running-status-changed 挂 handler。
-    if (!wiredSessions.has(session)) {
+    const firstMountOfSession = !wiredSessions.has(session)
+    if (firstMountOfSession) {
       wiredSessions.add(session)
       registerSessionShimIpc(session)
     }
     await ensureGuardedPreload(session)
+    // 持久化恢复的扩展/SW 可能在本轮 preload 注册前就已自启（分区持久化跨重启），
+    // SW 主世界为 native/lib-only——shim 不完备，offscreen/下载全走错实现。会话对象
+    // 首次挂载时：凡已按分区 ID 加载的实例强制移除重载（SW 以当前守卫 preload 重启，
+    // shim 完备）；同进程后续重激活跳过（WeakSet），保护录制中的会话。
+    if (firstMountOfSession) {
+      const persisted = (await deps.manifest.read()).installs
+      for (const record of persisted) {
+        if (record.source.kind === 'unpacked') continue
+        const loadedId = partitionExtensionId(deps.packagesRoot, record.id, partition)
+        if (session.extensions.getExtension(loadedId)) {
+          try {
+            await session.extensions.removeExtension(loadedId)
+          } catch {
+            /* 已卸载/分区销毁竞态：跳过 */
+          }
+        }
+      }
+    }
     const adapter: LoaderSession = {
       getAllExtensions: () => session.extensions.getAllExtensions(),
       loadExtension: (path) => session.extensions.loadExtension(path)

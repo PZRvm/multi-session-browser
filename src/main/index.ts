@@ -72,6 +72,11 @@ import type { TFunc } from '../shared/i18n'
 // 隔离功能验收站点：使用保留测试域，避免第三方插件主动忽略 localhost。
 if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
   app.commandLine.appendSwitch('host-resolver-rules', 'MAP msb-fixture.test 127.0.0.1')
+  // 隐藏渲染进程全速运行（审查修复轮：扩展采集窗 show:false 内的取流/转码/下载链
+  // 会被 Chromium 后台降级饿死——fetch/FileReader 事件投递停滞，录制收尾永久转圈）。
+  // 采集窗是本产品的功能性隐藏窗（录屏编码），非后台杂务，保持与前台同等调度。
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 }
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
