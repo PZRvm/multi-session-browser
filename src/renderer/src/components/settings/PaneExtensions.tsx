@@ -57,6 +57,12 @@ export function PaneExtensions(): React.JSX.Element {
     }
   }, [])
 
+  // pins/安装集跨面变更联动（审查三轮 2.5）：订阅 extensions:changed → refresh——
+  // 面板钉子/工具栏拖拽/其他窗口的固定与安装变更即时反映到设置页，不再陈旧
+  useEffect(() => {
+    return window.api.extensions.onChanged(() => refresh())
+  }, [refresh])
+
   const setNotice = (tone: 'default' | 'danger', text: string): void => {
     setState((s) => ({ ...s, notice: { tone, text }, installing: false }))
   }

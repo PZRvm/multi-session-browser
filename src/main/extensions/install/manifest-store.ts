@@ -302,7 +302,10 @@ export function createManifestStore(file: string): ManifestStore {
     removeInstall: (id) =>
       locked(async () => {
         const current = await readRaw(file)
-        if (!current.installs.some((v) => v.id !== id)) return false
+        // 存在性判断：清单里没有「这个 ID」才返回 false（卸载对象不存在）。
+        // 注意比较对象是 v.id === id——曾误改为 v.id !== id（存在任一不同 ID 即
+        // false），安装数 ≥2 时卸载任何插件都误报 NOT_FOUND（审查清单高危条目）
+        if (!current.installs.some((v) => v.id === id)) return false
         const next: GlobalManifest = {
           ...current,
           installs: current.installs.filter((v) => v.id !== id),
