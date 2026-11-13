@@ -65,8 +65,12 @@ jobs:
     timeout-minutes: 35
     env:
       # GitHub runner 走官方源；保留仓库 .npmrc 中供国内本地开发使用的镜像。
+      # 镜像钉官方源只走 env（@electron/get mirrorVar 读 npm_config_electron_*、
+      # electron-builder getBinariesMirrorUrl 同名读取）——不再经 CLI `-c.` 点属性
+      # 参数传：PowerShell 会剥掉 `-c` 前缀使 electron-builder 把余串当配置文件
+      # 路径打开（v1.1.0 首发 win-x64 实测 ENOENT 根因，mac bash 侧无此行为）。
       npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
-      npm_config_electron_custom_dir: v{{ version }}
+      npm_config_electron_custom_dir: v${{ needs.prepare.outputs.version }}
       npm_config_electron_builder_binaries_mirror: https://github.com/electron-userland/electron-builder-binaries/releases/download/
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -86,8 +90,6 @@ jobs:
           npm exec electron-builder --
           --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }}
           --publish never
-          -c.electronDownload.mirror=https://github.com/electron/electron/releases/download/
-          '-c.electronDownload.customDir=v{{ version }}'
       - name: 校验 macOS 临时签名与镜像
         if: runner.os == 'macOS'
         env:
