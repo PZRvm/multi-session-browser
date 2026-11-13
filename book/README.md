@@ -63,6 +63,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
 - [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
 - [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
+- [2026-11-13-UA与扩展Worker隔离.md](changelogs/2026-11/2026-11-13-UA与扩展Worker隔离.md) — 独立分支统一默认UA并在首次注册限制扩展preload，收紧IPC身份鉴权，本机验证通过且保留审查待办
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -81,6 +82,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### docs/architecture/
 
+- [2026-11-13-浏览器身份与扩展注入边界.md](docs/architecture/2026-11-13-浏览器身份与扩展注入边界.md) — 默认UA的启动单源、宿主受限注册与依赖补丁的分工，以及页面和Worker的原生身份鉴权
 - [README.md](docs/architecture/README.md) — Architecture snapshots — dated documents describing the current state of modules and data flow
 - [项目骨架.md](docs/architecture/项目骨架.md) — "项目骨架与目录结构说明"
 
@@ -90,6 +92,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-002-electron42-and-react-devtools-fork.md](docs/decisions/ADR-002-electron42-and-react-devtools-fork.md) — 用户同意升级Electron42并单独维护React DevTools图标修复版，同时保留商店原版验收基线
 - [ADR-002-omnibox-native-editing.md](docs/decisions/ADR-002-omnibox-native-editing.md) — 原生编辑菜单通过只读闭集推送交给当前浏览器壳，地址栏消费局部栈，其余输入保持原生编辑
 - [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
+- [ADR-004-host-owned-extension-preloads.md](docs/decisions/ADR-004-host-owned-extension-preloads.md) — 宿主独占受限扩展 preload 注册，使用固定版本可重复补丁消除库构造时裸注册窗口
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -156,7 +159,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (66)**
+**Open (69)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -224,6 +227,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
 - [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
+- [20261113170129-网站频繁验证码与浏览器身份排查.md](notes/issue/2026-11/20261113170129-网站频繁验证码与浏览器身份排查.md) — 飞书内嵌豆包聊天触发图片人机验证，已复现中文 UA 编码差异和普通网站 Service Worker 误注入扩展桥，尚待风控因果对照
+- [20261113171922-普通网站ServiceWorker误注入扩展桥.md](notes/issue/2026-11/20261113171922-普通网站ServiceWorker误注入扩展桥.md) — 扩展 preload 未限定 Service Worker 来源，普通网站 SW 可见 electron 和宿主 shim 对象，并在安装版现场出现 location 未定义异常
+- [20261113190745-UA与Worker隔离修复审查.md](notes/issue/2026-11/20261113190745-UA与Worker隔离修复审查.md) — UA与Worker隔离修复审查发现构造器失败后依赖单例残留，正常路径通过但异常重试需另轮处理
 
 **Resolved (55)**
 
@@ -305,6 +311,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
 - [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
+- [2026-11-13-扩展桥鉴权不能回退页面自报身份.md](notes/learn/2026-11/2026-11-13-扩展桥鉴权不能回退页面自报身份.md) — 网站无桥不等于IPC鉴权正确，页面与Worker都必须直接核验Electron事件中的来源及Session
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -324,6 +331,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261113113000-preload-dts-import类型解析为any.md](notes/learn/2026-11/20261113113000-preload-dts-import类型解析为any.md) — preload/index.d.ts 的 import() 类型在 web 项目解析为 any——类型网对该块失效，契约类型安全靠 renderer 静态 import 兜底；改动文件收尾污染全文扫描
 - [20261113133220-PowerShell原生参数与electron-builder点属性配置.md](notes/learn/2026-11/20261113133220-PowerShell原生参数与electron-builder点属性配置.md) — v1.1.0 发布流水线三平台构建两轮失败全记录：PowerShell 剥 -c 前缀、npm 注入 env 覆盖、customDir 误用应用版本号——三条跨平台/依赖解析教训
 - [20261113141748-Release附件配置化调研.md](notes/learn/2026-11/20261113141748-Release附件配置化调研.md) — GitHub Release 附件配置化调研：让自研插件 CRX 随安装包一起发布——四方案对比与推荐（CI 现场打包优先），含配置文件形态、安全栏与 v1.1.0 人工补传路径
+- [20261113170129-验证码排查先核对请求身份与跳转链.md](notes/learn/2026-11/20261113170129-验证码排查先核对请求身份与跳转链.md) — Cookie 正常也可能频繁触发人机验证，应对照实际请求身份和跳转链，不能仅凭指纹差异断定风控原因
+- [20261113172953-UA兼容与扩展Worker隔离修复方案调研.md](notes/learn/2026-11/20261113172953-UA兼容与扩展Worker隔离修复方案调研.md) — 用应用级 Chrome 格式 UA 保留中文安装名称，并用 Electron 45.3 原生 URL 过滤限制扩展 preload，含本机能力验证和实施验收
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/review-todo/
@@ -411,6 +420,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
 - [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
+- [2026-11-13-UA与Worker隔离修复.md](notes/summary/2026-11/2026-11-13-UA与Worker隔离修复.md) — 在独立工作树统一默认UA、限制扩展preload并修正原生身份鉴权，本机回归通过，构造异常重试与现场验证待办
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -446,6 +456,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](plans/2026-11-06-bocode-adoption.md) — 从现有 Electron 项目接入 BoCode 的盘点、迁移边界、决策与验证记录
 - [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
 - [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
+- [2026-11-13-UA兼容与扩展Worker隔离修复.md](plans/2026-11-13-UA兼容与扩展Worker隔离修复.md) — 分离产品名称与默认 UA、限定扩展 preload 来源，逐项验证网站环境、插件功能与真人验证频率
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -511,4 +522,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 386 documents -->
+<!-- 397 documents -->

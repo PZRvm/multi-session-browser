@@ -125,6 +125,7 @@ export async function mountDevExtensions(
     h.mounted.set(partition, session)
     return result
   } catch (error) {
+    console.warn(`[extensions] 分区 ${partition} 插件挂载失败:`, error)
     return { partition, error: String(error).slice(0, 200) }
   }
 }
