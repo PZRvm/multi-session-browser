@@ -328,6 +328,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261113014627-自研插件修复二轮.md](notes/review-todo/20261113014627-自研插件修复二轮.md) — 自研插件修复二轮（4f4a892..HEAD）八项审查：中2低5——tab本地静音体验缺陷、保存提示名与落盘名不一致等，六条旧清单已闭环
 - [20261113020713-插件固定与工具栏扩展区.md](notes/review-todo/20261113020713-插件固定与工具栏扩展区.md) — 插件固定与工具栏扩展区功能（44865a2+5d93cf7）八项审查：高1（removeInstall存在性判断反置致多插件卸载全废）中2低2
 - [20261113114421-工具栏按钮显隐配置.md](notes/review-todo/20261113114421-工具栏按钮显隐配置.md) — 工具栏截图/录屏按钮显隐配置（707799d）八项审查：高0中0低1（两键同构重复，第三键出现再抽共用）
+- [20261113124504-插件分支合入dev.md](notes/review-todo/20261113124504-插件分支合入dev.md) — 插件分支合入dev（4ce8610）八项审查 + 历史未闭项全量核对：合并引入 0 缺陷，真实未闭 5 项（1中4低）一次修复轮清账
 - [20261114030000-验收修复轮与历史发现.md](notes/review-todo/20261114030000-验收修复轮与历史发现.md) — 验收修复轮（1f83e4d）八项审查：四项验收功能（卸载确认框/钉态白名单/商店入口/拖拽导入）+ 历史发现全清，高0中0低1
 
 ### notes/summary/2026-09/
@@ -507,4 +508,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 382 documents -->
+<!-- 383 documents -->
