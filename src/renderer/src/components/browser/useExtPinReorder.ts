@@ -189,6 +189,17 @@ export function useExtPinReorder(
     applyPreview(null)
   }, [applyPreview])
 
+  // 卸载清理（审查清单 20261113124504 低项）：settle 定时器悬挂会在卸载后触发
+  // setSettling（React 18 起 no-op 无害但定时器悬挂），卸载时清除
+  useEffect(() => {
+    return () => {
+      if (settleTimerRef.current !== null) {
+        window.clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
+      }
+    }
+  }, [])
+
   return {
     reorderId,
     slotOffsets,

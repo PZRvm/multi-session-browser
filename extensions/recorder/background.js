@@ -149,9 +149,21 @@ chrome.runtime.onMessage.addListener((message) => {
             filename,
             saveAs: false
           })
+          // shim 撞名加序号后建议名失真（SW 重启 generation 重置必撞）：优先取主世界
+          // 全局 __msbLastDownload 的落盘真名（id 对账防并发错位），取不到才回退建议名
+          const last = globalThis.__msbLastDownload
+          const shownName =
+            last && last.id === downloadId && typeof last.filename === 'string'
+              ? last.filename
+              : filename
           await patchRec({
             state: 'idle',
-            info: { ...message.info, filename, downloadId, reason: message.reason ?? 'user' }
+            info: {
+              ...message.info,
+              filename: shownName,
+              downloadId,
+              reason: message.reason ?? 'user'
+            }
           })
         } else if (message.reason === 'cancelled') {
           // 取消：不落盘、不算失败

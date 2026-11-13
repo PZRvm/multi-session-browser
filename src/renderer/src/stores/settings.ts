@@ -39,8 +39,12 @@ interface SettingsState {
   setting: boolean
   init: () => Promise<void>
   setHomepage: (raw: string) => Promise<SetHomepageResult>
-  setShowCapture: (value: boolean) => Promise<SetHomepageResult>
-  setShowRecorder: (value: boolean) => Promise<SetHomepageResult>
+  /** 键参数化显隐切换（审查清单 20261113124504 低项同构抽象）：errorKey 由调用方按行提供 */
+  setToolbarButton: (
+    key: 'showCaptureButton' | 'showRecorderButton',
+    value: boolean,
+    errorKey: DictKey
+  ) => Promise<SetHomepageResult>
   /** 恢复出厂（阶段七）：成功返回 null，失败返回可呈现的中文错误；镜像不改——
    * 成功后各镜像（settings/appearance/i18n）经主进程 changed 广播自动回默认 */
   factoryReset: () => Promise<string | null>
@@ -110,26 +114,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  // 工具栏按钮显隐（插件专项收尾，两命令同构）：失败保持旧值（开关随镜像回弹），
-  // 错误文案返回给调用方行内呈现；无 in-flight 互斥——开关幂等且主进程写队列保序，
-  // 快速连点按序收敛后写胜出
-  setShowCapture: async (value) => {
+  // 工具栏按钮显隐（插件专项收尾；键参数化单方法——审查清单 20261113124504 低项
+  // 同构抽象）：失败保持旧值（开关随镜像回弹），错误文案键由调用方按行提供；无
+  // in-flight 互斥——开关幂等且主进程写队列保序，快速连点按序收敛后写胜出
+  setToolbarButton: async (key, value, errorKey) => {
     try {
-      const snapshot = await window.api.settings.setShowCapture({ showCaptureButton: value })
+      const snapshot =
+        key === 'showCaptureButton'
+          ? await window.api.settings.setShowCapture({ showCaptureButton: value })
+          : await window.api.settings.setShowRecorder({ showRecorderButton: value })
       applySnapshot(set, snapshot)
       return { snapshot }
     } catch (error) {
-      return { error: readableIpcError(error, t('settings.captureButtonRow.saveFailed')) }
-    }
-  },
-
-  setShowRecorder: async (value) => {
-    try {
-      const snapshot = await window.api.settings.setShowRecorder({ showRecorderButton: value })
-      applySnapshot(set, snapshot)
-      return { snapshot }
-    } catch (error) {
-      return { error: readableIpcError(error, t('settings.recorderButtonRow.saveFailed')) }
+      return { error: readableIpcError(error, t(errorKey)) }
     }
   },
 

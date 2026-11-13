@@ -256,20 +256,38 @@ export async function setLanguage(language: SupportedLanguage): Promise<Settings
 }
 
 /**
- * 工具栏按钮显隐设置（插件专项收尾，两键共用实现）：读-改-写经既有 loadSettings +
- * saveSettings 串行队列（与 setHomepage 同语义——并发以写队列为准、后写胜出）。
- * 主进程无同步消费方（按钮显隐纯 renderer 面），不进主页/语言同步缓存。
+ * 工具栏按钮显隐键闭集与键参数化落盘实现（审查清单 20261113124504 低项同构抽象）：
+ * 读-改-写经既有 loadSettings + saveSettings 串行队列（与 setHomepage 同语义——并发
+ * 以写队列为准、后写胜出）。主进程无同步消费方（按钮显隐纯 renderer 面），不进主页/
+ * 语言同步缓存。
  */
-export async function setShowCaptureButton(value: boolean): Promise<SettingsSnapshot> {
-  const next: StoredSettings = { ...(await loadSettings()), showCaptureButton: value }
+type ToolbarButtonKey = 'showCaptureButton' | 'showRecorderButton'
+
+async function setToolbarButtonFlag(
+  key: ToolbarButtonKey,
+  value: boolean
+): Promise<SettingsSnapshot> {
+  const next: StoredSettings = { ...(await loadSettings()), [key]: value }
   await saveSettings(next)
   return toSnapshot(next)
 }
 
-export async function setShowRecorderButton(value: boolean): Promise<SettingsSnapshot> {
-  const next: StoredSettings = { ...(await loadSettings()), showRecorderButton: value }
-  await saveSettings(next)
-  return toSnapshot(next)
+/**
+ * 显隐 IPC handler 工厂（同上同构抽象）：布尔守卫（键名取参）→ 键参数化落盘 →
+ * changed 全窗推送 → 快照返回（renderer 以返回值为权威回填）；拒绝路径零变更。
+ */
+function handleToolbarButtonFlag(
+  key: ToolbarButtonKey
+): (_event: unknown, payload: unknown) => Promise<SettingsSnapshot> {
+  return (_event, payload) => {
+    if (!isRecord(payload) || typeof payload[key] !== 'boolean') {
+      return Promise.reject(new Error(t('errors.invalidToolbarButtonParams')))
+    }
+    return setToolbarButtonFlag(key, payload[key] as boolean).then((snapshot) => {
+      broadcastSettingsChanged(snapshot)
+      return snapshot
+    })
+  }
 }
 
 /**
@@ -339,31 +357,8 @@ export function registerSettingsValueIpc(): void {
     }
   )
 
-  // set-show-capture / set-show-recorder（插件专项收尾）：布尔值守卫 → setter 落盘
-  //（读-改-写经串行队列）→ changed 全窗推送 → 快照返回（renderer 以返回值为权威
-  // 回填）；拒绝路径零变更。工具栏按钮显隐纯 renderer 消费面，无主进程语言/缓存链
-  ipcMain.handle(
-    SETTINGS_CHANNELS.setShowCapture,
-    (_event, payload: unknown): Promise<SettingsSnapshot> => {
-      if (!isRecord(payload) || typeof payload.showCaptureButton !== 'boolean') {
-        return Promise.reject(new Error(t('errors.invalidToolbarButtonParams')))
-      }
-      return setShowCaptureButton(payload.showCaptureButton).then((snapshot) => {
-        broadcastSettingsChanged(snapshot)
-        return snapshot
-      })
-    }
-  )
-  ipcMain.handle(
-    SETTINGS_CHANNELS.setShowRecorder,
-    (_event, payload: unknown): Promise<SettingsSnapshot> => {
-      if (!isRecord(payload) || typeof payload.showRecorderButton !== 'boolean') {
-        return Promise.reject(new Error(t('errors.invalidToolbarButtonParams')))
-      }
-      return setShowRecorderButton(payload.showRecorderButton).then((snapshot) => {
-        broadcastSettingsChanged(snapshot)
-        return snapshot
-      })
-    }
-  )
+  // set-show-capture / set-show-recorder（插件专项收尾）：同构 handler 经工厂键参数化
+  //（审查清单 20261113124504 低项同构抽象），守卫/落盘/推送语义不变
+  ipcMain.handle(SETTINGS_CHANNELS.setShowCapture, handleToolbarButtonFlag('showCaptureButton'))
+  ipcMain.handle(SETTINGS_CHANNELS.setShowRecorder, handleToolbarButtonFlag('showRecorderButton'))
 }

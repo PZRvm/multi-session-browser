@@ -94,6 +94,25 @@ function __msbExposeShimBridge() {
   }
   const invokeShim = (channel, payload) =>
     ipcRenderer.invoke(channel, { ...payload, extId: globalThis.chrome?.runtime?.id })
+  // chrome.downloads.download 真名回传链（审查清单 20261113124504 中项）：shim 撞名加
+  // 序号后建议名失真（SW 重启 generation 重置必撞名）。桥侧 downloadWithMeta 返回
+  // {id, filename}；主世界 wrapper（MSB_PAGE_SHIMS 内）消费它并把真名写主世界全局
+  // __msbLastDownload——contextBridge 函数在主世界是代理对象，隔离世界侧在函数对象
+  // 上挂属性主世界不可见（首版 msbLast 方案实测失真根因）；API 合同（回数字 id）由
+  // wrapper 保持，第三方插件消费面不变。
+  const downloadWithMeta = async (options) => {
+    const result = await invokeShim('${EXT_SHIM_DOWNLOAD}', {
+      url: options?.url,
+      filename: options?.filename
+    })
+    unwrap(result, 'DOWNLOAD_FAILED')
+    return {
+      id: result.id,
+      filename: String(result.path ?? '')
+        .split('/')
+        .pop()
+    }
+  }
   const bridge = {
     captureVisibleTab: async (windowId, _options) => {
       const result = await invokeShim('${EXT_SHIM_CAPTURE_TAB}', {
@@ -101,14 +120,7 @@ function __msbExposeShimBridge() {
       })
       return unwrap(result, 'CAPTURE_FAILED').dataUrl
     },
-    download: async (options) =>
-      unwrap(
-        await invokeShim('${EXT_SHIM_DOWNLOAD}', {
-          url: options?.url,
-          filename: options?.filename
-        }),
-        'DOWNLOAD_FAILED'
-      ).id,
+    download: downloadWithMeta,
     tabStream: async () =>
       unwrap(await invokeShim('${EXT_SHIM_TAB_STREAM}', {}), 'TAB_CAPTURE_FAILED').streamId,
     contexts: async () => {
@@ -149,7 +161,17 @@ if (process.type === 'service-worker' || location.protocol === 'chrome-extension
 const MSB_PAGE_SHIMS = `if (globalThis.__msbShimBridge) {
   const shimBridge = globalThis.__msbShimBridge
   if (chrome.tabs && !chrome.tabs.captureVisibleTab) chrome.tabs.captureVisibleTab = shimBridge.captureVisibleTab
-  if (chrome.downloads?.download) chrome.downloads.download = shimBridge.download
+  if (chrome.downloads?.download) {
+    // 真名回传链（审查清单 20261113124504 中项）：API 合同只回数字 id；真名经
+    // downloadWithMeta 元数据通道取回并写主世界全局 __msbLastDownload 供宿主自研
+    // 插件按 id 对账展示（contextBridge 代理函数不可挂属性——首版 msbLast 实测失真）
+    const msbRawDownloadWithMeta = shimBridge.download
+    chrome.downloads.download = async (options) => {
+      const meta = await msbRawDownloadWithMeta(options)
+      globalThis.__msbLastDownload = meta
+      return meta.id
+    }
+  }
   if (!chrome.tabCapture) {
     try {
       Object.defineProperty(chrome, 'tabCapture', {

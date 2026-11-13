@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
+import { createLock } from './mutex'
 
 /**
  * 插件安装全局清单（协议v1 安装记录 schema 的生产实现）。
@@ -241,12 +242,8 @@ export interface ManifestStore {
 }
 
 export function createManifestStore(file: string): ManifestStore {
-  let chain: Promise<unknown> = Promise.resolve()
-  function locked<T>(job: () => Promise<T>): Promise<T> {
-    const run = chain.then(job, job)
-    chain = run.catch(() => undefined)
-    return run
-  }
+  // 在途互斥单源（审查清单 20261113124504 低项）：原内联 locked() 迁至 install/mutex.ts
+  const locked = createLock()
   return {
     read: () => locked(() => readRaw(file)),
     update: (mutate) =>
@@ -311,7 +308,9 @@ export function createManifestStore(file: string): ManifestStore {
         const next: GlobalManifest = {
           ...current,
           installs: current.installs.filter((v) => v.id !== id),
-          pins: (current.pins ?? []).filter((v) => v !== id)
+          // pins 键缺省保持缺省（审查清单 20261113124504 低项）：卸载不应把「无 pins 键」
+          // 归一化成 pins:[] 的 schema 噪音
+          ...(current.pins ? { pins: current.pins.filter((v) => v !== id) } : {})
         }
         validateManifest(next)
         await persistAtomic(file, next)

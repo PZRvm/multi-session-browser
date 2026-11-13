@@ -3,6 +3,7 @@ import { Input, Switch } from 'antd'
 import { SettingsPane, SettingsRow } from './SettingsParts'
 import { useSettingsStore } from '../../stores/settings'
 import { useT } from '../../i18n'
+import type { DictKey } from '../../../../shared/i18n'
 
 // 浏览版面：主页 URL（阶段四点亮）——受控值绑 settings 镜像 + 本地编辑草稿
 //（聚焦修改不即时提交）；Enter 或失焦提交、值未变化短路零 IPC；成功回填主进程
@@ -13,17 +14,16 @@ import { useT } from '../../i18n'
 // placeholder）归 settings.homepageRow 字典键，拒绝消息为主进程构造期本地化文本
 // 原样呈现（构造期语言口径），renderer 侧自产报错归 store 键化。
 // 工具栏按钮显隐两行（插件专项收尾）：受控 Switch 绑 settings 镜像，onChange 经
-// store 两命令写主进程并等待快照回填——失败镜像保持旧值（开关随镜像回弹）+ 行内
-// 红显兜底文案；显隐只改工具栏渲染，截图/录屏功能链路不受影响（PRD 口径：插件
-// 形态与内置按钮重复，按需隐藏、功能保留）
+// store 键参数化单命令写主进程并等待快照回填——失败镜像保持旧值（开关随镜像回弹）
+// + 行内红显兜底文案；显隐只改工具栏渲染，截图/录屏功能链路不受影响（PRD 口径：
+// 插件形态与内置按钮重复，按需隐藏、功能保留）
 
 export function PaneBrowsing(): React.JSX.Element {
   const homepageUrl = useSettingsStore((s) => s.homepageUrl)
   const setHomepage = useSettingsStore((s) => s.setHomepage)
+  const setToolbarButton = useSettingsStore((s) => s.setToolbarButton)
   const showCaptureButton = useSettingsStore((s) => s.showCaptureButton)
   const showRecorderButton = useSettingsStore((s) => s.showRecorderButton)
-  const setShowCapture = useSettingsStore((s) => s.setShowCapture)
-  const setShowRecorder = useSettingsStore((s) => s.setShowRecorder)
   const t = useT()
   const [draft, setDraft] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,17 +56,17 @@ export function PaneBrowsing(): React.JSX.Element {
     })
   }
 
-  const commitCapture = (value: boolean): void => {
-    setCaptureError(null)
-    void setShowCapture(value).then((result) => {
-      if (result.error) setCaptureError(result.error)
-    })
-  }
-
-  const commitRecorder = (value: boolean): void => {
-    setRecorderError(null)
-    void setShowRecorder(value).then((result) => {
-      if (result.error) setRecorderError(result.error)
+  // 显隐两行共用提交（审查清单 20261113124504 低项同构抽象）：清错 → store 键参数化
+  // 命令 → 失败行内红显（开关随镜像回弹）
+  const commitButton = (
+    key: 'showCaptureButton' | 'showRecorderButton',
+    value: boolean,
+    errorKey: DictKey,
+    setRowError: (v: string | null) => void
+  ): void => {
+    setRowError(null)
+    void setToolbarButton(key, value, errorKey).then((result) => {
+      if (result.error) setRowError(result.error)
     })
   }
 
@@ -98,7 +98,14 @@ export function PaneBrowsing(): React.JSX.Element {
           <Switch
             aria-label={t('settings.captureButtonRow.label')}
             checked={showCaptureButton}
-            onChange={(checked) => commitCapture(checked)}
+            onChange={(checked) =>
+              commitButton(
+                'showCaptureButton',
+                checked,
+                'settings.captureButtonRow.saveFailed',
+                setCaptureError
+              )
+            }
           />
         }
       />
@@ -110,7 +117,14 @@ export function PaneBrowsing(): React.JSX.Element {
           <Switch
             aria-label={t('settings.recorderButtonRow.label')}
             checked={showRecorderButton}
-            onChange={(checked) => commitRecorder(checked)}
+            onChange={(checked) =>
+              commitButton(
+                'showRecorderButton',
+                checked,
+                'settings.recorderButtonRow.saveFailed',
+                setRecorderError
+              )
+            }
           />
         }
       />

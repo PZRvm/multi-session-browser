@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "多会话录屏",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "录制当前标签页画面与音频（独立 audio 开关），产物为 MP4",
   "permissions": ["activeTab", "tabCapture", "offscreen", "storage", "downloads"],
   "icons": {
