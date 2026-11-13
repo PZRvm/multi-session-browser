@@ -322,6 +322,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
 - [20261112190948-插件固定与工具栏扩展区调研报告.md](notes/learn/2026-11/20261112190948-插件固定与工具栏扩展区调研报告.md) — 插件固定（模仿 Chrome 钉子）与工具栏扩展区胶囊调研——pin 状态全局持久化、changed 广播、面板钉子开关、工具栏固定图标，全部复用自研宿主既有机制，完全手写可行
 - [20261113113000-preload-dts-import类型解析为any.md](notes/learn/2026-11/20261113113000-preload-dts-import类型解析为any.md) — preload/index.d.ts 的 import() 类型在 web 项目解析为 any——类型网对该块失效，契约类型安全靠 renderer 静态 import 兜底；改动文件收尾污染全文扫描
+- [20261113133220-PowerShell原生参数与electron-builder点属性配置.md](notes/learn/2026-11/20261113133220-PowerShell原生参数与electron-builder点属性配置.md) — GitHub Actions Windows 侧 PowerShell 剥 -c 前缀使 electron-builder 把点属性配置当文件路径打开；跨 shell 安全的镜像传递走 env
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/review-todo/
@@ -509,4 +510,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 384 documents -->
+<!-- 385 documents -->
