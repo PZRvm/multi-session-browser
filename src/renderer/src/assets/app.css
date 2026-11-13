@@ -2365,6 +2365,13 @@ img.chrome-tab-favicon {
   gap: 2px;
 }
 
+/* 空工具组不占位（2026-11-13 七轮）：显隐配置把截图/录屏钮全关后 .chrome-tools
+   为空 div，仍吃掉工具栏两个 10px gap——URL 框与扩展区胶囊被撑到 20px 间距；
+   空组 display:none 收敛回单 gap 10px */
+.chrome-tools:empty {
+  display: none;
+}
+
 /* 工具栏气泡统一由透明原生子窗显示在图标下方（toolbarTooltip.ts）。
    本 DOM 只精确测量文字与键帽尺寸，始终隐藏，不参与页面交互。度量（字体栈/
    字号/行高/内距/间距）经 shared/toolbarTooltip.ts 单源常量由组件内联注入
@@ -2428,16 +2435,21 @@ img.chrome-tab-favicon {
 }
 
 /* 扩展区胶囊（插件固定专项 2026-11-13，用户截图形态）：固定图标 + 拼图按钮收进圆角
-   胶囊——常态 hairline 描边 + 透明底（Chrome 工具栏分组惯例），hover 显淡底
-   （--chrome-hover-veil，即截图的填充形态）；内部按钮沿用 .chrome-tools button 28px
-   圆钮语言（上方选择器组并入）。槽位间距对账：EXT_PIN_PITCH = 28 按钮宽 + 2 gap =
-   30（useExtPinReorder.ts 常量），padding 只衬两端不进间距 */
+   胶囊——常态无边框透明底（2026-11-13 五轮用户裁决：默认素净，hover 只现 hairline
+   描边、不显底色）。高度对齐（2026-11-13 样式修复二轮）：
+   胶囊与地址栏 .chrome-omnibox-host 同高 28px；内部按钮 20px + 图标 12px，
+   上下各留 3px 呼吸边（26px 内容区 − 20px 钮，align-items: center 居中），
+   槽位间距随动：EXT_PIN_PITCH = 20 按钮宽 + 8 gap = 28（useExtPinReorder.ts
+   常量），padding 只衬两端不进间距（2026-11-13 三轮：左右 2→6px；四轮：左右
+   8px、插件图标 18→16px；五轮：默认无边框 hover 现边框；六轮：gap 4→8px） */
 .chrome-ext-bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--chrome-line);
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  /* 五轮：默认无边框（transparent 保 1px 占位防高度跳动），hover 现边框不显底 */
+  border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   transition:
@@ -2446,8 +2458,23 @@ img.chrome-tab-favicon {
 }
 
 .chrome-ext-bar:hover {
-  background: var(--chrome-hover-veil);
-  border-color: transparent;
+  border-color: var(--chrome-line);
+}
+
+/* 胶囊内按钮尺寸覆盖（高度对齐修复二轮）：上方 .chrome-tools button 组选择器给的是
+   28px 圆钮，胶囊内 20px + 图标 12px——首轮 22px/14px 用户验收嫌大且顶边，本轮
+   再缩一档并保上下 3px 呼吸边（色彩/悬停/聚焦语言沿用组选择器不动，只覆盖度量） */
+.chrome-ext-bar button {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+
+/* TooltipSlot 包装 span 紧包按钮：chrome-tools 里 span 行高（22px）恒小于 28px
+   按钮无感；胶囊内按钮 20px < 行高 22px 时 span 被行高撑到 22px、按钮顶部对齐
+   产生 1px 视觉偏上——flex 化让 span 高度收敛到按钮本身，上下居中归位 */
+.chrome-ext-bar > span {
+  display: flex;
 }
 
 /* 拖拽滑移动画（useExtPinReorder 槽位 transform）：邻居钮 transform 过渡承担 Chrome

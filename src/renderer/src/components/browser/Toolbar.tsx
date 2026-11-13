@@ -290,8 +290,8 @@ function ExtPinButton({
           className="chrome-ext-pin-icon"
           src={item.icon}
           alt=""
-          width="18"
-          height="18"
+          width="16"
+          height="16"
           draggable={false}
         />
       ) : (

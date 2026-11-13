@@ -1,0 +1,89 @@
+name: Extensions Release
+
+# 自研插件 CRX 独立发布（2026-11-13，Release 附件配置化调研定稿：CI 现场打包 +
+# 独立工作流——CRX 与应用版本解耦，不是每次应用发版都带 CRX；手动触发）。
+# 发布链（避开 release.mjs 草稿 404 教训）：现场打包 → 非草稿直发 → 按字节校验附件。
+# tag 约定 crx-<UTC 时间戳>；应用 v* Release 与本工作流互不干扰。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extensions-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 打包并发布 CRX
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # 截图插件编辑器 bundle（录屏纯静态无需构建）
+      - name: 构建截图编辑器 bundle
+        run: node extensions/build.mjs
+      # PEM 经 Secrets 注入临时文件（base64 单行），步末清理
+      - name: 还原签名私钥
+        env:
+          RECORDER_PEM_B64: ${{ secrets.RECORDER_PEM_B64 }}
+          SCREENSHOT_PEM_B64: ${{ secrets.SCREENSHOT_PEM_B64 }}
+        run: |
+          echo "$RECORDER_PEM_B64" | base64 -d > /tmp/recorder.pem
+          echo "$SCREENSHOT_PEM_B64" | base64 -d > /tmp/screenshot.pem
+      - name: 现场打包 CRX
+        run: |
+          mkdir -p dist/crx
+          node tools/extension-preflight/pack-release.mjs extensions/recorder /tmp/recorder.pem dist/crx/recorder.crx
+          node tools/extension-preflight/pack-release.mjs extensions/screenshot /tmp/screenshot.pem dist/crx/screenshot.crx
+          ( cd dist/crx && shasum -a 256 *.crx > SHA256SUMS.txt )
+          rm -f /tmp/recorder.pem /tmp/screenshot.pem
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crx-release
+          path: dist/crx/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: 发布 Release（非草稿直发）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="crx-$(date -u +%Y%m%d%H%M)"
+          REC=$(node -e "console.log(JSON.parse(require('fs').readFileSync('extensions/recorder/manifest.json','utf8')).version)")
+          SHOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('extensions/screenshot/manifest.json','utf8')).version)")
+          gh release create "$TAG" \
+            dist/crx/recorder.crx dist/crx/screenshot.crx dist/crx/SHA256SUMS.txt \
+            --title "多会话插件包 ${TAG#crx-}" \
+            --verify-tag=false \
+            --notes "$(cat <<NOTES
+          自研插件 CRX 独立发布（CI 现场打包，源码即本工作流检出提交）。
+
+          | 插件 | 版本 | 文件 |
+          | --- | --- | --- |
+          | 多会话录屏 | ${REC} | \`recorder.crx\` |
+          | 多会话截图 | ${SHOT} | \`screenshot.crx\` |
+
+          设置「插件」→「导入插件」选择 .crx 安装，或拖入设置窗；SHA256SUMS.txt 提供校验和。
+          同 pem 同 ID：覆盖安装即升级，已装旧版直接导入新版即可。
+          NOTES
+          )"
+      - name: 发布对账（字节数与 SHA256 逐文件核对）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(gh release list --limit 5 --json tagName --jq '.[] | select(.tagName | startswith("crx-")) | .tagName' | head -1)
+          sleep 3
+          for f in recorder.crx screenshot.crx; do
+            LOCAL=$(shasum -a 256 "dist/crx/$f" | awk '{print $1}')
+            REMOTE=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$f\") | .digest")
+            test "$REMOTE" = "sha256:$LOCAL" || { echo "校验不一致：$f"; exit 1; }
+          done
+          echo "附件对账通过：$TAG"
