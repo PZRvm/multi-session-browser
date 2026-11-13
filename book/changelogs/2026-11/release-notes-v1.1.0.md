@@ -41,6 +41,10 @@ description: "🚀 多会话测试浏览器 v1.1.0：Chrome 插件体系、地�
 | `multi-session-browser-1.1.0-arm64.dmg` | macOS Apple Silicon (M 系列) |
 | `multi-session-browser-1.1.0-x64.dmg` | macOS Intel |
 
+## ⚠️ Windows 安装包未做测试
+
+本版本 **Windows 安装包未在 Windows 实机上测试**（项目暂无 Windows 验收环境，CI 仅完成静态检查、生产构建与打包）。Windows 用户请谨慎评估，遇到问题请提 issue；macOS 侧已通过真机验收。
+
 ## ⚠️ 首次运行提示（应用当前未做代码签名）
 
 - **Windows**：SmartScreen 弹「已保护你的电脑」时，点「更多信息」→「仍要运行」
