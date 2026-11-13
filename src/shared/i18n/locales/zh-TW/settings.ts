@@ -19,6 +19,7 @@ export const settings: Dictionary['settings'] = {
   /** 侧栏五分类名（键 = 版面 id；侧栏用短词、版面壳标题可长文，两组分用） */
   categories: {
     general: '一般',
+    extensions: '擴充功能',
     browsing: '瀏覽',
     shortcuts: '快捷鍵',
     about: '關於',
@@ -75,6 +76,19 @@ export const settings: Dictionary['settings'] = {
     /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
     saveFailed: '儲存首頁設定失敗'
   },
+  /** 浏览版面：工具栏按钮显隐两行（插件专项收尾）：关 = 工具列不渲染按鈕，功能鏈路保留 */
+  captureButtonRow: {
+    label: '顯示截圖按鈕',
+    desc: '關閉後瀏覽器工具列不顯示截圖按鈕，截圖功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '儲存設定失敗'
+  },
+  recorderButtonRow: {
+    label: '顯示螢幕錄製按鈕',
+    desc: '關閉後瀏覽器工具列不顯示螢幕錄製按鈕，錄製功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '儲存設定失敗'
+  },
 
   /** 快捷键版面：键位动作名（键 = BrowserShortcutId 的 camelCase 形） */
   shortcutActions: {
@@ -116,5 +130,38 @@ export const settings: Dictionary['settings'] = {
     consequenceSettings: '全部設定恢復預設',
     confirmButton: '確認重置',
     resetFailed: '恢復出廠失敗：{message}'
+  },
+
+  /** 外掛版面（2026-11-11 增量）：已裝清單 / 商店 ID 安裝 / 本地 CRX 匯入 / 解除安裝 */
+  extensions: {
+    paneTitle: '擴充功能',
+    paneDesc: '安裝 Chrome 擴充功能，安裝後對全部工作階段生效',
+    storePlaceholder: '輸入 Chrome 線上應用程式商店外掛 ID（32 位小寫字母）',
+    installStore: '從商店安裝',
+    importCrx: '匯入 CRX 檔案',
+    badId: '外掛 ID 格式不正確：應為 32 位小寫字母',
+    installed: '外掛已安裝，全部工作階段已生效',
+    duplicate: '該版本外掛已存在，未重複安裝',
+    installFailed: '安裝失敗',
+    uninstalled: '外掛已解除安裝',
+    uninstallFailed: '解除安裝失敗',
+    uninstall: '解除安裝',
+    uninstallAria: '解除安裝外掛 {name}',
+    pinAria: '釘選到工具列',
+    unpinAria: '從工具列取消釘選',
+    empty: '還沒有安裝任何外掛',
+    loadedStat: '已載入 {n}/{m} 個工作階段',
+    hint: '支援商店 ID 安裝與本地 CRX2/CRX3 匯入；安裝需確認，全部工作階段即時生效。',
+    dropHint: '支援拖曳 .crx 安裝包到本頁直接匯入',
+    dropActiveHint: '放開匯入該 .crx 外掛',
+    dropInvalid: '僅支援 .crx 安裝包檔案',
+    importFailed: '匯入失敗：',
+    importDone: '外掛匯入成功',
+    openStore: '開啟 Chrome 線上應用程式商店',
+    source: {
+      crx: '本地匯入',
+      store: 'Chrome 商店',
+      unpacked: '開發目錄'
+    }
   }
 }

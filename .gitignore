@@ -9,3 +9,7 @@ out
 
 # TypeScript 增量构建缓存（typecheck composite 产物）
 *.tsbuildinfo
+
+# 自研插件构建产物与插件检查证据
+tools/plugin-preflight/out/
+tools/extension-preflight/host-smoke/out/

@@ -125,7 +125,9 @@ export function createCollector(opts: {
 
   // 纵深防御（审查低-3）：四通道 sender 白名单 = 采集器自己的 webContents
   const fromSelf = (e: Electron.IpcMainInvokeEvent): boolean =>
-    e.sender === win.webContents && !win.webContents.isDestroyed()
+    e.sender === win.webContents &&
+    !win.webContents.isDestroyed() &&
+    e.senderFrame === win.webContents.mainFrame
   const readyHandler = (e: Electron.IpcMainInvokeEvent): void => {
     if (fromSelf(e)) opts.callbacks.onReady()
   }

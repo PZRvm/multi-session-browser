@@ -83,7 +83,8 @@ Local commands are disposable and have no production access — npm scripts, tes
 - 阅读 book/README.md 后按任务查阅；业务需求唯一依据是 book/docs/requirements/PRD.md。旧步骤已迁到 book/docs/requirements/stages/，只按涉及内容查阅，不再全量预读或重新执行历史阶段。
 - PRODUCT.md、DESIGN.md 保留根目录，供 impeccable 直接发现；book/docs/product/ 与 book/docs/design/ 负责索引入口，不另建副本。界面语言以当前 i18n 与产品事实为准。
 - 新工作使用 bocode / boscope / book-writeback / bowrite。项目技能同时放于 .agents/skills/ 与 .zcode/skills/；四份镜像必须同步，项目内安装不修改用户全局技能。
-- 旧 write-plan、subagent-execute-plan、research-feature、code-review、neat-freak 中与 notes 路由或阶段流程冲突的部分由本次用户明确选择的 BoCode 工作流取代；其领域检查可复用，新输出必须落入 book。不得为继续使用旧路径重建根 notes/ 或 docs/。旧 worktree 操作规则与设计技能仍保留。
+- 计划编写与执行统一遵循 BoCode：先分级，M/L 先写 Step 0，再按 book/guidelines/workflow.md 推进；计划写入 book/plans/，每次进度变化同步更新同一份 Todo List，已通过、失败和待测项分开记录。
+- 项目级 write-plan 与 subagent-execute-plan 已删除，历史文档中的名称和模板路径仅为历史记录，不再调用。research-feature、code-review、neat-freak 的领域检查仍可复用，路由与阶段流程服从 BoCode；新输出落入 book，不重建根 notes/ 或 docs/。旧 worktree 操作规则与设计技能仍保留。
 - record: legacy 的文档与 status 是历史证据，不代表当前重新验证；legacy_status: requires_triage 的 open 审查不能冒充已关闭。旧源路径通过 book/docs/migration/source-map.json 查询；历史原文在 15e9b11。
 - 现有中文 Clean Commit 要求比模板更严格，继续执行。仅本轮接入按用户要求直接在 dev；不推送或合 main。
 

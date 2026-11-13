@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import {
+  ApiOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   OrderedListOutlined,
@@ -14,6 +15,7 @@ import { ANTD_LOCALES, useT } from '../i18n'
 import { applyThemeTokens } from '../theme'
 import type { DictKey } from '../../../shared/i18n'
 import { PaneGeneral } from './settings/PaneGeneral'
+import { PaneExtensions } from './settings/PaneExtensions'
 import { PaneBrowsing } from './settings/PaneBrowsing'
 import { PaneShortcuts } from './settings/PaneShortcuts'
 import { PaneAbout } from './settings/PaneAbout'
@@ -33,7 +35,7 @@ import { PaneDanger } from './settings/PaneDanger'
 // 五分类导航词汇（侧栏双栏契约）：快捷键分类取列表语义图标（图标库无键盘图标，
 // 库存认见开发计划）；恢复出厂为 danger 分类（沉底恒红、选中 danger 实底白字）。
 // 分类名归 settings.categories 字典键（随界面语言取词），图标常量留模块级
-type SettingsPaneId = 'general' | 'browsing' | 'shortcuts' | 'about' | 'danger'
+type SettingsPaneId = 'general' | 'extensions' | 'browsing' | 'shortcuts' | 'about' | 'danger'
 
 const SETTINGS_CATEGORIES: ReadonlyArray<{
   id: SettingsPaneId
@@ -42,6 +44,7 @@ const SETTINGS_CATEGORIES: ReadonlyArray<{
   danger?: boolean
 }> = [
   { id: 'general', labelKey: 'settings.categories.general', icon: <SettingOutlined /> },
+  { id: 'extensions', labelKey: 'settings.categories.extensions', icon: <ApiOutlined /> },
   { id: 'browsing', labelKey: 'settings.categories.browsing', icon: <GlobalOutlined /> },
   { id: 'shortcuts', labelKey: 'settings.categories.shortcuts', icon: <OrderedListOutlined /> },
   { id: 'about', labelKey: 'settings.categories.about', icon: <InfoCircleOutlined /> },
@@ -79,7 +82,11 @@ export default function SettingsWindow(): React.JSX.Element {
   }, [appearanceInitialized, themeColor, resolvedTheme])
 
   // 当前版面 id：组件本地瞬态（不落盘不进 IPC），默认「通用」，切换瞬切无动效
-  const [pane, setPane] = useState<SettingsPaneId>('general')
+  // 初始版面：URL query pane 定位（工具栏面板「管理插件」深链），白名单校验
+  const [pane, setPane] = useState<SettingsPaneId>(() => {
+    const q = new URLSearchParams(window.location.search).get('pane')
+    return SETTINGS_CATEGORIES.some((c) => c.id === q) ? (q as SettingsPaneId) : 'general'
+  })
   // 恢复出厂执行链：确认走主进程原生警告框（2026-10-31 用户裁决原生化——渲染层
   // 两步弹层与输入确认词退役，PRD 3.8.3 / 4.9 / 验收 26 同日修订），执行仍归
   // settings:factory-reset（阶段七链路不变）；resetError = 主进程上浮的失败文案
@@ -189,6 +196,7 @@ export default function SettingsWindow(): React.JSX.Element {
         {/* 详情区：滚动职责独占（侧栏不滚动），版面切换瞬切无动效 */}
         <div className="settings-detail">
           {pane === 'general' && <PaneGeneral />}
+          {pane === 'extensions' && <PaneExtensions />}
           {pane === 'browsing' && <PaneBrowsing />}
           {pane === 'shortcuts' && <PaneShortcuts />}
           {pane === 'about' && <PaneAbout />}

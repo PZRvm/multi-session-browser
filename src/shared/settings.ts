@@ -9,12 +9,14 @@
 //   无害信息通道不设 sender 白名单——对齐 appearance.getState 先例，入参无值守卫需求）、
 //   open-data-dir（在系统文件管理器打开 userData，唯一触发 OS 级外部动作的通道，
 //   sender 白名单 = 设置窗 webContents）；
-// - 值域（阶段四，settings.json 首个真实键 homepageUrl；阶段六增第二键 language）：
-//   get / changed / set-homepage / set-language 四通道，对齐 appearance 域模式不设
-//   sender 白名单（入参值守卫承担）；changed 推送 BrowserWindow.getAllWindows() 全推
-//   （appearance 先例，未订阅窗口收到无消费无害），订阅方 = 主窗 / 独立窗 / 设置窗 /
-//   建议子窗（各自 store init；阶段六起建议子窗 i18n 镜像也订阅 changed——建议子窗
-//   是懒建复用池，语言切换不重建，语言更新只能靠推送）。
+// - 值域（阶段四，settings.json 首个真实键 homepageUrl；阶段六增第二键 language；
+//   插件专项收尾增第三/四键 showCaptureButton / showRecorderButton）：
+//   get / changed / set-homepage / set-language / set-show-capture / set-show-recorder
+//   六通道，对齐 appearance 域模式不设 sender 白名单（入参值守卫承担）；changed 推送
+//   BrowserWindow.getAllWindows() 全推（appearance 先例，未订阅窗口收到无消费无害），
+//   订阅方 = 主窗 / 独立窗 / 设置窗 / 建议子窗（各自 store init；阶段六起建议子窗
+//   i18n 镜像也订阅 changed——建议子窗是懒建复用池，语言切换不重建，语言更新只能靠
+//   推送）。
 // 契约修订：阶段六值域 3→4 通道 + 快照增 language，见
 // notes/plans/20260917172635-设置阶段六语言切换i18n开发计划.md 契约核对第 1 条。
 // 契约修订：阶段七增 factoryReset（6→7 通道）——两步确认通过后的恢复出厂执行口：
@@ -49,7 +51,12 @@ export const SETTINGS_CHANNELS = {
   setLanguage: 'settings:set-language',
   /** 设置窗 → 主进程：恢复出厂设置（阶段七；两步确认通过后调用，无 payload；
    * sender 白名单 = 设置窗——非设置窗来源一律拒绝） */
-  factoryReset: 'settings:factory-reset'
+  factoryReset: 'settings:factory-reset',
+  /** 设置窗 → 主进程：显示/隐藏浏览器工具栏截图按钮（插件专项收尾：插件形态
+   * 与内置按钮功能重复，按需隐藏、功能保留） */
+  setShowCapture: 'settings:set-show-capture',
+  /** 设置窗 → 主进程：显示/隐藏浏览器工具栏录屏按钮（同上） */
+  setShowRecorder: 'settings:set-show-recorder'
 } as const
 
 export interface OkResult {
@@ -76,6 +83,11 @@ export interface SettingsSnapshot {
   homepageUrl: string
   /** 界面语言（阶段六）：合法值 = shared/i18n 注册表 code 闭集，切换即时全窗生效 */
   language: SupportedLanguage
+  /** 浏览器工具栏截图按钮显隐（插件专项收尾）：false = 工具栏不渲染该按钮，
+   * 功能链路保留（主进程能力不受影响）；缺省语义 = 显示 */
+  showCaptureButton: boolean
+  /** 浏览器工具栏录屏按钮显隐（同上）；缺省语义 = 显示 */
+  showRecorderButton: boolean
 }
 
 export interface SetHomepagePayload {
@@ -84,6 +96,14 @@ export interface SetHomepagePayload {
 
 export interface SetLanguagePayload {
   language: SupportedLanguage
+}
+
+export interface SetShowCapturePayload {
+  showCaptureButton: boolean
+}
+
+export interface SetShowRecorderPayload {
+  showRecorderButton: boolean
 }
 
 // —— 键帽显示派生（保留面）——

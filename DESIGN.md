@@ -454,6 +454,12 @@ placement top 的 antd Tooltip 被 Tab 条层叠区域遮挡。终态裁决：�
 
 轮六 tooltip 回归的三点补全：①点击录屏钮瞬间隐藏在显提示（按钮将被胶囊替换，卸载不触发 mouseleave——onClick 内显式 hideToolsPop）；②录制态胶囊悬停提示「结束录屏」（stopRecord 键，aria-label 同词）；③暂停/继续钮悬停提示「暂停录屏/继续录屏」（pauseRecording/resumeRecording 新键替代原 pause/resume，aria 同词）——hover 中点击切换录制状态时提示文案渲染期动态跟随（toolsPop 增 kind: 'pause-toggle' 判别，label 不再是快照）。DOM 断言实证：暂停→同 hover 切「继续录屏」→再点回「暂停录屏」；胶囊「结束录屏」。
 
+### 截图与录屏独立插件（2026-11-11）
+
+截图插件沿用雾蓝编辑器，直接在 Chrome popup 编辑，不提供浮动按钮、Document PiP 或仿三灯。普通 Chrome 系统标题栏与原生三灯由浏览器管理，扩展不能隐藏或重排。用户要求去掉的顶部条确指系统标题栏，不能把 popup 无浏览器标签栏当作已满足。Electron 宿主可沿用现有 captureEditorWindow 的 hidden + trafficLightPosition 和 CSS 灯位让空，三灯与工具行同排居中；当前普通 Chrome 路径尚不具备该效果。初始画布按来源页 CSS 宽度显示，超出窗口滚动；Ctrl/⌘+滚轮以 Konva Stage 重绘缩放，图像、标注和文本/裁剪控件使用同一比例，导出保留图像像素。
+
+录屏插件沿用原图标按钮与状态面板，说明使用浏览器原生 title 提示，避免 DOM tooltip 扩大 popup 尺寸或被原生窗口裁切。提示位置和延迟交给浏览器。两个插件保留参考图的相机/摄像机轮廓，改为带底色版本：截图为雾蓝圆角方块配白色相机，录屏为珊瑚红圆角方块配白色摄像机与录制点，管理页与工具栏均保留 SVG 源稿和多尺寸 PNG。截图页标题为「截图编辑器」。录屏面板保持 12px 圆角裁切，页面底色与内容同色，不再叠加内部描边；Chrome 原生 popup 的锚点箭头与外框保留，由浏览器绘制。
+
 ### 独立窗口合并回主窗口（2026-11-06）
 
 仅独立窗口工具栏最右侧新增图标钮，放在开发者工具按钮之后。图标为两扇窗口与向内箭头（24×24 viewBox、圆头圆角描边宽度 2、currentColor，复用 ToolGlyph 的 16px 图标尺寸与 28px 灰阶圆形按钮），悬停和键盘聚焦复用原生气泡，文案/aria 为「合并回主窗口」（繁中「合併回主視窗」、英文「Merge into main window」）。保存/合并期间及无标签页时禁用，失败以主进程原生 information 框反馈；不显示成功弹框，主窗聚焦与源窗关闭即是结果。1024px 简中亮色与 480px 英文暗色/繁中亮色均验证按钮在窗内、工具栏无溢出；主窗不显示入口。全局配色、字阶和布局系统保持原有约定。

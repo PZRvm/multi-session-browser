@@ -37,6 +37,7 @@ description: Master index of the book — the map of every document. Regenerate 
 | `notes/learn/2026-09/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-10/` | Archived under notes/learn/, grouped by month |
 | `notes/learn/2026-11/` | Archived under notes/learn/, grouped by month |
+| `notes/review-todo/` | Archived under notes/, grouped by month |
 | `notes/summary/2026-09/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-10/` | Archived under notes/summary/, grouped by month |
 | `notes/summary/2026-11/` | Archived under notes/summary/, grouped by month |
@@ -57,6 +58,15 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-地址栏审查问题修复.md](changelogs/2026-11/2026-11-06-地址栏审查问题修复.md) — 关闭五项地址栏审查问题，原生菜单通过只读闭集桥接共用局部撤销栈
 - [2026-11-06-地址栏补全搜索.md](changelogs/2026-11/2026-11-06-地址栏补全搜索.md) — 独立 worktree 实现历史行内补全、九家引擎 Tab 搜索和制表符编辑，待审查修复与平台验收
 - [2026-11-06-默认搜索与统一图标.md](changelogs/2026-11/2026-11-06-默认搜索与统一图标.md) — 统一 SearchOutlined、普通文字默认 Google，并修复待导航地址编辑来源；审查记录两项边界缺口
+- [2026-11-11-双插件图标与窗口修复.md](changelogs/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件新增四张图标，修复截图预览与标题区、录屏提示撑窗，Chrome十五项通过
+- [2026-11-11-双插件用户验收.md](changelogs/2026-11/2026-11-11-双插件用户验收.md) — 用户确认普通Chrome双插件验收通过，记录创建基分支与后续宿主接入边界
+- [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
+- [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
+- [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
+- [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
+- [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
+- [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
+- [20261111-修复四插件与新会话同步.md](changelogs/2026-11/20261111-修复四插件与新会话同步.md) — 修复扩展worker通信与browser入口，新会话首导航自动加载，popup绑定当前Tab，并升级Electron45原生存储
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 
 ### docs/
@@ -66,6 +76,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### docs/api/
 
 - [README.md](docs/api/README.md) — API design docs — where interface contracts are written before and while they are implemented
+- [插件宿主协议草案.md](docs/api/插件宿主协议草案.md) — 插件宿主协议v1（2026-11-10冻结）：四组接口字段/语义/错误码与所有权方向；Windows能力保持unknown
 
 ### docs/architecture/
 
@@ -75,7 +86,9 @@ description: Master index of the book — the map of every document. Regenerate 
 ### docs/decisions/
 
 - [ADR-001-adopt-bocode.md](docs/decisions/ADR-001-adopt-bocode.md) — 接入 BoCode、保留根目录源码并迁移历史文档的决定与代价
+- [ADR-002-electron42-and-react-devtools-fork.md](docs/decisions/ADR-002-electron42-and-react-devtools-fork.md) — 用户同意升级Electron42并单独维护React DevTools图标修复版，同时保留商店原版验收基线
 - [ADR-002-omnibox-native-editing.md](docs/decisions/ADR-002-omnibox-native-editing.md) — 原生编辑菜单通过只读闭集推送交给当前浏览器壳，地址栏消费局部栈，其余输入保持原生编辑
+- [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -142,7 +155,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (61)**
+**Open (66)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -205,8 +218,13 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030141215-WCO修复轮复审.md](notes/issue/2026-10/20261030141215-WCO修复轮复审.md) — "代码审查：WCO 专项修复轮复审"
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
+- [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
+- [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
+- [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
+- [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
+- [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (43)**
+**Resolved (55)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -251,6 +269,18 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106175900-默认搜索与统一图标审查.md](notes/issue/2026-11/20261106175900-默认搜索与统一图标审查.md) — 下划线主机、Unicode 空白及两项旧遗留均已修复
 - [20261106185333-默认搜索未提交改动复审.md](notes/issue/2026-11/20261106185333-默认搜索未提交改动复审.md) — 默认搜索复审的 URI、主机、空白及菜单/CSS 五项问题均已修复
 - [20261106193350-地址栏审查修复复审.md](notes/issue/2026-11/20261106193350-地址栏审查修复复审.md) — 五项地址栏审查问题已修复，闭集菜单桥接与输入边界复审未发现新增问题
+- [20261109191345-插件前置工具阻塞诊断审阅.md](notes/issue/2026-11/20261109191345-插件前置工具阻塞诊断审阅.md) — 前置工具的阻塞诊断检查，记录四项待修问题和十一项检查结论，不代表正式验收通过
+- [20261110-厂商ZIP边界修复审阅.md](notes/issue/2026-11/20261110-厂商ZIP边界修复审阅.md) — 独立M级R5修复的八项审阅与验收证据，未发现新增阻塞，不代表整体插件前置Phase5通过
+- [20261110-终局IPC与模型审阅.md](notes/issue/2026-11/20261110-终局IPC与模型审阅.md) — 终局23项运行与16项IPC的增量审阅，只记录三项发现，不现场修复，不代表正式Phase 5通过
+- [20261110-非Windows补验增量审阅.md](notes/issue/2026-11/20261110-非Windows补验增量审阅.md) — 记录原录屏和本轮补验工具的八项增量审阅，发现厂商ZIP边界问题，整体仍非正式Phase5
+- [20261110112815-插件两项验证修复审阅与残留日志.md](notes/issue/2026-11/20261110112815-插件两项验证修复审阅与残留日志.md) — Cookie和React功能验证修复的定向审阅，记录仍存在的sandbox与SVG日志并保留原前置阻塞
+- [20261110125500-原生录屏在39与42均存在解码错误.md](notes/issue/2026-11/20261110125500-原生录屏在39与42均存在解码错误.md) — 原生录屏UI完整保存后H264严格解码失败，39和42均复现，需另行定位既有录屏链路
+- [20261111-DarkReader-popup卡Loading排查.md](notes/issue/2026-11/20261111-DarkReader-popup卡Loading排查.md) — Dark Reader实际为MV3，保留worker预加载并等待注册后已恢复通信，完整历史实验与最终实证并存
+- [20261111-双插件验收合并前审查.md](notes/issue/2026-11/20261111-双插件验收合并前审查.md) — 双插件验收修订合并前核对八项代码检查与交接事实，无新增阻塞项
+- [20261111171845-双插件界面修复审查.md](notes/issue/2026-11/20261111171845-双插件界面修复审查.md) — 审查双插件图标、编辑预览缩放、标题区与原生提示改动，未发现新增阻塞项
+- [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
+- [20261112133000-自研插件页面上下文shim失效.md](notes/issue/2026-11/20261112133000-自研插件页面上下文shim失效.md) — 自研插件页面上下文shim失效已修复（主世界注入+SW ipc接线+onClicked派发），2026-11-12端到端全绿；本文档转修复记录
+- [20261112175039-自研插件宿主修复波.md](notes/issue/2026-11/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
 
 ### notes/learn/2026-09/
 
@@ -272,6 +302,8 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/learn/2026-11/
 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
+- [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
+- [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -279,7 +311,24 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md](notes/learn/2026-11/20261106165837-受控地址栏补全需要保留完整目标与撤销状态.md) — 受控 input 的程序补全会改变撤销语义，快照必须保留原 URL 与选区，同值替换也需恢复光标
 - [20261106182714-Google页面颜色与应用主题分层排查.md](notes/learn/2026-11/20261106182714-Google页面颜色与应用主题分层排查.md) — 应用白天偏好已传到网页时 Google 仍可能保留深色结果，需区分网页渲染状态与主题信号
 - [20261109154150-Chrome插件与截图录屏插件化可行性.md](notes/learn/2026-11/20261109154150-Chrome插件与截图录屏插件化可行性.md) — 全会话 Chrome 插件、CRX 与商店安装的可行性，以及截图录屏插件的 Chrome 和 Electron 双端适配路线
+- [20261109191500-插件加载成功不等于功能兼容.md](notes/learn/2026-11/20261109191500-插件加载成功不等于功能兼容.md) — Electron39与候选扩展兼容库的实测边界，以及双端Tab音频验证需要检查的真实产物
+- [20261110-DevTools子frame应保留原生API并单独核验媒体.md](notes/learn/2026-11/20261110-DevTools子frame应保留原生API并单独核验媒体.md) — Electron42兼容preload需跳过DevTools子frame，插件fork应独立标识，媒体必须严格解码并保留旧版对照
+- [20261110-奇数采集宽度导致H264损坏.md](notes/learn/2026-11/20261110-奇数采集宽度导致H264损坏.md) — 1倍显示缩放的奇数采集宽度可重现H264损坏，固定偶数轨道尺寸修正，字节哈希可排除写入篡改
+- [20261110-插件界面验证先等状态再查真实数据.md](notes/learn/2026-11/20261110-插件界面验证先等状态再查真实数据.md) — Cookie表单动画导致错误保存目标，React面板折叠与输入值读取导致验证误判的实测经验
+- [20261111-媒体回归前必须清理残留Electron进程.md](notes/learn/2026-11/20261111-媒体回归前必须清理残留Electron进程.md) — 真实采集/录制回归前必须清理残留Electron进程，否则负载干扰会伪造解码损坏
+- [20261111-插件后台与双API入口验证.md](notes/learn/2026-11/20261111-插件后台与双API入口验证.md) — Dark Reader实际为MV3，service-worker preload和browser命名空间须实测，透明Loading文本不能代替页面验收
+- [20261111-渲染弹层压不过原生层的路线选型.md](notes/learn/2026-11/20261111-渲染弹层压不过原生层的路线选型.md) — 本应用 shell DOM 弹层必被 WebContentsView 原生层遮挡——四条可行路线的选型经验与踩坑记录（overlayDepth 收起白屏、action popup 层级）
+- [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
+- [20261112190948-插件固定与工具栏扩展区调研报告.md](notes/learn/2026-11/20261112190948-插件固定与工具栏扩展区调研报告.md) — 插件固定（模仿 Chrome 钉子）与工具栏扩展区胶囊调研——pin 状态全局持久化、changed 广播、面板钉子开关、工具栏固定图标，全部复用自研宿主既有机制，完全手写可行
+- [20261113113000-preload-dts-import类型解析为any.md](notes/learn/2026-11/20261113113000-preload-dts-import类型解析为any.md) — preload/index.d.ts 的 import() 类型在 web 项目解析为 any——类型网对该块失效，契约类型安全靠 renderer 静态 import 兜底；改动文件收尾污染全文扫描
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
+
+### notes/review-todo/
+
+- [20261113014627-自研插件修复二轮.md](notes/review-todo/20261113014627-自研插件修复二轮.md) — 自研插件修复二轮（4f4a892..HEAD）八项审查：中2低5——tab本地静音体验缺陷、保存提示名与落盘名不一致等，六条旧清单已闭环
+- [20261113020713-插件固定与工具栏扩展区.md](notes/review-todo/20261113020713-插件固定与工具栏扩展区.md) — 插件固定与工具栏扩展区功能（44865a2+5d93cf7）八项审查：高1（removeInstall存在性判断反置致多插件卸载全废）中2低2
+- [20261113114421-工具栏按钮显隐配置.md](notes/review-todo/20261113114421-工具栏按钮显隐配置.md) — 工具栏截图/录屏按钮显隐配置（707799d）八项审查：高0中0低1（两键同构重复，第三键出现再抽共用）
+- [20261114030000-验收修复轮与历史发现.md](notes/review-todo/20261114030000-验收修复轮与历史发现.md) — 验收修复轮（1f83e4d）八项审查：四项验收功能（卸载确认框/钉态白名单/商店入口/拖拽导入）+ 历史发现全清，高0中0低1
 
 ### notes/summary/2026-09/
 
@@ -357,6 +406,7 @@ description: Master index of the book — the map of every document. Regenerate 
 ### notes/summary/2026-11/
 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
+- [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -365,6 +415,15 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106171204-完整引擎输入优先Tab搜索.md](notes/summary/2026-11/20261106171204-完整引擎输入优先Tab搜索.md) — 完整搜索引擎输入优先于历史补全，九家引擎带历史路径时的一次 Tab 搜索验证与差异审查
 - [20261106180053-默认搜索与统一图标验收.md](notes/summary/2026-11/20261106180053-默认搜索与统一图标验收.md) — 默认 Google、统一 SearchOutlined 与 pending 编辑修复的实现结果、验证证据和手动验收步骤
 - [20261106211337-地址栏审查修复验收.md](notes/summary/2026-11/20261106211337-地址栏审查修复验收.md) — 五项审查修复的 L 级菜单窄桥、分类回归、实体菜单验证与可复现手动步骤
+- [20261109184411-插件前置执行设计.md](notes/summary/2026-11/20261109184411-插件前置执行设计.md) — 插件前置验证的L级需求简报、影响分析、隔离工具设计及阶段门禁记录
+- [20261109191500-Chrome插件前置验证记录.md](notes/summary/2026-11/20261109191500-Chrome插件前置验证记录.md) — Chrome插件前置执行的实测结果、媒体证据与手动验收步骤，结论为未通过且接口尚未冻结
+- [20261110-非Windows插件补验结果.md](notes/summary/2026-11/20261110-非Windows插件补验结果.md) — 原录屏与工具四项已修复，Mac和普通Chrome主要实测通过，列明真实CRX2限制及尚未完成的接口门禁
+- [20261110113000-Cookie与React前置验证修复.md](notes/summary/2026-11/20261110113000-Cookie与React前置验证修复.md) — 修复Cookie保存时序和React面板验证误判，真实增改删与组件属性和Profiler通过，原生日志仍未消除
+- [20261110115700-sandbox与SVG告警根因及修复选项.md](notes/summary/2026-11/20261110115700-sandbox与SVG告警根因及修复选项.md) — 最小对照确认Electron39引擎问题与React原版SVG错误，给出隔离验证过的引擎方案和未应用的补丁
+- [20261110125000-Electron升级与React图标修复.md](notes/summary/2026-11/20261110125000-Electron升级与React图标修复.md) — Electron42消除sandbox错误，独立React修复版在项目宿主和普通Chrome通过属性与Profiler验证，原应用录屏产物暴露既有解码问题
+- [20261111-四插件与新会话同步修复.md](notes/summary/2026-11/20261111-四插件与新会话同步修复.md) — 四插件经真实会话和工具栏完成操作，新会话首导航同步和重启通过，说明Electron45升级与保留的旧探针失败
+- [20261111-宿主兼容开发完成报告.md](notes/summary/2026-11/20261111-宿主兼容开发完成报告.md) — 宿主兼容开发计划M1—M4完成报告：安装/运行时/商店/协议桥真实Electron证据与边界清单
+- [20261111-扩展面板原生子窗口化.md](notes/summary/2026-11/20261111-扩展面板原生子窗口化.md) — 扩展面板唤出浏览器区全白根除——面板由 shell DOM 弹层迁主进程原生子窗（omniboxSuggest 同款池），页面保持可见，overlayDepth 登记退役
 - [legacy-process.md](notes/summary/2026-11/legacy-process.md) — "process"
 
 ### notes/task/
@@ -381,6 +440,8 @@ description: Master index of the book — the map of every document. Regenerate 
 ### plans/
 
 - [2026-11-06-bocode-adoption.md](plans/2026-11-06-bocode-adoption.md) — 从现有 Electron 项目接入 BoCode 的盘点、迁移边界、决策与验证记录
+- [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
+- [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -436,6 +497,14 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261106172801-搜索引擎标识与默认谷歌搜索开发计划.md](plans/20261106172801-搜索引擎标识与默认谷歌搜索开发计划.md) — 地址栏统一使用 SearchOutlined，默认仅图标无引擎文字，非网址输入回车使用 Google 搜索
 - [20261106190232-地址栏审查问题修复与提交.md](plans/20261106190232-地址栏审查问题修复与提交.md) — 修复三项输入分类边界、原生菜单撤销和无关 CSS 换行，验证后提交
 - [20261109182912-Chrome插件前置验证与接口定稿开发计划.md](plans/20261109182912-Chrome插件前置验证与接口定稿开发计划.md) — 用隔离程序验证真实插件、CRX和商店安装、截图与Tab音频，再定稿接口并决定能否进入并行开发
+- [20261110-修复厂商ZIP补验边界.md](plans/20261110-修复厂商ZIP补验边界.md) — 独立处理增量审阅R5，为固定厂商ZIP加下载解包上限与哈希校验，不实现生产升级事务
+- [20261110-修复插件前置两项失败.md](plans/20261110-修复插件前置两项失败.md) — Cookie与React验证和sandbox/SVG修复已实测，原录屏解码与完整回归仍阻塞测试准入
+- [20261110-完成非Windows插件前置验证.md](plans/20261110-完成非Windows插件前置验证.md) — 按用户授权补齐除Windows外的插件前置验证，修复工具阻塞与原录屏解码，逐项保留实证和无法完成的外部限制
+- [20261110-截图与录屏插件开发计划.md](plans/20261110-截图与录屏插件开发计划.md) — 会话2专用：截图与录屏两个自研插件（C/D），Chrome真机与前置夹具先行，宿主端到端待会话1
+- [20261110-插件宿主兼容开发计划.md](plans/20261110-插件宿主兼容开发计划.md) — 会话1专用：宿主扩展运行时与安装管理（A/B）及集中接线（E），对协议v1负责，支撑双插件接入
+- [20261111-扩展面板原生子窗口化.md](plans/20261111-扩展面板原生子窗口化.md) — 扩展面板白屏根除——参照地址栏建议先例迁主进程原生子窗口，页面保持可见可交互，overlayDepth 登记退役
+- [20261112-插件固定与工具栏扩展区.md](plans/20261112-插件固定与工具栏扩展区.md) — 插件固定（Chrome 钉子交互）与工具栏扩展区胶囊——manifest 增量 pins 字段 + changed/order 广播 + 面板与设置页钉子开关 + 工具栏固定图标拖拽重排（槽位滑动动画）
+- [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 317 documents -->
+<!-- 382 documents -->

@@ -52,6 +52,12 @@ import type {
   OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
 import type {
+  ExtensionsPanelDataPayload,
+  ExtensionsPanelPickedPayload,
+  ExtensionsPanelPickPayload,
+  ExtensionsPanelShowPayload
+} from '../shared/extensionsPanel'
+import type {
   AppearanceSnapshot,
   SetAppearanceModePayload,
   SetThemeColorPayload
@@ -60,6 +66,8 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetShowCapturePayload,
+  SetShowRecorderPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -222,8 +230,51 @@ declare global {
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
+        setShowCapture(payload: SetShowCapturePayload): Promise<SettingsSnapshot>
+        setShowRecorder(payload: SetShowRecorderPayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
+      }
+      extensions: {
+        list(): Promise<import('../../shared/extensions/management').ExtensionListResult>
+        installFromStore(
+          id: string
+        ): Promise<import('../../shared/extensions/management').InstallResult>
+        importCrx(): Promise<import('../../shared/extensions/management').InstallResult>
+        uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
+        openStore(): Promise<{ ok: boolean; error?: string }>
+        /** 拖拽 CRX 导入：path 为落盘路径（webUtils 取得） */
+        importCrxFromPath(path: string): Promise<
+          import('../shared/extensions/management').InstallResult
+        >
+        /** File → 落盘路径（webUtils） */
+        getCrxPath(file: File): string
+        openPopup(
+          id: string,
+          anchor: { x: number; y: number }
+        ): Promise<{ ok: boolean; error?: string }>
+        manage(): Promise<{ ok: boolean }>
+        /** 固定/取消固定单个插件（显式目标态），落库后主进程广播 changed */
+        setPinned(payload: {
+          id: string
+          pinned: boolean
+        }): Promise<import('../../shared/extensions/management').PinResult>
+        /** 固定全序覆盖（拖拽重排提交），落库后主进程广播 changed */
+        orderPinned(ids: string[]): Promise<import('../../shared/extensions/management').PinResult>
+        /** pins/安装集变更广播订阅：消费者重取 list（list 恒唯一数据源） */
+        onChanged(callback: () => void): () => void
+      }
+      /** 扩展面板原生子窗口（契约 shared/extensionsPanel.ts）：宿主 shell 用
+       *  show/hide 编排开合 + onPicked/onClosed 消费转发与关闭推送；面板子窗用
+       *  pick 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需 */
+      extensionsPanel: {
+        show(payload: ExtensionsPanelShowPayload): Promise<{ ok: boolean; canPresent: boolean }>
+        hide(): Promise<OkResult>
+        pick(payload: ExtensionsPanelPickPayload): Promise<OkResult>
+        setMousePassthrough(enabled: boolean): Promise<OkResult>
+        onData(callback: (payload: ExtensionsPanelDataPayload) => void): () => void
+        onPicked(callback: (payload: ExtensionsPanelPickedPayload) => void): () => void
+        onClosed(callback: () => void): () => void
       }
       dialog: {
         confirmDestructive(payload: ConfirmDestructivePayload): Promise<boolean>

@@ -218,6 +218,8 @@ export function createSessionBrowserRegistry(deps: {
   getWindow: (windowId: string) => BrowserWindow | null
   /** 独立窗口登记表（index.ts 注入）：tear-off 建窗、空窗收口与作用域解析经此触达 */
   windows: IndependentWindows
+  /** 首个网页创建前加载该分区插件；每次激活可补偿上次挂载失败。 */
+  prepareExtensions?: (partition: string, target: Electron.Session) => Promise<unknown>
   /** 主窗缺席时重建，返回存活实例；不新建 registry 或会话 manager。 */
   ensureMainWindow: () => BrowserWindow
   /** 合并激活元数据保存后，通知主窗口会话列表镜像。 */
@@ -658,6 +660,14 @@ export function createSessionBrowserRegistry(deps: {
     } catch (error) {
       // 读盘/应用失败如实告警后继续激活：代理缺失不应冻结会话切换（下次切换幂等补应用）
       console.warn(`[registry] 会话 ${id} 激活前应用代理失败（按既有配置继续激活）:`, error)
+    }
+    if (alive && generation === switchGeneration && !cloningIds.has(id) && !importingIds.has(id)) {
+      try {
+        const partition = partitionFor(id)
+        await deps.prepareExtensions?.(partition, session.fromPartition(partition))
+      } catch (error) {
+        console.warn(`[registry] 会话 ${id} 插件挂载失败:`, error)
+      }
     }
     if (generation !== switchGeneration) return // await 期间已有更新的切换/清空发起
     if (!alive) return // await 期间会话已被删除（删除链自带切换/空态收口，此处不复活）

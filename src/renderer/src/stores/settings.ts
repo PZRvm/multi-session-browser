@@ -7,8 +7,10 @@ import { useI18nStore } from './i18n'
 // 拉取防初始化窗口漏掉主进程推送）、模块级 in-flight Promise 让 StrictMode/HMR
 // 重入共享同一次初始化、HMR dispose 精确移除当前有效 listener——模式逐条对齐
 // stores/appearance.ts。本 store 为纯镜像 + 命令转发：homepageUrl 恒以主进程快照
-// 为准，setHomepage 成功应用返回快照、失败保持旧值不造半态。原 screenshotShortcut
-// 镜像与 setScreenshotShortcut 命令转发已随 2026-10-29 截图快捷键退役删除
+// 为准，setHomepage 成功应用返回快照、失败保持旧值不造半态（工具栏按钮显隐两键
+// 同口径：showCaptureButton / showRecorderButton 默认显示，显隐纯 renderer 消费面）。
+// 原 screenshotShortcut 镜像与 setScreenshotShortcut 命令转发已随 2026-10-29 截图
+// 快捷键退役删除
 
 /** 取词（非组件文件，appearance.ts appearanceText 同款形态）：按 i18n 镜像当前语言
  * 构造 t——store 自产的用户可见报错在产生时刻取词（构造期语言口径，计划 §10 如实
@@ -30,9 +32,15 @@ export type SetHomepageResult =
 
 interface SettingsState {
   homepageUrl: string
+  /** 工具栏截图按钮显隐镜像（插件专项收尾）：默认显示，init/changed 广播收敛 */
+  showCaptureButton: boolean
+  /** 工具栏录屏按钮显隐镜像（同上） */
+  showRecorderButton: boolean
   setting: boolean
   init: () => Promise<void>
   setHomepage: (raw: string) => Promise<SetHomepageResult>
+  setShowCapture: (value: boolean) => Promise<SetHomepageResult>
+  setShowRecorder: (value: boolean) => Promise<SetHomepageResult>
   /** 恢复出厂（阶段七）：成功返回 null，失败返回可呈现的中文错误；镜像不改——
    * 成功后各镜像（settings/appearance/i18n）经主进程 changed 广播自动回默认 */
   factoryReset: () => Promise<string | null>
@@ -46,11 +54,17 @@ const applySnapshot = (
   set: (partial: Partial<SettingsState>) => void,
   snapshot: SettingsSnapshot
 ): void => {
-  set({ homepageUrl: snapshot.homepageUrl })
+  set({
+    homepageUrl: snapshot.homepageUrl,
+    showCaptureButton: snapshot.showCaptureButton,
+    showRecorderButton: snapshot.showRecorderButton
+  })
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   homepageUrl: '',
+  showCaptureButton: true,
+  showRecorderButton: true,
 
   setting: false,
 
@@ -93,6 +107,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return { error: readableIpcError(error, t('settings.homepageRow.saveFailed')) }
     } finally {
       set({ setting: false })
+    }
+  },
+
+  // 工具栏按钮显隐（插件专项收尾，两命令同构）：失败保持旧值（开关随镜像回弹），
+  // 错误文案返回给调用方行内呈现；无 in-flight 互斥——开关幂等且主进程写队列保序，
+  // 快速连点按序收敛后写胜出
+  setShowCapture: async (value) => {
+    try {
+      const snapshot = await window.api.settings.setShowCapture({ showCaptureButton: value })
+      applySnapshot(set, snapshot)
+      return { snapshot }
+    } catch (error) {
+      return { error: readableIpcError(error, t('settings.captureButtonRow.saveFailed')) }
+    }
+  },
+
+  setShowRecorder: async (value) => {
+    try {
+      const snapshot = await window.api.settings.setShowRecorder({ showRecorderButton: value })
+      applySnapshot(set, snapshot)
+      return { snapshot }
+    } catch (error) {
+      return { error: readableIpcError(error, t('settings.recorderButtonRow.saveFailed')) }
     }
   },
 

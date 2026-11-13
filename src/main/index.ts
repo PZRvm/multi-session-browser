@@ -18,6 +18,8 @@ import {
 import { createSessionProxyEngine } from './browser/proxy'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
+import { createExtensionsPanelWindows, type ExtensionsPanelWindows } from './extensions/panel'
+import { registerExtensionShims } from './extensions/shims'
 import {
   createCaptureFeedbackWindows,
   type CaptureFeedbackWindows
@@ -68,6 +70,15 @@ import { NATIVE_EDITING_CHANNELS, type NativeEditCommand } from '../shared/nativ
 // 永不触碰用户真实数据。背景：2026-09-12 修复轮曾用过期备份还原用户 sessions.json
 // 并误删分区目录（见 notes/process.md 执行决策记录「阶段 4 修复轮……数据事故记录」），
 // 此后一切运行时验证强制走本隔离。
+// 隔离功能验收站点：使用保留测试域，避免第三方插件主动忽略 localhost。
+if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
+  app.commandLine.appendSwitch('host-resolver-rules', 'MAP msb-fixture.test 127.0.0.1')
+  // 隐藏渲染进程全速运行（审查修复轮：扩展采集窗 show:false 内的取流/转码/下载链
+  // 会被 Chromium 后台降级饿死——fetch/FileReader 事件投递停滞，录制收尾永久转圈）。
+  // 采集窗是本产品的功能性隐藏窗（录屏编码），非后台杂务，保持与前台同等调度。
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+}
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
   try {
@@ -93,7 +104,8 @@ if (process.env['MSB_USER_DATA']) {
 const isAgentDebug = process.argv.includes('--agent-debug')
 if (isAgentDebug) {
   // appendSwitch 须在 app ready 前执行才有生效窗口（Chromium 开关在命令行阶段读取）
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? '9222'
+  app.commandLine.appendSwitch('remote-debugging-port', port)
 }
 
 // warning 通道接管（须在任何窗口加载页面前安装——Electron 对失败主 frame 导航的
@@ -110,6 +122,7 @@ let mainWindow: BrowserWindow | null = null
 // 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
 // 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
 let suggestWindows: OmniboxSuggestWindows | null = null
+let extensionsPanelWindows: ExtensionsPanelWindows | null = null
 
 // 截图反馈子窗池（快速截图专项反馈轮三）：宿主窗口 closed 级联销毁各自子窗——
 // 主窗 closed 钩子与独立窗 onWindowClosed 调用（同建议子窗池）；whenReady 创建回填
@@ -386,6 +399,7 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
     suggestWindows?.dispose(WINDOW_ID_MAIN)
+    extensionsPanelWindows?.dispose(WINDOW_ID_MAIN)
     captureFeedbackWindows?.dispose(WINDOW_ID_MAIN)
     settingsWindowController?.dispose()
     // 全部编辑窗一并级联关闭（controller 内自清引用，重开主窗后可再次开窗）
@@ -456,6 +470,7 @@ app.whenReady().then(async () => {
     },
     onWindowClosed: (sessionId: string, windowId: string): void => {
       suggestWindows?.dispose(windowId)
+      extensionsPanelWindows?.dispose(windowId)
       captureFeedbackWindows?.dispose(windowId)
       registry?.onIndependentWindowClosed(sessionId, windowId)
     }
@@ -467,6 +482,16 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     // 建窗 query sys 现取（子窗统一注入不特判，主窗/独立窗同款契约）
+    getThemeColor: () => appearanceController.getSnapshot().themeColor
+  })
+
+  // 扩展面板子窗池（原生子窗口化，白屏根除专项）：拼图菜单面板原生子窗承载（页面
+  // 保持可见，overlayDepth 不再登记），机制同建议子窗池（懒创建/隐藏复用/宿主
+  // move-resize 跟随/closed 级联）；分歧 focusable+blur 关闭与 preferred-size 自适应
+  // 见 extensions/panel.ts 头注
+  extensionsPanelWindows = createExtensionsPanelWindows({
+    getWindow: (windowId: string): BrowserWindow | null =>
+      windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     getThemeColor: () => appearanceController.getSnapshot().themeColor
   })
 
@@ -518,6 +543,10 @@ app.whenReady().then(async () => {
     getWindow: (windowId: string): BrowserWindow | null =>
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     windows: independentWindows,
+    prepareExtensions: async (partition, target) => {
+      const { mountDevExtensions } = await import('./extensions/dev-entry')
+      return mountDevExtensions(target, partition)
+    },
     ensureMainWindow: () => {
       if (!mainWindow || mainWindow.isDestroyed()) createWindow()
       return mainWindow!
@@ -570,7 +599,8 @@ app.whenReady().then(async () => {
     getMainWindow: () => mainWindow,
     windows: independentWindows,
     dragController: tabDragController,
-    suggestWindows
+    suggestWindows,
+    extensionsPanelWindows
   })
   registerToolbarTooltipIpc(created)
   registerAppearanceIpc(appearanceController)
@@ -712,7 +742,7 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send(SESSIONS_CHANNELS.statusChanged, payload)
   })
 
-  createWindow()
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] !== '1') createWindow()
 
   // 代理认证供给（独立代理专项步骤 2，PRD 4.14）：仅接管代理认证（authInfo.isProxy，
   // 非代理认证不 preventDefault，走 Electron 默认取消）；按 webContents.session 对象
@@ -720,7 +750,7 @@ app.whenReady().then(async () => {
   // （非本应用会话分区/会话未配凭据）放行默认取消并留痕。告警只打会话与原因，
   // 凭据不落日志
   app.on('login', (event, webContents, _details, authInfo, callback) => {
-    if (!authInfo.isProxy) return
+    if (!authInfo.isProxy || !webContents) return
     const sessionId = engine.findSessionIdBySession(webContents.session)
     const credentials = sessionId !== null ? engine.getCredentials(sessionId) : null
     if (sessionId !== null && credentials !== null) {
@@ -735,6 +765,93 @@ app.whenReady().then(async () => {
     )
   })
 
+  // 插件随 registry 激活链在首个网页创建前挂载，无需轮询启动时的会话快照。
+  import('./extensions/dev-entry')
+    .then(({ setShellWindow }) => {
+      if (mainWindow && !mainWindow.isDestroyed()) setShellWindow(mainWindow)
+    })
+    .catch(() => undefined)
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] === '1' && !app.isPackaged) {
+    void import('./extensions/dev-entry')
+      .then(({ runDarkPopupSelfTest }) =>
+        runDarkPopupSelfTest('/tmp/msb-selftest/dark/eimadpbcbfnmbkopoojfekhnkhdbieeh-4.9.135')
+      )
+      .catch((error: unknown) => console.error('SELFTEST_ERROR', error))
+  }
+  const approveRuntimePermissions = async (
+    extension: { id: string; name?: string },
+    permissions: { origins?: string[]; permissions?: string[] }
+  ): Promise<boolean> => {
+    const { dialog } = await import('electron')
+    const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+    const detail = [
+      permissions.origins?.length ? '网站权限：' + permissions.origins.join('、') : '',
+      permissions.permissions?.length ? 'API 权限：' + permissions.permissions.join('、') : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const r = await (parent
+      ? dialog.showMessageBox(parent, {
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        })
+      : dialog.showMessageBox({
+          type: 'question',
+          title: '插件权限请求',
+          message: `允许「${extension.name ?? extension.id}」使用以下权限？`,
+          detail: detail || '（无详细权限说明）',
+          buttons: ['拒绝', '允许'],
+          defaultId: 0,
+          cancelId: 0
+        }))
+    return r.response === 1
+  }
+  await import('./extensions/management')
+    .then(({ registerExtensionsManagement }) =>
+      registerExtensionsManagement({
+        getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+        openSettings: (pane) => settingsWindowController?.open(pane),
+        openInActiveSession: (url) => {
+          // 设置窗无会话作用域：宿主代为导航激活会话当前标签（商店入口）
+          const wc = created.getActiveWebContents(WINDOW_ID_MAIN)
+          if (wc) void wc.loadURL(url).catch(() => {})
+        },
+        getPopupTarget: (sender) => {
+          const scope = created.resolveSenderScope(sender)
+          if (!scope.sessionId) return null
+          const wc = created.getActiveWebContents(scope.windowId)
+          const win = BrowserWindow.fromWebContents(sender)
+          return wc && win ? { wc, win, partition: partitionFor(scope.sessionId) } : null
+        },
+        onPopupTargetChanged: (callback) => created.onSnapshotChanged(callback),
+        approveRuntimePermissions
+      })
+    )
+    .catch(() => undefined)
+
+  // 自研插件宿主 shim（计划 20261112 M1）：库缺 tabs.captureVisibleTab，截图插件
+  // 点击链经 preload 生成链注入的 shim 走此通道。库 windowId = BrowserWindow.id，
+  // 映射宿主 scope 后取激活会话网页截图。
+  registerExtensionShims({
+    resolveActivePage: (windowId) => {
+      let scope: string | undefined
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.id === windowId) {
+        scope = WINDOW_ID_MAIN
+      } else if (windowId !== null) {
+        const hit = BrowserWindow.fromId(windowId)
+        for (const entry of independentWindows.listAll()) {
+          if (entry.win === hit) scope = entry.windowId
+        }
+      }
+      return created.getActiveWebContents(scope)
+    }
+  })
+
   // 启动恢复（PRD 3.1.4）：读盘取上次激活会话交注册表恢复（init 内部会再读一次盘缓存
   // 各会话 lastUrl，属既定设计）；无持久化激活会话即保持零会话空态。用户操作先于恢复
   // 到达时 registry 的 initHandled 守卫已兜底（见 registry.ts 注释）。浏览器 Tab 结构
@@ -745,6 +862,26 @@ app.whenReady().then(async () => {
       registry?.init(snapshot.activeId)
     })
     .catch(() => undefined)
+
+  if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
+    const { pathToFileURL } = await import('node:url')
+    const probe = await import(
+      /* @vite-ignore */ pathToFileURL(
+        join(app.getAppPath(), 'tools/extension-preflight/production-plugins.mjs')
+      ).href
+    )
+    void probe
+      .run({
+        registry: created,
+        mainWindow,
+        ...(await import('./extensions/dev-entry')),
+        ...(await import('./store'))
+      })
+      .catch((error: unknown) => {
+        console.error('PLUGINS_ERROR', error)
+        app.exit(1)
+      })
+  }
 
   // 退出前冲刷上报去抖的待写值（pageTitle/lastUrl/tabs）并关全部独立窗口。
   // 时序（阶段 10 翻转）：先冲刷（含封笔）后关窗——旧序「先关窗后冲刷」的前提
