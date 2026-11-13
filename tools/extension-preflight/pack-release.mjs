@@ -27,7 +27,6 @@ function walk(dir, base = dir, acc = []) {
     if (entry === 'out' || entry.startsWith('.')) continue
     const full = join(dir, entry)
     const rel = relative(base, full).split('\\').join('/')
-    const st = statSync(full)
     if (statSync(full).isDirectory()) walk(full, base, acc)
     else acc.push(rel)
   }
