@@ -61,3 +61,11 @@ CI 执行 lint、typecheck、生产构建、安装包生成；macOS 另外校验
 - `electron-builder.yml`：平台打包与安装包命名，复用本地打包配置。
 
 触发条件依据 [GitHub 的 PR 合并事件说明](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges)，系统架构依据 [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)，上传与发布使用 [GitHub CLI](https://cli.github.com/manual/gh_release_create)。
+
+## 插件 CRX 独立发布（与应用发版解耦）
+
+- 触发：Actions 页「Extensions Release」手动运行（workflow_dispatch），或 `gh workflow run extensions-release.yml --ref <分支>`。**与应用 v* Release 互不干扰**——不是每次应用发版都带 CRX。
+- 流程：CI 现场打包（`tools/extension-preflight/pack-release.mjs`，CRX2 签名复用 crx.mjs 单源；pem 经 repo Secrets `RECORDER_PEM_B64` / `SCREENSHOT_PEM_B64` 注入临时文件，步末清理）→ 非草稿直发 `crx-<UTC 时间戳>` tag 的独立 Release（附 SHA256SUMS.txt）→ 逐文件 SHA256 对账。
+- ID 稳定：同 pem 同 ID（与 Chrome `--pack-extension` 的 CRX3 同 ID），覆盖安装即升级。
+- 版本语义：CRX 版本读各插件 manifest（如 recorder 0.1.1 / screenshot 0.1.0），与应用 package.json 版本无关；打包脚本在 tools/ 下，不进应用版本的打包输入哈希。
+- 排障：校验失败保留现场（附件已上传但发布步失败时，重跑生成新时间戳 tag 的全新 Release，不会覆盖旧包）。
