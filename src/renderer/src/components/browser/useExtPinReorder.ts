@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-/** 槽位间距（px）：按钮 28 + 胶囊 gap 2，与 CSS .chrome-ext-bar 对账，改一处必改另一处 */
-export const EXT_PIN_PITCH = 30
+/** 槽位间距（px）：按钮 20 + 胶囊 gap 8，与 CSS .chrome-ext-bar 对账，改一处必改另一处
+ *  （2026-11-13 高度对齐修复二轮：胶囊 28px 同地址栏，按钮 28→20；四轮 gap 2→4、
+ *  六轮 gap 4→8，间距 22→24→28 随动——图标缩 18→16 不影响按钮宽，间距不随图标变） */
+export const EXT_PIN_PITCH = 28
 
 /** 过阈值半径（px）：按下位移过此半径才认定拖拽（TabStrip 手势同值），导出供手势层（Toolbar）分流点击与拖拽 */
 export const ENGAGE_RADIUS_PX = 5
