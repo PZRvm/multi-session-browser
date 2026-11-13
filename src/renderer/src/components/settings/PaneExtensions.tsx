@@ -86,7 +86,11 @@ export function PaneExtensions(): React.JSX.Element {
           setNotice('danger', t('settings.extensions.importFailed') + r.error)
           return
         }
-        setNotice('default', t('settings.extensions.importDone'))
+        // 重复导入明示（与按钮导入同文案语义）：该版本已存在、未重复安装
+        setNotice(
+          'default',
+          t(r.duplicate ? 'settings.extensions.duplicate' : 'settings.extensions.importDone')
+        )
         await refresh()
       } catch {
         setNotice('danger', t('settings.extensions.importFailed'))
