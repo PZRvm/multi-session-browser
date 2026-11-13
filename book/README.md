@@ -68,6 +68,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
 - [20261111-修复四插件与新会话同步.md](changelogs/2026-11/20261111-修复四插件与新会话同步.md) — 修复扩展worker通信与browser入口，新会话首导航自动加载，popup绑定当前Tab，并升级Electron45原生存储
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
+- [release-notes-v1.1.0.md](changelogs/2026-11/release-notes-v1.1.0.md) — "🚀 多会话测试浏览器 v1.1.0：Chrome 插件体系、地址栏补全搜索、工具栏按钮显隐配置"
 
 ### docs/
 
@@ -508,4 +509,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 383 documents -->
+<!-- 384 documents -->
