@@ -120,6 +120,22 @@ function getApi(path) {
   throw new Error(`GitHub 请求失败：${result.error?.message || result.stderr}`)
 }
 
+/**
+ * 按任意状态（草稿/已发布）查 Release：/releases/tags/{tag} 对草稿返回 404
+ * （GitHub 文档化行为，v1.1.0 首发实测——发布路径此前从未在 CI 跑过，v1.0.1
+ * 为手动发布），发布全链按分页列表过滤 tag_name 查找，两条路径同一出口。
+ */
+function getReleaseByTag(base, tag) {
+  for (let page = 1; page <= 10; page++) {
+    const list = getApi(`${base}/releases?per_page=100&page=${page}`)
+    if (!Array.isArray(list) || !list.length) return null
+    const hit = list.find((release) => release.tag_name === tag)
+    if (hit) return hit
+    if (list.length < 100) return null
+  }
+  return null
+}
+
 async function retry(action) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -161,7 +177,7 @@ async function publish(directory) {
   if (object.type !== 'commit' || object.sha !== commit) {
     throw new Error(`${tag} 指向其他提交，拒绝覆盖`)
   }
-  const existing = getApi(`${base}/releases/tags/${tag}`)
+  const existing = getReleaseByTag(base, tag)
   if (existing && !existing.draft) {
     console.log(`${tag} 已发布，保留已有附件：${existing.html_url}`)
     return
@@ -196,7 +212,10 @@ async function publish(directory) {
     await retry(() => gh('release', 'upload', tag, asset.path, '--repo', repository, '--clobber'))
   }
   await retry(() => {
-    const uploaded = getApi(`${base}/releases/tags/${tag}`).assets
+    // 草稿不在 /releases/tags/{tag} 暴露（见 getReleaseByTag），查询失败按可重试错误处理
+    const current = getReleaseByTag(base, tag)
+    if (!current) throw new Error('Release 记录查询不到，保留草稿')
+    const uploaded = current.assets
     if (uploaded.length !== assets.length) throw new Error('远程附件数量不一致，保留草稿')
     for (const asset of assets) {
       const remote = uploaded.find((file) => file.name === asset.name)
@@ -210,7 +229,9 @@ async function publish(directory) {
     }
   })
   // 合并事件可并发完成，按语义版本决定 Latest，避免较早版本后完成时倒退。
-  const draft = getApi(`${base}/releases/tags/${tag}`)
+  // checkVersion 已保证本版本 ≥ 全部已有 tag，此处发布即取 Latest（原硬编码
+  // make_latest=legacy 会让旧版本恒居 Latest——发布路径首跑实测发现的潜伏缺陷）。
+  const draft = getReleaseByTag(base, tag)
   gh(
     'api',
     '--method',
@@ -219,7 +240,7 @@ async function publish(directory) {
     '-F',
     'draft=false',
     '-f',
-    'make_latest=legacy',
+    'make_latest=true',
     '-F',
     `body=@${notesPath}`
   )
