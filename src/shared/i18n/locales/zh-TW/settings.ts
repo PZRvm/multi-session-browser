@@ -76,6 +76,19 @@ export const settings: Dictionary['settings'] = {
     /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
     saveFailed: '儲存首頁設定失敗'
   },
+  /** 浏览版面：工具栏按钮显隐两行（插件专项收尾）：关 = 工具列不渲染按鈕，功能鏈路保留 */
+  captureButtonRow: {
+    label: '顯示截圖按鈕',
+    desc: '關閉後瀏覽器工具列不顯示截圖按鈕，截圖功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '儲存設定失敗'
+  },
+  recorderButtonRow: {
+    label: '顯示螢幕錄製按鈕',
+    desc: '關閉後瀏覽器工具列不顯示螢幕錄製按鈕，錄製功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '儲存設定失敗'
+  },
 
   /** 快捷键版面：键位动作名（键 = BrowserShortcutId 的 camelCase 形） */
   shortcutActions: {

@@ -76,6 +76,19 @@ export const settings = {
     /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
     saveFailed: '保存主页设置失败'
   },
+  /** 浏览版面：工具栏按钮显隐两行（插件专项收尾）：关 = 工具栏不渲染按钮，功能链路保留 */
+  captureButtonRow: {
+    label: '显示截图按钮',
+    desc: '关闭后浏览器工具栏不显示截图按钮，截图功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '保存设置失败'
+  },
+  recorderButtonRow: {
+    label: '显示录屏按钮',
+    desc: '关闭后浏览器工具栏不显示录屏按钮，录屏功能保留',
+    /** IPC 剥壳未命中时的兜底文案（正常路径显示主进程本地化消息） */
+    saveFailed: '保存设置失败'
+  },
 
   /** 快捷键版面：键位动作名（与簇 B 的 browser 命名空间同词独立定义，键路径互不影响；
    * 键 = BrowserShortcutId 的 camelCase 形，与 shared/browserShortcuts 单源对位） */

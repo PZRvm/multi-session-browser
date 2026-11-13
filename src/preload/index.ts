@@ -105,6 +105,8 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetShowCapturePayload,
+  SetShowRecorderPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -495,6 +497,12 @@ const api = {
     // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
     setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
+    // 工具栏按钮显隐（插件专项收尾）：布尔值守卫在主进程，主窗工具栏经 changed
+    // 广播即时收敛
+    setShowCapture: (payload: SetShowCapturePayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setShowCapture, payload),
+    setShowRecorder: (payload: SetShowRecorderPayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setShowRecorder, payload),
     // 恢复出厂（阶段七）：两步确认通过后调用；无 payload，sender 白名单 = 设置窗
     factoryReset: (): Promise<SettingsOkResult> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.factoryReset),

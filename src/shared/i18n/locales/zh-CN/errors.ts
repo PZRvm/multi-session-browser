@@ -33,6 +33,7 @@ export const errors = {
   invalidHomepageUrl: '无效的主页地址',
   invalidHomepageParams: '无效的主页设置参数',
   invalidLanguageParams: '无效的语言设置参数',
+  invalidToolbarButtonParams: '无效的工具栏按钮显隐设置参数',
   // invalidShortcut / invalidShortcutParams / shortcutConflict 三键已随 2026-10-29
   // 截图快捷键退役删除（原设置域 set-screenshot-shortcut handler 消费）
 

@@ -57,6 +57,17 @@ export const settings: Dictionary['settings'] = {
     savingInFlight: 'Saving homepage setting',
     saveFailed: 'Failed to save homepage setting'
   },
+  /** Toolbar button visibility rows (browsing pane): off = button not rendered, feature kept */
+  captureButtonRow: {
+    label: 'Show screenshot button',
+    desc: 'When off, the browser toolbar hides the screenshot button; the feature stays available',
+    saveFailed: 'Failed to save setting'
+  },
+  recorderButtonRow: {
+    label: 'Show screen recording button',
+    desc: 'When off, the browser toolbar hides the screen recording button; the feature stays available',
+    saveFailed: 'Failed to save setting'
+  },
   shortcutActions: {
     reload: 'Reload',
     newTab: 'New Tab',

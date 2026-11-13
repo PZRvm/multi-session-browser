@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useBrowserStore, windowIdentity } from '../../stores/browser'
 import { useCaptureStore, formatElapsed } from '../../stores/capture'
+import { useSettingsStore } from '../../stores/settings'
 import { useExtensionsPanelWindow } from './useExtensionsPanelWindow'
 import { ENGAGE_RADIUS_PX, EXT_PIN_PITCH, useExtPinReorder } from './useExtPinReorder'
 import type { ExtPinReorderApi } from './useExtPinReorder'
@@ -452,6 +453,9 @@ function Toolbar(): React.JSX.Element {
     platform !== null && RELOAD_ACCEL !== null ? shortcutDisplay(RELOAD_ACCEL, platform) : null
   // 截图动作（截图线）：store.capture 直连（剪贴板 + 悬浮反馈条编排全在 store）
   const capture = useBrowserStore((s) => s.capture)
+  // 工具栏按钮显隐（插件专项收尾）：settings 镜像经 changed 广播即时收敛，默认显示
+  const showCaptureButton = useSettingsStore((s) => s.showCaptureButton)
+  const showRecorderButton = useSettingsStore((s) => s.showRecorderButton)
 
   const recState = useCaptureStore((s) => s.state)
   const recNow = useCaptureStore((s) => s.now)
@@ -793,82 +797,92 @@ function Toolbar(): React.JSX.Element {
           语言，置于 DevTools 开关左侧。悬停气泡统一原生子窗（TooltipSlot 四件套接线，
           轮四「不做提示」裁决已被轮六气泡取代）；aria-label 保留无障碍 */}
       <div className="chrome-tools">
-        <TooltipSlot label={screenshotLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
-          <button
-            type="button"
-            aria-label={screenshotLabel}
-            disabled={!activeTab}
-            onClick={() => void capture()}
-          >
-            <CameraOutlined />
-          </button>
-        </TooltipSlot>
-        {recState.status === 'idle' ? (
-          <TooltipSlot label={recordLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
+        {/* 工具栏按钮显隐（插件专项收尾）：配置关闭即不渲染——工具栏纯显示面，主进程
+            截图/录屏能力与扩展插件路径不受影响；录制态 UI 同受显隐约束（关闭期间不可
+            从工具栏启停录制，可回设置页重新打开） */}
+        {showCaptureButton && (
+          <TooltipSlot label={screenshotLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
             <button
               type="button"
-              aria-label={recordLabel}
+              aria-label={screenshotLabel}
               disabled={!activeTab}
-              onClick={() => {
-                hideToolsPop()
-                void beginRecording()
-              }}
+              onClick={() => void capture()}
             >
-              <VideoCameraOutlined />
+              <CameraOutlined />
             </button>
           </TooltipSlot>
-        ) : (
-          <>
-            {/* 录制态：常驻暂停/继续图标钮（弃 Popover——弹层跨页面层必收页面或被盖，
-                嵌入工具栏两全：页面恒显 + 控件恒可达）；气泡 label 渲染期随录制态
-                取词（label prop 随渲染取值，recState 变化即重渲染换词） */}
-            <TooltipSlot
-              label={t(
-                recState.status === 'paused' ? 'capture.resumeRecording' : 'capture.pauseRecording'
-              )}
-              kind="pause-toggle"
-              onEnter={showToolsPop}
-              onLeave={hideToolsPop}
-            >
+        )}
+        {showRecorderButton &&
+          (recState.status === 'idle' ? (
+            <TooltipSlot label={recordLabel} onEnter={showToolsPop} onLeave={hideToolsPop}>
               <button
                 type="button"
-                className="chrome-record-toggle"
-                aria-label={t(
+                aria-label={recordLabel}
+                disabled={!activeTab}
+                onClick={() => {
+                  hideToolsPop()
+                  void beginRecording()
+                }}
+              >
+                <VideoCameraOutlined />
+              </button>
+            </TooltipSlot>
+          ) : (
+            <>
+              {/* 录制态：常驻暂停/继续图标钮（弃 Popover——弹层跨页面层必收页面或被盖，
+                  嵌入工具栏两全：页面恒显 + 控件恒可达）；气泡 label 渲染期随录制态
+                  取词（label prop 随渲染取值，recState 变化即重渲染换词） */}
+              <TooltipSlot
+                label={t(
                   recState.status === 'paused'
                     ? 'capture.resumeRecording'
                     : 'capture.pauseRecording'
                 )}
-                onClick={() =>
-                  void (recState.status === 'paused' ? resumeRecording() : pauseRecording())
-                }
+                kind="pause-toggle"
+                onEnter={showToolsPop}
+                onLeave={hideToolsPop}
               >
-                {recState.status === 'paused' ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
-              </button>
-            </TooltipSlot>
-            {/* 录制胶囊：红点（录制中脉动/暂停静止）＋ mono 时长，点击＝停止
-                （PRD 3.10.2「再次点击停止」） */}
-            <TooltipSlot
-              label={t('capture.stopRecord')}
-              onEnter={showToolsPop}
-              onLeave={hideToolsPop}
-            >
-              <button
-                type="button"
-                className="chrome-record-pill"
-                aria-label={t('capture.stopRecord')}
-                onClick={() => {
-                  hideToolsPop()
-                  void stopRecording()
-                }}
+                <button
+                  type="button"
+                  className="chrome-record-toggle"
+                  aria-label={t(
+                    recState.status === 'paused'
+                      ? 'capture.resumeRecording'
+                      : 'capture.pauseRecording'
+                  )}
+                  onClick={() =>
+                    void (recState.status === 'paused' ? resumeRecording() : pauseRecording())
+                  }
+                >
+                  {recState.status === 'paused' ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+                </button>
+              </TooltipSlot>
+              {/* 录制胶囊：红点（录制中脉动/暂停静止）＋ mono 时长，点击＝停止
+                  （PRD 3.10.2「再次点击停止」） */}
+              <TooltipSlot
+                label={t('capture.stopRecord')}
+                onEnter={showToolsPop}
+                onLeave={hideToolsPop}
               >
-                <span
-                  className={`chrome-record-dot${recState.status === 'recording' ? ' pulsing' : ''}`}
-                />
-                <span className="chrome-record-time">{formatElapsed(recState, recNow)}</span>
-              </button>
-            </TooltipSlot>
-          </>
-        )}
+                <button
+                  type="button"
+                  className="chrome-record-pill"
+                  aria-label={t('capture.stopRecord')}
+                  onClick={() => {
+                    hideToolsPop()
+                    void stopRecording()
+                  }}
+                >
+                  <span
+                    className={`chrome-record-dot${
+                      recState.status === 'recording' ? ' pulsing' : ''
+                    }`}
+                  />
+                  <span className="chrome-record-time">{formatElapsed(recState, recNow)}</span>
+                </button>
+              </TooltipSlot>
+            </>
+          ))}
       </div>
       {toolsPop && (
         <div

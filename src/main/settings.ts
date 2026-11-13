@@ -1,6 +1,8 @@
 // 设置域偏好存储与值域 IPC（设置专项）：userData/settings.json 的读写与
-// get / changed / set-homepage / set-language 四通道（阶段四入住首个真实键
-// homepageUrl，阶段六入住第二键 language——v1 内增键属兼容扩展，不升 version）。
+// get / changed / set-homepage / set-language / set-show-capture / set-show-recorder
+// 六通道（阶段四入住首个真实键 homepageUrl，阶段六入住第二键 language，插件专项
+// 收尾入住第三/四键 showCaptureButton / showRecorderButton——v1 内增键属兼容扩展，
+// 不升 version）。
 // 容错/原子写/串行队列逐条对齐外观域 preferences.json（src/main/appearance.ts）的
 // 实现模式，告警一律 [settings] 前缀与外观域区分；与 preferences.json 分域并行存储
 //（PRD 4.9：设置与 sessions.json、分区数据分别独立读写），两域各自的写队列互不耦合。
@@ -35,6 +37,11 @@ export interface StoredSettings {
   homepageUrl: string
   /** 界面语言（阶段六）：合法值 = shared/i18n 注册表闭集 */
   language: SupportedLanguage
+  /** 浏览器工具栏截图按钮显隐（插件专项收尾）：true = 渲染按钮（默认）；
+   * false = 工具栏不渲染、功能链路保留（主进程能力不受影响） */
+  showCaptureButton: boolean
+  /** 浏览器工具栏录屏按钮显隐（同上）；默认 true */
+  showRecorderButton: boolean
 }
 
 function settingsPath(): string {
@@ -46,7 +53,9 @@ function defaultSettings(): StoredSettings {
   return {
     version: SETTINGS_VERSION,
     homepageUrl: '',
-    language: DEFAULT_LANGUAGE
+    language: DEFAULT_LANGUAGE,
+    showCaptureButton: true,
+    showRecorderButton: true
   }
 }
 
@@ -90,7 +99,9 @@ export async function loadSettings(): Promise<StoredSettings> {
   return {
     version: SETTINGS_VERSION,
     homepageUrl: readHomepageUrl(data),
-    language: readLanguage(data)
+    language: readLanguage(data),
+    showCaptureButton: readToolbarButtonFlag(data, 'showCaptureButton'),
+    showRecorderButton: readToolbarButtonFlag(data, 'showRecorderButton')
   }
 }
 
@@ -157,6 +168,21 @@ function readLanguage(data: Record<string, unknown>): SupportedLanguage {
   return value
 }
 
+/**
+ * 工具栏按钮显隐键读取（插件专项收尾两键共用）：缺键（存量 v1 文件）静默补默认
+ * 显示；非布尔值中文告警回退默认——手改盘值不直达消费面。返回值即键语义自身
+ * （true = 显示）。
+ */
+function readToolbarButtonFlag(data: Record<string, unknown>, key: string): boolean {
+  const value = data[key]
+  if (value === undefined) return true
+  if (typeof value !== 'boolean') {
+    console.warn(`[settings] ${key} 非布尔值，已回退默认显示`)
+    return true
+  }
+  return value
+}
+
 async function writeSettingsFile(settings: StoredSettings): Promise<void> {
   // 原子写走 fs-utils.atomicWriteJson 单源（store.ts / history.ts 共用，tmp+rename
   // 失败清理的完整契约见其头注释），本模块不再持有副本
@@ -197,11 +223,13 @@ function normalizeHomepageInput(raw: string): string {
   return normalized
 }
 
-/** 存储形状 → renderer 快照的统一出口（两键齐全，防各构造点漏键漂移） */
+/** 存储形状 → renderer 快照的统一出口（四键齐全，防各构造点漏键漂移） */
 function toSnapshot(settings: StoredSettings): SettingsSnapshot {
   return {
     homepageUrl: settings.homepageUrl,
-    language: settings.language
+    language: settings.language,
+    showCaptureButton: settings.showCaptureButton,
+    showRecorderButton: settings.showRecorderButton
   }
 }
 
@@ -224,6 +252,23 @@ export async function setLanguage(language: SupportedLanguage): Promise<Settings
   const next: StoredSettings = { ...(await loadSettings()), language }
   await saveSettings(next)
   updateCachedLanguage(language)
+  return toSnapshot(next)
+}
+
+/**
+ * 工具栏按钮显隐设置（插件专项收尾，两键共用实现）：读-改-写经既有 loadSettings +
+ * saveSettings 串行队列（与 setHomepage 同语义——并发以写队列为准、后写胜出）。
+ * 主进程无同步消费方（按钮显隐纯 renderer 面），不进主页/语言同步缓存。
+ */
+export async function setShowCaptureButton(value: boolean): Promise<SettingsSnapshot> {
+  const next: StoredSettings = { ...(await loadSettings()), showCaptureButton: value }
+  await saveSettings(next)
+  return toSnapshot(next)
+}
+
+export async function setShowRecorderButton(value: boolean): Promise<SettingsSnapshot> {
+  const next: StoredSettings = { ...(await loadSettings()), showRecorderButton: value }
+  await saveSettings(next)
   return toSnapshot(next)
 }
 
@@ -288,6 +333,34 @@ export function registerSettingsValueIpc(): void {
       }
       return setLanguage(payload.language).then((snapshot) => {
         setMainProcessLanguage(snapshot.language)
+        broadcastSettingsChanged(snapshot)
+        return snapshot
+      })
+    }
+  )
+
+  // set-show-capture / set-show-recorder（插件专项收尾）：布尔值守卫 → setter 落盘
+  //（读-改-写经串行队列）→ changed 全窗推送 → 快照返回（renderer 以返回值为权威
+  // 回填）；拒绝路径零变更。工具栏按钮显隐纯 renderer 消费面，无主进程语言/缓存链
+  ipcMain.handle(
+    SETTINGS_CHANNELS.setShowCapture,
+    (_event, payload: unknown): Promise<SettingsSnapshot> => {
+      if (!isRecord(payload) || typeof payload.showCaptureButton !== 'boolean') {
+        return Promise.reject(new Error(t('errors.invalidToolbarButtonParams')))
+      }
+      return setShowCaptureButton(payload.showCaptureButton).then((snapshot) => {
+        broadcastSettingsChanged(snapshot)
+        return snapshot
+      })
+    }
+  )
+  ipcMain.handle(
+    SETTINGS_CHANNELS.setShowRecorder,
+    (_event, payload: unknown): Promise<SettingsSnapshot> => {
+      if (!isRecord(payload) || typeof payload.showRecorderButton !== 'boolean') {
+        return Promise.reject(new Error(t('errors.invalidToolbarButtonParams')))
+      }
+      return setShowRecorderButton(payload.showRecorderButton).then((snapshot) => {
         broadcastSettingsChanged(snapshot)
         return snapshot
       })

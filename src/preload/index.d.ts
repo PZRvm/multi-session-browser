@@ -65,6 +65,8 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetShowCapturePayload,
+  SetShowRecorderPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
@@ -224,6 +226,8 @@ declare global {
         getHomepage(): Promise<SettingsSnapshot>
         setHomepage(payload: SetHomepagePayload): Promise<SettingsSnapshot>
         setLanguage(payload: SetLanguagePayload): Promise<SettingsSnapshot>
+        setShowCapture(payload: SetShowCapturePayload): Promise<SettingsSnapshot>
+        setShowRecorder(payload: SetShowRecorderPayload): Promise<SettingsSnapshot>
         factoryReset(): Promise<SettingsOkResult>
         onChanged(callback: (snapshot: SettingsSnapshot) => void): () => void
       }
