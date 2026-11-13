@@ -53,4 +53,8 @@ description: "🚀 多会话测试浏览器 v1.1.0：Chrome 插件体系、地�
 
 ## 🔐 校验和（SHA256）
 
-> 发布构建完成后由 CI 产物回填。
+```
+8f088796a8626b0c3fddc8f81b2290e245a247808de23f2acadcbe09d19d6096  multi-session-browser-1.1.0-mac-arm64.dmg
+bcef308fd68473b62c188ea523c878a726032769ec5db0aec8a9dbc252fda8ec  multi-session-browser-1.1.0-mac-x64.dmg
+ddeefd0a0168714bff090448bec273f17a201042f77705fa6a03f882b7217708  multi-session-browser-1.1.0-win-x64-setup.exe
+```

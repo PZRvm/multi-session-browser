@@ -29,3 +29,11 @@ v1.1.0（发布内容见 changelogs/2026-11/release-notes-v1.1.0.md）发布流�
 - **跨三平台的 GH Actions `run:` 步骤，凡 Windows runner 默认 PowerShell，不要传 `-c.<key>=<value>` 点属性参数**；等价能力优先走配置文件或核实 env 链路。
 - **npm scripts 环境里 `.npmrc` 注入的 `npm_config_*` 会覆盖继承的同名 env**——依赖 env 覆盖镜像/源前必须验证生效链路，"设了"不等于"生效"。
 - **改"看起来没插值的字面量"前先查它是谁的语法**——`{{ version }}` 是 @electron/get 的占位符，不是 workflow 插值残留。三轮里两轮是修复者自己引入的新缺陷，第一次修复后必须重跑验证且不可想当然。
+
+## 教训 4：草稿 Release 不暴露于 /releases/tags/{tag}（第三轮发布任务失败）
+
+- **现象**：三平台构建全绿、附件全传完后，发布任务 `Cannot read properties of null (reading 'assets')` 三连重试后失败。
+- **根因**：GitHub API `GET /releases/tags/{tag}` 对**草稿**返回 404（文档化行为）；脚本验证步骤刚建完草稿就按 tag 查 → getApi 返 null → `.assets` 崩。同文件还有潜伏第四缺陷：`make_latest=legacy` 硬编码（注释称按语义版本决定，实现从未跑过），会让旧版本恒居 Latest。
+- **背景**：v1.0.1 是**手动发布**（Release author 为用户本人），脚本的发布路径 v1.1.0 才首跑——与发布工作流同属「新工作流首跑即踩」。
+- **修复**：新增 getReleaseByTag（分页列表过滤 tag_name，草稿/已发布同出口）替换三处按 tag 查询；make_latest 改 true（checkVersion 已保证版本 ≥ 全部已有 tag）。本次 v1.1.0 由人工按脚本同等校验（数量/状态/大小/digest 对 SHA256SUMS 逐行核对）后手动 PATCH 发布。
+- **总教训追加**：脚本的每个分支都可能在首次真实运行才暴露——新发布链路上线时，最好先用一个测试版本 tag 全链演练（或至少 dry-run publish 路径），不要让正式版本当首跑小白鼠。
