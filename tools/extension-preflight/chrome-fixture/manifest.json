@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "MSB 前置媒体验证夹具",
+  "version": "0.1.0",
+  "permissions": ["activeTab", "tabCapture", "offscreen", "storage", "downloads", "clipboardWrite"],
+  "action": { "default_title": "验证截图与Tab录制" },
+  "background": { "service_worker": "background.js" }
+}

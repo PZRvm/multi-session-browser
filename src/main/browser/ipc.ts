@@ -1,4 +1,4 @@
-// 浏览器 IPC handlers：三十三条通道（浏览器域 26 条（20 命令 + 6 推送）+ 建议子窗域
+// 浏览器 IPC handlers：三十四条通道（浏览器域 27 条（21 命令 + 6 推送）+ 建议子窗域
 // 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
 //（sender 属主窗口 webContents）→ 激活会话的 'main' 作用域（现行为）；独立窗口来源
@@ -19,7 +19,7 @@
 // HISTORY_CHANNELS，禁止手写字符串。
 // 入参先过运行时守卫（shared 中的 payload 类型只是编译期约定，跨 IPC 边界不可信任）。
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
   BROWSER_CHANNELS,
@@ -38,8 +38,16 @@ import type {
   OmniboxSuggestShowPayload,
   OmniboxSuggestShowResult
 } from '../../shared/omniboxSuggest'
+import { EXTENSIONS_PANEL_CHANNELS } from '../../shared/extensionsPanel'
+import type {
+  ExtensionsPanelPickedPayload,
+  ExtensionsPanelPickPayload,
+  ExtensionsPanelShowPayload
+} from '../../shared/extensionsPanel'
+import type { ExtensionsPanelWindows } from '../extensions/panel'
 import { createIpcGuards, logFailure, logFailureAsync } from '../ipc-utils'
 import { t } from '../i18n'
+import { dialogIconForDarwin } from '../dialogs'
 import type { TabDragController } from './dragging'
 import type { OmniboxSuggestWindows } from './omniboxSuggest'
 import type { SenderWindowScope, SessionBrowserRegistry } from './registry'
@@ -137,6 +145,72 @@ function parseSuggestShow(value: unknown): OmniboxSuggestShowPayload {
   }
 }
 
+/**
+ * 扩展面板子窗 show 载荷运行时守卫（parseSuggestShow 同口径）：anchor 四有限数
+ *（x/y 非负、宽高为正）；items 可空（零插件时仍展示空态文案）且上限 64 条，条目
+ * 结构宽容归一——icon 非 string 以 undefined 收口，子窗渲染端有占位图标兜底
+ */
+function parseExtensionsPanelShow(value: unknown): ExtensionsPanelShowPayload {
+  if (!isRecord(value) || !isRecord(value.anchor) || !Array.isArray(value.items)) {
+    throw invalidParams()
+  }
+  if (value.items.length > 64) throw invalidParams()
+  const anchor = {
+    x: requiredNumber(value.anchor.x),
+    y: requiredNumber(value.anchor.y),
+    width: requiredNumber(value.anchor.width),
+    height: requiredNumber(value.anchor.height)
+  }
+  if (anchor.x < 0 || anchor.y < 0) throw invalidParams()
+  if (anchor.width <= 0 || anchor.height <= 0) throw invalidParams()
+  const items = value.items.map((item) => {
+    if (!isRecord(item) || typeof item.id !== 'string' || item.id.length === 0) {
+      throw invalidParams()
+    }
+    const text = (v: unknown, fallback: string): string =>
+      typeof v === 'string' ? v.slice(0, 256) : fallback
+    return {
+      id: item.id,
+      name: text(item.name, item.id),
+      version: text(item.version, ''),
+      source: text(item.source, ''),
+      icon: typeof item.icon === 'string' ? item.icon : undefined,
+      hasAction: item.hasAction === true,
+      // 钉态（2026-11-13 插件固定增量）：白名单漏此字段会让面板子窗永远收不到
+      // 钉态——钉钮只能置顶不能取消、样式不变（实测根因）
+      pinned: item.pinned === true,
+      loadedPartitions:
+        typeof item.loadedPartitions === 'number' && Number.isFinite(item.loadedPartitions)
+          ? item.loadedPartitions
+          : 0,
+      totalPartitions:
+        typeof item.totalPartitions === 'number' && Number.isFinite(item.totalPartitions)
+          ? item.totalPartitions
+          : 0
+    }
+  })
+  return { anchor, items }
+}
+
+/** 扩展面板子窗 pick 载荷运行时守卫：四语义枚举；open/togglePin 时 id 必为 32 位扩展 ID，togglePin 另核 pinned 目标态 */
+function parseExtensionsPanelPick(value: unknown): ExtensionsPanelPickPayload {
+  if (!isRecord(value)) throw invalidParams()
+  if (value.kind === 'manage' || value.kind === 'close') return { kind: value.kind }
+  if (value.kind === 'open' && typeof value.id === 'string' && /^[a-p]{32}$/.test(value.id)) {
+    return { kind: 'open', id: value.id }
+  }
+  // togglePin（2026-11-13 插件固定增量）：id 校验同 open + pinned 目标态 boolean 必填
+  if (
+    value.kind === 'togglePin' &&
+    typeof value.id === 'string' &&
+    /^[a-p]{32}$/.test(value.id) &&
+    typeof value.pinned === 'boolean'
+  ) {
+    return { kind: 'togglePin', id: value.id, pinned: value.pinned }
+  }
+  throw invalidParams()
+}
+
 export function registerBrowserIpc(
   manager: SessionBrowserRegistry,
   deps: {
@@ -145,9 +219,11 @@ export function registerBrowserIpc(
     dragController: TabDragController
     /** 建议子窗池（原生子窗口化专项）：show/hide 编排 + 子窗 sender 身份判别 */
     suggestWindows: OmniboxSuggestWindows
+    /** 扩展面板子窗池（原生子窗口化，白屏根除专项）：同建议子窗池形态 */
+    extensionsPanelWindows: ExtensionsPanelWindows
   }
 ): void {
-  const { getMainWindow, windows, dragController, suggestWindows } = deps
+  const { getMainWindow, windows, dragController, suggestWindows, extensionsPanelWindows } = deps
 
   /** 推送目标窗口：'main' → 主窗口显式引用；独立窗口 → 登记表现取（销毁即跳过；主窗口 macOS 关窗期间为 null，均静默跳过） */
   function windowForId(windowId: string): BrowserWindow | null {
@@ -302,6 +378,43 @@ export function registerBrowserIpc(
       const tabCount = manager.getSnapshot(scope.windowId).tabs.length
       if (payload.ids.length > Math.max(tabCount, 1) * 2) throw invalidParams()
       return manager.reorderTabs(payload.ids, scope.windowId)
+    })
+  )
+
+  // 一次合并只接收来源窗口身份，不接收 renderer 自报的会话或 Tab 集合。
+  const mergingWindows = new Set<string>()
+  ipcMain.handle(BROWSER_CHANNELS.mergeToMain, (event): Promise<OkResult> =>
+    logFailureAsync(BROWSER_CHANNELS.mergeToMain, undefined, async () => {
+      const scope = requireScope(event)
+      if (scope.windowId === WINDOW_ID_MAIN) throw new Error(t('errors.unknownCommandSource'))
+      if (mergingWindows.has(scope.windowId)) return { ok: true }
+      mergingWindows.add(scope.windowId)
+      try {
+        await manager.mergeWindowToMain(scope.windowId)
+        return { ok: true }
+      } catch (error) {
+        const owner = windows.getWindowById(scope.windowId) ?? getMainWindow()
+        const options = {
+          type: 'info' as const,
+          title: t('browser.toolbar.mergeToMain'),
+          message: t('browser.toolbar.mergeFailed'),
+          buttons: [t('common.confirm')],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+          icon: dialogIconForDarwin()
+        }
+        const shown =
+          owner && !owner.isDestroyed()
+            ? dialog.showMessageBox(owner, options)
+            : dialog.showMessageBox(options)
+        await shown.catch((dialogError: unknown) => {
+          console.warn('[browser] 合并失败提示框显示失败:', dialogError)
+        })
+        throw error
+      } finally {
+        mergingWindows.delete(scope.windowId)
+      }
     })
   )
 
@@ -548,6 +661,15 @@ export function registerBrowserIpc(
     return windowId
   }
 
+  /** 扩展面板子窗身份解析：sender 须属扩展面板子窗池（与建议子窗池是两个独立池，
+   * 不可混用——反馈轮首版误复用 requireChildOwner 查错池，面板 pick/passthrough
+   * 全部被拒：无法关面板、点插件行无反应） */
+  function requirePanelChildOwner(event: IpcMainInvokeEvent): string {
+    const windowId = extensionsPanelWindows.resolveOwnerOf(event.sender)
+    if (windowId === null) throw new Error(t('errors.unknownCommandSource'))
+    return windowId
+  }
+
   // suggest-show：开/更新面板（幂等全量）。宿主解析 → 守卫 → 子窗池承载；返回
   // canPresent（2026-10-28 融合契约：主进程按锚点与工作区空间裁定可否呈现——空间
   // 不足拒绝展示时 shell 收回融合态并恢复输入框独立形态）
@@ -617,7 +739,66 @@ export function registerBrowserIpc(
     })
   )
 
+  // —— 扩展面板子窗域（原生子窗口化，白屏根除专项，契约见 shared/extensionsPanel.ts）——
+  // 身份解析：show/hide 复用建议子窗域的 requireOwnerWindow（宿主 shell 专属）；
+  // pick/passthrough 用 requirePanelChildOwner（扩展面板子窗池专属——两池独立，
+  // 反馈轮教训：混用即全拒）
+
+  // panel-show：开/更新面板（幂等全量）。返回 canPresent：工作区下方空间放不下
+  // MIN 高度时主进程拒绝展示（不建不显），shell 据此不翻转开合态
+  ipcMain.handle(
+    EXTENSIONS_PANEL_CHANNELS.show,
+    (event, payload: unknown): { ok: boolean; canPresent: boolean } =>
+      logFailure(EXTENSIONS_PANEL_CHANNELS.show, payload, () => {
+        const windowId = requireOwnerWindow(event)
+        const canPresent = extensionsPanelWindows.show(windowId, parseExtensionsPanelShow(payload))
+        return { ok: true, canPresent }
+      })
+  )
+
+  // panel-hide：收起面板（无 payload，隐藏复用不销毁；blur 关闭由主进程推送 closed）
+  ipcMain.handle(EXTENSIONS_PANEL_CHANNELS.hide, (event): OkResult =>
+    logFailure(EXTENSIONS_PANEL_CHANNELS.hide, undefined, () => {
+      extensionsPanelWindows.hide(requireOwnerWindow(event))
+      return { ok: true }
+    })
+  )
+
+  // panel-pick：子窗行点击/钉子开关/管理入口/Esc/关闭钮上报 → 转发宿主 shell（open/
+  // manage/close/togglePin 四语义状态机唯一在宿主 shell：open → extensions.openPopup、
+  // manage → extensions.manage、togglePin → extensions.setPinned、close → hide；
+  // open/togglePin 时 id 须为 32 位扩展 ID，togglePin 另核 pinned 目标态）
+  ipcMain.handle(EXTENSIONS_PANEL_CHANNELS.pick, (event, payload: unknown): OkResult =>
+    logFailure(EXTENSIONS_PANEL_CHANNELS.pick, payload, () => {
+      const windowId = requirePanelChildOwner(event)
+      const pick = parseExtensionsPanelPick(payload)
+      const owner = windowForId(windowId)
+      if (!owner) return { ok: true }
+      const forward: ExtensionsPanelPickedPayload =
+        pick.kind === 'togglePin'
+          ? { kind: 'togglePin', id: pick.id, pinned: pick.pinned }
+          : pick.kind === 'open'
+            ? { kind: 'open', id: pick.id }
+            : { kind: pick.kind }
+      owner.webContents.send(EXTENSIONS_PANEL_CHANNELS.picked, forward)
+      return { ok: true }
+    })
+  )
+
+  // panel-set-mouse-passthrough：子窗渲染端按光标位置切换阴影环带点击穿透——sender
+  // 必须是池内面板子窗本人（requirePanelChildOwner 白名单）
+  ipcMain.handle(
+    EXTENSIONS_PANEL_CHANNELS.setMousePassthrough,
+    (event, payload: unknown): OkResult =>
+      logFailure(EXTENSIONS_PANEL_CHANNELS.setMousePassthrough, payload, () => {
+        const windowId = requirePanelChildOwner(event)
+        if (!isRecord(payload) || typeof payload.enabled !== 'boolean') throw invalidParams()
+        extensionsPanelWindows.setMousePassthrough(windowId, payload.enabled)
+        return { ok: true }
+      })
+  )
+
   console.log(
-    '[browser] IPC handlers 已注册（33 条通道：浏览器域 26 + 建议子窗域 7，含历史补全与页内查找各 2 条）'
+    '[browser] IPC handlers 已注册（38 条通道：浏览器域 27 + 建议子窗域 7 + 扩展面板子窗域 4，含历史补全与页内查找各 2 条）'
   )
 }

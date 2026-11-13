@@ -1,0 +1,141 @@
+[
+  {
+    "name": "right-cn",
+    "width": 1024,
+    "language": "zh-CN",
+    "tip": {
+      "x": 1024,
+      "y": 208,
+      "width": 92,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 1024,
+      "height": 692
+    },
+    "arrow": 74,
+    "anchor": 998,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/right-cn.png",
+    "osCapture": true
+  },
+  {
+    "name": "right-narrow-cn",
+    "width": 480,
+    "language": "zh-CN",
+    "tip": {
+      "x": 480,
+      "y": 208,
+      "width": 92,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 480,
+      "height": 692
+    },
+    "arrow": 74,
+    "anchor": 454,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/right-narrow-cn.png",
+    "osCapture": true
+  },
+  {
+    "name": "right-narrow-en",
+    "width": 480,
+    "language": "en-US",
+    "tip": {
+      "x": 414,
+      "y": 208,
+      "width": 158,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 480,
+      "height": 692
+    },
+    "arrow": 140,
+    "anchor": 454,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/right-narrow-en.png",
+    "osCapture": true
+  },
+  {
+    "name": "right-narrow-tw",
+    "width": 480,
+    "language": "zh-TW",
+    "tip": {
+      "x": 480,
+      "y": 208,
+      "width": 92,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 480,
+      "height": 692
+    },
+    "arrow": 74,
+    "anchor": 454,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/right-narrow-tw.png",
+    "osCapture": true
+  },
+  {
+    "name": "left-cn",
+    "width": 1024,
+    "language": "zh-CN",
+    "tip": {
+      "x": 108,
+      "y": 214,
+      "width": 72,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 1024,
+      "height": 692
+    },
+    "arrow": 18,
+    "anchor": 26,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/left-cn.png",
+    "osCapture": true
+  },
+  {
+    "name": "left-reload-cn",
+    "width": 1024,
+    "language": "zh-CN",
+    "tip": {
+      "x": 150,
+      "y": 214,
+      "width": 72,
+      "height": 31
+    },
+    "owner": {
+      "x": 100,
+      "y": 128,
+      "width": 1024,
+      "height": 692
+    },
+    "arrow": 36,
+    "anchor": 86,
+    "delta": 0,
+    "shot": "/Users/pangzerui/foreunit/multi-session-browser/.impeccable/review/tooltip-arrow/left-reload-cn.png",
+    "osCapture": true
+  },
+  {
+    "name": "center",
+    "x": 557,
+    "arrow": 55,
+    "owner": 100,
+    "delta": 0
+  }
+]

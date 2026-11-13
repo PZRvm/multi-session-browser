@@ -3,6 +3,7 @@ import './assets/app.css'
 import { Suspense, lazy, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import OmniboxSuggestWindow from './components/browser/OmniboxSuggestWindow'
+import { EXTENSIONS_PANEL_WINDOW_ROLE } from '../../shared/extensionsPanel'
 import { useAppearanceStore } from './stores/appearance'
 import { useBrowserStore, windowIdentity } from './stores/browser'
 import { bootstrapLanguage, useI18nStore } from './stores/i18n'
@@ -13,6 +14,7 @@ import { SETTINGS_WINDOW_ROLE } from '../../shared/settings'
 import { WORKSPACE_PICKER_WINDOW_ROLE } from '../../shared/dialog'
 import { CAPTURE_EDITOR_WINDOW_ROLE, CAPTURE_FEEDBACK_WINDOW_ROLE } from '../../shared/capture'
 import { attachCaptureFeedbackData } from './components/browser/captureFeedbackData'
+import { attachNativeEditing } from './nativeEditing'
 
 // App 惰性加载（审查修复轮低 8）：子窗角色（?role=omnibox-suggest / ?role=settings）
 // 只渲染轻量组件，不必加载 App 图（antd/组件全图随 App chunk 分流）；主窗与
@@ -28,6 +30,10 @@ const WorkspacePickerWindow = lazy(() => import('./components/WorkspacePickerWin
 // 悬浮截图反馈条子窗渲染端（快速截图专项反馈轮三，?role=capture-feedback）：同建议
 // 子窗形态的纯展示端
 const CaptureFeedbackWindow = lazy(() => import('./components/browser/CaptureFeedbackWindow'))
+
+// 扩展面板子窗渲染端（原生子窗口化，白屏根除专项，?role=extensions-panel）：同建议
+// 子窗形态的纯展示端（数据由宿主 shell 经 show 全量推送，pick 经主进程转发）
+const ExtensionsPanelWindow = lazy(() => import('./components/browser/ExtensionsPanelWindow'))
 
 // 截图编辑子窗渲染端（截图编辑器专项，?role=capture-editor）：独立 BrowserWindow
 // （settings 窗单例先例）挂本 renderer 包进入该角色——编辑器本体（Konva Stage 工具
@@ -84,6 +90,19 @@ if (role === SETTINGS_WINDOW_ROLE) {
       <OmniboxSuggestWindow />
     </StrictMode>
   )
+} else if (role === EXTENSIONS_PANEL_WINDOW_ROLE) {
+  document.body.dataset.role = EXTENSIONS_PANEL_WINDOW_ROLE
+  // 扩展面板子窗（原生子窗口化专项）：同建议子窗形态——仅 init i18n 镜像（懒建复用
+  // 池，语言切换经 settings:changed 推送），不初始化其他 store（内容由主进程 data
+  // 推送，纯展示零自治；pick 上报经主进程转发回宿主 shell）
+  void useI18nStore.getState().init()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Suspense fallback={null}>
+        <ExtensionsPanelWindow />
+      </Suspense>
+    </StrictMode>
+  )
 } else if (role === WORKSPACE_PICKER_WINDOW_ROLE) {
   document.body.dataset.role = WORKSPACE_PICKER_WINDOW_ROLE
   // 工作区选择模态框（原生 sheet 专项）：同建议子窗形态——仅 init i18n 镜像（一次性
@@ -128,6 +147,8 @@ if (role === SETTINGS_WINDOW_ROLE) {
     </StrictMode>
   )
 } else {
+  const detachNativeEditing = attachNativeEditing()
+  import.meta.hot?.dispose(detachNativeEditing)
   // 外观镜像独立初始化：失败时保留首帧的系统 media query 结果，不阻塞会话与浏览器恢复。
   // 独立窗口同走此链路（各窗实例自拉取），与主窗口主题保持一致。
   void useAppearanceStore.getState().init()

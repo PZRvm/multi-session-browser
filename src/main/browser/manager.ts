@@ -22,6 +22,7 @@ import { matchBrowserShortcut, type BrowserShortcutId } from '../../shared/brows
 import { PAGE_TITLE_MAX } from '../../shared/sessions'
 import { t } from '../i18n'
 import type { VisitFact } from './history'
+import { invalidateEngineTabUrl, notifyEngineTab } from '../extensions/dev-entry'
 import { escapeHtml } from './html'
 import { isOpenableUrl } from './url'
 
@@ -198,6 +199,8 @@ export type TearOffTabManager = TabManager & {
     targetWindowId: string,
     insertIndex?: number
   ) => BrowserSnapshot
+  /** 本独立窗全部 Tab 按序追加到主窗，保留激活页；批量完成后才发快照。 */
+  mergeAllTabsToMain: (sourceWindowId: string) => void
   /**
    * 订阅页面侧导航事实（历史采集面，kind 语义见 history.ts 的 VisitFact），返回退订
    * 函数。挂在 TearOffTabManager 扩展面而非 TabManager 基面：基面是 registry 对 ipc
@@ -402,6 +405,9 @@ export function createTabManager(
     if (!win) return
     win.contentView.addChildView(tab.view)
     tab.view.setBounds(currentRect(tab.windowId))
+    // 插件引擎 tab 注册（幂等）：已挂载分区的内容脚本注入与 popup tab 语义前置；
+    // 未装插件（无引擎）时 no-op，零开销
+    notifyEngineTab(opts.partition, tab.view.webContents, win)
   }
 
   function detachView(tab: TabEntry): void {
@@ -538,6 +544,10 @@ export function createTabManager(
     tabs.set(id, tab)
     const wc = view.webContents
 
+    // 插件引擎 tabDetails 缓存失效：导航后 tabs.query 的 URL 才正确（Cookie-Editor
+    // 等依赖当前页 URL 的插件 popup 依赖此点；缓存首建后 lib 永不更新，必须主动失效）
+    wc.on('did-navigate', () => invalidateEngineTabUrl(opts.partition, wc))
+    wc.on('did-navigate-in-page', () => invalidateEngineTabUrl(opts.partition, wc))
     // 任一加载/导航事件后重算快照并触发回调（含 canGoBack/canGoForward 现读）
     wc.on('did-start-loading', () => {
       // 新导航开启即清失败态：错误卡随后续结果重新裁决（重试成功自然清除）
@@ -817,6 +827,25 @@ export function createTabManager(
     return buildSnapshot(sourceWindowId)
   }
 
+  function mergeAllTabsToMain(sourceWindowId: string): void {
+    if (sourceWindowId === WINDOW_ID_MAIN) return
+    const sourceIds = scopedTabIds(sourceWindowId)
+    if (sourceIds.length === 0) return
+    const mainIds = scopedTabIds(WINDOW_ID_MAIN)
+    const activeId = activeByWindow.get(sourceWindowId) ?? sourceIds[0]
+    // 所有归属先更新，随后只激活一次、通知一次，空窗关闭不会打断半途迁移。
+    for (const id of sourceIds) {
+      const tab = tabs.get(id)!
+      releaseFullscreenSlot(tab)
+      detachView(tab)
+      tab.windowId = WINDOW_ID_MAIN
+    }
+    activeByWindow.set(sourceWindowId, null)
+    applyTabOrder([...mainIds, ...sourceIds])
+    activate(activeId, WINDOW_ID_MAIN)
+    emitChange()
+  }
+
   function destroyTabsInWindow(windowId: string): void {
     const doomed: TabEntry[] = []
     for (const tab of tabs.values()) {
@@ -1008,6 +1037,7 @@ export function createTabManager(
     closeTab,
     tearOffTab,
     moveTabToWindow,
+    mergeAllTabsToMain,
     destroyTabsInWindow,
     applyFallbackBackground,
     switchTab,

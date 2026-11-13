@@ -1,0 +1,550 @@
+{
+  "admission": "blocked",
+  "base": "eca42cb",
+  "worktreeBranch": "feature/chrome-extension-preflight",
+  "samples": [
+    {
+      "name": "dark",
+      "id": "eimadpbcbfnmbkopoojfekhnkhdbieeh",
+      "version": "4.9.135",
+      "crxVersion": 3,
+      "sha256": "0b7857ae92fd3aeab4292bb755aa0f108de6b68bc12f18d0c87fe757cdd40a9d",
+      "source": "https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx3&prodversion=142.0.7444.265&x=id%3Deimadpbcbfnmbkopoojfekhnkhdbieeh%26uc",
+      "manifestVersion": 3
+    },
+    {
+      "name": "react",
+      "id": "fmkadmapgofadopljbjfkapdkoienihi",
+      "version": "8.0.0",
+      "crxVersion": 3,
+      "sha256": "d92e1122a16362cc5510927068a5b1a8d50b43e1f3be25c3117f7c005807b302",
+      "source": "https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx3&prodversion=142.0.7444.265&x=id%3Dfmkadmapgofadopljbjfkapdkoienihi%26uc",
+      "manifestVersion": 3
+    },
+    {
+      "name": "cookie",
+      "id": "hlkenndednhfkekhgcdicdfddnkalmdm",
+      "version": "1.13.0",
+      "crxVersion": 3,
+      "sha256": "754a072a5b6327d27a0d4d6e299a8e28b2a5fafbd595ccb6bfcd4090ae8eb038",
+      "source": "https://clients2.google.com/service/update2/crx?response=redirect&acceptformat=crx3&prodversion=142.0.7444.265&x=id%3Dhlkenndednhfkekhgcdicdfddnkalmdm%26uc",
+      "manifestVersion": 3
+    },
+    {
+      "name": "legacy-crx2",
+      "source": "https://raw.githubusercontent.com/chromium/chromium/main/chrome/test/data/extensions/legacy_crx_package.crx",
+      "sha256": "387ec5a56ea15ff8080582bbf3db3e201647b28c9d26728811c5d13de34e7612",
+      "crxVersion": 2,
+      "expectedRejection": "manifest 版本不支持"
+    },
+    {
+      "name": "own-positive-crx2",
+      "source": "self-generated-fixture-not-market-extension",
+      "id": "nkkimklbjalahebealodfebnfinjnjnd",
+      "version": "1.0.0",
+      "crxVersion": 2,
+      "sha256": "66775c9bf848d4949c9894de85ec103525ed488b0e17829094013096c7e19d6f"
+    }
+  ],
+  "runs": [
+    {
+      "kind": "electron",
+      "runId": "2026-11-09T11-10-56-469Z",
+      "versions": {
+        "node": "22.22.1",
+        "acorn": "8.15.0",
+        "ada": "2.9.2",
+        "amaro": "1.1.5",
+        "ares": "1.34.6",
+        "brotli": "1.0.9",
+        "cjs_module_lexer": "2.2.0",
+        "cldr": "44.1",
+        "icu": "74.2",
+        "llhttp": "9.3.0",
+        "modules": "140",
+        "napi": "10",
+        "nbytes": "0.1.1",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.64.0",
+        "openssl": "0.0.0",
+        "simdjson": "4.2.4",
+        "simdutf": "7.3.3",
+        "sqlite": "3.51.2",
+        "tz": "2025b",
+        "undici": "6.23.0",
+        "unicode": "15.1",
+        "uv": "1.51.0",
+        "uvwasi": "0.0.23",
+        "v8": "14.2.231.22-electron.0",
+        "zlib": "1.3.1",
+        "zstd": "1.5.8",
+        "electron": "39.8.10",
+        "chrome": "142.0.7444.265"
+      },
+      "checks": [
+        {
+          "name": "加载 dark / A",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 react / A",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 cookie / A",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 own-positive-crx2 / A",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 dark / B",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 react / B",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 cookie / B",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "加载 own-positive-crx2 / B",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "同源Cookie及输入隔离",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "dark 标准 action popup",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "cookie 标准 action popup",
+          "status": "fail",
+          "error": "Error: Cookie-Editor新增操作未生效"
+        },
+        {
+          "name": "react 标准 action popup",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "React DevTools 检出页面",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "目标页面 PNG 与复制",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "真实IPC来源、目标与协议拒绝",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "目标Tab带音频MP4",
+          "status": "pass",
+          "error": null
+        }
+      ],
+      "verification": {
+        "directory": "tools/extension-preflight/out/.artifacts/2026-11-09T11-10-56-469Z",
+        "checks": [
+          {
+            "name": "PNG 文件有效",
+            "status": "pass",
+            "detail": {
+              "width": 1024,
+              "height": 650
+            }
+          },
+          {
+            "name": "MP4含H264/AAC且时长排除暂停段",
+            "status": "pass",
+            "detail": {
+              "programs": [],
+              "stream_groups": [],
+              "streams": [
+                {
+                  "codec_name": "h264",
+                  "codec_type": "video"
+                },
+                {
+                  "codec_name": "aac",
+                  "codec_type": "audio",
+                  "sample_rate": "48000"
+                }
+              ],
+              "format": {
+                "duration": "61.136533"
+              }
+            }
+          },
+          {
+            "name": "音视频完整解码无错误",
+            "status": "pass",
+            "detail": {
+              "decoded": true
+            }
+          },
+          {
+            "name": "目标440Hz有声、另一Tab733Hz未混入",
+            "status": "pass",
+            "detail": {
+              "wanted": {
+                "magnitude": 0.003528808305234929,
+                "rms": 0.01676780797248982
+              },
+              "other": {
+                "magnitude": 2.2585097918902414e-07,
+                "rms": 0.01676780797248982
+              },
+              "separationDb": 83.87608332600439
+            }
+          }
+        ],
+        "admission": "blocked",
+        "pending": [
+          "Windows实机",
+          "三款插件完整主要功能矩阵",
+          "商店商品页安装",
+          "真实IPC负向矩阵",
+          "音画偏差测量",
+          "独立播放器人工播放、导航/关闭等生命周期",
+          "完整前置退出清单"
+        ],
+        "platform": "darwin",
+        "runtimeFailures": [
+          {
+            "name": "cookie 标准 action popup",
+            "status": "fail",
+            "error": "Error: Cookie-Editor新增操作未生效"
+          }
+        ],
+        "componentStatus": "fail"
+      },
+      "files": [
+        {
+          "name": "target-A.png",
+          "size": 31837,
+          "sha256": "fdeed136aa8d58575bcedc876129d01b9e2f7814da02ad33fbecfba04a085169"
+        },
+        {
+          "name": "edited-crop.png",
+          "size": 25264,
+          "sha256": "630d88f9ab5ffe8bbc9380492ade7d8d81fbd6cf1cf2e76207b822b07c99a5d4"
+        },
+        {
+          "name": "tab-audio.mp4",
+          "size": 1368524,
+          "sha256": "a5b388f205daf58dc0e218db946e836dfe8b2d5d62343d1e42ec4ad24b6ee7c1"
+        }
+      ]
+    },
+    {
+      "kind": "chrome",
+      "runId": "2026-11-09T11-07-23-950Z",
+      "versions": {
+        "protocolVersion": "1.3",
+        "product": "Chrome/157.0.8103.38",
+        "revision": "@a733b5afbb3ba618844ff8876b89ad1a774b2f18",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+        "jsVersion": "15.7.112.23"
+      },
+      "checks": [
+        {
+          "name": "Chrome加载 dark",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome加载 react",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome加载 cookie",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome加载 own-positive-crx2",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome React 渲染器检出",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome dark action popup",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome cookie action popup",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome react action popup",
+          "status": "pass",
+          "error": null
+        },
+        {
+          "name": "Chrome真实截图与Tab音频录制",
+          "status": "pass",
+          "error": null
+        }
+      ],
+      "verification": {
+        "directory": "tools/extension-preflight/out/.artifacts/2026-11-09T11-07-23-950Z",
+        "checks": [
+          {
+            "name": "PNG 文件有效",
+            "status": "pass",
+            "detail": {
+              "width": 1200,
+              "height": 1207
+            }
+          },
+          {
+            "name": "MP4含H264/AAC且时长排除暂停段",
+            "status": "pass",
+            "detail": {
+              "programs": [],
+              "stream_groups": [],
+              "streams": [
+                {
+                  "codec_name": "aac",
+                  "codec_type": "audio",
+                  "sample_rate": "44100"
+                },
+                {
+                  "codec_name": "h264",
+                  "codec_type": "video"
+                }
+              ],
+              "format": {
+                "duration": "61.051533"
+              }
+            }
+          },
+          {
+            "name": "音视频完整解码无错误",
+            "status": "pass",
+            "detail": {
+              "decoded": true
+            }
+          },
+          {
+            "name": "目标440Hz有声、另一Tab733Hz未混入",
+            "status": "pass",
+            "detail": {
+              "wanted": {
+                "magnitude": 0.008835205131382784,
+                "rms": 0.025000566665548885
+              },
+              "other": {
+                "magnitude": 6.615819266911136e-07,
+                "rms": 0.025000566665548885
+              },
+              "separationDb": 82.51264696567885
+            }
+          }
+        ],
+        "admission": "blocked",
+        "pending": [
+          "Windows实机",
+          "三款插件完整主要功能矩阵",
+          "商店商品页安装",
+          "真实IPC负向矩阵",
+          "音画偏差测量",
+          "60秒双端录制及生命周期",
+          "完整前置退出清单"
+        ],
+        "platform": "darwin",
+        "runtimeFailures": [],
+        "componentStatus": "pass-with-pending"
+      },
+      "files": [
+        {
+          "name": "msb-preflight-target.png",
+          "size": 35985,
+          "sha256": "3cba078064f2bbb9cc591a918705237f96ba6bca73649afbdaabafe5a87f25ba"
+        },
+        {
+          "name": "msb-preflight-tab-audio.mp4",
+          "size": 1269508,
+          "sha256": "d21c4566d6174fe2ced9a46f70be1d937f3808eb3cb9c513fc9509bd20bddbb7"
+        }
+      ]
+    }
+  ],
+  "quality": {
+    "at": "2026-11-09T19:13:13.872677+08:00",
+    "commands": [
+      {
+        "command": [
+          "npm",
+          "--prefix",
+          "tools/extension-preflight",
+          "run",
+          "check"
+        ],
+        "exitCode": 0,
+        "log": "npm---prefix-tools_extension-preflight-run-check.log"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "exitCode": 0,
+        "log": "npm-run-typecheck.log"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "lint"
+        ],
+        "exitCode": 0,
+        "log": "npm-run-lint.log"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "log": "npm-run-build.log"
+      }
+    ],
+    "syntax": [
+      {
+        "file": "tools/extension-preflight/run.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/samples.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/media.js",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/chrome-probe.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/contracts.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/verify.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/check.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/cdp.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/electron-main.cjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/crx.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/collector-preload.cjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/server.mjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/store-main.cjs",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/chrome-fixture/background.js",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/chrome-fixture/config.js",
+        "exitCode": 0,
+        "error": ""
+      },
+      {
+        "file": "tools/extension-preflight/chrome-fixture/offscreen.js",
+        "exitCode": 0,
+        "error": ""
+      }
+    ]
+  },
+  "manualSmoke": {
+    "port": 6176,
+    "userData": "/Users/pangzerui/foreunit/multi-session-browser-wt/feature-chrome-extension-preflight/tools/extension-preflight/out/smoke-profile",
+    "method": "CUA原生界面手动操作",
+    "passed": [
+      "新建两个会话",
+      "会话2切回会话1后测试页面仍在",
+      "截图显示已复制",
+      "编辑器完整工具栏加载",
+      "矩形标注使撤销可用",
+      "编辑器复制显示已复制",
+      "录屏启动、暂停、恢复、结束后原生提示保存路径"
+    ],
+    "notExecuted": [
+      "独立窗口回归",
+      "编辑器全部工具输出比对",
+      "独立播放器视听回放"
+    ],
+    "oldRecording": {
+      "file": "quality/old-recording-smoke.mp4",
+      "bytes": 222360,
+      "sha256": "ceb20a9354be954b375c10f97c3a06feba4ebadd3bd4ed89940e3692cc25cb9d"
+    }
+  }
+}

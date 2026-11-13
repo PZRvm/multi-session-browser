@@ -1,6 +1,6 @@
 {
   "name": "multi-session-browser",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": "example.com",
@@ -13,17 +13,22 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
+    "dev:agent": "electron-vite dev -- --agent-debug",
     "build": "npm run typecheck && electron-vite build",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win --x64",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "book:index": "node tools/gen-book-index.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "adm-zip": "0.5.16",
     "antd": "^6.6.3",
     "classic-level": "^3.0.0",
+    "electron-chrome-extensions": "4.10.0",
+    "electron-chrome-web-store": "0.13.0",
     "electron-updater": "^6.3.9",
     "konva": "^10.8.0",
     "react-konva": "19.2",
@@ -37,7 +42,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^39.2.6",
+    "electron": "45.3.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
@@ -49,5 +54,8 @@
     "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

@@ -1,0 +1,23 @@
+--- a/tools/extension-preflight/electron-main.cjs
++++ b/tools/extension-preflight/electron-main.cjs
+@@ -149,6 +149,9 @@
+     external: ['electron'],
+     outfile: preload
+   })
++  const compatibilityPreload = require.resolve('electron-chrome-extensions/preload')
++  const guardedPreload = join(output,'guarded-extension-preload.cjs')
++  await writeFile(guardedPreload, `if (process.type === 'service-worker' || process.isMainFrame) {\n${await readFile(compatibilityPreload,'utf8')}\n}`)
+   ElectronChromeExtensions.handleCRXProtocol(session.defaultSession)
+   const shell = join(output, 'shell.html')
+   await writeFile(
+@@ -185,6 +188,10 @@
+         )
+       }
+     })
++    for (const script of ses.getPreloadScripts().filter(s=>s.filePath===compatibilityPreload)) {
++      ses.unregisterPreloadScript(script.id)
++      ses.registerPreloadScript({id:script.id,type:script.type,filePath:guardedPreload})
++    }
+     engine.on('browser-action-popup-created', (popup) => {
+       currentPopup = popup
+     })

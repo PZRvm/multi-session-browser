@@ -1,0 +1,50 @@
+/* 插件编辑器主题：雾蓝对账（仅插件编辑器页生效，不改生产组件样式源）。
+   ============================================================
+   色值单源 = 主应用 src/shared/themeSystems.ts 雾蓝（mist）系，经生产注入链
+   themeCssVariables('mist', …) 的逐条映射对账（themeSystems.ts:334-370）：
+   chrome 表面族亮态 chromeToolbar #f1f3f4 / chromeLine #c7cbd1 / chromeTabbar
+   #dee1e6 / chromeTabSeparator #b8bcc1 / chromeSurface #ffffff / chromeOmniboxBg
+   #ffffff / chromeTabbarDragTarget #c4c7cc；暗态 chromeToolbar #292a2d /
+   chromeLine #3c4043 / chromeTabbar #202124 / chromeTabSeparator #3c4043 /
+   chromeSurface #202124 / chromeOmniboxBg #202124 / chromeTabbarDragTarget
+   #444548。
+   chrome 墨族与蒙版族（--chrome-ink/-ink-dim/-disabled/-error、各 veil）为主题
+   全局常量（themeSystems.ts:329-332 收录口径），app.css :root 已定义同值，不在此
+   重定义。编辑器按钮语言（透明底 28px 圆钮、灰阶蒙版 hover/focus、select-veil
+   选中）由生产 app.css 单源承载，插件不再覆写——与主应用雾蓝编辑窗完全一致。
+   本文件只做：① 把 mist chrome 表面族灌入本页（生产由 theme.ts 运行期注入，
+   插件页无注入链，:root 缺省是琥珀值）；② 画布溢出的安全居中。
+   改 themeSystems.ts 雾蓝值必改此处（逐值对账义务）。
+   ============================================================ */
+body.plugin-editor {
+  --chrome-toolbar: #f1f3f4;
+  --chrome-tab-active: #f1f3f4;
+  --chrome-line: #c7cbd1;
+  --chrome-tabbar: #dee1e6;
+  --chrome-tab-separator: #b8bcc1;
+  --chrome-surface: #ffffff;
+  --chrome-omnibox-bg: #ffffff;
+  --chrome-tabbar-drag-target: #c4c7cc;
+  /* 生产 body[data-role='capture-editor'] 同款：纸面底 + 墨色 */
+  background: var(--chrome-toolbar);
+  color: var(--chrome-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  body.plugin-editor {
+    --chrome-toolbar: #292a2d;
+    --chrome-tab-active: #292a2d;
+    --chrome-line: #3c4043;
+    --chrome-tabbar: #202124;
+    --chrome-tab-separator: #3c4043;
+    --chrome-surface: #202124;
+    --chrome-omnibox-bg: #202124;
+    --chrome-tabbar-drag-target: #444548;
+  }
+}
+
+/* 放大时由滚动条承接，避免 flex 居中把画布左上角推到不可滚达的负坐标。 */
+body.plugin-editor .chrome-capture-editor-canvas {
+  align-items: safe center;
+  justify-content: safe center;
+}

@@ -18,6 +18,8 @@ import type { CaptureState } from '../../../shared/capture'
  * getState 推送时剥离该字段（共享契约不含）；elapsedMs 收到含该字段的状态时会把
  * 未结算暂停段一并扣除（主进程内部与 renderer 共用同一纯函数得到同源口径）。
  */
+type RecordingStatus = CaptureState['status'] | 'finalizing'
+
 export interface RecordingInternalState extends CaptureState {
   /** 仅 paused 态存在：当前暂停段起点（ms） */
   pauseStartedAt?: number
@@ -33,8 +35,10 @@ export interface RecordingStateMachine {
   pause(now: number): CaptureState
   /** paused → recording（pausedAccumMs 累加已结算暂停段；其余状态非法） */
   resume(now: number): CaptureState
-  /** recording/paused → idle：清全部字段，返回停止前的终态（含内部字段）供 finalize */
+  /** recording/paused → finalizing：返回停止前的终态（含内部字段）供落盘；收尾窗口内 begin 抛 busy（协议v1 finalizing 语义） */
   stop(): CaptureState
+  /** finalizing → idle（落盘收尾完成后调用；生命周期钩子兜底用 reset） */
+  finalize(): void
   /** 强制回 idle（生命周期钩子兜底，不校验当前状态） */
   reset(): void
 }
@@ -90,10 +94,16 @@ export function createRecordingStateMachine(): RecordingStateMachine {
     },
 
     stop() {
-      if (current.status === 'idle') throw new Error(illegalMessage('stop', current.status))
+      if (current.status === 'idle' || current.status === 'finalizing') {
+        throw new Error(illegalMessage('stop', current.status))
+      }
       const before = current
-      current = { status: 'idle' }
+      current = { ...before, status: 'finalizing' as RecordingStatus }
       return before
+    },
+
+    finalize() {
+      current = { status: 'idle' }
     },
 
     reset() {

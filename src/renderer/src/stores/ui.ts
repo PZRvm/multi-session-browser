@@ -9,7 +9,9 @@ import { create } from 'zustand'
 // 整体迁主进程原生 Menu.popup（OS 级绘制盖过页面原生层、点任意位置含页面区关闭，
 // 见 main/sessions.ts），renderer 登记面随之清零；地址栏建议面板曾登记于此——原
 // 生子窗口化专项起改由主进程原生子窗口承载，面板打开期间页面保持可见，不再登记；
-// WorkspaceSwitcher 的重命名弹层同日起迁主进程原生模态框，同样不再登记）。
+// WorkspaceSwitcher 的重命名弹层同日起迁主进程原生模态框，同样不再登记；扩展面板
+//（拼图菜单）2026-11-11 起迁原生子窗（白屏根除专项，extensions/panel.ts 子窗池），
+// 面板打开期间页面保持可见，不再登记）。
 // 两个消费语义：
 // 1. BrowserFrame 据此暂停内容锚点上报（主进程按零矩形收起 WebContentsView，防弹层被原生层遮挡）；
 // 2. useBrowserShortcuts 据此冻结浏览器快捷键（原生层已隐藏，快捷键不应盲操作不可见的浏览器）。

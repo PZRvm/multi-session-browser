@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "多会话录屏",
+  "version": "0.1.1",
+  "description": "录制当前标签页画面与音频（独立 audio 开关），产物为 MP4",
+  "permissions": ["activeTab", "tabCapture", "offscreen", "storage", "downloads"],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "多会话录屏",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/action-16.png", "32": "icons/action-32.png" }
+  },
+  "background": { "service_worker": "background.js" }
+}

@@ -16,11 +16,13 @@ import { basename, join } from 'path'
 import { WINDOW_ID_MAIN, type BrowserSnapshot, type SetBoundsPayload } from '../../shared/browser'
 import {
   SESSION_ID_RE,
+  WORKSPACE_VIEW_ALL,
+  WORKSPACE_VIEW_UNGROUPED,
   type SessionStatus,
   type SessionStatusesPayload,
   type SessionsSnapshot
 } from '../../shared/sessions'
-import { loadSnapshot } from '../store'
+import { loadSnapshot, mutateSnapshot } from '../store'
 import { t } from '../i18n'
 import {
   BLANK_URL,
@@ -138,6 +140,8 @@ export interface SessionBrowserRegistry extends TabManager {
     targetWindowId: string,
     insertIndex?: number
   ): void
+  /** 将本独立窗全部 Tab 合回主窗；保存激活偏好后同步迁移，失败不关闭源窗。 */
+  mergeWindowToMain(windowId: string): Promise<void>
   /** 当前激活会话 id（拖拽命中主窗口的判据：主窗激活会话 = 拖拽会话，PRD 3.6.2） */
   getActiveSessionId(): string | null
   /**
@@ -214,6 +218,12 @@ export function createSessionBrowserRegistry(deps: {
   getWindow: (windowId: string) => BrowserWindow | null
   /** 独立窗口登记表（index.ts 注入）：tear-off 建窗、空窗收口与作用域解析经此触达 */
   windows: IndependentWindows
+  /** 首个网页创建前加载该分区插件；每次激活可补偿上次挂载失败。 */
+  prepareExtensions?: (partition: string, target: Electron.Session) => Promise<unknown>
+  /** 主窗缺席时重建，返回存活实例；不新建 registry 或会话 manager。 */
+  ensureMainWindow: () => BrowserWindow
+  /** 合并激活元数据保存后，通知主窗口会话列表镜像。 */
+  onMergeSessionsChanged: (snapshot: SessionsSnapshot) => void
   /** 当前主页（空串 = 未设置）现取：index.ts 注入 settings 域同步缓存——newUserTab 的默认地址源（PRD 3.8.2 修订） */
   getHomepageUrl: () => string
   /** WebContentsView 兜底底色现取（chrome surface 族随亮暗，单源 shared/browser.ts）：index.ts 注入外观快照派生——ensureManager 透传 createTabManager */
@@ -650,6 +660,14 @@ export function createSessionBrowserRegistry(deps: {
     } catch (error) {
       // 读盘/应用失败如实告警后继续激活：代理缺失不应冻结会话切换（下次切换幂等补应用）
       console.warn(`[registry] 会话 ${id} 激活前应用代理失败（按既有配置继续激活）:`, error)
+    }
+    if (alive && generation === switchGeneration && !cloningIds.has(id) && !importingIds.has(id)) {
+      try {
+        const partition = partitionFor(id)
+        await deps.prepareExtensions?.(partition, session.fromPartition(partition))
+      } catch (error) {
+        console.warn(`[registry] 会话 ${id} 插件挂载失败:`, error)
+      }
     }
     if (generation !== switchGeneration) return // await 期间已有更新的切换/清空发起
     if (!alive) return // await 期间会话已被删除（删除链自带切换/空态收口，此处不复活）
@@ -1114,6 +1132,65 @@ export function createSessionBrowserRegistry(deps: {
     emitLifecycle('tab-moved', sessionId, id, sourceWindowId)
   }
 
+  async function mergeWindowToMain(windowId: string): Promise<void> {
+    const sessionId = windows.getSessionId(windowId)
+    const manager = sessionId === null ? undefined : managers.get(sessionId)
+    const requireSource = (): void => {
+      if (!sessionId || !manager || managers.get(sessionId) !== manager) {
+        throw new Error(t('errors.sessionUnavailable'))
+      }
+      if (!windows.getWindowById(windowId) || windows.getSessionId(windowId) !== sessionId) {
+        throw new Error(t('errors.unknownCommandSource'))
+      }
+      if (cloningIds.has(sessionId) || importingIds.has(sessionId)) {
+        throw new Error(t('errors.sessionBusy'))
+      }
+      if (manager.getSnapshot(windowId).tabs.length === 0) {
+        throw new Error(t('errors.tabNotFound'))
+      }
+    }
+    requireSource()
+    // 保存先于页面迁移：磁盘失败时源窗与页面完全保留。工作区视野同步切到可见归属。
+    const stored = await mutateSnapshot((snapshot) => {
+      requireSource()
+      const item = snapshot.sessions.find((entry) => entry.id === sessionId)
+      if (!item) throw new Error(t('errors.sessionNotFound'))
+      snapshot.activeId = item.id
+      const view = snapshot.activeWorkspaceId
+      const workspaceId = item.workspaceId ?? WORKSPACE_VIEW_UNGROUPED
+      if (view !== WORKSPACE_VIEW_ALL && view !== workspaceId) {
+        snapshot.activeWorkspaceId = workspaceId
+      }
+      const workspace = snapshot.workspaces.find((entry) => entry.id === item.workspaceId)
+      if (workspace) workspace.lastActiveSessionId = item.id
+      return snapshot
+    })
+    // 保存期用户可能关闭源窗；已保存的激活事实仍同步，但不复活被关窗口或会话。
+    if (!sessionId || !manager || managers.get(sessionId) !== manager) return
+    const main = deps.ensureMainWindow()
+    deps.onMergeSessionsChanged(stored)
+    // 目标会话已有活 manager，代理早已应用；直接提交切换并作废更旧的异步激活链。
+    switchGeneration += 1
+    initHandled = true
+    commitSwitch(sessionId)
+    if (!windows.getWindowById(windowId)) return
+    requireSource()
+    if (main.isDestroyed()) throw new Error(t('errors.unknownCommandSource'))
+    const source = manager.getSnapshot(windowId)
+    const previousMainTabId = manager.getSnapshot(WINDOW_ID_MAIN).activeTabId
+    manager.mergeAllTabsToMain(windowId)
+    for (const tab of source.tabs) emitLifecycle('tab-moved', sessionId, tab.id, windowId)
+    const nextMainTabId = manager.getSnapshot(WINDOW_ID_MAIN).activeTabId
+    if (nextMainTabId !== null && nextMainTabId !== previousMainTabId) {
+      emitLifecycle('tab-switched', sessionId, nextMainTabId, WINDOW_ID_MAIN)
+    }
+    // 源窗已由空快照收口关闭；不主动 close 一个仍持有 Tab 的窗口。
+    if (main.isMinimized()) main.restore()
+    main.show()
+    main.focus()
+    manager.getActiveWebContents(WINDOW_ID_MAIN)?.focus()
+  }
+
   function getActiveSessionId(): string | null {
     return activeSessionId
   }
@@ -1205,6 +1282,7 @@ export function createSessionBrowserRegistry(deps: {
     closeTab,
     tearOffTab,
     moveTabToWindow,
+    mergeWindowToMain,
     getActiveSessionId,
     getRestoreSet,
     resolveSenderScope,

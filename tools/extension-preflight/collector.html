@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><title>受控采集器</title>
+  <body>
+    <p>受控采集器</p>
+    <script src="media.js"></script>
+    <script>
+      window.recordTarget = async function (duration = 12000, pauseAt = 4000, pauseFor = 3000) {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 15 } },
+            audio: true
+          })
+          const { blob, info } = await window.preflightRecord(stream, duration, pauseAt, pauseFor)
+          return await window.preflightCollector.complete({
+            ok: true,
+            ...info,
+            bytes: Array.from(new Uint8Array(await blob.arrayBuffer()))
+          })
+        } catch (error) {
+          return await window.preflightCollector.complete({ ok: false, error: String(error) })
+        }
+      }
+    </script>
+  </body>
+</html>

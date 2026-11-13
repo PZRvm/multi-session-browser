@@ -1,0 +1,27 @@
+---
+description: "移动到工作区原生模态框专项"
+migrated_from: "notes/steps/feature-移动到工作区原生模态框.md"
+record: legacy
+---
+
+# 移动到工作区原生模态框专项
+
+把「移动到工作区」的目标选择弹层从渲染层 Modal 迁到主进程模态子窗口（macOS 原生 sheet）。现状：单条（会话行菜单）与批量（板脚操作栏）两处移动弹层均为 antd Modal——弹层开启经 openOverlay/closeOverlay 悬挂登记隐藏右区页面视图（WebContentsView），与删除会话确认框迁移前同病：弹框存续期间浏览器区整片不可见（2026-09-21 用户反馈，用户裁决：移动到工作区模态框改用 macOS 原生模态框）。当时（删除会话原生确认框专项 2026-09-18）把本弹层划为范围外的理由是「showMessageBox 无输入/选择能力」，但移动到工作区是**选择类**而非输入类——`dialog.showMessageBox` 以按钮承载选项在工作区数量上不可扩展（数量无上限、批量移动还需每项计数徽标），故承载形态采用模态子窗口：`BrowserWindow` 以主窗为 parent 且 `modal: true`，macOS 呈原生 sheet（窗口模态、挂主窗顶部滑出），Windows/Linux 呈系统框模态对话框。
+
+- 承载与模态定稿：模态由窗口系统承担——sheet 为窗口模态，存续期间天然阻塞主窗输入，不经 overlay 悬挂登记收起页面视图；弹框期间右侧浏览器页面保持可见且内容原样（PRD 4.10/4.11 同款硬约束，浏览器区变白即事故）。每次请求新建 sheet（低频操作不做窗口复用池，与地址栏建议子窗的懒建复用池场景不同），关闭即销毁
+- 交互定稿：入口不变——行菜单「移动到工作区」/批量板脚「移动到工作区」；单条入口列目标工作区（排除当前归属）+「移出（未分组）」（仅已分组时显示）+ 无可选目标空态句；批量入口列**全部**工作区（混合归属不排除，移动是幂等赋值）+ 行右端「n / N 在此」计数徽标 +「移出（未分组）」（勾选中存在非未分组归属时显示）；点击行即选择生效、sheet 关闭；Esc/关闭弹框 = 取消，零副作用；渲染层两处 antd Modal 与其 overlay 登记退役
+- 载荷与数据单源：renderer invoke 只带数据参数（kind + sessionId / 勾选 ids），工作区列表、当前归属、计数徽标等展示数据由主进程从**权威快照现取组装**（跨 IPC 载荷不可信任口径 + 免去渲染层透传）；文案由 sheet 页面经 i18n 字典随界面语言（建窗 query lang 首帧注入，键复用 `sessions.moveModal.*` 既有键，i18n 零新增）；建窗 query 带 role/sys/lang（设置窗先例）
+- 确参与执行解耦（删除确认框先例）：模态框只返回选择结果（目标工作区 id / 移出未分组 null / 取消），移动执行仍由既有 `workspaces:move-session` / `workspaces:move-sessions-batch` 通道闭环，主进程模态框模块不落盘、不触碰会话快照与分区
+- 行为偏离声明（对齐删除确认框「一次性弹框」裁决口径）：批量移动执行失败时**不再保持弹层开启供重试**（原渲染层版语义）——sheet 已关闭，失败按既有失败反馈惯例在板脚呈现 danger 反馈条，可从入口再次发起
+- 样式口径：sheet 内容按板面语系渲染选项行（抬升层底 + 发丝线 + 无阴影，对齐 ws-panel 弹层语言）；亮暗随应用当前主题（nativeTheme 同步链路 + 建窗 backgroundColor/sys 注入）；视觉细节（尺寸、行高、随行数的确定性高度与封顶内滚策略、darwin 无框形态 vs win/linux 系统框）在实现阶段经 impeccable 定稿并落 DESIGN.md
+- 契约方向（详细通道与校验在开发计划定稿）：dialog 域扩展——打开 sheet 的 invoke（renderer 触发）+ sheet 页面取载荷与提交选择的 invoke（sheet → 主进程），主进程持单请求 pending 态（模态期主窗输入被阻塞，天然单飞，防御性拒绝二次请求）；sheet 以第五角色 `?role=workspace-picker` 分流（设置窗/建议子窗同款惰性 chunk 模式）
+- 范围外：打开测试地址（输入类，维持渲染层 Modal + overlay）、工作区重命名弹层（输入类，同）、批量移动失败反馈条的形态重构、行菜单本体原生化
+- 平台差异：macOS sheet 窗口模态随应用主题；Windows/Linux 模态对话框为系统框窗口（平台约束，验收如实记录）
+- 本期不做：sheet 内键盘 ↑↓ 导航与 Enter 快选（点击与 Esc 已覆盖主路径，留后续按需增补）、自绘悬浮层模拟 sheet、窗口位置记忆
+
+## 增量：反馈修复轮（2026-09-21 用户反馈）
+
+- 放大疏朗：300 宽/32 行高 → **360 宽/40 行高**、body 内距 16/18、标题 14px、滚动条 8px 主题化（度量常量单源 shared/dialog.ts 四处对账同步）
+- 当前行不再隐藏：单条场景列全部工作区，当前归属行「当前所在」tile-ink 徽标 + 禁用态（aria-current，不参与点选/聚焦/hover）——位置指示而非可选目标（WorkspacePickerOption.current 契约增量）
+- 焦点语言修正：程序化聚焦首行使全局琥珀 focus ring 被列表滚动容器裁剪成「底部一条线」（用户裁决丑，截图实证）→ 行内 outline 归零、键盘焦点 = veil 底（与切换框键盘高亮同族）
+- i18n：唯一新增键 `sessions.moveModal.currentTag`（zh 当前所在 / en Current / zh-TW 當前所在），其余仍复用

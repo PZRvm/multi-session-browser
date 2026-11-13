@@ -31,14 +31,14 @@ export const CAPTURE_CHANNELS = {
    *  镜像比对后收起——不匹配即忽略，防迟到 dismiss 收起新一轮反馈条） */
   dismissRequest: 'capture:dismiss-request',
   // ===== 截图编辑器（2026-10-14 增量，调研报告 notes/think-report/20261014130059 定稿） =====
-  /** 宿主 shell → 主进程：打开/聚焦截图编辑子窗（单例，settings 窗先例；反馈条
+  /** 宿主 shell → 主进程：打开/聚焦截图编辑子窗（按原始截图身份复用；反馈条
    *  「编辑」钮经 feedback-action 的 edit 动作触达，主进程直接开窗不经宿主回程） */
   openEditor: 'capture:open-editor',
-  /** 编辑子窗 → 主进程：取单槽截图（返回 CaptureEditImagePayload；空槽中文报错） */
+  /** 编辑子窗 → 主进程：按 sender 取本窗快照（返回 CaptureEditImagePayload） */
   getEditImage: 'capture:get-edit-image',
-  /** 编辑子窗 → 主进程：编辑成品写系统剪贴板并回写单槽（captureId 对账） */
+  /** 编辑子窗 → 主进程：编辑成品写系统剪贴板并更新本窗版本（最近槽条件回写） */
   editCopy: 'capture:edit-copy',
-  /** 编辑子窗 → 主进程：编辑成品落系统下载目录并回写单槽（对账；返回落盘路径，
+  /** 编辑子窗 → 主进程：编辑成品落系统下载目录并更新本窗版本（最近槽条件回写；返回落盘路径，
    *  命名复用 save-last 同链——会话名锚定/时间戳/同名序号） */
   editDownload: 'capture:edit-download',
   // ===== 录屏面 =====
@@ -59,7 +59,7 @@ export const CAPTURE_CHANNELS = {
 export const CAPTURE_FEEDBACK_WINDOW_ROLE = 'capture-feedback'
 
 /** 截图编辑子窗角色（建窗 query role，main.tsx 第七角色分流；独立 BrowserWindow，
- *  settings 窗单例先例——懒建/focus 复用/closed 自清） */
+ *  每张原始截图一窗——同图还原聚焦/异图新开/closed 自清） */
 export const CAPTURE_EDITOR_WINDOW_ROLE = 'capture-editor'
 
 /** 悬浮反馈条度量常量（与 app.css .chrome-capturebar 系同源配对，改一处必改另一处）：
@@ -110,7 +110,7 @@ export type CaptureFeedbackActionPayload =
   | ({ action: 'dismiss' } & CaptureDismissRequestPayload)
   | { action: 'edit' }
 
-/** get-edit-image 返回（主进程 → 编辑子窗）：dataUrl 为单槽 PNG 的 data URL，
+/** get-edit-image 返回（主进程 → 编辑子窗）：dataUrl 为本窗绑定 PNG 的 data URL，
  *  width/height 为原图像像素尺寸（编辑窗显示缩放与导出 pixelRatio 换算的基准——
  *  显示层缩放不缩放标注语义，标注统一存图像坐标） */
 export interface CaptureEditImagePayload {
@@ -122,7 +122,7 @@ export interface CaptureEditImagePayload {
 
 /** edit-copy / edit-download 入参（编辑子窗 → 主进程）：dataUrl 为编辑成品 PNG 的
  *  data URL（主进程守卫前缀与长度上限，防任意巨串）；captureId 为编辑窗取图时获得
- *  的标识——对账失败（编辑期间又截图覆盖单槽）如实报「截图已过期」 */
+ *  的本窗图像版本——与 sender 所属快照不匹配时如实报「截图已过期」 */
 export interface CaptureEditApplyPayload {
   captureId: string
   dataUrl: string
@@ -146,7 +146,7 @@ export interface CaptureSaveResult {
 // ===== 录屏面类型 =====
 
 /** 录制状态机（主进程单源裁决；renderer 纯镜像） */
-export type CaptureStatus = 'idle' | 'recording' | 'paused'
+export type CaptureStatus = 'idle' | 'recording' | 'paused' | 'finalizing'
 
 /** begin 载荷：目标 = 当前激活会话的当前激活 Tab（renderer 不自报 id，主进程现取权威值核验一致——
  *  sessionId 按 resolveSenderScope、tabId 按发起窗快照 activeTabId，不一致即拒） */

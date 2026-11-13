@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "existing editor switches to English",
+    "existing editor follows dark appearance",
+    "independent browser window created for scoped capture",
+    "independent window screenshot opens separate editor",
+    "different size screenshot has its own editor geometry",
+    "rectangle makes undo available only in its own editor",
+    "undo enables redo in same window",
+    "crop export keeps G unchanged and updates only D",
+    "repeated close/reopen leaves one editor per screenshot"
+  ]
+}

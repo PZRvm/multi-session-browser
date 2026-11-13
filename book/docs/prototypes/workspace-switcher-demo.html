@@ -1,0 +1,2408 @@
+<!DOCTYPE html>
+<!-- 工作区概念演示（方案 B：板头工作区切换器，下拉框形态）——impeccable 扩展路径产物：
+     沿用「到发信息板」既有视觉世界（token 逐值取自 src/renderer/src/assets/app.css），
+     唯一新设计物为板头下「工作区下拉框」（可输入过滤的 combobox）。概念演示用途，
+     非生产表面；立项时走完整 impeccable 流程并修订 DESIGN.md / PRD。 -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工作区概念演示 · 多会话测试浏览器</title>
+<style>
+/* ---------- 语义 token（逐值同源 app.css） ---------- */
+:root {
+  --board-bg: #f6f4ee;
+  --board-bg-raised: #ede9df;
+  --board-hairline: #d8d2c5;
+  --board-tile: #ede9df;
+  --board-tile-line: #d8d2c5;
+  --board-tile-ink: #9a5f00;
+  --board-tile-seam: rgba(34, 26, 0, 0.2);
+  --board-scrollbar-thumb: #c9c1b2;
+  --board-scrollbar-hover: #bcb4a6;
+  --board-ink: #1e2329;
+  --board-ink-dim: #616974;
+  --board-hover-veil: rgba(30, 35, 41, 0.08);
+  --board-control-line: #bcb4a6;
+  --panel-divider: #c7c1b5;
+  --amber: #ffb000;
+  --amber-strong: #ffc133;
+  --amber-press: #e6a000;
+  --amber-ink: #221a00;
+  --amber-veil: rgba(34, 26, 0, 0.12);
+  --idle: #6b7280;
+  --loading: #9a5f00;
+  --danger: #d4380d;
+  --chrome-tabbar: #dee1e6;
+  --chrome-toolbar: #f1f3f4;
+  --chrome-line: #c7cbd1;
+  --chrome-ink: #3c4043;
+  --chrome-ink-dim: #5f6368;
+  --chrome-disabled: #b0b4b9;
+  --chrome-surface: #ffffff;
+  --chrome-tab-active: #ffffff;
+  --chrome-omnibox-bg: #ffffff;
+  --chrome-hover-veil: rgba(60, 64, 67, 0.08);
+  --chrome-active-veil: rgba(60, 64, 67, 0.1);
+  --chrome-pressed-veil: rgba(60, 64, 67, 0.12);
+  --mask: rgba(0, 0, 0, 0.45);
+}
+html[data-theme='dark'] {
+  --board-bg: #101418;
+  --board-bg-raised: #1a2026;
+  --board-hairline: #232830;
+  --board-tile: #1a2026;
+  --board-tile-line: #2a313a;
+  --board-tile-ink: #ffb000;
+  --board-tile-seam: rgba(0, 0, 0, 0.45);
+  --board-scrollbar-thumb: #2a313a;
+  --board-scrollbar-hover: #3a434e;
+  --board-ink: #f5f0e8;
+  --board-ink-dim: #9aa3ad;
+  --board-hover-veil: rgba(255, 255, 255, 0.08);
+  --board-control-line: #3a434e;
+  --panel-divider: #0b0e11;
+  --loading: #ffb000;
+  --danger: #ff7875;
+  --chrome-tabbar: #202124;
+  --chrome-toolbar: #292a2d;
+  --chrome-line: #3c4043;
+  --chrome-ink: #e8eaed;
+  --chrome-ink-dim: #bdc1c6;
+  --chrome-disabled: #5f6368;
+  --chrome-surface: #202124;
+  --chrome-tab-active: #292a2d;
+  --chrome-omnibox-bg: #202124;
+  --chrome-hover-veil: rgba(232, 234, 237, 0.08);
+  --chrome-active-veil: rgba(232, 234, 237, 0.1);
+  --chrome-pressed-veil: rgba(232, 234, 237, 0.14);
+  --mask: rgba(0, 0, 0, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  overflow: hidden;
+}
+button {
+  font-family: inherit;
+}
+::selection {
+  background: var(--amber-veil);
+}
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+.icon {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  display: inline-block;
+  vertical-align: -0.125em;
+  flex: none;
+}
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 演示窗体外壳 ---------- */
+.demo-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 720px;
+}
+.demo-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--board-hairline);
+  user-select: none;
+}
+.demo-lights {
+  display: inline-flex;
+  gap: 8px;
+  flex: none;
+}
+.demo-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.demo-lights i:nth-child(1) {
+  background: #ff5f57;
+}
+.demo-lights i:nth-child(2) {
+  background: #febc2e;
+}
+.demo-lights i:nth-child(3) {
+  background: #28c840;
+}
+.demo-titlebar-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.demo-hint {
+  margin-left: auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 布局骨架（同源 app.css） ---------- */
+.app-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.panel-left {
+  flex: none;
+  min-width: 220px;
+  max-width: 420px;
+}
+.panel-right {
+  flex: 1;
+  min-width: 0;
+}
+.panel-divider {
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 10;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+.panel-divider::before {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 100%;
+  margin-left: 2px;
+  background: var(--panel-divider);
+}
+.panel-divider:hover::before,
+body.col-resizing .panel-divider::before {
+  width: 2px;
+  background: var(--amber);
+}
+body.col-resizing {
+  cursor: col-resize;
+}
+
+/* ---------- 翻牌计数砖（同源 app.css） ---------- */
+.flap-counter {
+  display: inline-flex;
+  gap: 3px;
+}
+.flap-tile {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 30px;
+  background: var(--board-tile);
+  border: 1px solid var(--board-tile-line);
+  border-radius: 4px;
+  perspective: 120px;
+  overflow: hidden;
+}
+.flap-tile::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--board-tile-seam);
+  z-index: 1;
+}
+.flap-digit {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--board-tile-ink);
+  line-height: 1;
+}
+.flap-flip {
+  animation: flap-turn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes flap-turn {
+  0% {
+    transform: rotateX(-84deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+
+/* ---------- 左侧：会话信息板 ---------- */
+.session-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--board-bg);
+}
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--board-hairline);
+}
+.board-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--board-ink);
+}
+.board-title-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.board-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.appearance-toggle,
+.batch-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.appearance-toggle:not(:disabled):hover,
+.batch-toggle:not(:disabled):hover {
+  background: var(--board-bg-raised);
+}
+.batch-toggle.active {
+  background: var(--amber);
+  color: var(--amber-ink);
+}
+.board-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.board-count-label {
+  font-size: 11px;
+  color: var(--board-ink-dim);
+}
+
+/* ---------- 工作区条（本演示唯一新设计物）：组合框 + 新建钮 ---------- */
+.workspace-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--board-hairline);
+}
+.ws-combobox {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+.ws-combobox:hover,
+.ws-combobox.open {
+  border-color: var(--board-ink-dim);
+}
+.ws-combobox.open {
+  background: var(--board-bg-raised);
+}
+.ws-combobox-label {
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-combobox-caret {
+  flex: none;
+  display: inline-flex;
+  font-size: 10px;
+  color: var(--board-ink-dim);
+  transition: transform 0.12s ease;
+}
+.ws-combobox.open .ws-combobox-caret {
+  transform: rotate(180deg);
+}
+.ws-add {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.ws-add:hover {
+  border-color: var(--board-ink-dim);
+  color: var(--board-ink);
+}
+/* 下拉面板：板面语系（raised 底 + 发丝线 + 无阴影），顶部过滤输入 + 选项列表 */
+.ws-panel {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+}
+.ws-search-host {
+  position: relative;
+  flex: none;
+  padding: 6px 6px 4px;
+}
+.ws-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 19px;
+  display: inline-flex;
+  font-size: 11px;
+  color: var(--board-ink-dim);
+  pointer-events: none;
+}
+.ws-search {
+  width: 100%;
+  height: 26px;
+  padding: 0 8px 0 26px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+.ws-search::placeholder {
+  color: var(--board-ink-dim);
+  opacity: 0.75;
+}
+.ws-search:focus {
+  outline: none;
+  border-color: var(--board-ink-dim);
+}
+.ws-options {
+  max-height: 224px;
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+.ws-options::-webkit-scrollbar {
+  width: 8px;
+}
+.ws-options::-webkit-scrollbar-thumb {
+  background: var(--board-scrollbar-thumb);
+  border-radius: 4px;
+}
+.ws-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ws-option:hover,
+.ws-option.active {
+  background: var(--board-hover-veil);
+}
+.ws-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-option.current {
+  font-weight: 600;
+}
+.ws-option-check {
+  flex: none;
+  display: none;
+  font-size: 11px;
+  color: var(--board-tile-ink);
+}
+.ws-option.current .ws-option-check {
+  display: inline-flex;
+}
+.ws-option-empty {
+  padding: 10px 10px 12px;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+}
+.ws-option-create {
+  color: var(--board-ink);
+}
+.ws-option-create .ws-create-icon {
+  flex: none;
+  display: inline-flex;
+  font-size: 10px;
+  color: var(--board-tile-ink);
+}
+
+/* ---------- 会话列表（同源 app.css） ---------- */
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.session-list::-webkit-scrollbar {
+  width: 8px;
+}
+.session-list::-webkit-scrollbar-thumb {
+  background: var(--board-scrollbar-thumb);
+  border-radius: 4px;
+}
+.session-list::-webkit-scrollbar-thumb:hover {
+  background: var(--board-scrollbar-hover);
+}
+.session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.session-row {
+  position: relative;
+  padding: 10px 12px 9px 14px;
+  border-bottom: 1px solid var(--board-hairline);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.session-row:hover {
+  background: var(--board-bg-raised);
+}
+.session-row.selected {
+  background: var(--amber);
+}
+.session-row.batch-checked {
+  background: var(--board-bg-raised);
+}
+.session-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.session-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.session-dot.idle {
+  background: var(--idle);
+}
+.session-dot.loading {
+  background: var(--loading);
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.session-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--board-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-page {
+  margin-left: auto;
+  flex: none;
+  max-width: 45%;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  padding-left: 15px;
+  min-width: 0;
+}
+.session-note {
+  font-size: 12px;
+  color: var(--board-ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-status {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--board-ink-dim);
+}
+.session-status.loading {
+  color: var(--loading);
+}
+.session-menu {
+  flex: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+.session-row:hover .session-menu,
+.session-row.selected .session-menu {
+  display: inline-flex;
+}
+.session-menu:hover {
+  background: var(--board-hover-veil);
+  color: var(--board-ink);
+}
+.session-rename {
+  min-width: 0;
+  flex: 1;
+  height: 22px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.session-row.selected .session-rename {
+  color: var(--amber-ink);
+}
+.session-rename:focus {
+  outline: none;
+  background: var(--board-hover-veil);
+}
+.session-row.selected .session-rename:focus {
+  background: var(--amber-veil);
+}
+.session-row.selected .session-name,
+.session-row.selected .session-note,
+.session-row.selected .session-page {
+  color: var(--amber-ink);
+}
+.session-row.selected .session-note,
+.session-row.selected .session-page {
+  opacity: 0.72;
+}
+.session-row.selected .session-status {
+  color: var(--amber-ink);
+}
+.session-row.selected .session-dot.idle {
+  background: var(--amber-ink);
+}
+.session-row.selected .session-menu {
+  color: var(--amber-ink);
+}
+.session-row.selected .session-menu:hover {
+  background: var(--amber-veil);
+}
+.ws-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--board-tile-line);
+  border-radius: 3px;
+  background: var(--board-tile);
+  color: var(--board-ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.session-row.selected .ws-tag {
+  background: transparent;
+  border-color: transparent;
+  color: var(--amber-ink);
+  opacity: 0.72;
+}
+.session-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+.session-check input {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.session-check .box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--amber-ink);
+  font-size: 10px;
+  pointer-events: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.session-check input:checked + .box {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.session-check input:focus-visible + .box {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+.list-empty {
+  padding: 28px 16px;
+  text-align: center;
+}
+.list-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+.list-empty-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+}
+
+/* ---------- 板脚（同源 app.css） ---------- */
+.board-foot {
+  flex: none;
+  padding: 12px;
+  border-top: 1px solid var(--board-hairline);
+}
+.new-session {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  border: none;
+  border-radius: 6px;
+  background: var(--amber);
+  color: var(--amber-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.new-session:hover {
+  background: var(--amber-strong);
+}
+.new-session:active {
+  background: var(--amber-press);
+}
+.new-session:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.batch-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.batch-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.batch-bar-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.batch-count {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--board-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.batch-select-all {
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 6px;
+  height: 20px;
+  font-size: 12px;
+  color: var(--board-ink);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.batch-select-all:hover {
+  background: var(--board-bg-raised);
+}
+.batch-close-all {
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 6px;
+  height: 20px;
+  font-size: 12px;
+  color: var(--danger);
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.batch-close-all:hover {
+  background: var(--board-hover-veil);
+}
+
+/* ---------- 右侧：Chrome 浏览器框架（同源 app.css） ---------- */
+.browser-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--chrome-surface);
+}
+.chrome-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+  padding: 6px 10px 0;
+  background: var(--chrome-tabbar);
+}
+.chrome-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  min-width: 0;
+  max-width: 220px;
+  cursor: pointer;
+  user-select: none;
+}
+.chrome-tab.active {
+  background: var(--chrome-tab-active);
+}
+.chrome-tab:not(.active):hover {
+  background: var(--chrome-hover-veil);
+}
+.chrome-tab:focus-visible {
+  outline: none;
+  background: var(--chrome-hover-veil);
+}
+.chrome-tab.active:focus-visible {
+  outline: none;
+}
+.chrome-tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--chrome-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chrome-tab-favicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+.chrome-tab-favicon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chrome-disabled);
+}
+.chrome-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+.chrome-tab:hover .chrome-tab-close,
+.chrome-tab-close:focus-visible {
+  opacity: 1;
+}
+.chrome-tab-close:focus-visible {
+  outline: none;
+}
+.chrome-tab-close:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-tab-close:disabled {
+  cursor: not-allowed;
+}
+.chrome-tab:hover .chrome-tab-close:disabled {
+  opacity: 0.4;
+}
+.chrome-newtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 3px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.chrome-newtab:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-newtab:focus-visible {
+  outline: none;
+  background: var(--chrome-pressed-veil);
+}
+.chrome-newtab:disabled {
+  color: var(--chrome-disabled);
+  cursor: not-allowed;
+}
+.chrome-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+}
+.chrome-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.chrome-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--chrome-disabled);
+  font-size: 16px;
+  cursor: not-allowed;
+}
+.chrome-nav button:not(:disabled) {
+  color: var(--chrome-ink-dim);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.chrome-nav button:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-nav button:focus-visible {
+  outline: none;
+}
+.chrome-nav button:not(:disabled):focus-visible {
+  background: var(--chrome-pressed-veil);
+  color: var(--chrome-ink);
+}
+.chrome-omnibox {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 14px;
+  background: var(--chrome-omnibox-bg);
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--chrome-ink);
+  text-align: left;
+  cursor: text;
+  user-select: text;
+}
+.chrome-omnibox::placeholder {
+  color: var(--chrome-disabled);
+}
+.chrome-omnibox:disabled {
+  color: var(--chrome-disabled);
+  cursor: default;
+}
+.chrome-omnibox:focus-visible {
+  outline: none;
+  border-color: var(--chrome-ink-dim);
+}
+.chrome-devtools-toggle {
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.chrome-devtools-toggle[aria-pressed='true'] {
+  background: var(--chrome-active-veil);
+  color: var(--chrome-ink);
+}
+.chrome-devtools-toggle:not(:disabled):hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-devtools-toggle:focus-visible {
+  outline: none;
+  background: var(--chrome-pressed-veil);
+}
+.chrome-devtools-toggle:disabled {
+  color: var(--chrome-disabled);
+  cursor: not-allowed;
+}
+.chrome-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.chrome-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  background: var(--chrome-surface);
+}
+.page-ph-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chrome-ink);
+}
+.page-ph-sub {
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+.chrome-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chrome-ink);
+}
+.chrome-empty-sub {
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+}
+.chrome-devtools {
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--chrome-line);
+  background: var(--chrome-surface);
+}
+.chrome-devtools[hidden] {
+  display: none;
+}
+.chrome-devtools-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--chrome-line);
+  font-size: 12px;
+  color: var(--chrome-ink);
+}
+.chrome-devtools-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--chrome-ink-dim);
+  font-size: 10px;
+  cursor: pointer;
+}
+.chrome-devtools-close:hover {
+  background: var(--chrome-hover-veil);
+  color: var(--chrome-ink);
+}
+.chrome-devtools-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--chrome-ink-dim);
+  text-align: center;
+}
+
+/* ---------- 浮层：菜单 / 弹窗 / 提示（板面语系：发丝线分层，无阴影） ---------- */
+.board-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+}
+.board-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.board-menu-item:hover {
+  background: var(--board-hover-veil);
+}
+.board-menu-item.danger {
+  color: var(--danger);
+}
+.board-menu-sub {
+  display: none;
+  position: absolute;
+  left: calc(100% + 2px);
+  top: -5px;
+  min-width: 128px;
+  padding: 4px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+}
+.board-menu-item:hover .board-menu-sub {
+  display: block;
+}
+.board-menu-arrow {
+  color: var(--board-ink-dim);
+  font-size: 10px;
+}
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mask);
+}
+.modal-box {
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  padding: 18px 18px 16px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 8px;
+  background: var(--board-bg);
+}
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--board-ink);
+}
+.modal-body {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--board-ink-dim);
+  line-height: 1.7;
+}
+.modal-url-input {
+  width: 100%;
+  height: 28px;
+  margin-top: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: var(--board-bg);
+  color: var(--board-ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+.modal-url-input:focus {
+  outline: none;
+  border-color: var(--board-ink-dim);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--board-control-line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--board-ink);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.modal-btn:hover {
+  background: var(--board-hover-veil);
+}
+.modal-btn.primary {
+  border: none;
+  background: var(--amber);
+  color: var(--amber-ink);
+  font-weight: 600;
+}
+.modal-btn.primary:hover {
+  background: var(--amber-strong);
+}
+.modal-btn.primary:active {
+  background: var(--amber-press);
+}
+.modal-btn.danger {
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 300;
+  max-width: 60vw;
+  padding: 7px 14px;
+  border: 1px solid var(--board-hairline);
+  border-radius: 6px;
+  background: var(--board-bg-raised);
+  color: var(--board-ink);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: toast-in 0.2s ease;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+</style>
+</head>
+<body>
+<div class="demo-window">
+  <div class="demo-titlebar">
+    <div class="demo-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="demo-titlebar-name">多会话测试浏览器</div>
+    <div class="demo-hint">概念演示：点工作区框下拉选择，输入文字即过滤 · 右键列表项改名/删除 · 行菜单「移动到工作区」· 板头图标切换昼夜</div>
+  </div>
+  <div class="app-shell">
+    <aside class="panel-left" id="panelLeft" style="width: 280px">
+      <div class="session-panel">
+        <div class="board-head">
+          <div class="board-title"><span class="board-title-text">多会话测试浏览器</span></div>
+          <div class="board-head-right">
+            <button class="appearance-toggle" id="appearanceToggle" title="切换白天/黑夜（演示）"></button>
+            <button class="batch-toggle" id="batchToggle" title="批量操作"></button>
+            <span class="board-count"><span class="board-count-label">会话</span><span class="flap-counter" id="flapCounter" aria-label="当前视野会话数"></span></span>
+          </div>
+        </div>
+        <div class="workspace-strip" id="workspaceStrip" role="tablist" aria-label="工作区"></div>
+        <ul class="session-list" id="sessionList"></ul>
+        <div class="board-foot" id="boardFoot"></div>
+      </div>
+    </aside>
+    <div class="panel-divider" id="panelDivider" role="separator" aria-label="调整左栏宽度"></div>
+    <main class="panel-right">
+      <div class="browser-frame">
+        <div class="chrome-tabs" id="chromeTabs"></div>
+        <div class="chrome-toolbar">
+          <div class="chrome-nav">
+            <button id="navBack" title="后退"></button>
+            <button id="navForward" title="前进"></button>
+            <button id="navReload" title="刷新（演示加载态）"></button>
+            <button id="navHome" title="主页"></button>
+          </div>
+          <input class="chrome-omnibox" id="omnibox" spellcheck="false" aria-label="地址栏" />
+          <button class="chrome-devtools-toggle" id="devtoolsToggle" aria-pressed="false">开发者工具</button>
+        </div>
+        <div class="chrome-body">
+          <div class="chrome-content" id="chromeContent"></div>
+          <div class="chrome-devtools" id="devtoolsPane" hidden>
+            <div class="chrome-devtools-head">
+              <span>开发者工具</span>
+              <button class="chrome-devtools-close" id="devtoolsClose" title="关闭"></button>
+            </div>
+            <div class="chrome-devtools-body">真实产品中为 Chromium 原生 DevTools<br>与会话一一绑定，此处仅演示占位</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+'use strict'
+
+/* ---------- antd outline 图标（路径取自 @ant-design/icons-svg，viewBox 0 0 1024 1024） ---------- */
+var ICON_PATHS = {
+  more: 'M456 231a56 56 0 10112 0 56 56 0 10-112 0zm0 280a56 56 0 10112 0 56 56 0 10-112 0zm0 280a56 56 0 10112 0 56 56 0 10-112 0z',
+  plus: 'M482 152h60q8 0 8 8v704q0 8-8 8h-60q-8 0-8-8V160q0-8 8-8zM192 474h672q8 0 8 8v60q0 8-8 8H160q-8 0-8-8v-60q0-8 8-8z',
+  checkSquare: 'M433.1 657.7a31.8 31.8 0 0051.7 0l210.6-292c3.8-5.3 0-12.7-6.5-12.7H642c-10.2 0-19.9 4.9-25.9 13.3L459 584.3l-71.2-98.8c-6-8.3-15.6-13.3-25.9-13.3H315c-6.5 0-10.3 7.4-6.5 12.7l124.6 172.8zM880 112H144c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V144c0-17.7-14.3-32-32-32zm-40 728H184V184h656v656z',
+  sun: 'M548 818v126a16 16 0 01-16 16h-40a16 16 0 01-16-16V818c15.85 1.64 27.84 2.46 36 2.46 8.15 0 20.16-.82 36-2.46m205.25-115.66l89.1 89.1a16 16 0 010 22.62l-28.29 28.29a16 16 0 01-22.62 0l-89.1-89.1c12.37-10.04 21.43-17.95 27.2-23.71 5.76-5.77 13.67-14.84 23.71-27.2m-482.5 0c10.04 12.36 17.95 21.43 23.71 27.2 5.77 5.76 14.84 13.67 27.2 23.71l-89.1 89.1a16 16 0 01-22.62 0l-28.29-28.29a16 16 0 010-22.63zM512 278c129.24 0 234 104.77 234 234S641.24 746 512 746 278 641.24 278 512s104.77-234 234-234m0 72c-89.47 0-162 72.53-162 162s72.53 162 162 162 162-72.53 162-162-72.53-162-162-162M206 476c-1.64 15.85-2.46 27.84-2.46 36 0 8.15.82 20.16 2.46 36H80a16 16 0 01-16-16v-40a16 16 0 0116-16zm738 0a16 16 0 0116 16v40a16 16 0 01-16 16H818c1.64-15.85 2.46-27.84 2.46-36 0-8.15-.82-20.16-2.46-36zM814.06 180.65l28.29 28.29a16 16 0 010 22.63l-89.1 89.09c-10.04-12.37-17.95-21.43-23.71-27.2-5.77-5.76-14.84-13.67-27.2-23.71l89.1-89.1a16 16 0 0122.62 0m-581.5 0l89.1 89.1c-12.37 10.04-21.43 17.95-27.2 23.71-5.76 5.77-13.67 14.84-23.71 27.2l-89.1-89.1a16 16 0 010-22.62l28.29-28.29a16 16 0 0122.62 0M532 64a16 16 0 0116 16v126c-15.85-1.64-27.84-2.46-36-2.46-8.15 0-20.16.82-36 2.46V80a16 16 0 0116-16z',
+  moon: 'M489.5 111.66c30.65-1.8 45.98 36.44 22.58 56.33A243.35 243.35 0 00426 354c0 134.76 109.24 244 244 244 72.58 0 139.9-31.83 186.01-86.08 19.87-23.38 58.07-8.1 56.34 22.53C900.4 745.82 725.15 912 512.5 912 291.31 912 112 732.69 112 511.5c0-211.39 164.29-386.02 374.2-399.65l.2-.01zm-81.15 79.75l-4.11 1.36C271.1 237.94 176 364.09 176 511.5 176 697.34 326.66 848 512.5 848c148.28 0 274.94-96.2 319.45-230.41l.63-1.93-.11.07a307.06 307.06 0 01-159.73 46.26L670 662c-170.1 0-308-137.9-308-308 0-58.6 16.48-114.54 46.27-162.47z',
+  left: 'M872 474H286.9l350.2-304c5.6-4.9 2.2-14-5.2-14h-88.5c-3.9 0-7.6 1.4-10.5 3.9L155 487.8a31.96 31.96 0 000 48.3L535.1 866c1.5 1.3 3.3 2 5.2 2h91.5c7.4 0 10.8-9.2 5.2-14L286.9 550H872c4.4 0 8-3.6 8-8v-60c0-4.4-3.6-8-8-8z',
+  right: 'M869 487.8L491.2 159.9c-2.9-2.5-6.6-3.9-10.5-3.9h-88.5c-7.4 0-10.8 9.2-5.2 14l350.2 304H152c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h585.1L386.9 854c-5.6 4.9-2.2 14 5.2 14h91.5c1.9 0 3.8-.7 5.2-2L869 536.2a32.07 32.07 0 000-48.4z',
+  reload: 'M909.1 209.3l-56.4 44.1C775.8 155.1 656.2 92 521.9 92 290 92 102.3 279.5 102 511.5 101.7 743.7 289.8 932 521.9 932c181.3 0 335.8-115 394.6-276.1 1.5-4.2-.7-8.9-4.9-10.3l-56.7-19.5a8 8 0 00-10.1 4.8c-1.8 5-3.8 10-5.9 14.9-17.3 41-42.1 77.8-73.7 109.4A344.77 344.77 0 01655.9 829c-42.3 17.9-87.4 27-133.8 27-46.5 0-91.5-9.1-133.8-27A341.5 341.5 0 01279 755.2a342.16 342.16 0 01-73.7-109.4c-17.9-42.4-27-87.4-27-133.9s9.1-91.5 27-133.9c17.3-41 42.1-77.8 73.7-109.4 31.6-31.6 68.4-56.4 109.3-73.8 42.3-17.9 87.4-27 133.8-27 46.5 0 91.5 9.1 133.8 27a341.5 341.5 0 01109.3 73.8c9.9 9.9 19.2 20.4 27.8 31.4l-60.2 47a8 8 0 003 14.1l175.6 43c5 1.2 9.9-2.6 9.9-7.7l.8-180.9c-.1-6.6-7.8-10.3-13-6.2z',
+  home: 'M946.5 505L560.1 118.8l-25.9-25.9a31.5 31.5 0 00-44.4 0L77.5 505a63.9 63.9 0 00-18.8 46c.4 35.2 29.7 63.3 64.9 63.3h42.5V940h691.8V614.3h43.4c17.1 0 33.2-6.7 45.3-18.8a63.6 63.6 0 0018.7-45.3c0-17-6.7-33.1-18.8-45.2zM568 868H456V664h112v204zm217.9-325.7V868H632V640c0-22.1-17.9-40-40-40H432c-22.1 0-40 17.9-40 40v228H238.1V542.3h-96l370-369.7 23.1 23.1L882 542.3h-96.1z',
+  close: 'M799.86 166.31c.02 0 .04.02.08.06l57.69 57.7c.04.03.05.05.06.08a.12.12 0 010 .06c0 .03-.02.05-.06.09L569.93 512l287.7 287.7c.04.04.05.06.06.09a.12.12 0 010 .07c0 .02-.02.04-.06.08l-57.7 57.69c-.03.04-.05.05-.07.06a.12.12 0 01-.07 0c-.03 0-.05-.02-.09-.06L512 569.93l-287.7 287.7c-.04.04-.06.05-.09.06a.12.12 0 01-.07 0c-.02 0-.04-.02-.08-.06l-57.69-57.7c-.04-.03-.05-.05-.06-.07a.12.12 0 010-.07c0-.03.02-.05.06-.09L454.07 512l-287.7-287.7c-.04-.04-.05-.06-.06-.09a.12.12 0 010-.07c0-.02.02-.04.06-.08l57.7-57.69c.03-.04.05-.05.07-.06a.12.12 0 01.07 0c.03 0 .05.02.09.06L512 454.07l287.7-287.7c.04-.04.06-.05.09-.06a.12.12 0 01.07 0z',
+  loading: 'M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 00-94.3-139.9 437.71 437.71 0 00-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z',
+  arrowRightSmall: 'M869 487.8L491.2 159.9c-2.9-2.5-6.6-3.9-10.5-3.9h-88.5c-7.4 0-10.8 9.2-5.2 14l350.2 304H152c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h585.1L386.9 854c-5.6 4.9-2.2 14 5.2 14h91.5c1.9 0 3.8-.7 5.2-2L869 536.2a32.07 32.07 0 000-48.4z',
+  check: 'M877.4 298.7l-389.6 389.5a31.8 31.8 0 01-45 0L146.6 392a31.8 31.8 0 010-45l22.6-22.6a31.8 31.8 0 0145 0L443.2 553l366.2-366.2a31.8 31.8 0 0145 0l22.6 22.6a31.8 31.8 0 010 45.3z',
+  down: 'M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z',
+  search: 'M909.6 854.5L649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0011.6 0l43.6-43.5a8.2 8.2 0 000-11.6zM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4z'
+}
+function icon(name, cls) {
+  return '<svg class="icon' + (cls ? ' ' + cls : '') + '" viewBox="0 0 1024 1024" aria-hidden="true"><path d="' + ICON_PATHS[name] + '"/></svg>'
+}
+
+/* ---------- 演示数据（合成，域名与账号均为虚构占位） ---------- */
+var state = {
+  theme: 'light',
+  view: 'all',
+  activeId: 's1',
+  batchMode: false,
+  checked: {},
+  renameSession: null,
+  wsOpen: false,
+  wsFilter: '',
+  wsActive: 0,
+  devtoolsOpen: false,
+  workspaces: [
+    { id: 'ws-ecom', name: '电商后台' },
+    { id: 'ws-crm', name: 'CRM 系统' },
+    { id: 'ws-pay', name: '支付网关' }
+  ],
+  wsLastActive: { 'ws-ecom': 's1', 'ws-crm': 's5', 'ws-pay': 's8' },
+  sessions: [
+    mkSession('s1', 'ws-ecom', '管理员账号', 'admin@shop-demo · 主账号', [
+      mkTab('订单管理', 'https://admin.shop-demo.internal/orders'),
+      mkTab('商品列表', 'https://admin.shop-demo.internal/products'),
+      mkTab('营销活动', 'https://admin.shop-demo.internal/promotions')
+    ], 0),
+    mkSession('s2', 'ws-ecom', '运营账号', 'ops02@shop-demo', [
+      mkTab('商品列表', 'https://admin.shop-demo.internal/products')
+    ], 0),
+    mkSession('s3', 'ws-ecom', '客服账号', 'service01@shop-demo', [
+      mkTab('工单中心', 'https://service.shop-demo.internal/tickets')
+    ], 0),
+    mkSession('s4', 'ws-ecom', '游客未登录', '未登录态走查', [
+      mkTab('商城首页', 'https://www.shop-demo.internal/')
+    ], 0),
+    mkSession('s5', 'ws-crm', '销售主管', 'sales.lead@crm-demo · 高权限', [
+      mkTab('客户列表', 'https://crm.demo-work.internal/customers'),
+      mkTab('我的线索', 'https://crm.demo-work.internal/leads')
+    ], 0),
+    mkSession('s6', 'ws-crm', '普通销售', 'sales04@crm-demo', [
+      mkTab('我的客户', 'https://crm.demo-work.internal/mine')
+    ], 0),
+    mkSession('s7', 'ws-crm', '只读审计', 'auditor@crm-demo · 只读', [
+      mkTab('操作日志', 'https://crm.demo-work.internal/audit')
+    ], 0),
+    mkSession('s8', 'ws-pay', '商户号 A', '通道联调 · 限额 1 元', [
+      mkTab('交易查询', 'https://pay.demo-work.internal/transactions')
+    ], 0, 'loading'),
+    mkSession('s9', 'ws-pay', '风控复审', 'risk@pay-demo', [
+      mkTab('复审队列', 'https://pay.demo-work.internal/review')
+    ], 0),
+    mkSession('s10', null, '指纹检测页', '临时排查浏览器指纹', [
+      mkTab('浏览器指纹检测', 'https://fingerprint.example.org/')
+    ], 0),
+    mkSession('s11', null, '组件库文档', '本地开发服', [
+      mkTab('组件预览', 'http://localhost:5173/')
+    ], 0)
+  ]
+}
+function mkTab(title, url) {
+  return { title: title, url: url, hist: [url], hi: 0, loading: false }
+}
+function mkSession(id, ws, name, note, tabs, activeTab, status) {
+  return { id: id, ws: ws, name: name, note: note, tabs: tabs, activeTab: activeTab, status: status || 'idle' }
+}
+
+/* ---------- 工具 ---------- */
+function el(id) {
+  return document.getElementById(id)
+}
+function wsName(id) {
+  if (!id) return '未分组'
+  var ws = state.workspaces.find(function (w) { return w.id === id })
+  return ws ? ws.name : '未分组'
+}
+function activeSession() {
+  return state.sessions.find(function (s) { return s.id === state.activeId }) || null
+}
+function visibleSessions() {
+  if (state.view === 'all') return state.sessions
+  return state.sessions.filter(function (s) { return s.ws === state.view })
+}
+function titleForUrl(url) {
+  if (!url || url === 'about:blank') return '新标签页'
+  try {
+    return new URL(url).hostname
+  } catch (e) {
+    return url
+  }
+}
+function rememberActive(session) {
+  if (session && session.ws) state.wsLastActive[session.ws] = session.id
+}
+
+/* ---------- 渲染 ---------- */
+var prevFlap = ''
+
+function renderFlap() {
+  var count = visibleSessions().length
+  var str = String(Math.min(count, 99)).padStart(2, '0')
+  var host = el('flapCounter')
+  var html = ''
+  for (var i = 0; i < str.length; i++) {
+    var changed = prevFlap.length === str.length && prevFlap[i] !== str[i] ? ' flap-flip' : ''
+    html += '<span class="flap-tile"><span class="flap-digit' + changed + '">' + str[i] + '</span></span>'
+  }
+  host.innerHTML = html
+  host.setAttribute('aria-label', '当前视野会话 ' + count + ' 个')
+  prevFlap = str
+}
+
+function renderWsBar() {
+  var strip = el('workspaceStrip')
+  var label = state.view === 'all' ? '全部会话' : wsName(state.view)
+  strip.innerHTML =
+    '<button class="ws-combobox' + (state.wsOpen ? ' open' : '') + '" id="wsCombobox" aria-haspopup="listbox" aria-expanded="' + state.wsOpen + '" title="切换工作区（可输入过滤）">' +
+    '<span class="ws-combobox-label">' + escapeHtml(label) + '</span>' +
+    '<span class="ws-combobox-caret">' + icon('down') + '</span>' +
+    '</button>' +
+    '<button class="ws-add" id="wsAddBtn" title="新建工作区（输入名称后回车）" aria-label="新建工作区">' + icon('plus') + '</button>'
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  })
+}
+
+function renderList() {
+  var list = el('sessionList')
+  var rows = visibleSessions()
+  if (rows.length === 0) {
+    var isWs = state.view !== 'all'
+    list.innerHTML =
+      '<li class="list-empty"><div class="list-empty-title">' +
+      (isWs ? '该工作区尚无会话' : '尚无会话') +
+      '</div><div class="list-empty-sub">' +
+      (isWs ? '新建会话将加入此工作区' : '新建第一个隔离环境，并行测试多账号') +
+      '</div></li>'
+    return
+  }
+  var html = ''
+  rows.forEach(function (s) {
+    var selected = !state.batchMode && s.id === state.activeId
+    var checked = !!state.checked[s.id]
+    var renaming = state.renameSession === s.id
+    var tab = s.tabs[s.activeTab] || { title: '' }
+    var rowCls = 'session-row' + (state.batchMode ? (checked ? ' batch-checked' : '') : selected ? ' selected' : '')
+    var tag = state.view === 'all' && s.ws !== null ? '<span class="ws-tag">' + escapeHtml(wsName(s.ws)) + '</span>' : ''
+    if (state.view === 'all' && s.ws === null) tag = '<span class="ws-tag">未分组</span>'
+    html +=
+      '<li class="' + rowCls + '" data-id="' + s.id + '" tabindex="0" role="button" aria-pressed="' + selected + '">' +
+      '<div class="session-row-main">' +
+      (state.batchMode
+        ? '<label class="session-check"><input type="checkbox" data-check="' + s.id + '"' + (checked ? ' checked' : '') +
+          ' aria-label="勾选 ' + escapeHtml(s.name) + '" /><span class="box">' + icon('check') + '</span></label>'
+        : '') +
+      '<span class="session-dot ' + s.status + '"></span>' +
+      (renaming
+        ? '<input class="session-rename" id="sessionRenameInput" value="' + escapeHtml(s.name) + '" maxlength="40" aria-label="会话名称" />'
+        : '<span class="session-name">' + escapeHtml(s.name) + '</span>') +
+      '<span class="session-page" title="' + escapeHtml(tab.title) + '">' + escapeHtml(tab.title) + '</span>' +
+      '</div>' +
+      '<div class="session-row-sub">' + tag +
+      '<span class="session-note" title="' + escapeHtml(s.note || '未填写备注') + '">' + escapeHtml(s.note || '未填写备注') + '</span>' +
+      '<span class="session-status ' + s.status + '">' + (s.status === 'loading' ? '加载中' : '空闲') + '</span>' +
+      (state.batchMode ? '' : '<button class="session-menu" data-menu="' + s.id + '" title="会话操作" aria-label="会话操作">' + icon('more') + '</button>') +
+      '</div>' +
+      '</li>'
+  })
+  list.innerHTML = html
+  var renameInput = el('sessionRenameInput')
+  if (renameInput) {
+    renameInput.focus()
+    renameInput.select()
+    var sid = state.renameSession
+    renameInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        commitSessionRename(sid, renameInput.value)
+      } else if (e.key === 'Escape') {
+        e.stopPropagation()
+        state.renameSession = null
+        renderList()
+      }
+    })
+    renameInput.addEventListener('blur', function () {
+      if (state.renameSession === sid) commitSessionRename(sid, renameInput.value)
+    })
+    renameInput.addEventListener('click', function (e) { e.stopPropagation() })
+  }
+}
+
+function renderFoot() {
+  var foot = el('boardFoot')
+  if (state.batchMode) {
+    var rows = visibleSessions()
+    var allChecked = rows.length > 0 && rows.every(function (s) { return state.checked[s.id] })
+    var n = rows.filter(function (s) { return state.checked[s.id] }).length
+    foot.innerHTML =
+      '<div class="batch-bar">' +
+      '<div class="batch-bar-row">' +
+      '<span class="batch-bar-left"><span class="batch-count">已选 ' + n + '</span>' +
+      '<button class="batch-select-all" id="batchSelectAll">' + (allChecked ? '取消全选' : '全选') + '</button></span>' +
+      '<button class="batch-close-all" id="batchCloseAll">关闭全部会话</button>' +
+      '</div>' +
+      '<button class="new-session" id="batchOpenUrl"' + (n === 0 ? ' disabled' : '') + '>打开测试地址</button>' +
+      '</div>'
+    el('batchSelectAll').addEventListener('click', function () {
+      rows.forEach(function (s) {
+        if (allChecked) delete state.checked[s.id]
+        else state.checked[s.id] = true
+      })
+      renderFoot()
+    })
+    el('batchCloseAll').addEventListener('click', function () {
+      openModal({
+        title: '关闭全部会话',
+        body: '将永久删除全部 ' + state.sessions.length + ' 个会话及其本地数据，且不可恢复。',
+        okText: '全部关闭',
+        danger: true,
+        onOk: function () {
+          state.sessions = []
+          state.checked = {}
+          state.activeId = null
+          state.wsLastActive = {}
+          exitBatch()
+          showToast('已关闭全部会话')
+          renderAll()
+        }
+      })
+    })
+    el('batchOpenUrl').addEventListener('click', function () {
+      openUrlModal(rows.filter(function (s) { return state.checked[s.id] }))
+    })
+  } else {
+    foot.innerHTML =
+      '<button class="new-session" id="newSessionBtn">' + icon('plus') + '新建会话</button>'
+    el('newSessionBtn').addEventListener('click', function () {
+      var id = 's' + Date.now()
+      var ws = state.view === 'all' ? null : state.view
+      state.sessions.push(
+        mkSession(id, ws, '新建会话', '未填写备注', [mkTab('新标签页', 'about:blank')], 0)
+      )
+      activate(id)
+      showToast(ws ? '已在「' + wsName(ws) + '」新建会话' : '已在「未分组」新建会话')
+      renderAll()
+    })
+  }
+}
+
+function renderHead() {
+  var batchBtn = el('batchToggle')
+  batchBtn.innerHTML = icon('checkSquare')
+  batchBtn.classList.toggle('active', state.batchMode)
+  batchBtn.title = state.batchMode ? '退出批量模式' : '批量操作'
+  batchBtn.disabled = state.sessions.length === 0 && !state.batchMode
+  var appBtn = el('appearanceToggle')
+  appBtn.innerHTML = icon(state.theme === 'light' ? 'sun' : 'moon')
+  appBtn.title = state.theme === 'light' ? '切换到黑夜（演示）' : '切换到白天（演示）'
+  appBtn.setAttribute('aria-label', appBtn.title)
+}
+
+function renderBrowser() {
+  var s = activeSession()
+  var tabsHost = el('chromeTabs')
+  var omnibox = el('omnibox')
+  var content = el('chromeContent')
+  var hasSession = !!s
+
+  el('navBack').disabled = !hasSession || !canBack(s)
+  el('navForward').disabled = !hasSession || !canForward(s)
+  el('navReload').disabled = !hasSession
+  el('navHome').disabled = !hasSession
+  omnibox.disabled = !hasSession
+  el('devtoolsToggle').disabled = !hasSession
+
+  if (!hasSession) {
+    tabsHost.innerHTML = ''
+    omnibox.value = ''
+    content.innerHTML =
+      '<div class="chrome-empty-title">尚无会话</div><div class="chrome-empty-sub">在左侧新建或选择会话，开始隔离浏览</div>'
+    state.devtoolsOpen = false
+    syncDevtools()
+    return
+  }
+
+  var html = ''
+  s.tabs.forEach(function (t, i) {
+    var fav = t.loading
+      ? '<span class="chrome-tab-favicon">' + icon('loading', 'icon-spin') + '</span>'
+      : '<span class="chrome-tab-favicon"><span class="chrome-tab-favicon-dot"></span></span>'
+    var closeDisabled = s.tabs.length === 1 ? ' disabled' : ''
+    html +=
+      '<div class="chrome-tab' + (i === s.activeTab ? ' active' : '') + '" data-tab="' + i + '" tabindex="0" role="tab"' +
+      (i === s.activeTab ? ' aria-selected="true"' : '') + '>' + fav +
+      '<span class="chrome-tab-title">' + escapeHtml(t.title) + '</span>' +
+      '<button class="chrome-tab-close" data-close="' + i + '" title="关闭标签页"' + closeDisabled + '>' + icon('close') + '</button>' +
+      '</div>'
+  })
+  html += '<button class="chrome-newtab" id="newTabBtn" title="新建标签页" aria-label="新建标签页">' + icon('plus') + '</button>'
+  tabsHost.innerHTML = html
+
+  var tab = s.tabs[s.activeTab]
+  if (document.activeElement !== omnibox) omnibox.value = tab.url
+  content.innerHTML =
+    '<div class="page-ph-title">' + escapeHtml(tab.title) + '</div>' +
+    '<div class="page-ph-sub">演示占位页面 · 「' + escapeHtml(s.name) + '」的隔离会话（' + escapeHtml(tab.url) + '）</div>'
+  syncDevtools()
+}
+
+function syncDevtools() {
+  var toggle = el('devtoolsToggle')
+  toggle.setAttribute('aria-pressed', String(state.devtoolsOpen))
+  toggle.title = state.devtoolsOpen ? '关闭开发者工具（演示）' : '打开开发者工具（演示，F12）'
+  el('devtoolsPane').hidden = !state.devtoolsOpen
+}
+
+function renderAll() {
+  renderHead()
+  renderFlap()
+  renderWsBar()
+  renderList()
+  renderFoot()
+  renderBrowser()
+}
+
+/* ---------- 交互：工作区（下拉 combobox） ---------- */
+var wsPanelEl = null
+
+function closeWsPanel() {
+  state.wsOpen = false
+  state.wsFilter = ''
+  state.wsActive = 0
+  if (wsPanelEl) {
+    wsPanelEl.remove()
+    wsPanelEl = null
+  }
+  renderWsBar()
+}
+
+function wsAllOptions() {
+  return [{ id: 'all', name: '全部会话' }].concat(state.workspaces)
+}
+function wsOptions() {
+  var f = state.wsFilter.trim().toLowerCase()
+  if (!f) return wsAllOptions()
+  return wsAllOptions().filter(function (o) {
+    return o.name.toLowerCase().indexOf(f) !== -1
+  })
+}
+/* 过滤词不构成既有名称的精确命中时，尾行提供「新建工作区「词」」 */
+function wsCreateCandidate() {
+  var name = state.wsFilter.trim()
+  if (!name) return null
+  var exact = wsAllOptions().some(function (o) {
+    return o.name === name
+  })
+  return exact ? null : name
+}
+function wsSelectable() {
+  var opts = wsOptions()
+  var create = wsCreateCandidate()
+  return create ? opts.concat([{ create: create }]) : opts
+}
+
+function openWsPanel() {
+  closeMenu()
+  state.wsOpen = true
+  state.wsFilter = ''
+  state.wsActive = 0
+  renderWsBar()
+  wsPanelEl = document.createElement('div')
+  wsPanelEl.className = 'ws-panel'
+  wsPanelEl.setAttribute('role', 'listbox')
+  wsPanelEl.setAttribute('aria-label', '工作区')
+  wsPanelEl.innerHTML =
+    '<div class="ws-search-host">' +
+    '<span class="ws-search-icon">' + icon('search') + '</span>' +
+    '<input class="ws-search" id="wsSearch" placeholder="输入以过滤工作区" aria-label="过滤工作区" spellcheck="false" maxlength="20" />' +
+    '</div>' +
+    '<div class="ws-options" id="wsOptions"></div>'
+  document.body.appendChild(wsPanelEl)
+  var box = el('wsCombobox').getBoundingClientRect()
+  wsPanelEl.style.width = Math.max(160, Math.round(box.width)) + 'px'
+  wsPanelEl.style.left = Math.round(box.left) + 'px'
+  wsPanelEl.style.top = Math.round(box.bottom + 4) + 'px'
+
+  var input = el('wsSearch')
+  input.focus()
+  input.addEventListener('input', function () {
+    state.wsFilter = input.value
+    state.wsActive = 0
+    renderWsOptions()
+  })
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      var n = wsSelectable().length
+      if (n === 0) return
+      state.wsActive = (state.wsActive + (e.key === 'ArrowDown' ? 1 : -1) + n) % n
+      renderWsOptions()
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      pickWsActive()
+    } else if (e.key === 'Escape') {
+      e.stopPropagation()
+      closeWsPanel()
+    }
+  })
+  wsPanelEl.addEventListener('click', function (e) {
+    var row = e.target.closest('.ws-option')
+    if (!row) return
+    if (row.id === 'wsCreateRow') {
+      createWorkspace(wsCreateCandidate())
+      return
+    }
+    closeWsPanel()
+    switchView(row.dataset.ws)
+  })
+  wsPanelEl.addEventListener('contextmenu', function (e) {
+    var row = e.target.closest('.ws-option')
+    if (!row || row.id === 'wsCreateRow' || row.dataset.ws === 'all') return
+    e.preventDefault()
+    var id = row.dataset.ws
+    openMenu(
+      [
+        { label: '重命名', onClick: function () { openRenameWsModal(id) } },
+        { label: '删除工作区', danger: true, onClick: function () { deleteWs(id) } }
+      ],
+      e.clientX,
+      e.clientY
+    )
+  })
+  renderWsOptions()
+}
+
+function renderWsOptions() {
+  var host = el('wsOptions')
+  if (!host) return
+  var opts = wsOptions()
+  var create = wsCreateCandidate()
+  var html = ''
+  opts.forEach(function (o, i) {
+    html +=
+      '<button class="ws-option' + (o.id === state.view ? ' current' : '') + (i === state.wsActive ? ' active' : '') +
+      '" data-ws="' + o.id + '" data-idx="' + i + '" role="option" aria-selected="' + (o.id === state.view) + '">' +
+      '<span class="ws-option-name">' + escapeHtml(o.name) + '</span>' +
+      '<span class="ws-option-check">' + icon('check') + '</span>' +
+      '</button>'
+  })
+  if (create) {
+    html +=
+      '<button class="ws-option ws-option-create' + (opts.length === state.wsActive ? ' active' : '') +
+      '" id="wsCreateRow" data-idx="' + opts.length + '" role="option">' +
+      '<span class="ws-create-icon">' + icon('plus') + '</span>' +
+      '<span class="ws-option-name">新建工作区「' + escapeHtml(create) + '」</span>' +
+      '</button>'
+  }
+  if (opts.length === 0 && !create) {
+    html = '<div class="ws-option-empty">无匹配工作区</div>'
+  }
+  host.innerHTML = html
+}
+
+function pickWsActive() {
+  var row = wsSelectable()[state.wsActive]
+  if (!row) return
+  if (row.create) {
+    createWorkspace(row.create)
+    return
+  }
+  closeWsPanel()
+  switchView(row.id)
+}
+
+function createWorkspace(name) {
+  if (state.workspaces.some(function (w) { return w.name === name })) {
+    showToast('已有同名工作区')
+    return
+  }
+  var id = 'ws' + Date.now()
+  state.workspaces.push({ id: id, name: name })
+  closeWsPanel()
+  state.view = id
+  state.activeId = null
+  showToast('已新建工作区「' + name + '」')
+  renderAll()
+}
+
+function switchView(id) {
+  state.view = id
+  if (id !== 'all') {
+    var cur = activeSession()
+    if (!cur || cur.ws !== id) {
+      var target = null
+      var remembered = state.wsLastActive[id]
+      if (remembered) target = state.sessions.find(function (s) { return s.id === remembered && s.ws === id })
+      if (!target) target = state.sessions.find(function (s) { return s.ws === id }) || null
+      state.activeId = target ? target.id : null
+    }
+  }
+  renderAll()
+}
+function openRenameWsModal(id) {
+  openModal({
+    title: '重命名工作区',
+    body: '为工作区「' + wsName(id) + '」输入新名称。',
+    input: { value: wsName(id), aria: '工作区名称' },
+    okText: '保存',
+    onOk: function (value) {
+      var name = value.trim()
+      if (!name) return
+      if (state.workspaces.some(function (w) { return w.name === name && w.id !== id })) {
+        showToast('已有同名工作区')
+        return
+      }
+      state.workspaces.find(function (w) { return w.id === id }).name = name
+      showToast('已重命名工作区')
+      renderAll()
+      if (state.wsOpen) renderWsOptions()
+    }
+  })
+}
+function deleteWs(id) {
+  var count = state.sessions.filter(function (s) { return s.ws === id }).length
+  openModal({
+    title: '删除工作区',
+    body:
+      '将删除工作区「' + wsName(id) + '」。' +
+      (count > 0 ? '其中 ' + count + ' 个会话将移入「未分组」，会话与其数据不受影响。' : '该工作区没有会话。'),
+    okText: '删除',
+    danger: true,
+    onOk: function () {
+      state.sessions.forEach(function (s) {
+        if (s.ws === id) s.ws = null
+      })
+      state.workspaces = state.workspaces.filter(function (w) { return w.id !== id })
+      delete state.wsLastActive[id]
+      if (state.view === id) state.view = 'all'
+      showToast('工作区已删除' + (count > 0 ? '，' + count + ' 个会话移入未分组' : ''))
+      renderAll()
+      if (state.wsOpen) renderWsOptions()
+    }
+  })
+}
+
+/* ---------- 交互：会话 ---------- */
+function activate(id) {
+  state.activeId = id
+  var s = state.sessions.find(function (x) { return x.id === id })
+  rememberActive(s)
+}
+function commitSessionRename(id, value) {
+  state.renameSession = null
+  var name = value.trim()
+  var s = state.sessions.find(function (x) { return x.id === id })
+  if (s && name) s.name = name
+  renderAll()
+}
+function cloneSession(id) {
+  var src = state.sessions.find(function (x) { return x.id === id })
+  if (!src) return
+  var copy = mkSession('s' + Date.now(), src.ws, src.name + ' 副本', src.note, src.tabs.map(function (t) {
+    return mkTab(t.title, t.url)
+  }), src.activeTab, 'idle')
+  state.sessions.push(copy)
+  activate(copy.id)
+  showToast('已克隆「' + src.name + '」')
+  renderAll()
+}
+function deleteSession(id) {
+  var s = state.sessions.find(function (x) { return x.id === id })
+  if (!s) return
+  openModal({
+    title: '删除会话',
+    body: '将永久删除「' + s.name + '」及其全部本地数据，且不可恢复。',
+    okText: '删除',
+    danger: true,
+    onOk: function () {
+      state.sessions = state.sessions.filter(function (x) { return x.id !== id })
+      delete state.checked[id]
+      Object.keys(state.wsLastActive).forEach(function (k) {
+        if (state.wsLastActive[k] === id) delete state.wsLastActive[k]
+      })
+      if (state.activeId === id) {
+        var next = visibleSessions()[0]
+        state.activeId = next ? next.id : null
+        rememberActive(next)
+      }
+      renderAll()
+    }
+  })
+}
+function moveSession(id, ws) {
+  var s = state.sessions.find(function (x) { return x.id === id })
+  if (!s || s.ws === ws) return
+  s.ws = ws
+  rememberActive(s)
+  showToast('「' + s.name + '」已移入「' + wsName(ws) + '」')
+  renderAll()
+}
+
+/* ---------- 批量 ---------- */
+function exitBatch() {
+  state.batchMode = false
+  state.checked = {}
+}
+function openUrlModal(targets) {
+  openModal({
+    title: '批量打开测试地址',
+    body: '将为 ' + targets.length + ' 个勾选会话各新建一个 Tab 加载该地址。',
+    input: { value: 'https://test.example.com/login', aria: '测试地址' },
+    okText: '打开',
+    onOk: function (url) {
+      targets.forEach(function (s) {
+        s.tabs.push(mkTab(titleForUrl(url), url))
+        s.activeTab = s.tabs.length - 1
+      })
+      showToast('已在 ' + targets.length + ' 个会话打开 ' + url)
+      renderAll()
+    }
+  })
+}
+
+/* ---------- 浮层组件 ---------- */
+var menuEl = null
+function closeMenu() {
+  if (menuEl) {
+    menuEl.remove()
+    menuEl = null
+  }
+}
+function openMenu(items, x, y) {
+  closeMenu()
+  menuEl = document.createElement('div')
+  menuEl.className = 'board-menu'
+  menuEl.setAttribute('role', 'menu')
+  items.forEach(function (item) {
+    var child = document.createElement('button')
+    child.className = 'board-menu-item' + (item.danger ? ' danger' : '')
+    child.setAttribute('role', 'menuitem')
+    child.innerHTML = '<span>' + escapeHtml(item.label) + '</span>'
+    if (item.sub) {
+      child.innerHTML += '<span class="board-menu-arrow">' + icon('arrowRightSmall') + '</span>'
+      var sub = document.createElement('span')
+      sub.className = 'board-menu-sub'
+      item.sub.forEach(function (subItem) {
+        var subBtn = document.createElement('button')
+        subBtn.className = 'board-menu-item'
+        subBtn.textContent = subItem.label
+        subBtn.addEventListener('click', function (e) {
+          e.stopPropagation()
+          closeMenu()
+          subItem.onClick()
+        })
+        sub.appendChild(subBtn)
+      })
+      child.appendChild(sub)
+    } else {
+      child.addEventListener('click', function () {
+        closeMenu()
+        item.onClick()
+      })
+    }
+    menuEl.appendChild(child)
+  })
+  document.body.appendChild(menuEl)
+  var rect = menuEl.getBoundingClientRect()
+  var left = Math.min(x, window.innerWidth - rect.width - 8)
+  var top = Math.min(y, window.innerHeight - rect.height - 8)
+  menuEl.style.left = Math.max(8, left) + 'px'
+  menuEl.style.top = Math.max(8, top) + 'px'
+  menuEl.addEventListener('contextmenu', function (e) { e.preventDefault() })
+}
+
+var modalEl = null
+function closeModal() {
+  if (modalEl) {
+    modalEl.remove()
+    modalEl = null
+  }
+}
+function openModal(opts) {
+  closeModal()
+  modalEl = document.createElement('div')
+  modalEl.className = 'modal-mask'
+  var box = document.createElement('div')
+  box.className = 'modal-box'
+  box.setAttribute('role', 'dialog')
+  box.setAttribute('aria-modal', 'true')
+  box.innerHTML =
+    '<div class="modal-title">' + escapeHtml(opts.title) + '</div>' +
+    '<div class="modal-body">' + escapeHtml(opts.body) + '</div>' +
+    (opts.input
+      ? '<input class="modal-url-input" id="modalInput" value="' + escapeHtml(opts.input.value) + '" spellcheck="false" aria-label="' + escapeHtml(opts.input.aria) + '"' +
+        (opts.input.maxlength ? ' maxlength="' + opts.input.maxlength + '"' : '') + ' />'
+      : '') +
+    '<div class="modal-actions">' +
+    '<button class="modal-btn" data-act="cancel">取消</button>' +
+    '<button class="modal-btn ' + (opts.danger ? 'danger' : 'primary') + '" data-act="ok">' + escapeHtml(opts.okText || '确定') + '</button>' +
+    '</div>'
+  modalEl.appendChild(box)
+  modalEl.addEventListener('mousedown', function (e) {
+    if (e.target === modalEl) closeModal()
+  })
+  box.querySelector('[data-act="cancel"]').addEventListener('click', closeModal)
+  box.querySelector('[data-act="ok"]').addEventListener('click', function () {
+    if (opts.input) {
+      var value = el('modalInput').value.trim()
+      if (!value) {
+        el('modalInput').focus()
+        return
+      }
+      closeModal()
+      opts.onOk(value)
+    } else {
+      closeModal()
+      opts.onOk()
+    }
+  })
+  document.body.appendChild(modalEl)
+  var input = el('modalInput')
+  if (input) {
+    input.focus()
+    input.select()
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') box.querySelector('[data-act="ok"]').click()
+    })
+  } else {
+    box.querySelector('[data-act="ok"]').focus()
+  }
+}
+
+var toastTimer = null
+function showToast(text) {
+  var old = document.querySelector('.toast')
+  if (old) old.remove()
+  var t = document.createElement('div')
+  t.className = 'toast'
+  t.setAttribute('role', 'status')
+  t.textContent = text
+  document.body.appendChild(t)
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(function () { t.remove() }, 2600)
+}
+
+/* ---------- 浏览器 mock ---------- */
+function canBack(s) {
+  var t = s.tabs[s.activeTab]
+  return t && t.hi > 0
+}
+function canForward(s) {
+  var t = s.tabs[s.activeTab]
+  return t && t.hi < t.hist.length - 1
+}
+function activeTabOf(s) {
+  return s.tabs[s.activeTab]
+}
+function navigate(s, url) {
+  var t = activeTabOf(s)
+  if (t.url === url) return
+  t.hist = t.hist.slice(0, t.hi + 1).concat([url])
+  t.hi = t.hist.length - 1
+  t.url = url
+  t.title = titleForUrl(url)
+  renderBrowser()
+  renderList()
+}
+function fakeLoad() {
+  var s = activeSession()
+  if (!s || s.status === 'loading') return
+  var tab = activeTabOf(s)
+  s.status = 'loading'
+  tab.loading = true
+  renderBrowser()
+  renderList()
+  setTimeout(function () {
+    s.status = 'idle'
+    tab.loading = false
+    renderBrowser()
+    renderList()
+  }, 1200)
+}
+
+/* ---------- 事件接线 ---------- */
+el('workspaceStrip').addEventListener('click', function (e) {
+  if (e.target.closest('#wsAddBtn')) {
+    openWsPanel()
+    return
+  }
+  if (e.target.closest('#wsCombobox')) {
+    if (state.wsOpen) closeWsPanel()
+    else openWsPanel()
+  }
+})
+
+el('sessionList').addEventListener('click', function (e) {
+  var check = e.target.closest('input[type="checkbox"]')
+  if (check) {
+    if (check.checked) state.checked[check.dataset.check] = true
+    else delete state.checked[check.dataset.check]
+    renderList()
+    renderFoot()
+    return
+  }
+  var menuBtn = e.target.closest('.session-menu')
+  if (menuBtn) {
+    e.stopPropagation()
+    openSessionMenu(menuBtn.dataset.menu, menuBtn)
+    return
+  }
+  var row = e.target.closest('.session-row')
+  if (!row) return
+  var id = row.dataset.id
+  if (state.batchMode) {
+    if (state.checked[id]) delete state.checked[id]
+    else state.checked[id] = true
+    renderList()
+    renderFoot()
+  } else {
+    activate(id)
+    renderAll()
+  }
+})
+el('sessionList').addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  var row = e.target.closest('.session-row')
+  if (!row || state.renameSession) return
+  e.preventDefault()
+  if (state.batchMode) {
+    if (state.checked[row.dataset.id]) delete state.checked[row.dataset.id]
+    else state.checked[row.dataset.id] = true
+    renderList()
+    renderFoot()
+  } else {
+    activate(row.dataset.id)
+    renderAll()
+  }
+})
+
+function openSessionMenu(id, anchor) {
+  var s = state.sessions.find(function (x) { return x.id === id })
+  if (!s) return
+  var rect = anchor.getBoundingClientRect()
+  var sub = state.workspaces
+    .filter(function (w) { return w.id !== s.ws })
+    .map(function (w) {
+      return { label: w.name, onClick: function () { moveSession(id, w.id) } }
+    })
+  if (s.ws !== null) sub.push({ label: '移出（未分组）', onClick: function () { moveSession(id, null) } })
+  openMenu(
+    [
+      { label: '重命名', onClick: function () { state.renameSession = id; renderList() } },
+      { label: '克隆会话', onClick: function () { cloneSession(id) } },
+      { label: '移动到工作区', sub: sub },
+      { label: '删除会话', danger: true, onClick: function () { deleteSession(id) } }
+    ],
+    rect.left,
+    rect.bottom + 4
+  )
+}
+
+el('batchToggle').addEventListener('click', function () {
+  if (state.batchMode) exitBatch()
+  else {
+    state.batchMode = true
+    state.renameSession = null
+  }
+  renderAll()
+})
+el('appearanceToggle').addEventListener('click', function () {
+  state.theme = state.theme === 'light' ? 'dark' : 'light'
+  document.documentElement.dataset.theme = state.theme
+  renderHead()
+})
+
+el('chromeTabs').addEventListener('click', function (e) {
+  var s = activeSession()
+  if (!s) return
+  var newTab = e.target.closest('#newTabBtn')
+  if (newTab) {
+    s.tabs.push(mkTab('新标签页', 'about:blank'))
+    s.activeTab = s.tabs.length - 1
+    renderBrowser()
+    renderList()
+    return
+  }
+  var closeBtn = e.target.closest('.chrome-tab-close')
+  if (closeBtn && !closeBtn.disabled) {
+    e.stopPropagation()
+    var ci = Number(closeBtn.dataset.close)
+    s.tabs.splice(ci, 1)
+    if (s.activeTab >= s.tabs.length) s.activeTab = s.tabs.length - 1
+    renderBrowser()
+    renderList()
+    return
+  }
+  var tab = e.target.closest('.chrome-tab')
+  if (tab) {
+    s.activeTab = Number(tab.dataset.tab)
+    renderBrowser()
+    renderList()
+  }
+})
+
+el('omnibox').addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' || e.isComposing) return
+  var s = activeSession()
+  if (!s) return
+  var raw = el('omnibox').value.trim()
+  if (!raw) return
+  var url = /^https?:\/\//i.test(raw) || raw === 'about:blank' ? raw : 'https://' + raw
+  navigate(s, url)
+  el('omnibox').blur()
+})
+el('navBack').addEventListener('click', function () {
+  var s = activeSession()
+  var t = s && activeTabOf(s)
+  if (t && t.hi > 0) {
+    t.hi--
+    t.url = t.hist[t.hi]
+    t.title = titleForUrl(t.url)
+    renderBrowser()
+    renderList()
+  }
+})
+el('navForward').addEventListener('click', function () {
+  var s = activeSession()
+  var t = s && activeTabOf(s)
+  if (t && t.hi < t.hist.length - 1) {
+    t.hi++
+    t.url = t.hist[t.hi]
+    t.title = titleForUrl(t.url)
+    renderBrowser()
+    renderList()
+  }
+})
+el('navReload').addEventListener('click', fakeLoad)
+el('navHome').addEventListener('click', function () {
+  var s = activeSession()
+  if (s) navigate(s, 'about:blank')
+})
+el('devtoolsToggle').addEventListener('click', function () {
+  state.devtoolsOpen = !state.devtoolsOpen
+  syncDevtools()
+})
+el('devtoolsClose').addEventListener('click', function () {
+  state.devtoolsOpen = false
+  syncDevtools()
+})
+
+;['navBack', 'navForward', 'navReload', 'navHome'].forEach(function (id) {
+  el(id).innerHTML = icon({ navBack: 'left', navForward: 'right', navReload: 'reload', navHome: 'home' }[id] || '')
+})
+el('devtoolsClose').innerHTML = icon('close')
+
+/* 分隔条拖拽（220–420） */
+; (function () {
+  var divider = el('panelDivider')
+  var panel = el('panelLeft')
+  var startX = 0
+  var startW = 0
+  divider.addEventListener('pointerdown', function (e) {
+    startX = e.clientX
+    startW = panel.getBoundingClientRect().width
+    divider.setPointerCapture(e.pointerId)
+    document.body.classList.add('col-resizing')
+  })
+  divider.addEventListener('pointermove', function (e) {
+    if (!document.body.classList.contains('col-resizing')) return
+    var w = Math.round(Math.max(220, Math.min(420, startW + e.clientX - startX)))
+    panel.style.width = w + 'px'
+  })
+  divider.addEventListener('pointerup', function (e) {
+    divider.releasePointerCapture(e.pointerId)
+    document.body.classList.remove('col-resizing')
+  })
+})()
+
+/* 全局：外点关菜单 / Esc 层级退出 */
+document.addEventListener('mousedown', function (e) {
+  if (menuEl && !menuEl.contains(e.target)) closeMenu()
+  if (wsPanelEl && !wsPanelEl.contains(e.target) && !e.target.closest('#workspaceStrip')) closeWsPanel()
+})
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return
+  if (state.wsOpen) {
+    closeWsPanel()
+    return
+  }
+  if (menuEl) {
+    closeMenu()
+    return
+  }
+  if (modalEl) {
+    closeModal()
+    return
+  }
+  if (state.renameSession !== null) {
+    state.renameSession = null
+    renderList()
+    return
+  }
+  if (state.batchMode) {
+    exitBatch()
+    renderAll()
+  }
+})
+window.addEventListener('resize', function () {
+  closeMenu()
+  if (wsPanelEl) closeWsPanel()
+})
+
+renderAll()
+</script>
+</body>
+</html>

@@ -10,18 +10,34 @@ export const browser: Dictionary['browser'] = {
     closeWith: 'Close tab: {title}'
   },
   toolbar: {
+    searchWith: 'Search {engine}',
+    engines: {
+      baidu: 'Baidu',
+      bing: 'Bing',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: 'Sogou',
+      so360: '360 Search'
+    },
+    mergeToMain: 'Merge into main window',
+    mergeFailed: 'Unable to merge windows. Please try again.',
     back: 'Back',
     forward: 'Forward',
     reload: 'Reload',
     stop: 'Stop',
     // home (Home button label) removed with the 2026-10-30 toolbar Home button retirement
-    addressPlaceholder: 'Enter URL',
+    addressPlaceholder: 'Enter URL or search',
+    addressSearchLabel: 'Enter URL or search with Google',
     addressInvalid: 'Invalid URL',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
     screenshot: 'Screenshot',
     /** 录屏钮 aria-label 与悬停 Tooltip 文案（同一词） */
     record: 'Record',
     devtools: 'Developer tools',
+    extensions: 'Extensions',
     devtoolsOpenTitle: 'Open Developer tools (F12)',
     devtoolsCloseTitle: 'Close Developer tools (Esc)'
   },
@@ -34,6 +50,7 @@ export const browser: Dictionary['browser'] = {
     edit: 'Edit'
   },
   captureEditor: {
+    loadFailed: 'Failed to load the screenshot editor, please try again',
     loading: 'Loading screenshot…',
     tools: {
       rectangle: 'Rectangle',
@@ -60,7 +77,6 @@ export const browser: Dictionary['browser'] = {
     copied: 'Copied',
     saved: 'Saved: {file}',
     failed: 'Editing failed, please retry',
-    slotSwitched: 'Switched to the latest screenshot',
     cropConfirm: 'Confirm',
     cropCancel: 'Cancel',
     /** Toolbar container (role=toolbar) aria-label (step 5/6 addition) */
@@ -112,5 +128,18 @@ export const browser: Dictionary['browser'] = {
   },
   divider: {
     adjustWidth: 'Adjust panel width'
+  },
+
+  extpanel: {
+    aria: 'Extensions panel',
+    title: 'Extensions',
+    closeAria: 'Close panel',
+    hintTitle: 'No access needed',
+    hintBody: "These extensions don't need to see or change information on this site.",
+    empty: 'No extensions installed yet — install from the Extensions settings page',
+    noAction: 'This extension has no popup',
+    manage: 'Manage extensions',
+    pinAria: 'Pin to toolbar',
+    unpinAria: 'Unpin from toolbar'
   }
 }

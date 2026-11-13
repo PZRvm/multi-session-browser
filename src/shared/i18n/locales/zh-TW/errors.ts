@@ -31,6 +31,7 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: '無效的首頁網址',
   invalidHomepageParams: '無效的首頁設定參數',
   invalidLanguageParams: '無效的語言設定參數',
+  invalidToolbarButtonParams: '無效的工具列按鈕顯隱設定參數',
   // invalidShortcut / invalidShortcutParams / shortcutConflict 三键已随 2026-10-29
   // 截图快捷键退役删除（原设置域 set-screenshot-shortcut handler 消费）
 

@@ -6,3 +6,7 @@ pnpm-lock.yaml
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+
+# 历史知识库由 book:index 校验，避免全仓 format 重排原始证据
+book
+.agents

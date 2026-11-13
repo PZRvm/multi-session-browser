@@ -14,7 +14,7 @@ import { escapeHtml } from './html'
 // 与 .chrome-tools-pop 同一气泡语系；内容经字典翻译后传入并转义（html.ts 单源，
 // 审查 20261030162931 低-1 收敛），子窗禁用脚本。度量全部取 shared/toolbarTooltip.ts
 // 单源常量（低-2 收敛：renderer 测量层同源消费，改度量只改 shared 一处）
-function tooltipHtml(payload: ToolbarTooltipPayload): string {
+function tooltipHtml(payload: ToolbarTooltipPayload, arrowX: number): string {
   const m = TOOLTIP_METRICS
   return `<!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
@@ -23,7 +23,7 @@ function tooltipHtml(payload: ToolbarTooltipPayload): string {
       body{padding-top:${m.arrow}px;font:${m.fontSize}px/${m.lineHeight} ${TOOLTIP_FONT_STACK}}
       .tip{position:relative;display:flex;align-items:center;gap:${m.gap}px;padding:${m.paddingY}px ${m.paddingX}px;
         border-radius:4px;background:rgba(0,0,0,.85);color:#fff;white-space:nowrap}
-      .tip:before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+      .tip:before{content:'';position:absolute;bottom:100%;left:${arrowX}px;transform:translateX(-50%);
         border:${m.arrow}px solid transparent;border-bottom-color:rgba(0,0,0,.85)}
       .key{color:rgba(255,255,255,.65);font-variant-numeric:tabular-nums}
     </style></head><body><div class="tip"><span>${escapeHtml(payload.label)}</span>${
@@ -68,13 +68,27 @@ export function registerToolbarTooltipIpc(registry: SessionBrowserRegistry): voi
     const width = Math.ceil(payload.width)
     // 上箭头占位取度量单源（箭头不挤压气泡正文）
     const height = Math.ceil(payload.height) + TOOLTIP_METRICS.arrow
+    const edgeMargin = Math.max(
+      0,
+      Math.min(TOOLTIP_METRICS.edgeMargin, Math.floor((content.width - width) / 2))
+    )
     const bounds = {
       x:
-        content.x + Math.round(Math.max(0, Math.min(payload.x - width / 2, content.width - width))),
+        content.x +
+        Math.round(
+          Math.max(edgeMargin, Math.min(payload.x - width / 2, content.width - width - edgeMargin))
+        ),
       y: content.y + Math.round(Math.max(0, Math.min(payload.y, content.height - height))),
       width,
       height
     }
+    // 气泡贴边时会偏离锚点，箭头需按裁定后的窗口坐标反算，不能仍固定在气泡中央。
+    // 两侧各留箭头宽度，避免三角形越过圆角；极窄气泡则回退中央。
+    const arrowInset = Math.min(width / 2, TOOLTIP_METRICS.arrow * 2)
+    const arrowX = Math.max(
+      arrowInset,
+      Math.min(content.x + payload.x - bounds.x, width - arrowInset)
+    )
     let entry = entries.get(owner.id)
     if (!entry || entry.win.isDestroyed()) {
       const win = new BrowserWindow({
@@ -121,7 +135,7 @@ export function registerToolbarTooltipIpc(registry: SessionBrowserRegistry): voi
     const revision = ++current.revision
     // 就绪前移开图标或关闭宿主时不再显示，避免迟到的加载回调复活气泡。
     void current.win.webContents
-      .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(tooltipHtml(payload))}`)
+      .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(tooltipHtml(payload, arrowX))}`)
       .then(() => {
         if (!current.win.isDestroyed() && current.revision === revision) {
           current.win.showInactive()

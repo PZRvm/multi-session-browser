@@ -4,12 +4,8 @@
 // save-last 把单槽缓存的最近一次截图落盘系统下载目录（会话名锚定命名、三平台非法
 // 字符清洗、同名追加序号不覆盖、临时名 + rename 原子落地）。
 //
-// 截图编辑器增量（2026-10-14 步骤 3，计划 notes/plans/20261014134249-截图编辑器开发
-// 计划.md）：同一单槽供编辑子窗消费——open-editor 开/聚焦编辑窗（captureEditorWindow.ts
-// 单例控制器，index.ts 注入）；get-edit-image 返单槽现值（dataUrl + captureId + 尺寸）；
-// edit-copy / edit-download 收编辑成品（dataUrl 守卫 + captureId 对账）后写系统剪贴板 /
-// 复用 save-last 同一落盘链，并回写单槽换新 captureId（旧引用自然过期，与 save-last
-// 语义同构——编辑成品即「最近一次成品」，计划 §2.3 数据原则）。
+// 编辑窗各自持有截图快照，以 sender 和本窗版本对账；新截图不使旧窗失效。
+// 产出仅在最近槽仍为输出前版本时回写，异步下载不能覆盖期间新截图。
 //
 // 单槽缓存语义（本模块头显式声明）：主进程只缓存最近一次截图 PNG——内存单槽，
 // 新截图整体覆盖（captureId 随之更换），退出即失；不做历史/图库/管理面。save-last
@@ -26,7 +22,7 @@
 // 推送已随 2026-10-29 截图快捷键退役删除。IPC 装配面仅
 // registerCaptureIpc（src/main/index.ts 步骤 5 装配，registerChromeImportIpc 先例）。
 
-import { app, clipboard, ipcMain, nativeImage } from 'electron'
+import { app, clipboard, ClipboardItem, ipcMain, nativeImage } from 'electron'
 import type { NativeImage, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
 import { rm, rename, writeFile } from 'fs/promises'
@@ -48,7 +44,7 @@ import { t } from '../i18n'
 import { logFailureAsync } from '../ipc-utils'
 import { loadSnapshot } from '../store'
 import type { SessionBrowserRegistry } from './registry'
-import type { CaptureEditorWindowController } from './captureEditorWindow'
+import type { CaptureEditorWindowController, CaptureEditorSnapshot } from './captureEditorWindow'
 import type { CaptureFeedbackWindows } from './captureFeedbackWindow'
 
 /** save-last / edit 系入参 captureId 长度白名单（randomUUID 产物 36 字符，防御性封顶） */
@@ -60,13 +56,8 @@ const EDIT_DATAURL_PREFIX = 'data:image/png;base64,'
 /** dataUrl 长度上限（30M 字符 ≈ 22.5MB 二进制，4K 截图编辑成品富余；防任意巨串过 IPC） */
 const EDIT_DATAURL_MAX = 30_000_000
 
-/** 单槽缓存条目：captureId（save-last 对账标识）+ PNG 字节 + 发起时会话命名名源 */
-interface CaptureSlot {
-  captureId: string
-  png: Buffer
-  /** 命名源：resolveNameSource 产物（真会话名，读不到时为 sessionId 截断兜底） */
-  sessionName: string
-}
+/** 最近截图与编辑窗共用快照结构，数据只读替换，不原位修改 Buffer。 */
+type CaptureSlot = CaptureEditorSnapshot
 
 /** 单槽缓存（语义见头注）：最近一次截图；null = 尚无截图（含重启后的空槽） */
 let lastCapture: CaptureSlot | null = null
@@ -139,7 +130,7 @@ async function capturePageWithRetry(wc: WebContents): Promise<NativeImage> {
 /**
  * capture 编排（契约见 shared/capture.ts）：来源窗口作用域解析 → 该作用域激活 Tab
  * 的 webContents → capturePage（空图等一帧重试，见 capturePageWithRetry）→ 空图/零
- * 尺寸守卫 → toPNG → clipboard.writeImage → 单槽缓存（整体覆盖）→ 返回 captureId。
+ * 尺寸守卫 → toPNG → clipboard.write → 单槽缓存（整体覆盖）→ 返回 captureId。
  * webContents 销毁/无 Tab 如实抛「当前没有可截图的标签页」，空图如实抛
  * 「截图失败，请重试」（不进剪贴板）
  */
@@ -173,10 +164,14 @@ async function captureActiveTab(
     throw new Error(t('errors.captureFailed'))
   }
   const png = image.toPNG()
-  clipboard.writeImage(image)
+  await clipboard.write([
+    new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })
+  ])
   // 单槽缓存：新截图整体覆盖（含 captureId 更换），旧截图的 save-last 随之「过期」
+  const captureId = randomUUID()
   lastCapture = {
-    captureId: randomUUID(),
+    sourceCaptureId: captureId,
+    captureId,
     png,
     sessionName: resolveNameSource(await storedName, scope.sessionId)
   }
@@ -264,53 +259,13 @@ function parseEditApplyPayload(payload: unknown): {
   return { captureId, png, image }
 }
 
-/**
- * 编辑窗开窗尺寸入参（open-editor handler 与 feedback-action edit 分支共用）：读单槽
- * 现图尺寸（nativeImage 现解，开窗为低频动作）；空槽/坏图返回 undefined——编辑窗用
- * 默认度量开窗，空态错误由 get-edit-image 如实呈现（不在此拦截开窗）
- */
-function editorOpenImageOptions(): { imageWidth: number; imageHeight: number } | undefined {
-  if (lastCapture === null) return undefined
-  const size = nativeImage.createFromBuffer(lastCapture.png).getSize()
-  if (size.width <= 0 || size.height <= 0) return undefined
-  return { imageWidth: size.width, imageHeight: size.height }
-}
-
-/** 单槽对账（save-last / edit-copy / edit-download 同语义）：空槽或 captureId 不匹配
- * （编辑期间又截图覆盖单槽）一律如实报「截图已过期」，不伪造成功 */
+/** 反馈条下载的最近槽对账；编辑窗产出另按本窗版本校验。 */
 function reconcileLastCapture(captureId: string): CaptureSlot {
   const slot = lastCapture
   if (slot === null || slot.captureId !== captureId) {
     throw new Error(t('errors.captureExpired'))
   }
   return slot
-}
-
-/**
- * edit-copy 编排：入参守卫（parseEditApplyPayload）→ captureId 对账 → 编辑成品写系统
- * 剪贴板 → 回写单槽（换新 captureId + 新 png，sessionName 保留——编辑成品即「最近
- * 一次成品」，旧引用自然过期，与 save-last 语义同构）。剪贴板写入无路径竞态，不经
- * serializeSave 串行链；对账与回写之间无 await，无并发交错窗口
- */
-async function editCopyCapture(payload: unknown): Promise<void> {
-  const { captureId, png, image } = parseEditApplyPayload(payload)
-  const slot = reconcileLastCapture(captureId)
-  clipboard.writeImage(image)
-  lastCapture = { captureId: randomUUID(), png, sessionName: slot.sessionName }
-}
-
-/**
- * edit-download 编排：入参守卫 + captureId 对账同 edit-copy → 复用 save-last 同一
- * 落盘链（writePngToDownloads，经 handler 的 serializeSave 串行链调用防同秒同名路径
- * 竞态，命名锚定单槽 sessionName）→ 成功后回写单槽（换新 captureId + 新 png），
- * 返回落盘绝对路径
- */
-async function editDownloadCapture(payload: unknown): Promise<CaptureSaveResult> {
-  const { captureId, png } = parseEditApplyPayload(payload)
-  const slot = reconcileLastCapture(captureId)
-  const result = await writePngToDownloads(slot.sessionName, png)
-  lastCapture = { captureId: randomUUID(), png, sessionName: slot.sessionName }
-  return result
 }
 
 /**
@@ -329,10 +284,9 @@ async function editDownloadCapture(payload: unknown): Promise<CaptureSaveResult>
  *   无 handler。
  * 编辑器增量（2026-10-14 步骤 3）四通道：
  * - open-editor（invoke，宿主 shell → 主进程）：作用域解析同 capture 后懒建/聚焦
- *   编辑子窗（尺寸按单槽现图自适应，空槽默认度量）；
+ *   编辑子窗（绑定开窗快照，按图片尺寸自适应；空槽拒绝）；
  * - get-edit-image / edit-copy / edit-download（invoke，编辑子窗 → 主进程）：sender
- *   白名单 = 编辑窗（controller.getEditorWindow 现取，settings 域 open-data-dir 先例）
- *   ——单槽截图对编辑窗外的一切壳层不可见。
+ *   白名单 = 窗口池按 sender 解析本窗快照，禁止跨窗读写。
  */
 export function registerCaptureIpc(deps: {
   registry: SessionBrowserRegistry
@@ -409,7 +363,7 @@ export function registerCaptureIpc(deps: {
         // 宿主回程（计划 §2.2 裁决：宿主反馈条不随编辑窗联动）；sender 白名单已在
         // 上方 resolveOwnerOf 校验
         if (payload.action === 'edit') {
-          deps.editorWindow.open(editorOpenImageOptions())
+          deps.editorWindow.open(reconcileLastCaptureOrEmpty())
           return
         }
         if (payload.action !== 'dismiss') throw invalidCaptureParams()
@@ -433,45 +387,33 @@ export function registerCaptureIpc(deps: {
     )
   )
 
-  // 打开/聚焦编辑窗（编辑器增量步骤 3）：作用域解析同 capture（未知来源由解析自身抛
-  // 中文错误拒绝）——open-editor 只管开窗，单槽是否有图不在此时拦截（空槽开窗用默认
-  // 度量，空态错误由编辑窗 get-edit-image 如实呈现）；已存在则 open 内部聚焦不重开
+  // 开窗时固定最近槽快照：同图还原并聚焦，异图新开，空槽拒绝。
   ipcMain.handle(CAPTURE_CHANNELS.openEditor, (event): Promise<void> =>
     logFailureAsync(
       CAPTURE_CHANNELS.openEditor,
       undefined,
       async () => {
         deps.registry.resolveSenderScope(event.sender)
-        deps.editorWindow.open(editorOpenImageOptions())
+        deps.editorWindow.open(reconcileLastCaptureOrEmpty())
       },
       'capture'
     )
   )
 
-  /** 编辑窗专属通道 sender 白名单（get-edit-image / edit-copy / edit-download 共用）：
-   * 判据经 controller.getEditorWindow 现取（settings 域 open-data-dir 先例；closed
-   * 自清钩子之外可能短暂残留已销毁引用，isDestroyed 现判）。单槽截图对编辑窗外的一
-   * 切壳层不可见——拒绝即按无效参数报错（feedbackAction 非子窗来源同款口径） */
-  const assertEditorSender = (sender: WebContents): void => {
-    const editor = deps.editorWindow.getEditorWindow()
-    if (!editor || editor.isDestroyed() || sender !== editor.webContents) {
-      console.warn('[capture] 拒绝非编辑窗来源的编辑通道请求')
-      throw invalidCaptureParams()
-    }
+  // 每个编辑窗只能读取自己的快照；主窗/反馈条及未知 sender 一律拒绝。
+  const resolveEditorSnapshot = (sender: WebContents): CaptureEditorSnapshot => {
+    const snapshot = deps.editorWindow.getSnapshot(sender)
+    if (!snapshot) throw invalidCaptureParams()
+    return snapshot
   }
 
-  // 取单槽现图（编辑窗挂载即调）：空槽如实报「截图已过期」（复用既有键，语义 = 无可
-  // 编辑的最近截图）；dataUrl 由槽内 PNG 现编码，尺寸随载荷返回（编辑窗显示缩放与
-  // 导出 pixelRatio 的基准，契约 CaptureEditImagePayload）
   ipcMain.handle(CAPTURE_CHANNELS.getEditImage, (event): Promise<CaptureEditImagePayload> =>
     logFailureAsync(
       CAPTURE_CHANNELS.getEditImage,
       undefined,
       async () => {
-        assertEditorSender(event.sender)
-        const slot = reconcileLastCaptureOrEmpty()
+        const slot = resolveEditorSnapshot(event.sender)
         const size = nativeImage.createFromBuffer(slot.png).getSize()
-        if (size.width <= 0 || size.height <= 0) throw invalidCaptureParams()
         return {
           captureId: slot.captureId,
           dataUrl: `${EDIT_DATAURL_PREFIX}${slot.png.toString('base64')}`,
@@ -483,22 +425,57 @@ export function registerCaptureIpc(deps: {
     )
   )
 
-  // 编辑成品写剪贴板 + 回写单槽（编排见 editCopyCapture 注释）。日志摘要不打 dataUrl
-  // 巨串：仅携 captureId（载荷守卫在编排内）
+  // 主进程也防同窗重入，避免下载 await 期间复制推进同一版本；不同窗互不阻塞。
+  const applying = new Set<WebContents>()
+  async function applyEditor(
+    sender: WebContents,
+    payload: unknown,
+    download: boolean
+  ): Promise<CaptureSaveResult | undefined> {
+    resolveEditorSnapshot(sender)
+    if (applying.has(sender)) throw invalidCaptureParams()
+    applying.add(sender)
+    const run = async (): Promise<CaptureSaveResult | undefined> => {
+      // 下载队列真正执行时重验，已关窗或过期版本不得产生文件。
+      const slot = resolveEditorSnapshot(sender)
+      const { captureId, png, image } = parseEditApplyPayload(payload)
+      if (slot.captureId !== captureId) throw new Error(t('errors.captureExpired'))
+      let result: CaptureSaveResult | undefined
+      if (download) result = await writePngToDownloads(slot.sessionName, png)
+      else
+        await clipboard.write([
+          new ClipboardItem({
+            'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' })
+          })
+        ])
+      const next = { ...slot, captureId: randomUUID(), png }
+      // 已受理的文件可完成，但关闭窗口不复活条目，也不回写最近槽。
+      if (
+        deps.editorWindow.commitSnapshot(sender, slot, next) &&
+        lastCapture?.sourceCaptureId === slot.sourceCaptureId &&
+        lastCapture.captureId === slot.captureId
+      ) {
+        lastCapture = next
+      }
+      return result
+    }
+    try {
+      return await (download ? serializeSave(run) : run())
+    } finally {
+      applying.delete(sender)
+    }
+  }
+
   ipcMain.handle(CAPTURE_CHANNELS.editCopy, (event, payload: unknown): Promise<void> =>
     logFailureAsync(
       CAPTURE_CHANNELS.editCopy,
       briefEditPayload(payload),
       async () => {
-        assertEditorSender(event.sender)
-        return editCopyCapture(payload)
+        await applyEditor(event.sender, payload, false)
       },
       'capture'
     )
   )
-
-  // 编辑成品落盘 + 回写单槽（编排见 editDownloadCapture 注释）：复用 serializeSave
-  // 串行链（与 save-last 同链防同秒同名路径竞态），返回落盘绝对路径
   ipcMain.handle(
     CAPTURE_CHANNELS.editDownload,
     (event, payload: unknown): Promise<CaptureSaveResult> =>
@@ -506,8 +483,9 @@ export function registerCaptureIpc(deps: {
         CAPTURE_CHANNELS.editDownload,
         briefEditPayload(payload),
         async () => {
-          assertEditorSender(event.sender)
-          return serializeSave(() => editDownloadCapture(payload))
+          const result = await applyEditor(event.sender, payload, true)
+          if (!result) throw invalidCaptureParams()
+          return result
         },
         'capture'
       )
@@ -526,9 +504,7 @@ function briefEditPayload(payload: unknown): unknown {
     : payload
 }
 
-/** get-edit-image 的单槽取值：空槽如实报「截图已过期」（无可编辑的最近截图，复用
- * 既有键，计划 §2.3 诚实性——不静默给空图）；有槽即原样返回（对账语义留给产出
- * 通道的 captureId 校验） */
+/** 开编辑窗前读取最近槽；无图如实拒绝，不创建未绑定窗口。 */
 function reconcileLastCaptureOrEmpty(): CaptureSlot {
   if (lastCapture === null) throw new Error(t('errors.captureExpired'))
   return lastCapture

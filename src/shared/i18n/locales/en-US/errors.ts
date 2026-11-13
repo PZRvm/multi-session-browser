@@ -30,6 +30,7 @@ export const errors: Dictionary['errors'] = {
   invalidHomepageUrl: 'Invalid homepage URL',
   invalidHomepageParams: 'Invalid homepage settings parameters',
   invalidLanguageParams: 'Invalid language settings parameters',
+  invalidToolbarButtonParams: 'Invalid toolbar button visibility settings parameters',
   // invalidShortcut / invalidShortcutParams / shortcutConflict were removed with the
   // 2026-10-29 screenshot-shortcut retirement (settings set-screenshot-shortcut handler)
 

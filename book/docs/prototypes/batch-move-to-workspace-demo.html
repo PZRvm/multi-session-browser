@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<!-- 批量「移动到工作区」交互概念演示（2026-09-17，设置/工作区语言内扩展）：
+     推荐方案 = 板脚批量操作栏第一行加「移动到工作区…」次级文字钮（窄栏降级 20×20
+     图标钮——板头外观入口响应式双形态先例，panelWidth 状态驱动非媒体查询），点击
+     复用既有「移动到工作区」Modal（单会话行菜单同构：目标工作区纵列 + 移出（未分组）
+     条件显示），批量语义 = 幂等赋值、已在目标静默跳过、完成后清空勾选保持批量态。
+     立场注记：琥珀=默认强调色（themeSystems.ts 单源）；本页为概念演示非生产表面，
+     实装走 impeccable scoped + PRD 4.8 增补批量移动规则。 -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>批量移动到工作区 · 交互概念演示</title>
+<style>
+/* ---------- token（与 app.css / themeSystems.ts 琥珀系逐值对账） ---------- */
+:root {
+  color-scheme: light;
+  --board-bg: #f6f4ee;
+  --board-bg-raised: #ede9df;
+  --board-hairline: #d8d2c5;
+  --board-tile: #ede9df;
+  --board-tile-line: #d8d2c5;
+  --board-tile-ink: #9a5f00;
+  --board-ink: #1e2329;
+  --board-ink-dim: #616974;
+  --board-control-line: #bcb4a6;
+  --board-hover-veil: rgba(30, 35, 41, 0.08);
+  --board-segment-selected-bg: #ffffff;
+  --accent: #ffb000;
+  --accent-strong: #ffc133;
+  --accent-press: #e6a000;
+  --accent-ink: #221a00;
+  --accent-veil: rgba(34, 26, 0, 0.12);
+  --idle: #6b7280;
+  --loading: #9a5f00;
+  --danger: #d4380d;
+  --mask: rgba(0, 0, 0, 0.45);
+  --chrome-tabbar: #dee1e6;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --board-bg: #101418;
+  --board-bg-raised: #1a2026;
+  --board-hairline: #232830;
+  --board-tile: #1a2026;
+  --board-tile-line: #2a313a;
+  --board-tile-ink: #ffb000;
+  --board-ink: #f5f0e8;
+  --board-ink-dim: #9aa3ad;
+  --board-control-line: #3a434e;
+  --board-hover-veil: rgba(255, 255, 255, 0.08);
+  --board-segment-selected-bg: #2a313a;
+  --accent: #ffb000;
+  --accent-strong: #ffc133;
+  --accent-press: #e6a000;
+  --accent-ink: #221a00;
+  --accent-veil: rgba(34, 26, 0, 0.12);
+  --idle: #6b7280;
+  --loading: #ffb000;
+  --mask: rgba(0, 0, 0, 0.6);
+  --chrome-tabbar: #202124;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 13px; line-height: 1.5;
+  background: var(--board-bg); color: var(--board-ink);
+  padding: 24px 28px 56px;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.icon { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.4; display: inline-block; vertical-align: -0.125em; flex: none; }
+
+/* ---------- 演示页头 ---------- */
+.demo-head { max-width: 780px; margin: 0 auto 14px; }
+.demo-head h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.demo-head p { margin: 0; color: var(--board-ink-dim); }
+.demo-tools { margin: 14px 0 4px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tool-label { font-size: 11px; letter-spacing: 0.08em; color: var(--board-ink-dim); }
+.tool-btn {
+  border: 1px solid var(--board-control-line); background: var(--board-bg-raised); color: var(--board-ink);
+  border-radius: 4px; padding: 3px 10px; cursor: pointer; font-size: 12px; font-family: inherit;
+}
+.tool-btn:hover { background: var(--board-hover-veil); }
+.tool-btn.on { border-color: var(--board-ink); font-weight: 600; }
+.tool-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--board-ink-dim); cursor: pointer; }
+.tool-toggle input { accent-color: var(--accent); }
+
+/* ---------- 信息板（复刻批量态） ---------- */
+.board-wrap { display: flex; justify-content: center; margin-top: 22px; }
+.board {
+  width: var(--board-w, 420px); max-width: 96vw;
+  border: 1px solid var(--board-hairline); border-radius: 10px; overflow: hidden;
+  background: var(--board-bg);
+  transition: width 0.2s ease, background-color 0.25s ease;
+  display: flex; flex-direction: column;
+}
+.board-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 14px 14px 12px; border-bottom: 1px solid var(--board-hairline);
+}
+.board-title { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+.board-head-right { display: inline-flex; align-items: center; gap: 8px; }
+.app-seg { display: inline-flex; align-items: center; gap: 2px; background: var(--board-bg-raised); border-radius: 4px; padding: 2px; }
+.app-seg button {
+  width: 20px; height: 20px; border: 0; background: transparent; color: var(--board-ink-dim);
+  border-radius: 3px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.app-seg button:hover { background: var(--board-hover-veil); }
+.app-seg button.on { background: var(--board-segment-selected-bg); color: var(--board-tile-ink); }
+.tool-btn-i {
+  width: 20px; height: 20px; border: 0; background: transparent; color: var(--board-ink-dim);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; padding: 0;
+}
+.tool-btn-i:hover { background: var(--board-hover-veil); color: var(--board-ink); }
+.tool-btn-i.on { background: var(--accent); color: var(--accent-ink); }
+.board-count { display: inline-flex; align-items: baseline; gap: 5px; }
+.board-count-label { font-size: 11px; color: var(--board-ink-dim); }
+.flap-tile {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 22px; background: var(--board-tile); border: 1px solid var(--board-tile-line);
+  border-radius: 3px; font-size: 12px; font-weight: 600; color: var(--board-tile-ink);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+.workspace-bar { padding: 8px 14px; border-bottom: 1px solid var(--board-hairline); }
+.ws-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 26px; padding: 0 8px; border: 1px solid var(--board-control-line); border-radius: 4px;
+  font-size: 13px; font-weight: 500;
+}
+.ws-box .icon { font-size: 10px; color: var(--board-ink-dim); }
+
+.session-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 300px; }
+.session-row { padding: 10px 12px 9px 14px; border-bottom: 1px solid var(--board-hairline); cursor: default; }
+.session-row:hover { background: var(--board-hover-veil); }
+.session-row.batch-checked { background: var(--board-bg-raised); }
+.session-row-main { display: flex; align-items: center; gap: 8px; }
+.batch-check {
+  appearance: none; margin: 0; width: 16px; height: 16px; flex: none;
+  border: 1px solid var(--board-control-line); border-radius: 4px; background: var(--board-bg);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.batch-check:hover { border-color: var(--board-ink-dim); }
+.batch-check:checked { background: var(--accent); border-color: var(--accent); }
+.batch-check:checked::after {
+  content: ''; width: 9px; height: 5px; flex: none;
+  border-left: 1.6px solid var(--accent-ink); border-bottom: 1.6px solid var(--accent-ink);
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
+}
+.session-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--board-ink-dim); flex: none; }
+.session-dot.loading { background: var(--loading); animation: dot-pulse 1.2s ease-in-out infinite; }
+@keyframes dot-pulse { 50% { opacity: 0.35; } }
+.session-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-page { font-size: 12px; color: var(--board-ink-dim); margin-left: auto; padding-left: 8px; max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-row-sub { margin-top: 3px; padding-left: 15px; font-size: 11px; color: var(--board-ink-dim); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.session-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-tag {
+  flex: none; display: inline-flex; align-items: center; height: 16px; padding: 0 5px;
+  background: var(--board-tile); border: 1px solid var(--board-tile-line); border-radius: 3px;
+  font-size: 10px; color: var(--board-ink-dim); white-space: nowrap;
+}
+.session-row.batch-checked .session-row-sub { opacity: 0.72; }
+
+/* ---------- 板脚批量操作栏 ---------- */
+.board-foot { padding: 12px; border-top: 1px solid var(--board-hairline); }
+.batch-bar { display: flex; flex-direction: column; gap: 8px; }
+.batch-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+.batch-bar-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.batch-count { font-size: 11px; letter-spacing: 0.08em; color: var(--board-ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.batch-text-btn {
+  border: 0; background: transparent; color: var(--board-ink); font-family: inherit; font-size: 12px;
+  padding: 2px 4px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.batch-text-btn:hover:not(:disabled) { background: var(--board-hover-veil); }
+.batch-text-btn:disabled { color: var(--board-ink-dim); opacity: 0.55; cursor: not-allowed; }
+.batch-text-btn.danger { color: var(--danger); }
+.batch-move-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 0; background: transparent; color: var(--board-ink); font-family: inherit; font-size: 12px;
+  padding: 2px 4px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.batch-move-btn:hover:not(:disabled) { background: var(--board-hover-veil); }
+.batch-move-btn:disabled { color: var(--board-ink-dim); opacity: 0.55; cursor: not-allowed; }
+.batch-move-btn .icon { font-size: 12px; }
+/* 窄栏降级：文字钮 → 20×20 图标钮（panelWidth 状态驱动，演示以容器宽度模拟） */
+.batch-bar.icon-mode .batch-move-btn { width: 20px; height: 20px; padding: 0; justify-content: center; border-radius: 4px; }
+.batch-bar.icon-mode .batch-move-btn .batch-move-text { display: none; }
+.batch-bar.icon-mode .batch-bar-left { gap: 6px; }
+.primary-btn {
+  display: block; width: 100%; height: 30px; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: background-color 0.12s ease;
+}
+.primary-btn:hover:not(:disabled) { background: var(--accent-strong); }
+.primary-btn:active:not(:disabled) { background: var(--accent-press); }
+.primary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 移动完成反馈条（短暂显示后淡出） */
+.batch-feedback {
+  font-size: 11px; color: var(--board-ink-dim); padding: 0 2px;
+  opacity: 0; transition: opacity 0.24s ease; min-height: 16px;
+}
+.batch-feedback.show { opacity: 1; }
+/* 新增器件高亮（评审辅助开关） */
+.highlight-new .batch-move-btn, .highlight-new .batch-modal { outline: 2px dashed var(--accent); outline-offset: 3px; }
+
+/* ---------- 移动弹层（antd Modal 形态近似：板面弹层惯例 6px 圆角 + 发丝线 + 无阴影） ---------- */
+.modal-mask {
+  position: fixed; inset: 0; background: var(--mask);
+  display: none; align-items: center; justify-content: center; z-index: 10;
+}
+.modal-mask.open { display: flex; }
+.batch-modal {
+  width: 300px; max-width: 92vw; background: var(--board-segment-selected-bg);
+  border: 1px solid var(--board-hairline); border-radius: 6px; padding: 16px;
+  color: var(--board-ink);
+}
+[data-theme="dark"] .batch-modal { background: var(--board-bg-raised); }
+.batch-modal h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.batch-modal .modal-sub { margin: 0 0 12px; font-size: 11px; color: var(--board-ink-dim); }
+.ws-move-list { display: flex; flex-direction: column; gap: 8px; }
+.ws-move-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; height: 30px; padding: 0 10px;
+  border: 1px solid var(--board-control-line); border-radius: 4px;
+  background: transparent; color: var(--board-ink); font-family: inherit; font-size: 13px; cursor: pointer;
+  text-align: left;
+}
+.ws-move-item:hover { background: var(--board-hover-veil); }
+.ws-move-item .move-count { font-size: 11px; color: var(--board-ink-dim); font-variant-numeric: tabular-nums; }
+.ws-move-item .move-note { font-size: 11px; color: var(--board-ink-dim); }
+.ws-move-empty { margin: 4px 0 0; font-size: 11px; color: var(--board-ink-dim); }
+.modal-cancel {
+  margin-top: 12px; width: 100%; height: 28px; border: 1px solid var(--board-control-line); border-radius: 4px;
+  background: transparent; color: var(--board-ink); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.modal-cancel:hover { background: var(--board-hover-veil); }
+
+.demo-foot { max-width: 780px; margin: 30px auto 0; color: var(--board-ink-dim); font-size: 12px; }
+.demo-foot p { margin: 4px 0; }
+.demo-foot .k { color: var(--board-ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="demo-head">
+  <h1>批量「移动到工作区」· 交互概念演示</h1>
+  <p>推荐方案：板脚批量操作栏第一行加次级动作「移动到工作区…」（窄栏降级图标钮），点击复用既有移动 Modal。全部可交互：勾选 / 全选 / 移动完整链路 / 宽度降级 / 亮暗。</p>
+  <div class="demo-tools">
+    <span class="tool-label">面板宽度</span>
+    <button class="tool-btn w-btn on" data-w="420">420</button>
+    <button class="tool-btn w-btn" data-w="340">340</button>
+    <button class="tool-btn w-btn" data-w="280">280</button>
+    <button class="tool-btn w-btn" data-w="240">240</button>
+    <span style="flex:1"></span>
+    <label class="tool-toggle"><input type="checkbox" id="hlNew"> 高亮新增器件</label>
+    <label class="tool-toggle"><input type="checkbox" id="themeToggle"> 黑夜</label>
+  </div>
+</header>
+
+<div class="board-wrap">
+  <aside class="board" id="board">
+    <div class="board-head">
+      <span class="board-title">多会话测试浏览器</span>
+      <span class="board-head-right">
+        <span class="app-seg" role="group" aria-label="外观">
+          <button class="on" title="跟随系统" id="segSys"></button>
+          <button title="白天"></button>
+          <button title="黑夜"></button>
+        </span>
+        <button class="tool-btn-i on" title="退出批量操作（Esc）" id="batchBtn"></button>
+        <button class="tool-btn-i" title="设置"></button>
+        <span class="board-count"><span class="board-count-label">会话</span><span class="flap-tile">5</span></span>
+      </span>
+    </div>
+    <div class="workspace-bar"><div class="ws-box"><span>全部会话</span><span class="icon" id="caretIcon"></span></div></div>
+    <ul class="session-list" id="list"></ul>
+    <div class="board-foot">
+      <div class="batch-bar" id="batchBar">
+        <div class="batch-bar-row">
+          <div class="batch-bar-left">
+            <span class="batch-count">已选 <span id="checkedN">0</span></span>
+            <button type="button" class="batch-text-btn" id="selectAll">全选</button>
+            <button type="button" class="batch-move-btn" id="moveBtn" disabled aria-label="移动到工作区" title="移动到工作区">
+              <span class="icon" id="moveIcon"></span><span class="batch-move-text">移动到工作区…</span>
+            </button>
+          </div>
+          <button type="button" class="batch-text-btn danger" id="closeBtn" disabled>关闭选中会话</button>
+        </div>
+        <button type="button" class="primary-btn" id="openUrlBtn" disabled>打开测试地址</button>
+        <div class="batch-feedback" id="feedback"></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="modal-mask" id="mask">
+  <div class="batch-modal" role="dialog" aria-modal="true" aria-labelledby="moveTitle">
+    <h3 id="moveTitle">移动到工作区</h3>
+    <p class="modal-sub" id="moveSub"></p>
+    <div class="ws-move-list" id="moveList"></div>
+    <button type="button" class="modal-cancel" id="moveCancel">取消</button>
+  </div>
+</div>
+
+<footer class="demo-foot">
+  <p><span class="k">交互裁定注记（实装前确认）：</span>①混合归属 = 幂等赋值，已在目标工作区的勾选会话静默跳过，弹层目标按钮右侧计数展示「勾选中在该工作区 / 勾选总数」；②「移出（未分组）」仅在勾选中存在非未分组归属时显示；③移动成功后清空勾选并保持批量态，反馈条短暂显示（约 2.4s 淡出）。</p>
+  <p><span class="k">响应式双形态：</span>面板宽度 &lt;~300px 时文字钮降级为 20×20 图标钮（点右上「面板宽度」切换体验；实装由 App 的 panelWidth 状态驱动，非媒体查询——板头外观入口先例）。</p>
+  <p><span class="k">器件来源：</span>批量操作栏 / 复选框 / ws-tag / 翻牌计数均为既有器件原样；新增仅「移动到工作区…」次级钮与弹层计数徽标；弹层为产品内 antd Modal（移动弹层）形态近似——实装复用既有 Modal，不新造器件。次级钮语义 = 组织动作，不进第二行主钮位（板脚唯一大面积强调色惯例）。</p>
+  <p>概念演示非生产表面；实装走 impeccable scoped + PRD 4.8 增补批量移动规则 + write-plan 立项。</p>
+</footer>
+
+<script>
+/* ---------- 图标（stroke SVG，一处定义） ---------- */
+var ICONS = {
+  monitor: '<svg class="icon" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="8" rx="1"/><path d="M6 13.5h4M8 11v2.5"/></svg>',
+  sun: '<svg class="icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4-1.4M4.8 11.2l1.4-1.4"/></svg>',
+  moon: '<svg class="icon" viewBox="0 0 16 16"><path d="M13.5 9.5A6 6 0 1 1 6.5 2.5a5 5 0 0 0 7 7z"/></svg>',
+  checksq: '<svg class="icon" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5.5 8.5l2 2 3.5-4"/></svg>',
+  gear: '<svg class="icon" viewBox="0 0 16 16"><g>' + [0,45,90,135,180,225,270,315].map(function(d){ return '<rect x="7.4" y="0.8" width="1.2" height="2.8" rx="0.6" transform="rotate(' + d + ' 8 8)"/>' }).join('') + '<circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="8" r="1.4"/></g></svg>',
+  caret: '<svg class="icon" viewBox="0 0 16 16"><path d="M4 6.5l4 4 4-4"/></svg>',
+  folder: '<svg class="icon" viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h6.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M1.8 6.8h12.4"/></svg>'
+}
+document.getElementById('segSys').innerHTML = ICONS.monitor
+document.getElementById('batchBtn').innerHTML = ICONS.checksq
+document.querySelector('.board-head-right .tool-btn-i:last-of-type') // 齿轮为最后一个 tool-btn-i 之外的占位
+var headBtns = document.querySelectorAll('.board-head-right .tool-btn-i')
+headBtns[headBtns.length - 1].innerHTML = ICONS.gear
+document.getElementById('caretIcon').outerHTML = ICONS.caret
+document.getElementById('moveIcon').innerHTML = ICONS.folder
+
+/* ---------- 数据（混合归属：电商压测 / 后台巡检 / 未分组） ---------- */
+var workspaces = [
+  { id: 'w1', name: '电商压测' },
+  { id: 'w2', name: '后台巡检' }
+]
+var sessions = [
+  { id: 's1', name: '买家账号 A', sub: 'www.example.com/checkout', ws: 'w1', loading: false },
+  { id: 's2', name: '卖家后台 B', sub: 'seller.example.com · 加载中', ws: 'w1', loading: true },
+  { id: 's3', name: '运营投放 C', sub: '未填写备注', ws: null, loading: false },
+  { id: 's4', name: '管理后台 D', sub: 'admin.example.net', ws: 'w2', loading: false },
+  { id: 's5', name: '日志平台 E', sub: 'grafana.example.io', ws: null, loading: false }
+]
+var checked = {}
+var feedbackTimer = null
+
+function wsName(id) {
+  for (var i = 0; i < workspaces.length; i++) if (workspaces[i].id === id) return workspaces[i].name
+  return '未分组'
+}
+function checkedIds() {
+  return sessions.filter(function (s) { return checked[s.id] }).map(function (s) { return s.id })
+}
+function checkedCount() { return checkedIds().length }
+
+/* ---------- 渲染 ---------- */
+function renderList() {
+  var html = ''
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i]
+    var isChecked = !!checked[s.id]
+    html += '<li class="session-row' + (isChecked ? ' batch-checked' : '') + '" data-id="' + s.id + '">'
+    html += '<div class="session-row-main">'
+    html += '<input type="checkbox" class="batch-check" data-id="' + s.id + '" aria-label="选中 ' + s.name + '"' + (isChecked ? ' checked' : '') + '>'
+    html += '<span class="session-dot' + (s.loading ? ' loading' : '') + '"></span>'
+    html += '<span class="session-name">' + s.name + '</span>'
+    html += '<span class="session-page">' + (s.loading ? s.sub.split(' · ')[0] : s.sub.split(' · ')[0]) + '</span>'
+    html += '</div>'
+    html += '<div class="session-row-sub">'
+    html += '<span class="ws-tag">' + wsName(s.ws) + '</span>'
+    html += '<span class="session-note">' + s.sub + '</span>'
+    html += '</div>'
+    html += '</li>'
+  }
+  document.getElementById('list').innerHTML = html
+  var boxes = document.querySelectorAll('.batch-check')
+  for (var j = 0; j < boxes.length; j++) {
+    boxes[j].addEventListener('change', function (e) {
+      checked[e.target.getAttribute('data-id')] = e.target.checked
+      render()
+    })
+  }
+}
+
+function renderBar() {
+  var n = checkedCount()
+  var total = sessions.length
+  document.getElementById('checkedN').textContent = n
+  document.getElementById('selectAll').textContent = n === total && total > 0 ? '取消全选' : '全选'
+  document.getElementById('closeBtn').disabled = n === 0
+  document.getElementById('openUrlBtn').disabled = n === 0
+  document.getElementById('moveBtn').disabled = n === 0
+}
+
+function render() { renderList(); renderBar() }
+
+/* ---------- 反馈条 ---------- */
+function showFeedback(text) {
+  var el = document.getElementById('feedback')
+  el.textContent = text
+  el.classList.add('show')
+  if (feedbackTimer) clearTimeout(feedbackTimer)
+  feedbackTimer = setTimeout(function () { el.classList.remove('show') }, 2400)
+}
+
+/* ---------- 移动弹层 ---------- */
+function openMoveModal() {
+  var ids = checkedIds()
+  if (ids.length === 0) return
+  document.getElementById('moveTitle').textContent = '移动 ' + ids.length + ' 个会话到工作区'
+  document.getElementById('moveSub').textContent = '移动后归属更新，会话数据与登录态不受影响'
+  var hasGrouped = ids.some(function (id) {
+    for (var i = 0; i < sessions.length; i++) if (sessions[i].id === id) return sessions[i].ws != null
+    return false
+  })
+  var html = ''
+  for (var i = 0; i < workspaces.length; i++) {
+    var w = workspaces[i]
+    var inTarget = ids.filter(function (id) {
+      for (var j = 0; j < sessions.length; j++) if (sessions[j].id === id) return sessions[j].ws === w.id
+      return false
+    }).length
+    html += '<button type="button" class="ws-move-item" data-ws="' + w.id + '">'
+    html += '<span>' + w.name + '</span>'
+    html += '<span class="move-count">' + inTarget + ' / ' + ids.length + ' 在此</span>'
+    html += '</button>'
+  }
+  if (hasGrouped) {
+    html += '<button type="button" class="ws-move-item" data-ws=""><span>移出（未分组）</span><span class="move-note">归属清空</span></button>'
+  }
+  document.getElementById('moveList').innerHTML = html
+  var items = document.querySelectorAll('.ws-move-item')
+  for (var k = 0; k < items.length; k++) {
+    items[k].addEventListener('click', function (e) {
+      doMove(e.currentTarget.getAttribute('data-ws') || null)
+    })
+  }
+  document.getElementById('mask').classList.add('open')
+}
+function doMove(targetWs) {
+  var ids = checkedIds()
+  var moved = 0, skipped = 0
+  for (var i = 0; i < sessions.length; i++) {
+    if (!checked[sessions[i].id]) continue
+    if (sessions[i].ws === targetWs) { skipped++; continue }
+    sessions[i].ws = targetWs
+    moved++
+  }
+  document.getElementById('mask').classList.remove('open')
+  checked = {}
+  render()
+  var targetName = targetWs ? '「' + wsName(targetWs) + '」' : '未分组'
+  showFeedback(skipped > 0
+    ? '已移动 ' + moved + ' 个到' + targetName + '（' + skipped + ' 个已在目标，已跳过）'
+    : '已移动 ' + moved + ' 个到' + targetName)
+}
+
+/* ---------- 事件绑定 ---------- */
+document.getElementById('selectAll').addEventListener('click', function () {
+  var n = checkedCount()
+  var turnOn = !(n === sessions.length && sessions.length > 0)
+  for (var i = 0; i < sessions.length; i++) checked[sessions[i].id] = turnOn
+  render()
+})
+document.getElementById('moveBtn').addEventListener('click', openMoveModal)
+document.getElementById('moveCancel').addEventListener('click', function () {
+  document.getElementById('mask').classList.remove('open')
+})
+document.getElementById('mask').addEventListener('click', function (e) {
+  if (e.target === this) this.classList.remove('open')
+})
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') document.getElementById('mask').classList.remove('open')
+})
+document.getElementById('closeBtn').addEventListener('click', function () {
+  showFeedback('（演示页不含删除链路——关闭选中会话沿用既有确认弹层）')
+})
+document.getElementById('openUrlBtn').addEventListener('click', function () {
+  showFeedback('（演示页不含打开地址链路——沿用既有 URL 弹层）')
+})
+document.getElementById('batchBtn').addEventListener('click', function () {
+  showFeedback('（演示页恒为批量态——实装中再点退出批量并清空勾选）')
+})
+
+/* ---------- 宽度降级（阈值 300：panelWidth 状态驱动的演示模拟） ---------- */
+var wBtns = document.querySelectorAll('.w-btn')
+for (var w = 0; w < wBtns.length; w++) {
+  wBtns[w].addEventListener('click', function (e) {
+    var width = e.currentTarget.getAttribute('data-w')
+    document.getElementById('board').style.setProperty('--board-w', width + 'px')
+    var bar = document.getElementById('batchBar')
+    var iconMode = parseInt(width, 10) < 300
+    bar.classList.toggle('icon-mode', iconMode)
+    for (var j = 0; j < wBtns.length; j++) wBtns[j].classList.toggle('on', wBtns[j] === e.currentTarget)
+  })
+}
+
+/* ---------- 主题与高亮 ---------- */
+document.getElementById('themeToggle').addEventListener('change', function (e) {
+  document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light')
+})
+document.getElementById('hlNew').addEventListener('change', function (e) {
+  document.body.classList.toggle('highlight-new', e.target.checked)
+})
+
+render()
+</script>
+</body>
+</html>

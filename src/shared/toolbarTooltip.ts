@@ -27,5 +27,7 @@ export const TOOLTIP_METRICS = {
   paddingY: 5,
   paddingX: 10,
   gap: 6,
-  arrow: 4
+  arrow: 4,
+  /** 原生气泡与宿主内容区左右边缘的最小间距，不参与文字测量。 */
+  edgeMargin: 8
 } as const

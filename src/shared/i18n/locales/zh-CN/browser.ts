@@ -12,13 +12,28 @@ export const browser = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜索 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必应',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜索'
+    },
+    mergeToMain: '合并回主窗口',
+    mergeFailed: '未能合并窗口，请重试',
     back: '后退',
     forward: '前进',
     reload: '刷新',
     stop: '停止加载',
     // home（主页钮文案）已随工具栏主页按钮 2026-10-30 退役删除
     /** 地址栏 placeholder */
-    addressPlaceholder: '输入网址',
+    addressPlaceholder: '输入网址或搜索',
+    addressSearchLabel: '输入网址或使用 Google 搜索',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
     addressInvalid: '无效的网址',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
@@ -27,6 +42,7 @@ export const browser = {
     record: '录屏',
     /** DevTools 开关的可见文案与 aria-label（同一词） */
     devtools: '开发者工具',
+    extensions: '扩展程序',
     /** DevTools 未开启时的开关 title */
     devtoolsOpenTitle: '打开开发者工具（F12）',
     /** DevTools 已开启时的开关 title */
@@ -49,6 +65,7 @@ export const browser = {
   },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
+    loadFailed: '截图编辑器加载失败，请重试',
     /** 取图期间空态文案 */
     loading: '正在载入截图…',
     /** 工具 aria-label 与 title（同一词；brush 画笔为反馈轮一新增） */
@@ -85,9 +102,6 @@ export const browser = {
     saved: '已保存：{file}',
     /** 兜底失败文案（主进程已本地化的具体错误优先） */
     failed: '编辑失败，请重试',
-    /** 产出续编弱校验命中提示（审查低-1：续编取到并发新截图而非本窗成品时告知，
-     *  不静默跳变） */
-    slotSwitched: '已切换到最新截图',
     /** 裁剪选区确认/取消钮 */
     cropConfirm: '确认',
     cropCancel: '取消',
@@ -151,5 +165,18 @@ export const browser = {
   divider: {
     /** role=separator 的 aria-label */
     adjustWidth: '调整面板宽度'
+  },
+
+  extpanel: {
+    aria: '扩展程序面板',
+    title: '扩展程序',
+    closeAria: '关闭面板',
+    hintTitle: '无需访问权限',
+    hintBody: '这些插件无需查看或更改此网站上的信息。',
+    empty: '还没有安装任何插件，到设置的插件页安装',
+    noAction: '该插件没有弹窗界面',
+    manage: '管理插件',
+    pinAria: '固定到工具栏',
+    unpinAria: '从工具栏取消固定'
   }
 }

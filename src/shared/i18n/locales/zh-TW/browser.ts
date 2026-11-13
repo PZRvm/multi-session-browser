@@ -15,13 +15,28 @@ export const browser: Dictionary['browser'] = {
   },
   /** 工具栏（Toolbar）：导航四键 + 地址栏 + 截图/录屏钮 + DevTools 开关 */
   toolbar: {
+    searchWith: '搜尋 {engine}',
+    engines: {
+      baidu: '百度',
+      bing: '必應',
+      google: 'Google',
+      duckduckgo: 'DuckDuckGo',
+      brave: 'Brave Search',
+      ecosia: 'Ecosia',
+      yahoo: 'Yahoo',
+      sogou: '搜狗',
+      so360: '360 搜尋'
+    },
+    mergeToMain: '合併回主視窗',
+    mergeFailed: '無法合併視窗，請重試',
     back: '後退',
     forward: '前進',
     reload: '重新整理',
     stop: '停止載入',
     // home（首頁鈕文案）已隨工具列首頁按鈕 2026-10-30 退役刪除
     /** 地址栏 placeholder */
-    addressPlaceholder: '輸入網址',
+    addressPlaceholder: '輸入網址或搜尋',
+    addressSearchLabel: '輸入網址或使用 Google 搜尋',
     /** 导航失败行内提示（地址栏 title，边框短暂转红） */
     addressInvalid: '無效的網址',
     /** 截图钮 aria-label 与悬停 Tooltip 文案（同一词，快捷键提示待自定义键位落地后并入） */
@@ -30,6 +45,7 @@ export const browser: Dictionary['browser'] = {
     record: '錄屏',
     /** DevTools 开关的可见文案与 aria-label（同一词） */
     devtools: '開發人員工具',
+    extensions: '擴充功能',
     /** DevTools 未开启时的开关 title */
     devtoolsOpenTitle: '開啟開發人員工具（F12）',
     /** DevTools 已开启时的开关 title */
@@ -52,6 +68,7 @@ export const browser: Dictionary['browser'] = {
   },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
+    loadFailed: '截圖編輯器載入失敗，請重試',
     /** 取图期间空态文案 */
     loading: '正在載入截圖…',
     /** 工具 aria-label 与 title（同一词；brush 画笔为反馈轮一新增） */
@@ -88,8 +105,6 @@ export const browser: Dictionary['browser'] = {
     saved: '已儲存：{file}',
     /** 兜底失败文案（主进程已本地化的具体错误优先） */
     failed: '編輯失敗，請重試',
-    /** 产出续编弱校验命中提示（审查低-1：续编取到并发新截图而非本窗成品时告知） */
-    slotSwitched: '已切換至最新截圖',
     /** 裁剪选区确认/取消钮 */
     cropConfirm: '確認',
     cropCancel: '取消',
@@ -153,5 +168,18 @@ export const browser: Dictionary['browser'] = {
   divider: {
     /** role=separator 的 aria-label */
     adjustWidth: '調整面板寬度'
+  },
+
+  extpanel: {
+    aria: '擴充功能面板',
+    title: '擴充功能',
+    closeAria: '關閉面板',
+    hintTitle: '無需存取權限',
+    hintBody: '這些外掛無需查看或變更此網站上的資訊。',
+    empty: '還沒有安裝任何外掛，到設定的外掛頁安裝',
+    noAction: '該外掛沒有彈出介面',
+    manage: '管理外掛',
+    pinAria: '釘選到工具列',
+    unpinAria: '從工具列取消釘選'
   }
 }

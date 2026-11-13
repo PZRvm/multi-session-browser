@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { webUtils, contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { BROWSER_CHANNELS } from '../shared/browser'
 import { TOOLBAR_TOOLTIP_CHANNELS } from '../shared/toolbarTooltip'
@@ -25,6 +25,7 @@ import type {
 import { HISTORY_CHANNELS } from '../shared/history'
 import type { HistoryChangedPayload, HistoryEntry } from '../shared/history'
 import { OMNIBOX_SUGGEST_CHANNELS } from '../shared/omniboxSuggest'
+import { EXTENSIONS_PANEL_CHANNELS } from '../shared/extensionsPanel'
 import type {
   OmniboxSuggestDataPayload,
   OmniboxSuggestHoverPayload,
@@ -32,6 +33,12 @@ import type {
   OmniboxSuggestShowPayload,
   OmniboxSuggestShowResult
 } from '../shared/omniboxSuggest'
+import type {
+  ExtensionsPanelDataPayload,
+  ExtensionsPanelPickedPayload,
+  ExtensionsPanelPickPayload,
+  ExtensionsPanelShowPayload
+} from '../shared/extensionsPanel'
 import { CHROME_IMPORT_CHANNELS } from '../shared/chromeImport'
 import type {
   ChromeImportCancelPayload,
@@ -98,10 +105,15 @@ import type {
   OkResult as SettingsOkResult,
   SetHomepagePayload,
   SetLanguagePayload,
+  SetShowCapturePayload,
+  SetShowRecorderPayload,
   SettingsAppInfo,
   SettingsSnapshot
 } from '../shared/settings'
 import { DIALOG_CHANNELS } from '../shared/dialog'
+import { isNativeEditCommand, NATIVE_EDITING_CHANNELS } from '../shared/nativeEditing'
+import type { NativeEditCommand } from '../shared/nativeEditing'
+import { EXTENSIONS_CHANNELS } from '../shared/extensions/management'
 import type {
   ConfirmDestructivePayload,
   ConfirmWorkspaceDeletePayload,
@@ -114,6 +126,15 @@ import type {
 
 // Custom APIs for renderer
 const api = {
+  nativeEditing: {
+    onCommand: (callback: (command: NativeEditCommand) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, command: unknown): void => {
+        if (isNativeEditCommand(command)) callback(command)
+      }
+      ipcRenderer.on(NATIVE_EDITING_CHANNELS.command, listener)
+      return () => ipcRenderer.removeListener(NATIVE_EDITING_CHANNELS.command, listener)
+    }
+  },
   toolbarTooltip: {
     show: (payload: ToolbarTooltipPayload): Promise<void> =>
       ipcRenderer.invoke(TOOLBAR_TOOLTIP_CHANNELS.show, payload),
@@ -246,6 +267,7 @@ const api = {
     // 不匹配拒绝（renderer 据失败回滚本地预览序）
     reorderTabs: (payload: ReorderTabsPayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.reorderTabs, payload),
+    mergeToMain: (): Promise<BrowserOkResult> => ipcRenderer.invoke(BROWSER_CHANNELS.mergeToMain),
     navigate: (payload: NavigatePayload): Promise<BrowserSnapshot> =>
       ipcRenderer.invoke(BROWSER_CHANNELS.navigate, payload),
     back: (): Promise<BrowserSnapshot> => ipcRenderer.invoke(BROWSER_CHANNELS.back),
@@ -416,7 +438,7 @@ const api = {
     feedbackAction: (payload: CaptureFeedbackActionPayload): Promise<void> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.feedbackAction, payload),
     // 截图编辑器四口（2026-10-14 增量）：开窗（宿主/反馈条入口侧）与取图/产出
-    // （编辑子窗侧）；产出对账语义同 save-last（captureId 不匹配＝「截图已过期」）
+    // （编辑子窗侧）；取图按 sender 绑定本窗，产出校验本窗 captureId 版本，最近槽仅条件回写
     openEditor: (): Promise<void> => ipcRenderer.invoke(CAPTURE_CHANNELS.openEditor),
     getEditImage: (): Promise<CaptureEditImagePayload> =>
       ipcRenderer.invoke(CAPTURE_CHANNELS.getEditImage),
@@ -486,6 +508,12 @@ const api = {
     // 语言切换（设置专项阶段六）：合法值 = shared/i18n 注册表闭集，主进程守卫承担
     setLanguage: (payload: SetLanguagePayload): Promise<SettingsSnapshot> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.setLanguage, payload),
+    // 工具栏按钮显隐（插件专项收尾）：布尔值守卫在主进程，主窗工具栏经 changed
+    // 广播即时收敛
+    setShowCapture: (payload: SetShowCapturePayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setShowCapture, payload),
+    setShowRecorder: (payload: SetShowRecorderPayload): Promise<SettingsSnapshot> =>
+      ipcRenderer.invoke(SETTINGS_CHANNELS.setShowRecorder, payload),
     // 恢复出厂（阶段七）：两步确认通过后调用；无 payload，sender 白名单 = 设置窗
     factoryReset: (): Promise<SettingsOkResult> =>
       ipcRenderer.invoke(SETTINGS_CHANNELS.factoryReset),
@@ -507,6 +535,90 @@ const api = {
   // 工作区选择模态框（PRD 4.11，2026-09-21 增量）：三通道三侧各取所需——show 归
   // 主窗 shell（发起 + 等待最终结论），payload/pick 归 sheet 页面（拉展示上下文 /
   // 提交选择）；主进程持单请求 pending 态，模态阻塞由窗口系统承担
+  extensions: {
+    list: (): Promise<import('../shared/extensions/management').ExtensionListResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.list),
+    installFromStore: (
+      id: string
+    ): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.installStore, id),
+    importCrx: (): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrx),
+    uninstall: (id: string): Promise<import('../shared/extensions/management').UninstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.uninstall, id),
+    openPopup: (
+      id: string,
+      anchor: { x: number; y: number }
+    ): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.openPopup, { id, anchor }),
+    manage: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(EXTENSIONS_CHANNELS.manage),
+    /** 固定/取消固定单个插件（显式目标态），落库后主进程广播 changed */
+    setPinned: (payload: {
+      id: string
+      pinned: boolean
+    }): Promise<import('../shared/extensions/management').PinResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.setPinned, payload),
+    /** 固定全序覆盖（拖拽重排提交），落库后主进程广播 changed */
+    orderPinned: (ids: string[]): Promise<import('../shared/extensions/management').PinResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.orderPinned, { ids }),
+    /** 设置窗打开 Chrome 商店：宿主导航激活会话当前标签 */
+    openStore: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.openStore),
+    /** 拖拽 CRX 导入：path 由 webUtils.getPathForFile 取得（file 落盘路径） */
+    importCrxFromPath: (
+      path: string
+    ): Promise<import('../shared/extensions/management').InstallResult> =>
+      ipcRenderer.invoke(EXTENSIONS_CHANNELS.importCrxPath, { path }),
+    /** File → 落盘路径（webUtils 必须在 preload 调用；contextBridge 可传 File 对象） */
+    getCrxPath: (file: File): string => webUtils.getPathForFile(file),
+    /** pins/安装集变更广播订阅：重取 list（list 恒唯一数据源），返回退订函数 */
+    onChanged: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(EXTENSIONS_CHANNELS.changed, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_CHANNELS.changed, listener)
+      }
+    }
+  },
+  // 扩展面板原生子窗口（承载机制见 shared/extensionsPanel.ts 头注释）：宿主 shell 用
+  // show/hide 编排开合 + onPicked/onClosed 消费子窗转发与主进程关闭推送；面板子窗用
+  // pick 上报 + onData 接收渲染数据。同一 preload 按窗口角色各取所需
+  extensionsPanel: {
+    show: (payload: ExtensionsPanelShowPayload): Promise<{ ok: boolean; canPresent: boolean }> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.show, payload),
+    hide: (): Promise<OkResult> => ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.hide),
+    pick: (payload: ExtensionsPanelPickPayload): Promise<OkResult> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.pick, payload),
+    setMousePassthrough: (enabled: boolean): Promise<OkResult> =>
+      ipcRenderer.invoke(EXTENSIONS_PANEL_CHANNELS.setMousePassthrough, { enabled }),
+    onData: (callback: (payload: ExtensionsPanelDataPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: ExtensionsPanelDataPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.data, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.data, listener)
+      }
+    },
+    onPicked: (callback: (payload: ExtensionsPanelPickedPayload) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, payload: ExtensionsPanelPickedPayload): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.picked, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.picked, listener)
+      }
+    },
+    onClosed: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+      ipcRenderer.on(EXTENSIONS_PANEL_CHANNELS.closed, listener)
+      return () => {
+        ipcRenderer.removeListener(EXTENSIONS_PANEL_CHANNELS.closed, listener)
+      }
+    }
+  },
   dialog: {
     confirmDestructive: (payload: ConfirmDestructivePayload): Promise<boolean> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.confirmDestructive, payload),
