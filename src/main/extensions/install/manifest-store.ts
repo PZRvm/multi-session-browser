@@ -272,10 +272,12 @@ export function createManifestStore(file: string): ManifestStore {
         }
         validateInstallRecord(record)
         const installs = current.installs.filter((v) => v.id !== record.id)
+        // pins 保留（2026-11-13 修复：重建清单时丢 pins 会让导入/升级后置顶全丢）
         const next: GlobalManifest = {
           version: 1,
           generation,
-          installs: [...installs, record]
+          installs: [...installs, record],
+          ...(current.pins ? { pins: current.pins } : {})
         }
         await persistAtomic(file, next)
         return record

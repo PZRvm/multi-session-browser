@@ -145,6 +145,7 @@ export const settings = {
     loadedStat: '已加载 {n}/{m} 个会话',
     hint: '支持商店 ID 安装与本地 CRX2/CRX3 导入；安装需确认，全部会话即时生效。',
     dropHint: '支持拖拽 .crx 安装包到本页直接导入',
+    dropActiveHint: '松手导入该 .crx 插件',
     dropInvalid: '仅支持 .crx 安装包文件',
     importFailed: '导入失败：',
     importDone: '插件导入成功',

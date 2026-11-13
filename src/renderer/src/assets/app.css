@@ -3563,6 +3563,33 @@ body[data-role='capture-editor'] {
   margin: 14px 0 0;
 }
 
+/* 拖拽 CRX 导入蒙层（2026-11-13）：拖入时全页蒙版明示「可导入」；wrapper 需相对
+   定位承载，蒙层不接管指针（pointer-events:none 让 drop 落回根 handler）；消费
+   既有板面语义变量（--board-surface/-ink/-accent 族，亮暗随主题翻转） */
+.settings-ext-drop-zone {
+  position: relative;
+}
+.settings-ext-drop-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--board-control-line, var(--board-ink-dim));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--board-bg-raised, var(--board-bg)) 82%, transparent);
+  pointer-events: none;
+}
+.settings-ext-drop-mask-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--board-ink, var(--board-ink-dim));
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--board-bg-raised, var(--board-bg)) 92%, transparent);
+}
+
 /* 扩展面板（2026-11-11，Chrome 拼图菜单还原）：chrome 表面族世界，亮暗随
    --chrome-* token 自动翻转；宽度/圆角/行距对齐 Chrome 原生气泡节奏 */
 /* 扩展面板（原生子窗口承载态，白屏根除专项）：面板 div 渲染在 ?role=extensions-panel

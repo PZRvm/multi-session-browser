@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createManifestStore, type InstallRecord } from './install/manifest-store'
+import { dialogIconForDarwin } from '../dialogs'
 import { createInstallService } from './install/service'
 import { createStoreInstall } from './install/store'
 import { extensionsPaths, getExtensionsHandle, mountDevExtensions } from './dev-entry'
@@ -563,6 +564,8 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         const win = BrowserWindow.fromWebContents(_e.sender) ?? deps.getMainWindow()
         const dialogOpts = {
           type: 'warning' as const,
+          // 项目 logo 替换 warning 三角（dialogIconForDarwin 用户裁决先例，darwin 生效）
+          icon: dialogIconForDarwin(),
           message: `卸载插件「${name}」？`,
           detail: '将移除插件及其数据，操作不可恢复。',
           buttons: ['取消', '卸载'],

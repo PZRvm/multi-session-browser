@@ -118,6 +118,7 @@ export const settings: Dictionary['settings'] = {
     loadedStat: 'Loaded in {n}/{m} sessions',
     hint: 'Install via store ID or import a local CRX2/CRX3 file; installs confirm once and apply to every session.',
     dropHint: 'Drag a .crx package onto this page to install',
+    dropActiveHint: 'Drop to install this .crx extension',
     dropInvalid: 'Only .crx package files are supported',
     importFailed: 'Import failed: ',
     importDone: 'Extension imported',

@@ -154,6 +154,7 @@ export function PaneExtensions(): React.JSX.Element {
 
   return (
     <div
+      className="settings-ext-drop-zone"
       onDragOver={(e) => {
         e.preventDefault()
         if (e.dataTransfer.types?.includes('Files')) setDropActive(true)
@@ -268,12 +269,13 @@ export function PaneExtensions(): React.JSX.Element {
           </ul>
         )}
         <p className="settings-ext-hint">{t('settings.extensions.hint')}</p>
-        <p
-          className={`settings-ext-drop-hint${dropActive ? ' active' : ''}`}
-          aria-hidden={dropActive ? undefined : true}
-        >
-          {t('settings.extensions.dropHint')}
-        </p>
+        {dropActive && (
+          <div className="settings-ext-drop-mask" aria-hidden="true">
+            <span className="settings-ext-drop-mask-text">
+              {t('settings.extensions.dropActiveHint')}
+            </span>
+          </div>
+        )}
       </SettingsPane>
     </div>
   )
