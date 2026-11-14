@@ -1,3 +1,4 @@
+import { UpdateEntry } from '../UpdateEntry'
 import { useEffect, useRef, useState } from 'react'
 import { CloseOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import type { BrowserTabState } from '../../../../shared/browser'
@@ -507,12 +508,7 @@ function TabStrip(): React.JSX.Element {
   const lastOne = windowIdentity.mode === 'main' && tabs.length <= 1
 
   return (
-    <div
-      ref={tabsElRef}
-      className={`chrome-tabs${dragTarget ? ' drag-target' : ''}`}
-      role="tablist"
-      aria-label={t('browser.tabs.listAria')}
-    >
+    <div ref={tabsElRef} className={`chrome-tabs${dragTarget ? ' drag-target' : ''}`}>
       {/* Tab 序列裁切层（审查 20261030135910 低-3 修复）：窄窗 + 多 Tab 时 Tab 压至
           内容下限（favicon + 关闭钮）后仍溢出，溢出尾段会钻进右上角 WCO 按钮区——
           Tab 序列收进本独立裁切容器（横向滚动 + 纵轮转横滚，Chrome tabstrip 同构），
@@ -520,6 +516,8 @@ function TabStrip(): React.JSX.Element {
           栏矩形上报（tabsElRef 仍指外层）不受影响 */}
       <div
         className="chrome-tabs-list"
+        role="tablist"
+        aria-label={t('browser.tabs.listAria')}
         ref={listElRef}
         onWheel={(e) => {
           // 纵轮转横滚（Chrome tabstrip 同款）；栏属壳层无页面滚动语义，无需吞默认
@@ -549,6 +547,7 @@ function TabStrip(): React.JSX.Element {
       >
         <PlusOutlined />
       </button>
+      <UpdateEntry />
     </div>
   )
 }

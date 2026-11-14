@@ -5,7 +5,7 @@ productName: 多会话浏览器
 # 打包钩子：macOS 注入本地化显示名（zh_CN/zh_TW/en .lproj），系统按用户语言偏好
 # 自动挑选 Dock/菜单栏名；签名前为 macOS 主程序派生独立稳定 UUID，避免本地网络权限串用。
 # Windows/Linux 消费上方 productName 与运行期窗口标题
-afterPack: scripts/patch-mac-display-names.js
+afterPack: scripts/prepare-mac-sparkle.cjs
 directories:
   buildResources: build
 files:
@@ -28,6 +28,11 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  identity: null
+  target:
+    - dmg
+    - zip
+  artifactName: ${name}-${version}-mac-${arch}.${ext}
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -54,7 +59,8 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: PZRvm
+  repo: multi-session-browser
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

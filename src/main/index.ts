@@ -1,3 +1,7 @@
+import { registerUpdates } from './updates'
+import { createUpdateTestContext } from './updateTestContext'
+import { isExtensionCaptureBusy } from './extensions/shims'
+import { isUpdatePreparing, isUpdateInstalling, trackUpdateWork } from './updatePreparation'
 import { app, shell, BrowserWindow, Menu, webContents } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
@@ -5,7 +9,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerDialogIpc } from './dialogs'
-import { registerWorkspacePickerIpc } from './workspacePickerWindow'
+import { registerWorkspacePickerIpc, showUpdateDetailsWindow } from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
 import { registerToolbarTooltipIpc } from './browser/toolbarTooltip'
 import { createTabDragController } from './browser/dragging'
@@ -79,8 +83,20 @@ if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 }
-if (process.env['MSB_USER_DATA']) {
-  const override = process.env['MSB_USER_DATA']
+declare const __UPDATE_TEST_BUILD__: boolean
+const updateTestContext = createUpdateTestContext({
+  enabled: __UPDATE_TEST_BUILD__ && process.platform === 'darwin',
+  appData: app.getPath('appData'),
+  executable: process.execPath,
+  currentVersion: app.getVersion()
+})
+const restoredUpdateTestLaunch = process.env['MSB_USER_DATA'] ? null : updateTestContext.restore()
+const isolatedUserData = process.env['MSB_USER_DATA'] || restoredUpdateTestLaunch?.userData
+if (__UPDATE_TEST_BUILD__ && !isolatedUserData) {
+  throw new Error('更新测试包必须设置 MSB_USER_DATA 隔离目录')
+}
+if (isolatedUserData) {
+  const override = isolatedUserData
   try {
     mkdirSync(override, { recursive: true })
   } catch (error) {
@@ -101,10 +117,11 @@ if (process.env['MSB_USER_DATA']) {
 // 六处），主窗不显示不激活（showOnce 静默路径），agent 验证全走 CDP 截图/DOM/console，
 // 不再反复重启应用抢夺用户前台焦点（绕开 electron/electron#30904 的「show 即激活」
 // 框架默认行为）。argv 门控而非环境变量：三个平台 shell 语义一致，脚本零依赖
-const isAgentDebug = process.argv.includes('--agent-debug')
+const isAgentDebug =
+  process.argv.includes('--agent-debug') || !!restoredUpdateTestLaunch?.agentDebug
 if (isAgentDebug) {
   // appendSwitch 须在 app ready 前执行才有生效窗口（Chromium 开关在命令行阶段读取）
-  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? '9222'
+  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? restoredUpdateTestLaunch?.debugPort ?? '9222'
   app.commandLine.appendSwitch('remote-debugging-port', port)
 }
 
@@ -417,6 +434,12 @@ function createWindow(): void {
 /** 毫秒等待（退出防丢的写盘等待上限用；模块级纯计时器） */
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+app.on('browser-window-created', (_event, win) => {
+  win.on('close', (event) => {
+    if (isUpdatePreparing() && !isUpdateInstalling()) event.preventDefault()
+  })
+})
+
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.pzrvm.multisessionbrowser')
@@ -645,7 +668,7 @@ app.whenReady().then(async () => {
       } catch (error) {
         console.warn(`[main] 删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
-      void created.destroySession(id).catch((error: unknown) => {
+      void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
         console.warn(`[main] 销毁会话 ${id} 失败:`, error)
       })
     },
@@ -673,7 +696,7 @@ app.whenReady().then(async () => {
         console.warn(`[main] 批量删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
       for (const id of ids) {
-        void created.destroySession(id).catch((error: unknown) => {
+        void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
           console.warn(`[main] 销毁会话 ${id} 失败:`, error)
         })
       }
@@ -718,6 +741,30 @@ app.whenReady().then(async () => {
     getSessionName: (id) => loadSnapshot().then((s) => s.sessions.find((x) => x.id === id)?.name),
     t,
     tmpDir: join(app.getPath('userData'), 'recording-tmp')
+  })
+  registerUpdates({
+    windows: () =>
+      [
+        mainWindow,
+        settingsWindowController?.getSettingsWindow(),
+        ...independentWindows.listAll().map((entry) => entry.win)
+      ].filter((win): win is BrowserWindow => !!win && !win.isDestroyed()),
+    busy: async () => recordingHooks.isBusy() || (await isExtensionCaptureBusy()),
+    save: () => created.prepareUpdate(),
+    resume: () => created.resumeUpdate(),
+    prepareRelaunch: (version) =>
+      updateTestContext.prepare(version, {
+        userData: app.getPath('userData'),
+        agentDebug: isAgentDebug,
+        debugPort:
+          process.env['MSB_AGENT_DEBUG_PORT'] ?? restoredUpdateTestLaunch?.debugPort ?? '9222'
+      }),
+    cancelRelaunch: () => updateTestContext.clear(),
+    showDetails: (owner, state) =>
+      showUpdateDetailsWindow(owner, state, {
+        getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
+        getThemeColor: () => appearanceController.getSnapshot().themeColor
+      })
   })
   routeBrowserLifecycleToRecording(created, recordingHooks)
   recordedWindowIdHolder.get = recordingHooks.getRecordedWindowId
@@ -914,6 +961,12 @@ app.whenReady().then(async () => {
       })
   }
   app.on('before-quit', (event) => {
+    if (event.defaultPrevented) return
+    if (isUpdateInstalling()) return
+    if (isUpdatePreparing()) {
+      event.preventDefault()
+      return
+    }
     if (quitFlushSettled) return // 冲刷落定后的真正退出，放行
     event.preventDefault()
     quitThroughFlush()

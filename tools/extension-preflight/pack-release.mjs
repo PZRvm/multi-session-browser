@@ -27,7 +27,6 @@ function walk(dir, base = dir, acc = []) {
     if (entry === 'out' || entry.startsWith('.')) continue
     const full = join(dir, entry)
     const rel = relative(base, full).split('\\').join('/')
-    const st = statSync(full)
     if (statSync(full).isDirectory()) walk(full, base, acc)
     else acc.push(rel)
   }
@@ -56,7 +55,9 @@ if (inspected.id !== expectedId) {
   throw new Error(`CRX 自验失败：ID ${inspected.id} 与 pem 派生 ID ${expectedId} 不一致`)
 }
 if (inspected.manifest.version !== manifest.version) {
-  throw new Error(`CRX 自验失败：manifest 版本 ${inspected.manifest.version} ≠ 源 ${manifest.version}`)
+  throw new Error(
+    `CRX 自验失败：manifest 版本 ${inspected.manifest.version} ≠ 源 ${manifest.version}`
+  )
 }
 
 mkdirSync(dirname(outPath), { recursive: true })
@@ -64,14 +65,15 @@ writeFileSync(outPath, crx)
 
 const digest = createHash('sha256').update(crx).digest('hex')
 console.log(
-  JSON.stringify({
-    name: `${manifest.name}`,
-    id: inspected.id,
-    version: manifest.version,
-    file: outPath,
-    bytes: crx.length,
-    sha256: digest
-  },
+  JSON.stringify(
+    {
+      name: `${manifest.name}`,
+      id: inspected.id,
+      version: manifest.version,
+      file: outPath,
+      bytes: crx.length,
+      sha256: digest
+    },
     null,
     2
   )

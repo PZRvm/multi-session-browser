@@ -1,3 +1,4 @@
+import { useUpdatesStore } from './stores/updates'
 import './assets/app.css'
 
 import { Suspense, lazy, StrictMode } from 'react'
@@ -61,6 +62,7 @@ const role = new URLSearchParams(window.location.search).get('role')
 // CSS 媒体查询：app.css 的暗色 token 经 prefers-color-scheme 随主进程 nativeTheme
 // .themeSource 自动翻转（与建窗注入的 backgroundColor 同源对账）
 if (role === SETTINGS_WINDOW_ROLE) {
+  void useUpdatesStore.getState().init()
   document.body.dataset.role = SETTINGS_WINDOW_ROLE
   // 外观行只读镜像自阶段二初始化（兑现阶段一「阶段二再议」备注）：init 先订阅后拉取，
   // 有 in-flight 防重入与失败容错——失败不阻塞壳体渲染，保留 CSS 媒体查询主题；阶段三
@@ -147,6 +149,7 @@ if (role === SETTINGS_WINDOW_ROLE) {
     </StrictMode>
   )
 } else {
+  void useUpdatesStore.getState().init()
   const detachNativeEditing = attachNativeEditing()
   import.meta.hot?.dispose(detachNativeEditing)
   // 外观镜像独立初始化：失败时保留首帧的系统 media query 结果，不阻塞会话与浏览器恢复。

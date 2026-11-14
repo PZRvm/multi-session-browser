@@ -1,3 +1,4 @@
+import { UpdateDetailsSheet } from './UpdateDetailsSheet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   PICKER_LIST_PAD_TOP,
@@ -287,6 +288,8 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
       </div>
     )
   }
+
+  if (context?.kind === 'app-update') return <UpdateDetailsSheet context={context} />
 
   const title = context
     ? isRename

@@ -1,3 +1,4 @@
+import { trackUpdateWork } from '../updatePreparation'
 // 会话浏览器注册表：每会话一个独立分区的 TabManager（分区字符串 persist:sess-<id>
 // 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令按来源
 // 窗口作用域路由：主窗口 → 激活会话的 'main' 作用域，独立窗口 → 其绑定会话的该窗口
@@ -195,6 +196,8 @@ export interface SessionBrowserRegistry extends TabManager {
   getStatuses(): SessionStatusesPayload
   /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot/recordVisit no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
   flushPendingReports(): Promise<void>
+  prepareUpdate(): Promise<void>
+  resumeUpdate(): void
   /**
    * WebContentsView 页面首帧前兜底底色随主题（2026-09-25）：迭代注册表内全部会话
    * manager 透传（含后台/零视图会话，空 Map no-op）；index.ts 经 appearance
@@ -585,25 +588,27 @@ export function createSessionBrowserRegistry(deps: {
     // 还是空白页）才补做恢复（用户已自行导航/开 Tab 则不打扰），保住 PRD 3.1.4 的恢复语义
     if (!persistence.hasRestore(id)) {
       pendingBackfill.add(id)
-      void loadSnapshot()
-        .then((snapshot) => {
-          // 已注销守卫（F2 定案）与补载资格守卫（R1 定案：复用路径已撤销），
-          // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
-          const armed = pendingBackfill.delete(id)
-          if (!managers.has(id) || !armed) return
-          persistence.ingest(snapshot)
-          const item = snapshot.sessions.find((entry) => entry.id === id)
-          if (!item || item.tabs.length === 0) return
-          // L4 叠加径（takeBatchOpened）已随 2026-10-23 批量多选退役删除
-          // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
-          // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
-          const current = manager.getSnapshot()
-          if (current.tabs.length !== 1) return
-          const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
-          if (!activeTab || activeTab.url !== BLANK_URL) return
-          persistence.applyRestore(manager, id, true)
-        })
-        .catch(() => undefined) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
+      void trackUpdateWork(
+        loadSnapshot()
+          .then((snapshot) => {
+            // 已注销守卫（F2 定案）与补载资格守卫（R1 定案：复用路径已撤销），
+            // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
+            const armed = pendingBackfill.delete(id)
+            if (!managers.has(id) || !armed) return
+            persistence.ingest(snapshot)
+            const item = snapshot.sessions.find((entry) => entry.id === id)
+            if (!item || item.tabs.length === 0) return
+            // L4 叠加径（takeBatchOpened）已随 2026-10-23 批量多选退役删除
+            // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
+            // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
+            const current = manager.getSnapshot()
+            if (current.tabs.length !== 1) return
+            const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
+            if (!activeTab || activeTab.url !== BLANK_URL) return
+            persistence.applyRestore(manager, id, true)
+          })
+          .catch(() => undefined)
+      ) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
     }
     return manager
   }
@@ -649,7 +654,7 @@ export function createSessionBrowserRegistry(deps: {
       commitSwitch(null)
       return
     }
-    void prepareActivation(id, generation)
+    void trackUpdateWork(prepareActivation(id, generation))
   }
 
   /** 激活链的异步前段：await 代理应用，完成后守卫仍有效才提交切换 */
@@ -1314,6 +1319,23 @@ export function createSessionBrowserRegistry(deps: {
     onSessionStatus,
     getStatuses,
     flushPendingReports,
+    async prepareUpdate() {
+      const results = await Promise.allSettled([
+        persistence.prepareUpdate([...managers.keys()]),
+        history.prepareUpdate(),
+        ...[...managers.keys()].map(async (id) => {
+          const partition = session.fromPartition(partitionFor(id))
+          partition.flushStorageData()
+          await partition.cookies.flushStore()
+        })
+      ])
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+    },
+    resumeUpdate() {
+      persistence.resumeUpdate([...managers.keys()])
+      history.resumeUpdate()
+    },
     history
   }
 }
