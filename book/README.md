@@ -465,6 +465,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
 - [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
 - [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用自动更新L级开发计划，覆盖主窗与独立窗入口、关于页、双入口隐藏停更、严格保存、GitHub更新附件和macOS正式签名，开发中，正式签名及跨平台实机升级待验
+- [2026-11-14-macOS更新迁移Sparkle.md](plans/2026-11-14-macOS更新迁移Sparkle.md) — macOS迁移Sparkle的L级计划，先验证取消安装与缓存语义，再接原生桥接、免费签名发布和双版本升级
 - [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
 - [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
 - [2026-11-14-更新提示与卡顿排查.md](plans/2026-11-14-更新提示与卡顿排查.md) — L级更新反馈修订，排查用户验收卡顿、补原生悬停提示并把日志规范归入项目骨架
@@ -533,4 +534,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 408 documents -->
+<!-- 409 documents -->
