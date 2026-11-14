@@ -61,6 +61,89 @@ const deferred = () => {
 const tick = () => new Promise((r) => setImmediate(r))
 try {
   const { createUpdateController } = await module('src/main/updateController.ts')
+  const { createUpdateTestContext } = await module('src/main/updateTestContext.ts')
+  await test('测试更新重启单次恢复同一目录，旧版本和其他应用路径不能消费', async () => {
+    const launch = { userData: join(temp, 'isolated'), agentDebug: true, debugPort: '0' }
+    const opts = {
+      enabled: true,
+      appData: join(temp, 'handoff'),
+      executable: '/test/old.app/Contents/MacOS/test',
+      currentVersion: '90.0.1'
+    }
+    const old = createUpdateTestContext(opts)
+    assert.equal(old.restore(), null)
+    old.prepare('90.0.2', launch)
+    assert.equal(old.restore(), null)
+    assert.equal(
+      createUpdateTestContext({
+        ...opts,
+        executable: '/other/app',
+        currentVersion: '90.0.2'
+      }).restore(),
+      null
+    )
+    const updated = createUpdateTestContext({ ...opts, currentVersion: '90.0.2' })
+    const fs = await import('node:fs')
+    const directory = join(opts.appData, 'multi-session-browser-update-test-handoff')
+    if (process.platform !== 'win32') {
+      fs.chmodSync(directory, 0o755)
+      assert.equal(updated.restore(), null)
+      assert.throws(() => old.prepare('90.0.2', launch))
+      fs.chmodSync(directory, 0o700)
+    }
+    assert.deepEqual(updated.restore(), launch)
+    assert.equal(updated.restore(), null)
+    old.prepare('90.0.2', { ...launch, agentDebug: false })
+    assert.deepEqual(updated.restore(), { ...launch, agentDebug: false })
+    old.prepare('90.0.2', launch)
+    old.clear()
+    assert.equal(updated.restore(), null)
+  })
+  await test('正式构建零交接文件，记录过期和不安全路径拒绝', async () => {
+    const fs = await import('node:fs')
+    const appData = join(temp, 'disabled-context'),
+      launch = { userData: join(temp, 'isolated'), agentDebug: false, debugPort: '9222' }
+    const opts = { enabled: false, appData, executable: '/test/app', currentVersion: '90.0.2' }
+    const disabled = createUpdateTestContext(opts)
+    disabled.prepare('90.0.2', launch)
+    disabled.clear()
+    assert.equal(disabled.restore(), null)
+    assert.equal(fs.existsSync(appData), false)
+    const enabled = {
+      ...opts,
+      enabled: true,
+      appData: join(temp, 'expired-context'),
+      now: () => 1000
+    }
+    createUpdateTestContext(enabled).prepare('90.0.2', launch)
+    assert.equal(createUpdateTestContext({ ...enabled, now: () => 1801001 }).restore(), null)
+    assert.throws(() =>
+      createUpdateTestContext(enabled).prepare('90.0.2', { ...launch, userData: 'relative' })
+    )
+    if (process.platform !== 'win32') {
+      const linkRoot = join(temp, 'linked-context')
+      fs.mkdirSync(linkRoot)
+      fs.symlinkSync(
+        join(enabled.appData, 'multi-session-browser-update-test-handoff'),
+        join(linkRoot, 'multi-session-browser-update-test-handoff'),
+        'dir'
+      )
+      const original = fs.readdirSync(
+        join(enabled.appData, 'multi-session-browser-update-test-handoff')
+      )
+      const linked = createUpdateTestContext({ ...enabled, appData: linkRoot })
+      assert.equal(linked.restore(), null)
+      linked.clear()
+      assert.deepEqual(
+        fs.readdirSync(join(enabled.appData, 'multi-session-browser-update-test-handoff')),
+        original
+      )
+      assert.throws(() =>
+        createUpdateTestContext({ ...enabled, appData: linkRoot }).prepare('90.0.2', launch)
+      )
+    }
+  })
+
   function fixture(overrides = {}) {
     const calls = { check: 0, download: 0, install: 0, confirm: 0, prepare: 0, resume: 0 }
     const changes = []

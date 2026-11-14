@@ -8,7 +8,8 @@ export async function runMacTests(module, test) {
       commands = [],
       updates = [],
       failures = [],
-      dialogs = []
+      dialogs = [],
+      handoff = []
     const app = Object.assign(new EventEmitter(), {
       isPackaged: !overrides.dev,
       getAppPath: () => '/test/app',
@@ -93,7 +94,14 @@ export async function runMacTests(module, test) {
       registerUpdates({
         windows: () => [owner],
         busy: () => false,
-        save: async () => {},
+        save: async () => {
+          handoff.push('save')
+        },
+        prepareRelaunch: (version) => {
+          handoff.push(version)
+          if (overrides.handoffFailure) throw Error('写交接失败')
+        },
+        cancelRelaunch: () => handoff.push('clear'),
         resume: () => resumed++,
         showDetails: async () => ({ status: 'cancelled' })
       })
@@ -104,6 +112,7 @@ export async function runMacTests(module, test) {
       )
     return {
       engine,
+      handoff,
       timers,
       commands,
       updates,
@@ -132,6 +141,22 @@ export async function runMacTests(module, test) {
       }
     }
   }
+  await test('测试重启记录在保存后写入，写失败不授权安装', async () => {
+    const f = await setup(true, { accept: true, handoffFailure: true })
+    f.emit('available')
+    await tick()
+    const pending = f.invoke('download')
+    await tick()
+    f.emit('ready')
+    const state = await pending
+    assert.equal(state.error, 'install')
+    assert.deepEqual(f.handoff, ['save', '1.1.2', 'clear'])
+    assert.equal(
+      f.commands.some((c) => c.action === 'install'),
+      false
+    )
+    assert.equal(f.resumed, 1)
+  })
   await test('Mac 开发态和双隐藏零引擎，缺模块或架构错误保持主应用可用', async () => {
     for (const options of [{ dev: true }, { hidden: true }]) {
       const f = await setup(true, options)

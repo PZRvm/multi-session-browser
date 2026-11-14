@@ -112,6 +112,7 @@ npm run build:win    # Windows 安装包（另有 build:mac / build:linux / buil
 - 工作流与失败重试步骤见 `.github/RELEASING.md`；Mac 使用 Sparkle + ad-hoc + EdDSA，不再依赖付费 Apple 签名/公证。正式公钥配置仓库 Variable `SPARKLE_PUBLIC_ED_KEY`，私钥配置 Secret `SPARKLE_PRIVATE_KEY`；缺少或不匹配时拒绝发布，私钥不得入库、日志或产物。首次安装仍有 Gatekeeper 限制，首个 Sparkle 版本须手动安装。
 
 - Mac 更新由 `src/main/updates/macSparkle.ts` 与 `native/sparkle/bridge.m` 控制；只有原生确认、录制检查及严格保存成功才授权安装。进程内稍后保留 ready；普通退出必须等取消完成，重开重新下载。交接超时先撤销许可，取消未确认时不能放行退出或恢复写入。固定 SDK / headers 摘要在 `build/sparkle/sdk.json`，变更必须重验两架构；Windows 保留 electron-updater / NSIS。既有恢复集 R1 仍阻断真实数据验收与发布。
+- Sparkle 测试包自动重启不能假设继承 MSB_USER_DATA：仅可消费绑定 executable、目标版本、私有权限和时效的单次测试交接记录；缺失仍拒绝，禁止回落默认数据目录。原生回归必须直接校验自动启动窗口和原 profile，不能手动带环境变量重开后冒充自动重启通过。
 
 ## 架构与分层规则
 

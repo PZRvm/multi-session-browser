@@ -1,4 +1,5 @@
 import { registerUpdates } from './updates'
+import { createUpdateTestContext } from './updateTestContext'
 import { isExtensionCaptureBusy } from './extensions/shims'
 import { isUpdatePreparing, isUpdateInstalling, trackUpdateWork } from './updatePreparation'
 import { app, shell, BrowserWindow, Menu, webContents } from 'electron'
@@ -83,11 +84,19 @@ if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 }
 declare const __UPDATE_TEST_BUILD__: boolean
-if (__UPDATE_TEST_BUILD__ && !process.env['MSB_USER_DATA']) {
+const updateTestContext = createUpdateTestContext({
+  enabled: __UPDATE_TEST_BUILD__ && process.platform === 'darwin',
+  appData: app.getPath('appData'),
+  executable: process.execPath,
+  currentVersion: app.getVersion()
+})
+const restoredUpdateTestLaunch = process.env['MSB_USER_DATA'] ? null : updateTestContext.restore()
+const isolatedUserData = process.env['MSB_USER_DATA'] || restoredUpdateTestLaunch?.userData
+if (__UPDATE_TEST_BUILD__ && !isolatedUserData) {
   throw new Error('更新测试包必须设置 MSB_USER_DATA 隔离目录')
 }
-if (process.env['MSB_USER_DATA']) {
-  const override = process.env['MSB_USER_DATA']
+if (isolatedUserData) {
+  const override = isolatedUserData
   try {
     mkdirSync(override, { recursive: true })
   } catch (error) {
@@ -108,10 +117,11 @@ if (process.env['MSB_USER_DATA']) {
 // 六处），主窗不显示不激活（showOnce 静默路径），agent 验证全走 CDP 截图/DOM/console，
 // 不再反复重启应用抢夺用户前台焦点（绕开 electron/electron#30904 的「show 即激活」
 // 框架默认行为）。argv 门控而非环境变量：三个平台 shell 语义一致，脚本零依赖
-const isAgentDebug = process.argv.includes('--agent-debug')
+const isAgentDebug =
+  process.argv.includes('--agent-debug') || !!restoredUpdateTestLaunch?.agentDebug
 if (isAgentDebug) {
   // appendSwitch 须在 app ready 前执行才有生效窗口（Chromium 开关在命令行阶段读取）
-  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? '9222'
+  const port = process.env['MSB_AGENT_DEBUG_PORT'] ?? restoredUpdateTestLaunch?.debugPort ?? '9222'
   app.commandLine.appendSwitch('remote-debugging-port', port)
 }
 
@@ -742,6 +752,14 @@ app.whenReady().then(async () => {
     busy: async () => recordingHooks.isBusy() || (await isExtensionCaptureBusy()),
     save: () => created.prepareUpdate(),
     resume: () => created.resumeUpdate(),
+    prepareRelaunch: (version) =>
+      updateTestContext.prepare(version, {
+        userData: app.getPath('userData'),
+        agentDebug: isAgentDebug,
+        debugPort:
+          process.env['MSB_AGENT_DEBUG_PORT'] ?? restoredUpdateTestLaunch?.debugPort ?? '9222'
+      }),
+    cancelRelaunch: () => updateTestContext.clear(),
     showDetails: (owner, state) =>
       showUpdateDetailsWindow(owner, state, {
         getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,

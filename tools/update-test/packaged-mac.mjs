@@ -7,7 +7,8 @@ import {
   mkdirSync,
   renameSync,
   rmSync,
-  existsSync
+  existsSync,
+  statSync
 } from 'node:fs'
 import { createServer } from 'node:http'
 import { spawn, execFileSync } from 'node:child_process'
@@ -141,19 +142,14 @@ function runningAppPids() {
         : []
     })
 }
+const automaticMarker = `SPARKLE_AUTO_${randomBytes(5).toString('hex')}`
 const results = []
 let child, client
 try {
-  for (const mode of [
-    'network',
-    'notes',
-    'truncated',
-    'signature',
-    'save-failure',
-    'cancel',
-    'install',
-    'verify'
-  ]) {
+  const modes = process.argv.includes('--relaunch-only')
+    ? ['cancel', 'install', 'verify']
+    : ['network', 'notes', 'truncated', 'signature', 'save-failure', 'cancel', 'install', 'verify']
+  for (const mode of modes) {
     testMode = mode
     badSignature = mode === 'signature'
     let stderr = ''
@@ -244,6 +240,7 @@ try {
       await client.evaluate(
         `et.session.fromPartition('persist:sess-sparkle-probe').cookies.set({url:'https://sparkle-probe.test',name:'isolation',value:'kept',expirationDate:Date.now()/1000+86400})`
       )
+    let beforeRestart = 0
     const beforeDownload = requests.filter((r) => r.file.endsWith('.zip')).length
     const permission = Date.now()
     state = await invoke('download')
@@ -336,6 +333,12 @@ try {
       )
     } else {
       const statesFile = join(fixture, 'install-states.jsonl')
+      const markerScript = `window.api.sessions.create(${JSON.stringify({ name: automaticMarker })})`
+      await client.evaluate(
+        `et.BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('index.html')).webContents.executeJavaScript(${JSON.stringify(markerScript)})`
+      )
+      const debugFile = join(profile, 'DevToolsActivePort')
+      beforeRestart = statSync(debugFile).mtimeMs
       // 安装会销毁 renderer，不能用旧 frame 的 IPC 返回作为完成证据。
       // 观察真正发布的快照，仍调用原 send；不替代保存、许可或引擎。
       await client.evaluate(
@@ -378,7 +381,47 @@ try {
         await sleep(100)
       }
       assert.ok(relaunched.length, '未观察到新应用重启')
+      let automaticHealth = null
+      for (let i = 0; i < 450; i++) {
+        try {
+          if (statSync(join(profile, 'DevToolsActivePort')).mtimeMs <= beforeRestart) {
+            await sleep(100)
+            continue
+          }
+          const port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]
+          const pages = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()
+          const target = pages.find(
+            (page) => page.type === 'page' && page.url.includes('index.html')
+          )
+          if (target) {
+            const page = await connect(target.webSocketDebuggerUrl)
+            try {
+              const result = await page.evaluate(
+                'Promise.all([window.api.settings.getAppInfo(),window.api.sessions.list()])'
+              )
+              if (
+                result[0].appVersion === '90.0.2' &&
+                result[1].sessions.some((s) => s.name === automaticMarker)
+              )
+                automaticHealth = {
+                  version: result[0].appVersion,
+                  originalProfile: true,
+                  markerPresent: true
+                }
+            } finally {
+              page.close()
+            }
+            if (automaticHealth) break
+          }
+        } catch {
+          /* 自动启动期间端口或 preload 尚未就绪，继续等 */
+        }
+        await sleep(100)
+      }
+      assert.ok(automaticHealth, '自动重启未直接恢复原隔离目录并打开 90.0.2；不能用手动重开代替')
+      results.push({ mode: 'automatic-relaunch', ...automaticHealth, passed: true })
       for (const pid of relaunched) process.kill(pid, 'SIGTERM')
+      for (let i = 0; i < 100 && runningAppPids().length; i++) await sleep(100)
     }
     results.push({ mode, beforeDownload, state, passed: true })
     writeFileSync(join(fixture, `${mode}.stderr.log`), stderr)

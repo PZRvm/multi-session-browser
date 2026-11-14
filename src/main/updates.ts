@@ -15,6 +15,8 @@ export function registerUpdates(deps: {
   busy(): boolean | Promise<boolean>
   save(): Promise<void>
   resume(): void
+  prepareRelaunch?(version: string): void
+  cancelRelaunch?(): void
   showDetails(owner: BrowserWindow, state: UpdateSnapshot): Promise<WorkspacePickerResult>
 }): void {
   let owner: BrowserWindow | null = null
@@ -87,10 +89,13 @@ export function registerUpdates(deps: {
     },
     resume() {
       clearHandoff()
+      deps.cancelRelaunch?.()
       deps.resume()
       resumeAfterUpdate()
     },
     beforeInstall() {
+      const version = controller.getState().downloadedVersion
+      if (version) deps.prepareRelaunch?.(version)
       setUpdateInstalling(true)
       handoffWarned = false
       // Mac 必须先撤销原生安装许可，收到取消完成后才恢复写入。
