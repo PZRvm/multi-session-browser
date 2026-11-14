@@ -1,6 +1,5 @@
 import { createRequire } from 'node:module'
 const { readVersionReleaseNotes } = createRequire(import.meta.url)('./release-notes.cjs')
-import { validateUpdateAssets } from './update-assets.mjs'
 /* eslint-disable @typescript-eslint/explicit-function-return-type -- 发布脚本直接由 Node 执行，不使用 TS 语法 */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -86,7 +85,9 @@ function checkVersion() {
   }
 }
 
-function collectAssets(directory) {
+async function collectAssets(directory) {
+  // 版本门禁在 npm ci 前运行；只在处理附件时加载依赖第三方库的校验器。
+  const { validateUpdateAssets } = await import('./update-assets.mjs')
   const { name, version } = readVersion()
   const names = validateUpdateAssets(directory, name, version, readVersionReleaseNotes(version))
   const assets = names.map((file) => {
@@ -151,7 +152,7 @@ async function publish(directory) {
   const commit = git('rev-parse', 'HEAD')
   const tag = `v${version}`
   const base = `repos/${repository}`
-  const assets = collectAssets(directory)
+  const assets = await collectAssets(directory)
   let ref = getApi(`${base}/git/ref/tags/${tag}`)
   if (!ref) {
     gh(
@@ -248,7 +249,7 @@ async function publish(directory) {
 try {
   const [command, directory] = process.argv.slice(2)
   if (command === 'version') checkVersion()
-  else if (command === 'checksums' && directory) collectAssets(resolve(directory))
+  else if (command === 'checksums' && directory) await collectAssets(resolve(directory))
   else if (command === 'publish' && directory) await publish(resolve(directory))
   else throw new Error('用法：node scripts/release.mjs version | checksums <目录> | publish <目录>')
 } catch (error) {
