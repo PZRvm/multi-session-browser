@@ -1,3 +1,4 @@
+import type { UpdateSnapshot } from './updates'
 // 原生弹层辅通道共享契约（主进程 / preload / renderer 三方共用）。
 import type {
   ChromeImportPolicy,
@@ -137,6 +138,7 @@ export const WORKSPACE_PICKER_WINDOW_ROLE = 'workspace-picker'
  * 2026-10-15 独立代理专项扩 session-proxy——「代理设置」表单复用同一 sheet 机制）
  */
 export type WorkspacePickerKind =
+  | 'app-update'
   | 'workspace-move-single'
   | 'workspace-rename'
   | 'chrome-import-select'
@@ -149,7 +151,7 @@ export type WorkspacePickerKind =
  * workspace-move-batch 已于 2026-10-23 随批量多选功能退役删除
  */
 export interface ShowWorkspacePickerPayload {
-  kind: WorkspacePickerKind
+  kind: Exclude<WorkspacePickerKind, 'app-update'>
   /** 单条移动的目标会话 id（workspace-move-single / session-proxy 必填，须过 SESSION_ID_RE） */
   sessionId?: string
   /** 重命名的目标工作区 id（workspace-rename 必填，须过 WORKSPACE_ID_RE；现名由主进程从快照现取，渲染层不传名） */
@@ -177,6 +179,7 @@ export type WorkspacePickerResult =
   | { status: 'chrome-import-picked'; profileDir: string; scopes: ChromeImportScope[] }
   | { status: 'chrome-import-policy'; policy: ChromeImportPolicy }
   | { status: 'session-proxy-submitted'; proxy: SessionProxyConfig | null }
+  | { status: 'update-action'; version: string; action: 'download' | 'install' }
   | { status: 'cancelled' }
 
 /** 选项行数据：single 场景含当前归属行（current 标记，sheet 侧禁点） */
@@ -189,6 +192,7 @@ export interface WorkspacePickerOption {
 
 /** payload 通道返回的展示上下文：全部由主进程从权威快照现取组装，sheet 页面零事实 */
 export interface WorkspacePickerContext {
+  updateDetails?: UpdateSnapshot
   /** show 时刻生成的请求 id，pick 回传须一致（陈旧窗口迟到提交不命中即拒绝） */
   requestId: string
   kind: WorkspacePickerKind
@@ -241,6 +245,8 @@ export interface WorkspacePickerContext {
  * 关窗，主进程 closed 钩子兜底 resolve cancelled）
  */
 export interface WorkspacePickerPickPayload {
+  updateVersion?: string
+  updateAction?: 'download' | 'install'
   requestId: string
   /** 选择场景必填：点选的目标工作区 id（null = 移出未分组）；重命名场景禁传（目标已由 pending 上下文持有） */
   workspaceId?: string | null
@@ -287,6 +293,8 @@ export interface WorkspacePickerPickPayload {
  * chromeConflictScopes 伸缩，2026-10-28 权威制）+ 表单间距 + 单选×2 + 表单间距 +
  * 按钮行——页面样式 .picker-label/.picker-check/.picker-conflict 系与此公式同源配对
  */
+export const UPDATE_DETAILS_WIDTH = 480
+export const UPDATE_DETAILS_HEIGHT = 420
 export const PICKER_WINDOW_WIDTH = 360
 export const PICKER_ROW_HEIGHT = 40
 export const PICKER_ROW_GAP = 4
@@ -319,6 +327,7 @@ export const SESSION_PROXY_RESULT_HEIGHT = 20
 
 /** 由上下文合成窗口内容高度（主进程建窗用；与上述常量同源，公式变更只改此处） */
 export function pickerWindowHeight(context: WorkspacePickerContext): number {
+  if (context.kind === 'app-update') return UPDATE_DETAILS_HEIGHT
   if (context.kind === 'workspace-rename') {
     return (
       PICKER_HEADER_HEIGHT_SINGLE +

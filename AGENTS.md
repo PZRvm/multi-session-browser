@@ -84,7 +84,7 @@ Local commands are disposable and have no production access — npm scripts, tes
 - PRODUCT.md、DESIGN.md 保留根目录，供 impeccable 直接发现；book/docs/product/ 与 book/docs/design/ 负责索引入口，不另建副本。界面语言以当前 i18n 与产品事实为准。
 - 新工作使用 bocode / boscope / book-writeback / bowrite。项目技能同时放于 .agents/skills/ 与 .zcode/skills/；四份镜像必须同步，项目内安装不修改用户全局技能。
 - 计划编写与执行统一遵循 BoCode：先分级，M/L 先写 Step 0，再按 book/guidelines/workflow.md 推进；计划写入 book/plans/，每次进度变化同步更新同一份 Todo List，已通过、失败和待测项分开记录。
-- 项目级 write-plan 与 subagent-execute-plan 已删除，历史文档中的名称和模板路径仅为历史记录，不再调用。research-feature、code-review、neat-freak 的领域检查仍可复用，路由与阶段流程服从 BoCode；新输出落入 book，不重建根 notes/ 或 docs/。旧 worktree 操作规则与设计技能仍保留。
+- 项目级 write-plan、subagent-execute-plan 与独立 code-review 技能已删除，历史文档中的名称和模板路径仅为历史记录，不再调用。代码审查统一走 BoCode Phase 5 与 book/guidelines/review-checklist.md，新问题落入 book/notes/issue/YYYY-MM/。research-feature、neat-freak 的领域检查仍可复用，路由与阶段流程服从 BoCode；不重建根 notes/ 或 docs/。旧 worktree 操作规则与设计技能仍保留。
 - record: legacy 的文档与 status 是历史证据，不代表当前重新验证；legacy_status: requires_triage 的 open 审查不能冒充已关闭。旧源路径通过 book/docs/migration/source-map.json 查询；历史原文在 15e9b11。
 - 现有中文 Clean Commit 要求比模板更严格，继续执行。仅本轮接入按用户要求直接在 dev；不推送或合 main。
 
@@ -108,6 +108,7 @@ npm run build:win    # Windows 安装包（另有 build:mac / build:linux / buil
 - 日常开发从 `dev` 开功能分支，改动先合入 `dev` 验证；用户确认后，才通过本仓库 `dev → main` 的 GitHub PR 发布。未经确认不合入 `main`，不直接向 `main` 推送开发改动。
 - `dev` / `main` 的 push 与 PR 运行 CI（lint + 含 typecheck 的生产构建）；成功合并 `dev → main` PR 后检查版本，仅新版本构建安装包并发布 Releases。已有版本且应用/打包输入未变时跳过发布，应用/打包输入变化但版本未更新则报错；普通 push、标签推送及关闭未合并 PR 不发布。
 - 发布前在 `dev` 用 `npm version patch --no-git-tag-version`（或 minor / major）同步更新 `package.json` 与 `package-lock.json`，提交版本变更；CI 按该版本生成标签，禁止覆盖已发布版本。
+- 正式版本日志以 `package.json.version` 绑定：改版本号时，必须在同一提交中准备唯一的 `book/changelogs/YYYY-MM/release-notes-v<version>.md`（含 frontmatter `description`，正文 1—12000 字符）。同一版本对应 Git Tag `v<version>`、绑定该 Tag 的 GitHub Release 及更新清单；Release 和清单的 `releaseNotes` 共用该文件正文。月份只负责归档，日志缺失、重复、空白、超长或与清单不一致时拒绝正式打包/发布；不得覆盖已公开版本。完整机制见 `book/docs/architecture/项目骨架.md` 的“版本日志规范”。
 - 工作流与失败重试步骤见 `.github/RELEASING.md`；签名证书与公证尚未配置，自动构建沿用现有临时签名方案。
 
 ## 架构与分层规则

@@ -1,3 +1,4 @@
+import type { UpdateSnapshot } from '../shared/updates'
 // 工作区模态框（原生 sheet）装配（PRD 4.11，契约见 shared/dialog.ts）：选择类
 // 「移动到工作区」与输入类「工作区重命名」（2026-09-21 二次增量，同机制第三 kind
 // workspace-rename——sheet 页面按上下文 kind 分支渲染，预填现名由主进程快照现取；
@@ -25,6 +26,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import {
   DIALOG_CHANNELS,
+  UPDATE_DETAILS_WIDTH,
   PICKER_WINDOW_WIDTH,
   WORKSPACE_PICKER_WINDOW_ROLE,
   pickerWindowHeight,
@@ -52,7 +54,7 @@ import type { ThemeSystemId } from '../shared/themeSystems'
 
 /** kind 白名单（对齐 CONFIRM_KINDS allowlist 先例），白名单外整单拒绝；
  * workspace-move-batch 已于 2026-10-23 随批量多选退役删除 */
-const PICKER_KINDS: readonly WorkspacePickerKind[] = [
+const PICKER_KINDS: readonly Exclude<WorkspacePickerKind, 'app-update'>[] = [
   'workspace-move-single',
   'workspace-rename',
   'chrome-import-select',
@@ -60,7 +62,7 @@ const PICKER_KINDS: readonly WorkspacePickerKind[] = [
   'session-proxy'
 ]
 
-function isPickerKind(value: string): value is WorkspacePickerKind {
+function isPickerKind(value: string): value is Exclude<WorkspacePickerKind, 'app-update'> {
   return (PICKER_KINDS as readonly string[]).includes(value)
 }
 
@@ -275,6 +277,33 @@ function resolveCancelled(reason: string): void {
   if (sheet && !sheet.isDestroyed()) sheet.close()
 }
 
+/** 更新详情只接受可信更新域传入的快照，复用原生sheet和请求生命周期。 */
+export function showUpdateDetailsWindow(
+  parent: BrowserWindow,
+  update: UpdateSnapshot,
+  deps: { getResolvedTheme: () => ResolvedTheme; getThemeColor: () => ThemeSystemId }
+): Promise<WorkspacePickerResult> {
+  if (pending || managedSheet || parent.isDestroyed())
+    return Promise.resolve({ status: 'cancelled' })
+  return new Promise((resolve) => {
+    const requestId = randomUUID()
+    const context: WorkspacePickerContext = {
+      requestId,
+      kind: 'app-update',
+      options: [],
+      showMoveOut: false,
+      updateDetails: structuredClone(update)
+    }
+    pending = { requestId, context, resolve, sheet: null }
+    try {
+      openSheet(parent, deps, context)
+    } catch (error) {
+      console.warn('[updates] 更新日志窗口打开失败:', error)
+      resolveCancelled('更新窗口打开失败')
+    }
+  })
+}
+
 export function registerWorkspacePickerIpc(deps: {
   /** 主窗口解析（parent 归属 + sender 白名单判据；macOS 关窗期间为 null → cancelled） */
   getMainWindow: () => BrowserWindow | null
@@ -340,6 +369,8 @@ export function registerWorkspacePickerIpc(deps: {
   ipcMain.handle(DIALOG_CHANNELS.workspacePickerPayload, (event): WorkspacePickerContext | null => {
     if (!pending || !pending.context || !pending.sheet || pending.sheet.isDestroyed()) return null
     if (event.sender !== pending.sheet.webContents) return null
+    if (pending.context.kind === 'app-update' && event.senderFrame !== event.sender.mainFrame)
+      return null
     return pending.context
   })
 
@@ -363,8 +394,27 @@ export function registerWorkspacePickerIpc(deps: {
     if (pending.context?.kind !== 'session-proxy' && payload.proxy !== undefined) {
       throw invalidParams()
     }
+    if (
+      pending.context?.kind !== 'app-update' &&
+      (payload.updateVersion !== undefined || payload.updateAction !== undefined)
+    )
+      throw invalidParams()
     let result: WorkspacePickerResult
-    if (pending.context?.kind === 'workspace-rename') {
+    if (pending.context?.kind === 'app-update') {
+      if (event.senderFrame !== event.sender.mainFrame) throw invalidParams()
+      const details = pending.context.updateDetails
+      const version = details?.downloadedVersion ?? details?.candidateVersion
+      const action = details?.downloadedVersion ? 'install' : 'download'
+      if (!version || payload.updateVersion !== version || payload.updateAction !== action)
+        throw invalidParams()
+      if (
+        Object.keys(payload).some(
+          (key) => !['requestId', 'updateVersion', 'updateAction'].includes(key)
+        )
+      )
+        throw invalidParams()
+      result = { status: 'update-action', version, action }
+    } else if (pending.context?.kind === 'workspace-rename') {
       if (payload.workspaceId !== undefined || payload.keepOpen !== undefined) throw invalidParams()
       const name = typeof payload.name === 'string' ? payload.name.trim() : ''
       if (!name || name.length > WORKSPACE_NAME_MAX) {
@@ -482,7 +532,7 @@ function openSheet(
   context: WorkspacePickerContext
 ): void {
   const sheet = new BrowserWindow({
-    width: PICKER_WINDOW_WIDTH,
+    width: context.kind === 'app-update' ? UPDATE_DETAILS_WIDTH : PICKER_WINDOW_WIDTH,
     // darwin 创建期补偿（实测 sheet 附加扣减 28px，见 ready-to-show 复核注释）——
     // 首帧即正确尺寸，滑出动画不带二次形变
     height: pickerWindowHeight(context) + (process.platform === 'darwin' ? 28 : 0),
@@ -495,13 +545,15 @@ function openSheet(
     // win/linux 系统框需要标题；darwin 无框不展示（title 仍归窗口本体语义）。
     // session-proxy 标题 {name} 插值（会话名经上下文快照现取）
     title:
-      context.kind === 'workspace-rename'
-        ? t('sessions.workspaceSwitcher.renameModalTitle')
-        : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
-          ? t('chromeImport.dialog.title')
-          : context.kind === 'session-proxy'
-            ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
-            : t('sessions.moveModal.titleFallback'),
+      context.kind === 'app-update'
+        ? t('updates.detailsTitle')
+        : context.kind === 'workspace-rename'
+          ? t('sessions.workspaceSwitcher.renameModalTitle')
+          : context.kind === 'chrome-import-select' || context.kind === 'chrome-import-conflict'
+            ? t('chromeImport.dialog.title')
+            : context.kind === 'session-proxy'
+              ? t('sessions.sessionProxy.sheetTitle', { name: context.sessionName ?? '' })
+              : t('sessions.moveModal.titleFallback'),
     autoHideMenuBar: true,
     ...(process.platform === 'darwin' ? { frame: false as const } : {}),
     backgroundColor: getAppearanceBackgroundColor(deps.getResolvedTheme(), deps.getThemeColor()),
@@ -509,7 +561,8 @@ function openSheet(
     modal: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      ...(context.kind === 'app-update' ? { backgroundThrottling: false } : {})
     }
   })
   if (pending) pending.sheet = sheet
@@ -520,13 +573,16 @@ function openSheet(
   sheet.on('page-title-updated', (event) => event.preventDefault())
   sheet.once('ready-to-show', () => {
     if (sheet.isDestroyed()) return
-    sheet.show()
+    if (!(context.kind === 'app-update' && process.argv.includes('--agent-debug'))) sheet.show()
     // macOS sheet 附加时系统扣减标准标题条高度（实测恒定 −28px，frame:false 亦然；
     // Windows/Linux 理论不失配）——显窗后复核内容高度，失配即重申，flex 列布局
     // 才不会被压缩出内滚
     const targetHeight = pickerWindowHeight(context)
     if (sheet.getContentSize()[1] !== targetHeight) {
-      sheet.setContentSize(PICKER_WINDOW_WIDTH, targetHeight)
+      sheet.setContentSize(
+        context.kind === 'app-update' ? UPDATE_DETAILS_WIDTH : PICKER_WINDOW_WIDTH,
+        targetHeight
+      )
     }
   })
   // 窗口任何路径关闭：keepOpen 加载态引用一并释放（兜底定时器同步清）；在途请求

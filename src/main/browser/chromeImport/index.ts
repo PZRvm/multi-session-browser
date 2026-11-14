@@ -1,3 +1,4 @@
+import { handleUpdateMutation } from '../../updatePreparation'
 // Chrome 浏览数据导入编排与 IPC（导入专项 20260930133553；2026-10-28 站点数据专项
 // 步骤 6 扩四类型，计划 20261028112040 第 3/5 节契约）：
 // list-profiles 现取探测；dry-run 守卫 → 源快照（sourceSnapshot 固定副本：勾选 scope
@@ -271,7 +272,7 @@ export function registerChromeImportIpc(deps: {
   // dry-run：会话存在性（读盘）→ profileDir 白名单复核（防探针绕过对话框直呼通道）→
   // 源快照（固定副本；Cookie/IndexedDB 一致性证据）→ 四类型只读探测 → 暂存 → 计划载荷。
   // 全程零写入（Chrome 侧与目标分区两不在话下；引擎 prepare 对目标只读查询）
-  ipcMain.handle(
+  handleUpdateMutation(
     CHROME_IMPORT_CHANNELS.dryRun,
     async (_event, payload: unknown): Promise<ChromeImportPlan> =>
       logFailure(CHROME_IMPORT_CHANNELS.dryRun, payload, async () => {
@@ -387,7 +388,7 @@ export function registerChromeImportIpc(deps: {
   // execute：暂存消费（未知/过期一律 planExpired）→ 静默窗口内逐 scope 写入（分项独立
   // try/catch：一类失败不中断另一类）→ 未勾选 scope 补 skipped 行（renderer 反馈完整）→
   // 资源统一释放（finally：快照整树 + 引擎工件）
-  ipcMain.handle(
+  handleUpdateMutation(
     CHROME_IMPORT_CHANNELS.execute,
     async (_event, payload: unknown): Promise<ChromeImportResult> =>
       logFailure(CHROME_IMPORT_CHANNELS.execute, payload, async () => {

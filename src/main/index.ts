@@ -1,3 +1,6 @@
+import { registerUpdates } from './updates'
+import { isExtensionCaptureBusy } from './extensions/shims'
+import { isUpdatePreparing, isUpdateInstalling, trackUpdateWork } from './updatePreparation'
 import { app, shell, BrowserWindow, Menu, webContents } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
@@ -5,7 +8,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerDialogIpc } from './dialogs'
-import { registerWorkspacePickerIpc } from './workspacePickerWindow'
+import { registerWorkspacePickerIpc, showUpdateDetailsWindow } from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
 import { registerToolbarTooltipIpc } from './browser/toolbarTooltip'
 import { createTabDragController } from './browser/dragging'
@@ -78,6 +81,10 @@ if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
   // 采集窗是本产品的功能性隐藏窗（录屏编码），非后台杂务，保持与前台同等调度。
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+}
+declare const __UPDATE_TEST_BUILD__: boolean
+if (__UPDATE_TEST_BUILD__ && !process.env['MSB_USER_DATA']) {
+  throw new Error('更新测试包必须设置 MSB_USER_DATA 隔离目录')
 }
 if (process.env['MSB_USER_DATA']) {
   const override = process.env['MSB_USER_DATA']
@@ -417,6 +424,12 @@ function createWindow(): void {
 /** 毫秒等待（退出防丢的写盘等待上限用；模块级纯计时器） */
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+app.on('browser-window-created', (_event, win) => {
+  win.on('close', (event) => {
+    if (isUpdatePreparing() && !isUpdateInstalling()) event.preventDefault()
+  })
+})
+
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.pzrvm.multisessionbrowser')
@@ -645,7 +658,7 @@ app.whenReady().then(async () => {
       } catch (error) {
         console.warn(`[main] 删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
-      void created.destroySession(id).catch((error: unknown) => {
+      void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
         console.warn(`[main] 销毁会话 ${id} 失败:`, error)
       })
     },
@@ -673,7 +686,7 @@ app.whenReady().then(async () => {
         console.warn(`[main] 批量删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
       for (const id of ids) {
-        void created.destroySession(id).catch((error: unknown) => {
+        void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
           console.warn(`[main] 销毁会话 ${id} 失败:`, error)
         })
       }
@@ -718,6 +731,22 @@ app.whenReady().then(async () => {
     getSessionName: (id) => loadSnapshot().then((s) => s.sessions.find((x) => x.id === id)?.name),
     t,
     tmpDir: join(app.getPath('userData'), 'recording-tmp')
+  })
+  registerUpdates({
+    windows: () =>
+      [
+        mainWindow,
+        settingsWindowController?.getSettingsWindow(),
+        ...independentWindows.listAll().map((entry) => entry.win)
+      ].filter((win): win is BrowserWindow => !!win && !win.isDestroyed()),
+    busy: async () => recordingHooks.isBusy() || (await isExtensionCaptureBusy()),
+    save: () => created.prepareUpdate(),
+    resume: () => created.resumeUpdate(),
+    showDetails: (owner, state) =>
+      showUpdateDetailsWindow(owner, state, {
+        getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
+        getThemeColor: () => appearanceController.getSnapshot().themeColor
+      })
   })
   routeBrowserLifecycleToRecording(created, recordingHooks)
   recordedWindowIdHolder.get = recordingHooks.getRecordedWindowId
@@ -914,6 +943,11 @@ app.whenReady().then(async () => {
       })
   }
   app.on('before-quit', (event) => {
+    if (isUpdateInstalling()) return
+    if (isUpdatePreparing()) {
+      event.preventDefault()
+      return
+    }
     if (quitFlushSettled) return // 冲刷落定后的真正退出，放行
     event.preventDefault()
     quitThroughFlush()

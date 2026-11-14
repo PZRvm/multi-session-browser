@@ -29,10 +29,10 @@ CI 会将来源不是本仓库 `dev` 的 `main` PR 标为失败。若需要 GitH
 
 3. 创建 `dev → main` PR。CI 检查合并来源、版本一致性和版本是否已使用，再执行 lint 与 `npm run build`（包含 typecheck）。
 4. 用户确认并合并 PR 后，Release 工作流固定检出该次 PR 的 `merge_commit_sha`，确认需要发布新版本后分别构建：
-   - macOS Apple Silicon：`macos-15`，arm64 DMG。
-   - macOS Intel：`macos-15-intel`，x64 DMG。
+   - macOS Apple Silicon：`macos-15`，arm64 DMG + 更新 ZIP。
+   - macOS Intel：`macos-15-intel`，x64 DMG + 更新 ZIP。
    - Windows x64：`windows-2025`，NSIS EXE。
-5. 三个构建均成功后，发布任务生成 `SHA256SUMS.txt`，创建指向该合并提交的 `v<版本号>` 标签与 Release 草稿。上传并逐个核对四个附件的文件名、大小和远程 SHA-256，全部一致后才公开发布。
+5. 三个构建均成功后，发布任务生成 `SHA256SUMS.txt`，创建指向该合并提交的 `v<版本号>` 标签与 Release 草稿。上传并逐个核对完整附件集的文件名、大小和远程 SHA-256，全部一致后才公开发布。
 
 普通 push（包括本地 git merge 后直接 push 到 `main`）不会发布；发布入口是 GitHub 上成功合并 `dev → main` PR。版本号不由 CI 自动递增，已有版本不会被覆盖。已创建标签指向本次提交时允许重试；指向其他提交且应用与打包输入相同时跳过发布，否则要求更新版本。
 
@@ -47,11 +47,11 @@ CI 会将来源不是本仓库 `dev` 的 `main` PR 标为失败。若需要 GitH
 
 ## 验证与签名边界
 
-CI 执行 lint、typecheck、生产构建、安装包生成；macOS 另外校验临时签名完整性与 DMG。完整安装、摄像头权限、会话隔离等业务功能仍须人工验收。
+CI 执行 lint、typecheck、生产构建、安装包生成；macOS 另外校验 Developer ID 签名、公证票据与 DMG。完整安装、摄像头权限、会话隔离等业务功能仍须人工验收。
 
-目前没有 Developer ID / Windows 正式代码签名证书，也未配置 Apple 公证；工作流沿用现有 macOS 临时签名与 Windows 未签名方案。系统可能提示来源未验证，Release 说明会列明这一限制。
+正式 Mac 发布已改为缺签名/公证材料即失败。需在仓库 Secrets 配置 `CSC_LINK`、`CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`，值不写入仓库或日志。当前尚未配置，不能发布或声称正式升级通过。Windows 继续未签名。
 
-国内开发环境继续使用仓库 `.npmrc` 的镜像配置；GitHub runner 通过工作流环境和打包命令覆盖为官方二进制下载源，不改写 `.npmrc`。
+国内开发环境继续使用仓库 `.npmrc` 的镜像配置；GitHub runner 沿用 `.npmrc` 镜像下载二进制，不改写 `.npmrc`。
 
 ## 配置位置与依据
 
@@ -69,3 +69,24 @@ CI 执行 lint、typecheck、生产构建、安装包生成；macOS 另外校验
 - ID 稳定：同 pem 同 ID（与 Chrome `--pack-extension` 的 CRX3 同 ID），覆盖安装即升级。
 - 版本语义：CRX 版本读各插件 manifest（如 recorder 0.1.1 / screenshot 0.1.0），与应用 package.json 版本无关；打包脚本在 tools/ 下，不进应用版本的打包输入哈希。
 - 排障：校验失败保留现场（附件已上传但发布步失败时，重跑生成新时间戳 tag 的全新 Release，不会覆盖旧包）。
+
+
+## 应用自动更新
+
+正式构建使用 `scripts/electron-builder-release.cjs`，固定 `MAIN_VITE_UPDATE_HEADER=true`、`MAIN_VITE_UPDATE_SETTINGS=true`、`MAIN_VITE_UPDATE_TEST=false`。本地默认配置允许临时签名，不能用其替代正式发布入口。
+
+macOS 产出 DMG 与 ZIP，Windows 产出 NSIS EXE，另上传实际生成的 blockmap、latest.yml、latest-mac.yml。artifact 按平台/架构分目录，`scripts/update-assets.mjs` 逐份核对版本、大小、SHA-512 和 URL 后合并两份 Mac 清单；缺一个架构即失败。更新附件也纳入 SHA256SUMS，草稿附件对账通过后才公开。插件 CRX 发布固定 `--latest=false`，应用取 Latest；首发时还需核实已有 Latest 指向应用版本，当前未改远端。
+
+每次升级版本时，新增唯一的`book/changelogs/YYYY-MM/release-notes-v<version>.md`，版本与package.json完全一致。文件带frontmatter description；正文只写该版变化，使用标题、列表和段落，非空且不超过12000字符。例如：
+
+```markdown
+---
+description: 1.2.3版本的用户可见变化
+---
+## 改进
+- 描述本次发布的实际变化。
+```
+
+`scripts/release-notes.cjs`提取正文，正式builder将它写入各平台更新清单的releaseNotes，发布脚本用同一正文作为GitHub Release开头。源文件缺失、重复、超长，或各平台日志不一致都会阻止发布。修改版本号时同步准备该版本文件；普通开发记录不自动拼成发布说明。测试90.0.1/90.0.2使用`tools/update-test/fixtures/`内专用日志，不占用正式版本文件。
+
+首个带更新功能的版本必须手动安装。之后只在启动或用户手动检查时发现稳定版，用户点击才下载，确认才安装；普通退出不自动安装。版本日志与运行机制见 [项目骨架中的更新规范](../book/docs/architecture/项目骨架.md)。本地可测试，不需要等待下一次业务功能发布。

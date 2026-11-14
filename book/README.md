@@ -63,6 +63,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
 - [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
 - [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
+- [2026-11-14-下载完成主动确认重启.md](changelogs/2026-11/2026-11-14-下载完成主动确认重启.md) — 更新下载成功后自动弹原生重启确认，稍后保留已下载版本和右上角入口
+- [2026-11-14-更新入口位置与弹窗图标.md](changelogs/2026-11/2026-11-14-更新入口位置与弹窗图标.md) — 关于页检查更新移至数据目录下方，macOS更新确认与反馈框复用项目Logo
+- [2026-11-14-更新圆钮与版本日志.md](changelogs/2026-11/2026-11-14-更新圆钮与版本日志.md) — 更新入口移至搜索栏上方右端，新增原生日志与每版本Markdown发布机制
+- [2026-11-14-更新悬停与失败提示.md](changelogs/2026-11/2026-11-14-更新悬停与失败提示.md) — 更新与重启重试原生气泡，验签失败及交接超时单次反馈，日志规范归入项目骨架
+- [2026-11-14-测试打包耗时修正.md](changelogs/2026-11/2026-11-14-测试打包耗时修正.md) — 本地更新测试只编译一次、Mac只生成ZIP并禁用自动证书选择，避免重复编译和逐文件时间戳签名
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -90,6 +95,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-002-electron42-and-react-devtools-fork.md](docs/decisions/ADR-002-electron42-and-react-devtools-fork.md) — 用户同意升级Electron42并单独维护React DevTools图标修复版，同时保留商店原版验收基线
 - [ADR-002-omnibox-native-editing.md](docs/decisions/ADR-002-omnibox-native-editing.md) — 原生编辑菜单通过只读闭集推送交给当前浏览器壳，地址栏消费局部栈，其余输入保持原生编辑
 - [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
+- [ADR-004-app-update-ownership.md](docs/decisions/ADR-004-app-update-ownership.md) — 主进程独占更新器，严格保存完成后才交接安装，构建策略关闭全部入口即停更
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -305,6 +311,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
 - [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
+- [2026-11-14-Mac更新验签失败需要异步反馈.md](notes/learn/2026-11/2026-11-14-Mac更新验签失败需要异步反馈.md) — 临时签名更新包在Squirrel交接阶段被拒绝，命令返回后的错误必须独立通知
+- [2026-11-14-下载后确认须等待下载锁释放.md](notes/learn/2026-11/2026-11-14-下载后确认须等待下载锁释放.md) — 自动重启确认必须等待下载Promise结束，再复用安装互斥与失败反馈所属窗口
+- [2026-11-14-版本日志随清单分发并绑定动作版本.md](notes/learn/2026-11/2026-11-14-版本日志随清单分发并绑定动作版本.md) — 版本日志同时服务应用与Release时的单源约束及原生窗口动作校验
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -321,9 +330,13 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111-渲染弹层压不过原生层的路线选型.md](notes/learn/2026-11/20261111-渲染弹层压不过原生层的路线选型.md) — 本应用 shell DOM 弹层必被 WebContentsView 原生层遮挡——四条可行路线的选型经验与踩坑记录（overlayDepth 收起白屏、action popup 层级）
 - [20261112133000-自研插件CRX失效三因排查.md](notes/learn/2026-11/20261112133000-自研插件CRX失效三因排查.md) — 自研截图/录屏插件CRX导入后图标缺失与功能失效的三因定性：CRX过时、shim只落在preload隔离上下文、popup-less点击不派发onClicked
 - [20261112190948-插件固定与工具栏扩展区调研报告.md](notes/learn/2026-11/20261112190948-插件固定与工具栏扩展区调研报告.md) — 插件固定（模仿 Chrome 钉子）与工具栏扩展区胶囊调研——pin 状态全局持久化、changed 广播、面板钉子开关、工具栏固定图标，全部复用自研宿主既有机制，完全手写可行
+- [20261113-更新保存与Mac交接.md](notes/learn/2026-11/20261113-更新保存与Mac交接.md) — 更新前严格保存不能复用普通退出容错，Mac交接重试须移除上次安装监听，录屏不能按采集窗存在推断
 - [20261113113000-preload-dts-import类型解析为any.md](notes/learn/2026-11/20261113113000-preload-dts-import类型解析为any.md) — preload/index.d.ts 的 import() 类型在 web 项目解析为 any——类型网对该块失效，契约类型安全靠 renderer 静态 import 兜底；改动文件收尾污染全文扫描
 - [20261113133220-PowerShell原生参数与electron-builder点属性配置.md](notes/learn/2026-11/20261113133220-PowerShell原生参数与electron-builder点属性配置.md) — v1.1.0 发布流水线三平台构建两轮失败全记录：PowerShell 剥 -c 前缀、npm 注入 env 覆盖、customDir 误用应用版本号——三条跨平台/依赖解析教训
 - [20261113141748-Release附件配置化调研.md](notes/learn/2026-11/20261113141748-Release附件配置化调研.md) — GitHub Release 附件配置化调研：让自研插件 CRX 随安装包一起发布——四方案对比与推荐（CI 现场打包优先），含配置文件形态、安全栏与 v1.1.0 人工补传路径
+- [20261113173502-应用自动更新与企业配置调研.md](notes/learn/2026-11/20261113173502-应用自动更新与企业配置调研.md) — 自动更新调研与用户决策：左上角及独立窗口入口、双入口隐藏即停更、正式仅发布公开版、macOS采用正式签名并继续GitHub分发
+- [20261114194001-更新入口与版本日志调研.md](notes/learn/2026-11/20261114194001-更新入口与版本日志调研.md) — 右上角主题圆钮与版本Markdown日志的实现路径，复用更新清单releaseNotes及现有原生sheet
+- [20261114213431-Sparkle迁移影响分析.md](notes/learn/2026-11/20261114213431-Sparkle迁移影响分析.md) — macOS由Squirrel迁移Sparkle的代码与发布影响，保留既有交互并先验证下载控制和安装事务
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/review-todo/
@@ -332,6 +345,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261113020713-插件固定与工具栏扩展区.md](notes/review-todo/20261113020713-插件固定与工具栏扩展区.md) — 插件固定与工具栏扩展区功能（44865a2+5d93cf7）八项审查：高1（removeInstall存在性判断反置致多插件卸载全废）中2低2
 - [20261113114421-工具栏按钮显隐配置.md](notes/review-todo/20261113114421-工具栏按钮显隐配置.md) — 工具栏截图/录屏按钮显隐配置（707799d）八项审查：高0中0低1（两键同构重复，第三键出现再抽共用）
 - [20261113124504-插件分支合入dev.md](notes/review-todo/20261113124504-插件分支合入dev.md) — 插件分支合入dev（4ce8610）八项审查 + 历史未闭项全量核对：合并引入 0 缺陷，真实未闭 5 项（1中4低）一次修复轮清账
+- [20261113200900-应用更新本地审阅快照.md](notes/review-todo/20261113200900-应用更新本地审阅快照.md) — 应用更新本地审阅发现一项恢复集丢失风险和一项异步安装失败反馈缺口；Phase4未完成，审阅不代表交付
 - [20261114030000-验收修复轮与历史发现.md](notes/review-todo/20261114030000-验收修复轮与历史发现.md) — 验收修复轮（1f83e4d）八项审查：四项验收功能（卸载确认框/钉态白名单/商店入口/拖拽导入）+ 历史发现全清，高0中0低1
 
 ### notes/summary/2026-09/
@@ -411,6 +425,10 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
 - [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
+- [2026-11-13-应用更新开发进度.md](notes/summary/2026-11/2026-11-13-应用更新开发进度.md) — 应用更新已实现并跑通本地发现与真实下载，18组测试通过；恢复集高风险与异步反馈待修，正式签名和跨平台安装待验
+- [2026-11-14-下载完成自动确认安装.md](notes/summary/2026-11/2026-11-14-下载完成自动确认安装.md) — 下载成功主动弹原生重启确认，稍后保留入口，签名失败明确提示且不重复弹框
+- [2026-11-14-更新入口与版本日志进度.md](notes/summary/2026-11/2026-11-14-更新入口与版本日志进度.md) — 右上角主题圆形更新入口、原生日志窗口与每版本Markdown机制的本地验证进度
+- [2026-11-14-更新悬停与验签失败反馈.md](notes/summary/2026-11/2026-11-14-更新悬停与验签失败反馈.md) — 更新气泡、临时签名安装失败根因及异步反馈修复，日志规则归入项目骨架
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -446,6 +464,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](plans/2026-11-06-bocode-adoption.md) — 从现有 Electron 项目接入 BoCode 的盘点、迁移边界、决策与验证记录
 - [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
 - [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
+- [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用自动更新L级开发计划，覆盖主窗与独立窗入口、关于页、双入口隐藏停更、严格保存、GitHub更新附件和macOS正式签名，开发中，正式签名及跨平台实机升级待验
+- [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
+- [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
+- [2026-11-14-更新提示与卡顿排查.md](plans/2026-11-14-更新提示与卡顿排查.md) — L级更新反馈修订，排查用户验收卡顿、补原生悬停提示并把日志规范归入项目骨架
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -511,4 +533,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 386 documents -->
+<!-- 408 documents -->

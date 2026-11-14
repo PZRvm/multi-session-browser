@@ -1,0 +1,33 @@
+export const updates = {
+  title: '软件更新',
+  check: '检查更新',
+  download: '更新',
+  restart: '重启安装',
+  retryInstall: '重试安装',
+  later: '稍后',
+  ok: '确定',
+  checking: '正在检查',
+  downloading: '正在下载',
+  preparing: '正在保存，请稍候',
+  installing: '正在验证更新，请稍候',
+  latest: '当前已是最新版本',
+  version: '新版本 {v}',
+  percent: '下载 {n}%',
+  confirm: '重启并安装更新？',
+  confirmDetail: '保存会话后重启应用。未提交的表单和页面运行状态不会恢复。',
+  sourceDenied: '此窗口不能执行更新操作',
+  detailsTitle: '软件更新',
+  releaseNotes: '本次更新',
+  noNotes: '此版本暂无更新说明',
+  downloadAction: '下载更新',
+  errors: {
+    check: '检查更新失败，请重试',
+    download: '下载失败，请重试',
+    save: '保存失败或超时，未执行安装，请重试',
+    install: '安装交接失败，请重试',
+    signature: '更新包签名验证失败，无法安装。请使用有效签名的更新包。',
+    installTimeout: '更新安装交接超时，已恢复应用，请重试',
+    recording: '请先结束录屏，再重启安装',
+    development: '开发模式不连接更新源'
+  }
+}

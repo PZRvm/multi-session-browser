@@ -1,3 +1,4 @@
+import { trackUpdateWork } from '../updatePreparation'
 // 会话浏览器注册表：每会话一个独立分区的 TabManager（分区字符串 persist:sess-<id>
 // 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令按来源
 // 窗口作用域路由：主窗口 → 激活会话的 'main' 作用域，独立窗口 → 其绑定会话的该窗口
@@ -195,6 +196,8 @@ export interface SessionBrowserRegistry extends TabManager {
   getStatuses(): SessionStatusesPayload
   /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot/recordVisit no-op；index.ts 的 before-quit 钩子调用）；返回在途写盘的汇合 promise——before-quit 等它落定再放行（阶段 10 修复：异步写未落定即退进程会丢去抖窗口内的最后改动） */
   flushPendingReports(): Promise<void>
+  prepareUpdate(): Promise<void>
+  resumeUpdate(): void
   /**
    * WebContentsView 页面首帧前兜底底色随主题（2026-09-25）：迭代注册表内全部会话
    * manager 透传（含后台/零视图会话，空 Map no-op）；index.ts 经 appearance
@@ -649,7 +652,7 @@ export function createSessionBrowserRegistry(deps: {
       commitSwitch(null)
       return
     }
-    void prepareActivation(id, generation)
+    void trackUpdateWork(prepareActivation(id, generation))
   }
 
   /** 激活链的异步前段：await 代理应用，完成后守卫仍有效才提交切换 */
@@ -1314,6 +1317,23 @@ export function createSessionBrowserRegistry(deps: {
     onSessionStatus,
     getStatuses,
     flushPendingReports,
+    async prepareUpdate() {
+      const results = await Promise.allSettled([
+        persistence.prepareUpdate([...managers.keys()]),
+        history.prepareUpdate(),
+        ...[...managers.keys()].map(async (id) => {
+          const partition = session.fromPartition(partitionFor(id))
+          partition.flushStorageData()
+          await partition.cookies.flushStore()
+        })
+      ])
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+    },
+    resumeUpdate() {
+      persistence.resumeUpdate([...managers.keys()])
+      history.resumeUpdate()
+    },
     history
   }
 }

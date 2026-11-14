@@ -1,3 +1,4 @@
+import { handleUpdateMutation } from '../updatePreparation'
 // 浏览器 IPC handlers：三十四条通道（浏览器域 27 条（21 命令 + 6 推送）+ 建议子窗域
 // 7 条（原生子窗口化专项：4 命令 + 3 推送））的装配层。
 // 命令一律先经 registry.resolveSenderScope 按来源窗口解析作用域——主窗口来源
@@ -324,7 +325,7 @@ export function registerBrowserIpc(
   // newTab：url 可选——缺省为用户语义新标签页（主页非空加载主页，PRD 3.8.2 修订）
   // 并推送 focus-address（发起窗口聚焦地址栏，Chrome ⌘T 惯例）；携带 url 时先规范化，
   // 失败抛「无效的网址」
-  ipcMain.handle(BROWSER_CHANNELS.newTab, (event, payload: unknown): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.newTab, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.newTab, payload, () => {
       const scope = requireScope(event)
       const raw = isRecord(payload) ? payload : {}
@@ -342,7 +343,7 @@ export function registerBrowserIpc(
 
   // closeTab：id 必须属来源作用域；主窗口「最后留一」由 manager 静默 no-op，独立窗口
   // 最后一个 Tab 关闭后由 registry 快照监听收口关窗（manager 不直接关窗）
-  ipcMain.handle(BROWSER_CHANNELS.closeTab, (event, payload: unknown): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.closeTab, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.closeTab, payload, () => {
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
@@ -352,7 +353,7 @@ export function registerBrowserIpc(
   )
 
   // switchTab：id 必须属来源作用域；已激活时 manager 静默 no-op
-  ipcMain.handle(BROWSER_CHANNELS.switchTab, (event, payload: unknown): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.switchTab, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.switchTab, payload, () => {
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
@@ -364,7 +365,7 @@ export function registerBrowserIpc(
   // reorderTabs：同窗口 Tab 重排（栏内拖拽排序）。结构守卫（ids 非空数组、每项
   // string、量级按该窗快照防御封顶）后委托 manager 全序整单校验（不匹配抛中文
   // 错误，对齐 sessions reorder 整单拒绝口径），成功返回该窗作用域新快照
-  ipcMain.handle(BROWSER_CHANNELS.reorderTabs, (event, payload: unknown): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.reorderTabs, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.reorderTabs, payload, () => {
       const scope = requireScope(event)
       if (
@@ -383,7 +384,7 @@ export function registerBrowserIpc(
 
   // 一次合并只接收来源窗口身份，不接收 renderer 自报的会话或 Tab 集合。
   const mergingWindows = new Set<string>()
-  ipcMain.handle(BROWSER_CHANNELS.mergeToMain, (event): Promise<OkResult> =>
+  handleUpdateMutation(BROWSER_CHANNELS.mergeToMain, (event): Promise<OkResult> =>
     logFailureAsync(BROWSER_CHANNELS.mergeToMain, undefined, async () => {
       const scope = requireScope(event)
       if (scope.windowId === WINDOW_ID_MAIN) throw new Error(t('errors.unknownCommandSource'))
@@ -420,7 +421,7 @@ export function registerBrowserIpc(
 
   // navigate：作用于来源窗口作用域的激活 Tab；规范化失败抛「无效的网址」；导航失败由
   // Chromium 内建错误页如实呈现，日志由 manager 的 did-fail-load 单点承担（ERR_ABORTED 静默）
-  ipcMain.handle(BROWSER_CHANNELS.navigate, (event, payload: unknown): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.navigate, (event, payload: unknown): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.navigate, payload, () => {
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.url !== 'string') throw invalidParams()
@@ -434,7 +435,7 @@ export function registerBrowserIpc(
 
   // back/forward/reload/stop：无 payload（入参忽略），作用于来源窗口作用域的激活 Tab；
   // 动作引发的快照变化经事件重算推送，handler 返回动作发起时的快照
-  ipcMain.handle(BROWSER_CHANNELS.back, (event): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.back, (event): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.back, undefined, () => {
       const scope = requireScope(event)
       const wc = manager.getActiveWebContents(scope.windowId)
@@ -443,7 +444,7 @@ export function registerBrowserIpc(
     })
   )
 
-  ipcMain.handle(BROWSER_CHANNELS.forward, (event): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.forward, (event): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.forward, undefined, () => {
       const scope = requireScope(event)
       const wc = manager.getActiveWebContents(scope.windowId)
@@ -452,7 +453,7 @@ export function registerBrowserIpc(
     })
   )
 
-  ipcMain.handle(BROWSER_CHANNELS.reload, (event): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.reload, (event): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.reload, undefined, () => {
       const scope = requireScope(event)
       manager.getActiveWebContents(scope.windowId)?.reload()
@@ -460,7 +461,7 @@ export function registerBrowserIpc(
     })
   )
 
-  ipcMain.handle(BROWSER_CHANNELS.stop, (event): BrowserSnapshot =>
+  handleUpdateMutation(BROWSER_CHANNELS.stop, (event): BrowserSnapshot =>
     logFailure(BROWSER_CHANNELS.stop, undefined, () => {
       const scope = requireScope(event)
       manager.getActiveWebContents(scope.windowId)?.stop()
@@ -498,7 +499,7 @@ export function registerBrowserIpc(
 
   // dragStart：拖拽开始。命令语义守卫（来源作用域 + Tab 存在性 + payload 结构），
   // 通过后交控制器开启拖拽会话与光标轮询；返回 OkResult——裁决结果在 dragEnd 取回
-  ipcMain.handle(BROWSER_CHANNELS.dragStart, (event, payload: unknown): OkResult =>
+  handleUpdateMutation(BROWSER_CHANNELS.dragStart, (event, payload: unknown): OkResult =>
     logFailure(BROWSER_CHANNELS.dragStart, payload, () => {
       const scope = requireScope(event)
       if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
@@ -519,34 +520,36 @@ export function registerBrowserIpc(
   // 差异——收尾语义不是命令语义：陈旧/失效拖拽一律返回 'stayed' 不抛错（dragStart
   // 守卫后的状态漂移在控制器全量重验消化），仅 payload 结构垃圾仍按命令口径拒绝。
   // 异步（空白裁决建窗读盘），失败日志走 logFailureAsync
-  ipcMain.handle(BROWSER_CHANNELS.dragEnd, (event, payload: unknown): Promise<TabDragOutcome> =>
-    logFailureAsync(BROWSER_CHANNELS.dragEnd, payload, async () => {
-      if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
-      const screenX = requiredNumber(payload.screenX)
-      const screenY = requiredNumber(payload.screenY)
-      // 来源解析失败（拖拽窗口期窗口销毁等极端时序）按 stayed 收场——收尾不抛错
-      let scope: SenderWindowScope
-      try {
-        scope = resolveScope(event)
-      } catch {
-        return 'stayed'
-      }
-      return dragController.dragEnd({
-        tabId: payload.id,
-        sourceWindowId: scope.windowId,
-        scopeSessionId: scope.sessionId,
-        screenX,
-        screenY,
-        canceled: payload.canceled === true ? true : undefined
+  handleUpdateMutation(
+    BROWSER_CHANNELS.dragEnd,
+    (event, payload: unknown): Promise<TabDragOutcome> =>
+      logFailureAsync(BROWSER_CHANNELS.dragEnd, payload, async () => {
+        if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+        const screenX = requiredNumber(payload.screenX)
+        const screenY = requiredNumber(payload.screenY)
+        // 来源解析失败（拖拽窗口期窗口销毁等极端时序）按 stayed 收场——收尾不抛错
+        let scope: SenderWindowScope
+        try {
+          scope = resolveScope(event)
+        } catch {
+          return 'stayed'
+        }
+        return dragController.dragEnd({
+          tabId: payload.id,
+          sourceWindowId: scope.windowId,
+          scopeSessionId: scope.sessionId,
+          screenX,
+          screenY,
+          canceled: payload.canceled === true ? true : undefined
+        })
       })
-    })
   )
 
   // dragInsert：目标窗插入位上报（阶段 10）。结构垃圾按命令口径拒绝（tabId string +
   // index 有限非负整数）；通过结构守卫后按「hint 口径」处理——sender 解析出的 windowId
   // 须等于当前活动拖拽会话的悬停窗且 tabId 匹配才存储，不符静默返回 ok（hint 是尽力
   // 而为通道，陈旧属设计内常态：悬停已切走 / 会话已收尾 / 异窗上报都不是错误）
-  ipcMain.handle(BROWSER_CHANNELS.dragInsert, (event, payload: unknown): OkResult =>
+  handleUpdateMutation(BROWSER_CHANNELS.dragInsert, (event, payload: unknown): OkResult =>
     logFailure(BROWSER_CHANNELS.dragInsert, payload, () => {
       const scope = resolveScope(event)
       if (
