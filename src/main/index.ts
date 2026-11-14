@@ -20,6 +20,7 @@ import {
   type SessionBrowserRegistry
 } from './browser/registry'
 import { createSessionProxyEngine } from './browser/proxy'
+import { buildDefaultUserAgent } from './browser/userAgent'
 import { createIndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import { createExtensionsPanelWindows, type ExtensionsPanelWindows } from './extensions/panel'
@@ -110,6 +111,9 @@ if (isolatedUserData) {
   }
   app.setPath('userData', override)
 }
+
+// 在任何 Session/窗口创建前固定网络 UA；app.setName 仍只负责产品展示名。
+app.userAgentFallback = buildDefaultUserAgent(app.userAgentFallback, process.versions.chrome)
 
 // Agent 无焦点调试通道（2026-11-12）：`npm run dev:agent` 经 electron-vite 的 `--`
 // 把 --agent-debug 转发进主进程 argv。该模式服务 AI agent 调试：CDP 端口 9222 开给
@@ -909,6 +913,22 @@ app.whenReady().then(async () => {
       registry?.init(snapshot.activeId)
     })
     .catch(() => undefined)
+
+  // 隔离环境验收只在开发态显式启用，所有数据与结果写入 MSB_USER_DATA。
+  if (process.env['MSB_BROWSER_ENV_SELFTEST'] === '1' && !app.isPackaged) {
+    const { pathToFileURL } = await import('node:url')
+    const probe = await import(
+      /* @vite-ignore */ pathToFileURL(
+        join(app.getAppPath(), 'tools/browser-environment/production.mjs')
+      ).href
+    )
+    void probe
+      .run({ registry: created, mainWindow, ...(await import('./extensions/dev-entry')) })
+      .catch((error: unknown) => {
+        console.error('BROWSER_ENV_ERROR', error)
+        app.exit(1)
+      })
+  }
 
   if (process.env['MSB_EXTENSIONS_SELFTEST'] === 'plugins' && !app.isPackaged) {
     const { pathToFileURL } = await import('node:url')

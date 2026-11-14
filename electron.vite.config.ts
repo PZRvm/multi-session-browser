@@ -1,7 +1,11 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { patchExtensionPreloads } from './scripts/patch-extension-preloads.mjs'
 import policy from './build/update-policy.json'
+
+// --ignore-scripts 安装及直接 electron-vite 调用同样不能绕过注册补丁。
+patchExtensionPreloads()
 
 function policyFlag(name: string, fallback: boolean): boolean {
   const value = process.env[name]

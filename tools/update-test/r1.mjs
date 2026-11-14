@@ -89,7 +89,7 @@ try {
       await blocked
     }
   })
-  registry.init(null)
+  // 不预热恢复缓存，固定走空白占位页的异步补载路径。
   registry.switchSession('sess-test')
   await waiting
   let finishOther

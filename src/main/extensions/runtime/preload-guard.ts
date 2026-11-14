@@ -1,16 +1,16 @@
 /**
- * 在加载扩展前注册守卫 preload，保留 frame 与 service-worker 两种桥，并追加宿主 shim。
+ * 宿主在构造扩展引擎前生成并受限注册 frame/SW preload，追加宿主 shim。
  *
  * shim 注入机制（2026-11-12 修复轮）：库 4.10 在 contextIsolation 下经
  * contextBridge.executeInMainWorld 把 chrome 注入主世界并 Object.freeze(chrome)——
  * 在 preload 隔离上下文给 chrome 赋值对页面脚本不可见。因此宿主 shim 必须在库
  * freeze 之前、于主世界完成挂载。实现：preload 上下文定义 __msbExposeShimBridge
  * （函数声明提升先于库 IIFE 可见），补丁进库的调用点（injectExtensionAPIs 之前）：
- * SW 上下文直接挂全局，页面上下文经 contextBridge 暴露 __msbShimBridge；
+ * SW 与页面均经 contextBridge 暴露 __msbShimBridge；
  * 库 mainWorldScript 的 Object.freeze(chrome) 之前补丁消费点，从 __msbShimBridge
  * 把 API 挂到 chrome 上（chrome 本体冻结前 defineProperty 新增 tabCapture/offscreen，
  * 子对象 tabs/downloads/runtime/offscreen 直改）。web 页面不注入（调用点在库的
- * chrome-extension:// 守卫内）。
+ * 仅匹配 chrome-extension:// 的原生注册内）。
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -24,13 +24,10 @@ import {
   EXT_SHIM_TAB_STREAM
 } from '../shims'
 
-const ready = new WeakMap<Session, Promise<void>>()
 let generated: Promise<string> | undefined
 
-export function ensureGuardedPreload(session: Session): Promise<void> {
-  const pending = ready.get(session)
-  if (pending) return pending
-  // 从依赖实际入口解析；appPath 在独立验证程序中不是仓库根目录。
+/** 生成完成前不注册脚本；站点 SW 即使提前恢复，也不会收到兼容桥。 */
+export function prepareGuardedPreload(): Promise<string> {
   const libPreload = createRequire(join(app.getAppPath(), 'package.json')).resolve(
     'electron-chrome-extensions/preload'
   )
@@ -38,21 +35,57 @@ export function ensureGuardedPreload(session: Session): Promise<void> {
     generated = undefined
     throw error
   })
-  const task = generated
-    .then((guarded) => {
-      for (const script of session.getPreloadScripts().filter((s) => s.filePath === libPreload)) {
-        session.unregisterPreloadScript(script.id)
-        session.registerPreloadScript({ id: script.id, type: script.type, filePath: guarded })
-        // 修复轮追加：库把 shim 桥消费点补丁进 mainWorldScript（freeze 前），
-        // 既有 frame 注册只有 id 换路径；SW 注册同理，注释锚定两处注册点。
+  return generated
+}
+
+/** 同步安装两条原生受限注册。返回值仅供引擎构造失败时撤销本轮新增注册。 */
+export function installGuardedPreload(session: Session, filePath: string): () => void {
+  const added: string[] = []
+  const rollback = (): void => {
+    for (const id of added.reverse()) session.unregisterPreloadScript(id)
+  }
+  try {
+    for (const [id, type] of [
+      ['crx-mv2-preload', 'frame'],
+      ['crx-mv3-preload', 'service-worker']
+    ] as const) {
+      const existing = session.getPreloadScripts().find((script) => script.id === id)
+      if (existing) {
+        if (
+          existing.type !== type ||
+          existing.filePath !== filePath ||
+          existing.includeGlobs?.length !== 1 ||
+          existing.includeGlobs[0] !== 'chrome-extension://*/*' ||
+          existing.matches !== undefined ||
+          existing.excludeMatches !== undefined ||
+          existing.excludeGlobs !== undefined ||
+          existing.matchOriginAsFallback === true
+        ) {
+          // 固定 ID 属于本适配层；拒绝时也不能留下可能无过滤的旧注册供网页继续使用。
+          for (const script of session.getPreloadScripts()) {
+            if (script.id === 'crx-mv2-preload' || script.id === 'crx-mv3-preload') {
+              session.unregisterPreloadScript(script.id)
+            }
+          }
+          // 已移除全部本库注册，外层回滚无需重复注销。
+          added.length = 0
+          throw new Error('插件 preload 注册与预期不符，已拒绝挂载')
+        }
+        continue
       }
-    })
-    .catch((error) => {
-      ready.delete(session)
-      throw error
-    })
-  ready.set(session, task)
-  return task
+      session.registerPreloadScript({
+        id,
+        type,
+        filePath,
+        includeGlobs: ['chrome-extension://*/*']
+      })
+      added.push(id)
+    }
+  } catch (error) {
+    rollback()
+    throw error
+  }
+  return rollback
 }
 
 async function generate(libPreload: string): Promise<string> {
@@ -69,7 +102,19 @@ async function generate(libPreload: string): Promise<string> {
     if (!content.includes(fallback)) throw new Error('插件兼容preload的存储实现已变化，请重新核验')
     content = content.replace(fallback, 'managed: base.managed,\n              sync: base.sync')
   }
-  // 补丁锚点 1：库 IIFE 尾部的注入调用（库守卫条件内，web 页面不会执行到）。
+  // SW 隔离上下文没有可信 location；来源权限仅由原生 includeGlobs 决定。
+  // 删除库里把任意 SW 类型当来源权限的条件，生成文件只能经受限注册加载。
+  const sourceGuard =
+    'if (process.type === "service-worker" || location.href.startsWith("chrome-extension://")) {'
+  if (content.split(sourceGuard).length !== 2) {
+    throw new Error('库来源守卫已变化，请重新核验')
+  }
+  content = content.replace(sourceGuard, '{ // 来源已由 Electron 原生注册过滤')
+  content = content.replaceAll(
+    '${location.href}',
+    '${typeof location === "undefined" ? "extension-worker" : location.href}'
+  )
+  // 补丁锚点 1：库 IIFE 尾部的注入调用；注册层过滤使网站不执行此文件。
   const injectCall = 'injectExtensionAPIs();'
   if (!content.includes(injectCall)) throw new Error('库注入调用点已变化，请重新核验')
   content = content.replace(injectCall, '__msbExposeShimBridge();\n    ' + injectCall)
@@ -78,11 +123,11 @@ async function generate(libPreload: string): Promise<string> {
   if (!content.includes(freezeAnchor)) throw new Error('库冻结锚点已变化，请重新核验')
   content = content.replace(freezeAnchor, MSB_PAGE_SHIMS + '\n      ' + freezeAnchor)
   await mkdir(dirname(guarded), { recursive: true })
-  // Worker 也依赖 tabs/windows 等兼容 API；排除它会令 background 启动即异常。
+  // 扩展 Worker 也依赖 tabs/windows 等兼容 API；来源限定由原生注册完成。
   // 通道名单源：EXT_SHIM_* 常量由 shims.ts 导出，此处模板插值引用（审查清单 2.1）。
   await writeFile(
     guarded,
-    `if (process.type === 'service-worker' || process.isMainFrame) {\n${content}
+    `// 仅由 includeGlobs 限定的扩展 frame/SW 注册加载；禁止用作全站 preload。\n${content}
 // —— 宿主 shim 桥定义（声明提升先于库 IIFE；由补丁调用点在库注入前调用）——
 function __msbExposeShimBridge() {
   const { ipcRenderer } = require('electron')
@@ -136,7 +181,7 @@ function __msbExposeShimBridge() {
   require('electron').contextBridge.exposeInMainWorld('__msbShimBridge', bridge)
 }
 // Chromium 同时提供 browser 命名空间；兼容库只补 chrome，两个入口必须一致。
-if (process.type === 'service-worker' || location.protocol === 'chrome-extension:') {
+{
   require('electron').contextBridge.executeInMainWorld({ func: () => {
     if (!globalThis.chrome?.runtime?.id || !globalThis.browser || globalThis.browser === globalThis.chrome) return
     for (const key of Object.keys(globalThis.chrome)) {
@@ -146,7 +191,6 @@ if (process.type === 'service-worker' || location.protocol === 'chrome-extension
       }
     }
   } })
-}
 }`
   )
   return guarded

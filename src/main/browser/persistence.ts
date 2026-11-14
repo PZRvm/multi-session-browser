@@ -56,7 +56,7 @@ export interface SessionPersistence {
    * - 恢复集缺失/空 → 建一个空白 Tab（hasLiveBlankTab 时复用既有空白 Tab，不再建）
    * - URL 逐条过 isOpenableUrl 白名单（落盘是跨信任边界输入），坏值跳过并如实告警；
    *   全坏回退空白 Tab 并告警（不伪造"已恢复"）
-   * - hasLiveBlankTab（补载径）：首个合法 URL 载入既有空白 Tab，其余 newTab（避免残留
+   * - hasLiveBlankTab（补载径）：首个合法 URL 建立后删除空白占位，其余 newTab（避免残留
    *   "新标签页 + 恢复页"双 Tab）；主径全部 newTab
    * - 激活位按跳过坏值后的有效长度钳制，末尾 switchTab 到位
    */
@@ -307,12 +307,11 @@ export function createSessionPersistence(deps: {
           return
         }
         if (hasLiveBlankTab) {
-          const first = valid[0]
-          const wc = manager.getActiveWebContents()
-          if (wc && !wc.isDestroyed()) {
-            // 失败日志由 manager 挂的 did-fail-load 单点承担
-            void wc.loadURL(first).catch(() => {})
-          }
+          // newTab 同步把目标 URL 写入模型，不依赖真实导航完成才更新恢复集。
+          // 先建恢复页再移除空白占位，避免“最后留一”规则阻止删除。
+          const placeholder = manager.getSnapshot().activeTabId
+          manager.newTab(valid[0])
+          if (placeholder) manager.closeTab(placeholder)
           for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
         } else {
           for (const url of valid) manager.newTab(url)

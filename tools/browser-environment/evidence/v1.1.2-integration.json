@@ -1,0 +1,266 @@
+{
+  "version": "1.1.2",
+  "devBase": "908c11d",
+  "updateTests": 36,
+  "coldRestoreR1": {
+    "before": "about:blank replaced first URL",
+    "after": "both original URLs/order/active index preserved",
+    "test": "tools/update-test/r1.mjs"
+  },
+  "browserEnvironment": [
+    {
+      "mode": "first",
+      "passed": 19,
+      "failed": 0,
+      "checks": [
+        {
+          "name": "未受限注册的库构造被源头拒绝",
+          "ok": true
+        },
+        {
+          "name": "首次默认UA及会话网页/Worker/SW身份",
+          "ok": true
+        },
+        {
+          "name": "跨源iframe与about/blob/data上下文",
+          "ok": true
+        },
+        {
+          "name": "第二会话分区与存储隔离",
+          "ok": true
+        },
+        {
+          "name": "请求UA覆盖文档/fetch/favicon/Worker脚本",
+          "ok": true
+        },
+        {
+          "name": "MV3后台/popup/content script及消息",
+          "ok": true
+        },
+        {
+          "name": "扩展下载保留且写入隔离目录",
+          "ok": true
+        },
+        {
+          "name": "扩展截图与offscreen链路",
+          "ok": true
+        },
+        {
+          "name": "普通网页伪报扩展ID仍被IPC拒绝",
+          "ok": true
+        },
+        {
+          "name": "MV2页面与后台消息兼容",
+          "ok": true
+        },
+        {
+          "name": "原版DarkReader页面及内容脚本",
+          "ok": true
+        },
+        {
+          "name": "原版CookieEditor popup与Cookie读写",
+          "ok": true
+        },
+        {
+          "name": "自研录屏插件完整音视频收尾与下载",
+          "ok": true
+        },
+        {
+          "name": "插件卸载重装及再次挂载保持受限",
+          "ok": true
+        },
+        {
+          "name": "两会话并发重挂载不重复注册",
+          "ok": true
+        },
+        {
+          "name": "Worker停止后恢复仍保持网站隔离与扩展消息",
+          "ok": true
+        },
+        {
+          "name": "真实库构造中段失败后封闭Session并撤销注册",
+          "ok": true
+        },
+        {
+          "name": "DevTools模拟可覆盖默认UA",
+          "ok": true
+        },
+        {
+          "name": "网站和扩展无preload异常",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "mode": "restart",
+      "passed": 19,
+      "failed": 0,
+      "checks": [
+        {
+          "name": "未受限注册的库构造被源头拒绝",
+          "ok": true
+        },
+        {
+          "name": "首次默认UA及会话网页/Worker/SW身份",
+          "ok": true
+        },
+        {
+          "name": "跨源iframe与about/blob/data上下文",
+          "ok": true
+        },
+        {
+          "name": "第二会话分区与存储隔离",
+          "ok": true
+        },
+        {
+          "name": "请求UA覆盖文档/fetch/favicon/Worker脚本",
+          "ok": true
+        },
+        {
+          "name": "MV3后台/popup/content script及消息",
+          "ok": true
+        },
+        {
+          "name": "扩展下载保留且写入隔离目录",
+          "ok": true
+        },
+        {
+          "name": "扩展截图与offscreen链路",
+          "ok": true
+        },
+        {
+          "name": "普通网页伪报扩展ID仍被IPC拒绝",
+          "ok": true
+        },
+        {
+          "name": "MV2页面与后台消息兼容",
+          "ok": true
+        },
+        {
+          "name": "原版DarkReader页面及内容脚本",
+          "ok": true
+        },
+        {
+          "name": "原版CookieEditor popup与Cookie读写",
+          "ok": true
+        },
+        {
+          "name": "自研录屏插件完整音视频收尾与下载",
+          "ok": true
+        },
+        {
+          "name": "插件卸载重装及再次挂载保持受限",
+          "ok": true
+        },
+        {
+          "name": "两会话并发重挂载不重复注册",
+          "ok": true
+        },
+        {
+          "name": "Worker停止后恢复仍保持网站隔离与扩展消息",
+          "ok": true
+        },
+        {
+          "name": "真实库构造中段失败后封闭Session并撤销注册",
+          "ok": true
+        },
+        {
+          "name": "DevTools模拟可覆盖默认UA",
+          "ok": true
+        },
+        {
+          "name": "网站和扩展无preload异常",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "count": 108,
+    "languages": [
+      "zh-CN",
+      "en-US",
+      "zh-TW"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "widths": [
+      600,
+      700
+    ],
+    "states": [
+      "idle",
+      "checking",
+      "up-to-date",
+      "available",
+      "downloading",
+      "ready",
+      "preparing",
+      "installing",
+      "error"
+    ],
+    "policyHidden": true,
+    "example": {
+      "lang": "zh-CN",
+      "theme": "light",
+      "width": 700,
+      "status": "当前已是最新版本",
+      "rows": 2,
+      "title": "软件更新",
+      "descStyle": {
+        "fontSize": "11px",
+        "fontWeight": "400",
+        "fontFamily": "-apple-system, \"system-ui\", \"PingFang SC\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif",
+        "color": "rgb(92, 104, 117)",
+        "lineHeight": "15.95px"
+      },
+      "statusStyle": {
+        "fontSize": "11px",
+        "fontWeight": "400",
+        "fontFamily": "-apple-system, \"system-ui\", \"PingFang SC\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif",
+        "color": "rgb(92, 104, 117)",
+        "lineHeight": "15.95px"
+      },
+      "titleStyle": {
+        "fontSize": "13px",
+        "fontWeight": "500",
+        "fontFamily": "-apple-system, \"system-ui\", \"PingFang SC\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif",
+        "color": "rgb(28, 36, 44)",
+        "lineHeight": "19.5px"
+      },
+      "referenceTitleStyle": {
+        "fontSize": "13px",
+        "fontWeight": "500",
+        "fontFamily": "-apple-system, \"system-ui\", \"PingFang SC\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif",
+        "color": "rgb(28, 36, 44)",
+        "lineHeight": "19.5px"
+      },
+      "disabled": false,
+      "overflow": false,
+      "version": "版本 1.1.2",
+      "state": "up-to-date",
+      "statusText": "当前已是最新版本"
+    },
+    "method": "CDP render-state injection; not actual updater network/install evidence"
+  },
+  "detector": {
+    "advisories": 20,
+    "files": [
+      "app.css"
+    ],
+    "newLiteralStyles": false
+  },
+  "staticChecks": {
+    "build": "pass (includes typecheck)",
+    "lint": "pass: 0 errors, 316 existing warnings",
+    "releaseVersion": "1.1.2",
+    "releaseNotes": "single matching source"
+  },
+  "limitations": [
+    "No Windows native installation in this run",
+    "No Sparkle production-key signing or real installation",
+    "No release, tag, dev/main merge authorized"
+  ]
+}

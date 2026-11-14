@@ -29,9 +29,9 @@ import { assertUpdateWritable, isUpdatePreparing } from '../updatePreparation'
  * SW 路用接线时绑定的 session。
  *
  * 安全边界：来源识别分两路——扩展页面经 senderFrame URL 直接携带扩展标识（主 frame
- * 限定，不可伪造）；SW 无 senderFrame/WebContents sender，由调用方自报 id（preload 桥
- * 注入 chrome.runtime.id），验证该扩展确已加载进绑定会话才受理。web 页面没有 shim 桥
- * （注入点在库的 chrome-extension:// 守卫内），无法触达本模块通道。
+ * 限定，不可伪造）；SW 经事件的 serviceWorker.scope 和 session 识别，验证扩展确已
+ * 加载进绑定会话才受理。payload 的 extId 不参与授权；普通网页即使获得 IPC 传输
+ * 或自报合法扩展 ID 也不能通过。
  */
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
@@ -86,31 +86,19 @@ export async function isExtensionCaptureBusy(): Promise<boolean> {
 
 let shimDeps: ExtensionShimsDeps | undefined
 
-/**
- * 来源识别（见头注安全边界）：扩展页面走 senderFrame URL；SW 走调用方自报 id +
- * 绑定会话内已加载验证。两类事件（ipcMain / ServiceWorkerMain.ipc）共用，
- * SW 事件无 senderFrame，结构化取用。
- */
-function resolveExtensionId(
-  event: ShimEvent,
-  claimed: unknown,
-  session: Session | undefined
-): string | null {
-  // 两类事件结构不同（SW 事件无 senderFrame），按需结构化取用
-  const frame = (event as { senderFrame?: { url?: string | null } | null }).senderFrame
-  const mainFrame = (event as { sender?: { mainFrame?: unknown } | null }).sender?.mainFrame
-  if (frame && mainFrame !== undefined && frame === mainFrame) {
-    const match = /^chrome-extension:\/\/([a-p]{32})\//.exec(frame.url ?? '')
-    if (match) return match[1]
+/** 页面与 SW 均从 Electron 事件取权威身份，禁止回退到 payload 自报扩展 ID。 */
+function resolveExtensionId(event: ShimEvent, session: Session | undefined): string | null {
+  let source: string | undefined
+  if ('serviceWorker' in event) {
+    if (event.session !== session) return null
+    source = event.serviceWorker.scope
+  } else {
+    if (event.sender.session !== session || event.senderFrame !== event.sender.mainFrame)
+      return null
+    source = event.senderFrame?.url
   }
-  if (
-    typeof claimed === 'string' &&
-    /^[a-p]{32}$/.test(claimed) &&
-    session?.extensions?.getExtension(claimed)
-  ) {
-    return claimed
-  }
-  return null
+  const id = /^chrome-extension:\/\/([a-p]{32})\//.exec(source ?? '')?.[1]
+  return id && session?.extensions.getExtension(id) ? id : null
 }
 
 /** 各 shim 共享实现：ipcMain（页面/renderer）与 ServiceWorkerMain.ipc（SW）两路复用 */
@@ -120,7 +108,7 @@ type ShimImpl = (event: ShimEvent, payload: unknown, session?: Session) => unkno
 const captureImpl: ShimImpl = async (event, raw, session) => {
   try {
     const payload = raw as { windowId?: unknown; extId?: unknown }
-    const extId = resolveExtensionId(event, payload?.extId, session)
+    const extId = resolveExtensionId(event, session)
     if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
     const windowId =
       typeof payload?.windowId === 'number' && Number.isInteger(payload.windowId)
@@ -150,7 +138,7 @@ const captureImpl: ShimImpl = async (event, raw, session) => {
 const downloadImpl: ShimImpl = async (event, raw, session) => {
   try {
     const payload = raw as { url?: unknown; filename?: unknown; extId?: unknown }
-    const extId = resolveExtensionId(event, payload?.extId, session)
+    const extId = resolveExtensionId(event, session)
     if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
     if (typeof payload?.url !== 'string') return { ok: false, error: 'INVALID_URL' }
     let dataUrl: string
@@ -171,11 +159,10 @@ const downloadImpl: ShimImpl = async (event, raw, session) => {
 
 // tab-stream：popup 上下文取被录目标的一次性 token。目标 = popup 宿主窗的激活
 // 会话网页（openPopup 建窗 parent=宿主窗；库弹的 popup 同样有 parent）
-const tabStreamImpl: ShimImpl = async (event, raw, session) => {
+const tabStreamImpl: ShimImpl = async (event, _raw, session) => {
   assertUpdateWritable()
   try {
-    const payload = raw as { extId?: unknown }
-    const extId = resolveExtensionId(event, payload?.extId, session)
+    const extId = resolveExtensionId(event, session)
     if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
     const popupWin = BrowserWindow.fromWebContents(
       (event as { sender: Electron.WebContents }).sender
@@ -196,7 +183,7 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
   assertUpdateWritable()
   try {
     const payload = raw as { url?: unknown; extId?: unknown }
-    const extId = resolveExtensionId(event, payload?.extId, session)
+    const extId = resolveExtensionId(event, session)
     if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
     if (offscreenByExtension.has(extId)) return { ok: false, error: 'ALREADY_EXISTS' }
     const rel = typeof payload?.url === 'string' ? payload.url.replace(/^\/+/, '') : ''
@@ -272,9 +259,8 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
 // contexts：模拟 OFFSCREEN_DOCUMENT 存在性（宿主采集窗登记态即事实源）。
 // 覆盖原生 getContexts：原生签名不收无参调用且不识宿主采集窗，录屏 ensureOffscreen
 // 依赖宿主登记态判定是否已建采集窗。
-const contextsImpl: ShimImpl = (event, raw, session) => {
-  const payload = raw as { extId?: unknown }
-  const extId = resolveExtensionId(event, payload?.extId, session)
+const contextsImpl: ShimImpl = (event, _raw, session) => {
+  const extId = resolveExtensionId(event, session)
   if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
   const entry = offscreenByExtension.get(extId)
   const contexts = entry ? [{ contextType: 'OFFSCREEN_DOCUMENT' }] : []

@@ -16,7 +16,7 @@ import {
   partitionExtensionId
 } from '../install/partition-copy'
 import { loadInstallsIntoSession, type ExtensionLoadResult, type LoaderSession } from './loader'
-import { ensureGuardedPreload } from './preload-guard'
+import { installGuardedPreload, prepareGuardedPreload } from './preload-guard'
 import { registerSessionShimIpc } from '../shims'
 
 export interface EngineOptions {
@@ -50,14 +50,55 @@ export interface ExtensionRuntime {
   resolveLoadedId(partition: string, installId: string): Promise<string | undefined>
 }
 
+/** 依赖没有完整释放接口，构造中段失败后只能通过完整退出恢复。 */
+export class ExtensionRuntimeRestartRequiredError extends Error {
+  constructor(cause: unknown) {
+    super('EXTENSION_RUNTIME_RESTART_REQUIRED', { cause })
+    this.name = 'ExtensionRuntimeRestartRequiredError'
+  }
+}
+
+// 跨工厂保留失败状态；Session 生命周期结束后由 WeakMap 释放，不持久化。
+const constructionFailures = new WeakMap<Session, ExtensionRuntimeRestartRequiredError>()
+
 export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
   const engines = new Map<string, ElectronChromeExtensions>()
   const pending = new Map<string, Promise<MountResult>>()
   const wiredSessions = new WeakSet<Session>()
   async function mount(partition: string, session: Session): Promise<MountResult> {
+    let previousFailure = constructionFailures.get(session)
+    if (previousFailure) throw previousFailure
+    // 安装/构建补丁从源头取消库的裸注册；缺少补丁时在库构造前拒绝。
+    if (!ElectronChromeExtensions.toString().includes('MSB_FILTERED_PRELOAD_REQUIRED')) {
+      throw new Error('扩展注册补丁缺失，请重新安装依赖并构建')
+    }
+    const guarded = await prepareGuardedPreload()
+    // 异步准备期间其他工厂也可能将同一 Session 标为失败。
+    previousFailure = constructionFailures.get(session)
+    if (previousFailure) throw previousFailure
+    const rollback = installGuardedPreload(session, guarded)
     if (!engines.has(partition)) {
-      const options = { session, ...deps.engineOptions }
-      engines.set(partition, new ElectronChromeExtensions(options))
+      // 工厂误复用已初始化的 Session 是前置冲突，不应污染原有健康引擎。
+      if (ElectronChromeExtensions.fromSession(session)) {
+        rollback()
+        throw new Error('该会话的插件引擎已由其他运行时初始化')
+      }
+      try {
+        const options = { session, ...deps.engineOptions }
+        engines.set(partition, new ElectronChromeExtensions(options))
+      } catch (error) {
+        const failure = new ExtensionRuntimeRestartRequiredError(error)
+        constructionFailures.set(session, failure)
+        try {
+          rollback()
+        } catch (rollbackError) {
+          console.warn(
+            '[extensions] 构造失败后的 preload 撤销失败，需要完整退出应用:',
+            rollbackError
+          )
+        }
+        throw failure
+      }
     }
     // SW invoke 不进 ipcMain（Electron35+ 走 ServiceWorkerMain.ipc，逐实例注册）；
     // 每会话接线一次，SW 启动时由 shims 侧按 running-status-changed 挂 handler。
@@ -66,7 +107,6 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
       wiredSessions.add(session)
       registerSessionShimIpc(session)
     }
-    await ensureGuardedPreload(session)
     // 持久化恢复的扩展/SW 可能在本轮 preload 注册前就已自启（分区持久化跨重启），
     // SW 主世界为 native/lib-only——shim 不完备，offscreen/下载全走错实现。会话对象
     // 首次挂载时：凡已按分区 ID 加载的实例强制移除重载（SW 以当前守卫 preload 重启，

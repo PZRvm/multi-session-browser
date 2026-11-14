@@ -19,5 +19,11 @@ export const dialogs: Dictionary['dialogs'] = {
       'Session: {session}\nSite: {origin}\n\nOnly camera video is allowed; the microphone will not be accessed.',
     requestDeny: 'Deny',
     requestAllow: 'Allow'
+  },
+  extensions: {
+    restartRequiredTitle: 'Extension initialization failed',
+    restartRequiredMessage: 'Extensions in this session require an app restart',
+    restartRequiredDetail:
+      'Finish your current work, then quit and reopen the app. Web browsing can continue.'
   }
 }

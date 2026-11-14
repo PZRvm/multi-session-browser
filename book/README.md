@@ -63,8 +63,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
 - [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
 - [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
+- [2026-11-13-UA与扩展Worker隔离.md](changelogs/2026-11/2026-11-13-UA与扩展Worker隔离.md) — 独立分支统一默认UA并在首次注册限制扩展preload，收紧IPC身份鉴权，本机验证通过且保留审查待办
 - [2026-11-14-Sparkle接入.md](changelogs/2026-11/2026-11-14-Sparkle接入.md) — 工作区接入Mac免费Sparkle与EdDSA更新，保留Windows更新器和严格保存，尚未发布
 - [2026-11-14-下载完成主动确认重启.md](changelogs/2026-11/2026-11-14-下载完成主动确认重启.md) — 更新下载成功后自动弹原生重启确认，稍后保留已下载版本和右上角入口
+- [2026-11-14-扩展构造失败重启恢复.md](changelogs/2026-11/2026-11-14-扩展构造失败重启恢复.md) — 将扩展构造中段失败明确为需完整重启，拒绝重复构造并一次性原生提示，关闭R1及记录用户验收
 - [2026-11-14-更新入口位置与弹窗图标.md](changelogs/2026-11/2026-11-14-更新入口位置与弹窗图标.md) — 关于页检查更新移至数据目录下方，macOS更新确认与反馈框复用项目Logo
 - [2026-11-14-更新圆钮与版本日志.md](changelogs/2026-11/2026-11-14-更新圆钮与版本日志.md) — 更新入口移至搜索栏上方右端，新增原生日志与每版本Markdown发布机制
 - [2026-11-14-更新悬停与失败提示.md](changelogs/2026-11/2026-11-14-更新悬停与失败提示.md) — 更新与重启重试原生气泡，验签失败及交接超时单次反馈，日志规范归入项目骨架
@@ -73,6 +75,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-release-version-dependencies.md](changelogs/2026-11/2026-11-15-release-version-dependencies.md) — 修复Release版本门禁在安装依赖前间接加载ZIP库而失败的问题
 - [2026-11-15-修复更新准备恢复集覆盖.md](changelogs/2026-11/2026-11-15-修复更新准备恢复集覆盖.md) — 修复安装准备与在途激活交错时覆盖空恢复集，保留网址与激活位并继续拒绝外部新操作
 - [2026-11-15-修复更新测试重启隔离.md](changelogs/2026-11/2026-11-15-修复更新测试重启隔离.md) — 修复测试包原生更新重启丢失隔离目录，改进自动启动断言并清理重建验收包
+- [2026-11-15-更新适配与关于页排版.md](changelogs/2026-11/2026-11-15-更新适配与关于页排版.md) — 隔离修复工作树接入dev更新机制，准备1.1.2并统一关于页更新行，补冷缓存恢复修复和验证记录
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -80,6 +83,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 - [release-notes-v1.1.0.md](changelogs/2026-11/release-notes-v1.1.0.md) — "🚀 多会话测试浏览器 v1.1.0：Chrome 插件体系、地址栏补全搜索、工具栏按钮显隐配置"
 - [release-notes-v1.1.1.md](changelogs/2026-11/release-notes-v1.1.1.md) — 1.1.1版本加入应用内更新与版本日志，Mac接入Sparkle并修复安装准备时的标签恢复集覆盖
+- [release-notes-v1.1.2.md](changelogs/2026-11/release-notes-v1.1.2.md) — 1.1.2版本的浏览器身份一致性、网站Worker隔离与关于页更新显示改进
 
 ### docs/
 
@@ -92,6 +96,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### docs/architecture/
 
+- [2026-11-13-浏览器身份与扩展注入边界.md](docs/architecture/2026-11-13-浏览器身份与扩展注入边界.md) — 默认UA的启动单源、宿主受限注册与依赖补丁的分工，以及页面和Worker的原生身份鉴权
 - [README.md](docs/architecture/README.md) — Architecture snapshots — dated documents describing the current state of modules and data flow
 - [项目骨架.md](docs/architecture/项目骨架.md) — "项目骨架与目录结构说明"
 
@@ -103,6 +108,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
 - [ADR-004-app-update-ownership.md](docs/decisions/ADR-004-app-update-ownership.md) — 主进程独占更新器，严格保存完成后才交接安装，构建策略关闭全部入口即停更
 - [ADR-005-macos-sparkle-update.md](docs/decisions/ADR-005-macos-sparkle-update.md) — macOS采用官方Sparkle与项目控制的原生桥接，以EdDSA验证更新包，普通退出取消并在重开后重新下载
+- [ADR-006-host-owned-extension-preloads.md](docs/decisions/ADR-006-host-owned-extension-preloads.md) — 宿主独占受限扩展 preload 注册，使用固定版本可重复补丁消除库构造时裸注册窗口
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -169,7 +175,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (68)**
+**Open (66)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -237,10 +243,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
 - [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
-- [20261113170129-网站频繁验证码与浏览器身份排查.md](notes/issue/2026-11/20261113170129-网站频繁验证码与浏览器身份排查.md) — 飞书内嵌豆包聊天触发图片人机验证，已复现中文 UA 编码差异和普通网站 Service Worker 误注入扩展桥，尚待风控因果对照
-- [20261113171922-普通网站ServiceWorker误注入扩展桥.md](notes/issue/2026-11/20261113171922-普通网站ServiceWorker误注入扩展桥.md) — 扩展 preload 未限定 Service Worker 来源，普通网站 SW 可见 electron 和宿主 shim 对象，并在安装版现场出现 location 未定义异常
 
-**Resolved (56)**
+**Resolved (62)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -272,6 +276,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261031164511-气泡Tab遗留修复轮复审.md](notes/issue/2026-10/20261031164511-气泡Tab遗留修复轮复审.md) — "代码审查：气泡与 Tab 遗留问题修复轮复审"
 - [2026-11-06-bocode-adoption-review.md](notes/issue/2026-11/2026-11-06-bocode-adoption-review.md) — BoCode 接入的十一项审查结果与提交钩子执行位问题
 - [2026-11-06-bocode-product-paths.md](notes/issue/2026-11/2026-11-06-bocode-product-paths.md) — 根产品与设计文档仍引用迁移前的需求和调研路径
+- [2026-11-14-扩展初始化失败恢复复审.md](notes/issue/2026-11/2026-11-14-扩展初始化失败恢复复审.md) — R1采用显式重启策略，失败会话封闭并一次性原生提示，故障注入和十九项应用回归通过，复审无新增问题
+- [2026-11-15-1.1.2更新适配代码审查.md](notes/issue/2026-11/2026-11-15-1.1.2更新适配代码审查.md) — 1.1.2更新接入、冷缓存恢复与关于页样式的提交后审查，十一项检查无新增问题，平台安装未在本轮执行
+- [2026-11-15-发布前复审.md](notes/issue/2026-11/2026-11-15-发布前复审.md) — 复审1.1.2隔离修复与更新适配，记录发布手册的过时阻断结论
 - [2026-11-15-应用更新合并前审查.md](notes/issue/2026-11/2026-11-15-应用更新合并前审查.md) — 更新合并前审查的R1已独立修复，dev待提交文件已保存，原阻断解除
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
@@ -298,6 +305,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
 - [20261112133000-自研插件页面上下文shim失效.md](notes/issue/2026-11/20261112133000-自研插件页面上下文shim失效.md) — 自研插件页面上下文shim失效已修复（主世界注入+SW ipc接线+onClicked派发），2026-11-12端到端全绿；本文档转修复记录
 - [20261112175039-自研插件宿主修复波.md](notes/issue/2026-11/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
+- [20261113170129-网站频繁验证码与浏览器身份排查.md](notes/issue/2026-11/20261113170129-网站频繁验证码与浏览器身份排查.md) — 飞书内嵌豆包聊天触发图片人机验证，已复现中文 UA 编码差异和普通网站 Service Worker 误注入扩展桥，尚待风控因果对照
+- [20261113171922-普通网站ServiceWorker误注入扩展桥.md](notes/issue/2026-11/20261113171922-普通网站ServiceWorker误注入扩展桥.md) — 扩展 preload 未限定 Service Worker 来源，普通网站 SW 可见 electron 和宿主 shim 对象，并在安装版现场出现 location 未定义异常
+- [20261113190745-UA与Worker隔离修复审查.md](notes/issue/2026-11/20261113190745-UA与Worker隔离修复审查.md) — UA与Worker隔离修复审查发现构造器失败后依赖单例残留，正常路径通过但异常重试需另轮处理
 
 ### notes/learn/2026-09/
 
@@ -321,11 +331,14 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-root-layout.md](notes/learn/2026-11/2026-11-06-bocode-root-layout.md) — BoCode 根目录接入要同步适配工具、技能和发布判据
 - [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
 - [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
+- [2026-11-13-扩展桥鉴权不能回退页面自报身份.md](notes/learn/2026-11/2026-11-13-扩展桥鉴权不能回退页面自报身份.md) — 网站无桥不等于IPC鉴权正确，页面与Worker都必须直接核验Electron事件中的来源及Session
 - [2026-11-14-Mac更新验签失败需要异步反馈.md](notes/learn/2026-11/2026-11-14-Mac更新验签失败需要异步反馈.md) — 临时签名更新包在Squirrel交接阶段被拒绝，命令返回后的错误必须独立通知
 - [2026-11-14-Sparkle取消安装会失去下载缓存.md](notes/learn/2026-11/2026-11-14-Sparkle取消安装会失去下载缓存.md) — Sparkle2.10.1在Cocoa及Electron原型中取消后重开会重下，用户已接受进程内稍后与退出重下的规则
 - [2026-11-14-下载后确认须等待下载锁释放.md](notes/learn/2026-11/2026-11-14-下载后确认须等待下载锁释放.md) — 自动重启确认必须等待下载Promise结束，再复用安装互斥与失败反馈所属窗口
+- [2026-11-14-无释放接口的构造失败要明确重启边界.md](notes/learn/2026-11/2026-11-14-无释放接口的构造失败要明确重启边界.md) — 第三方构造器失败可能保留单例与监听，无法证明完整回滚时应显式封闭失败状态并要求重启
 - [2026-11-14-版本日志随清单分发并绑定动作版本.md](notes/learn/2026-11/2026-11-14-版本日志随清单分发并绑定动作版本.md) — 版本日志同时服务应用与Release时的单源约束及原生窗口动作校验
 - [2026-11-15-Sparkle自动重启须交接隔离目录.md](notes/learn/2026-11/2026-11-15-Sparkle自动重启须交接隔离目录.md) — 原生更新重启丢失MSB_USER_DATA，必须验证自动启动后的实际目录，不能用带环境变量的手动重开代替
+- [2026-11-15-恢复目标应先进入模型再等待导航.md](notes/learn/2026-11/2026-11-15-恢复目标应先进入模型再等待导航.md) — 冷缓存恢复若直接给空白webContents调用loadURL，更新保存可能早于导航事件把地址写成空白，应先同步建立目标模型
 - [2026-11-15-更新封锁须允许在途内部恢复.md](notes/learn/2026-11/2026-11-15-更新封锁须允许在途内部恢复.md) — 拒绝新命令与排空已有恢复不能共用创建禁令，否则合法空快照会覆盖旧恢复集
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
@@ -440,11 +453,14 @@ description: Master index of the book — the map of every document. Regenerate 
 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
 - [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
+- [2026-11-13-UA与Worker隔离修复.md](notes/summary/2026-11/2026-11-13-UA与Worker隔离修复.md) — 在独立工作树统一默认UA、限制扩展preload并修正原生身份鉴权，本机回归通过，构造异常重试与现场验证待办
 - [2026-11-13-应用更新开发进度.md](notes/summary/2026-11/2026-11-13-应用更新开发进度.md) — 应用更新已实现并跑通本地发现与真实下载，18组测试通过；恢复集高风险与异步反馈待修，正式签名和跨平台安装待验
 - [2026-11-14-Sparkle接入阶段报告.md](notes/summary/2026-11/2026-11-14-Sparkle接入阶段报告.md) — macOS已接入免费Sparkle更新并通过隔离包替换，完整验收仍受恢复集风险及平台实测门禁阻断
 - [2026-11-14-下载完成自动确认安装.md](notes/summary/2026-11/2026-11-14-下载完成自动确认安装.md) — 下载成功主动弹原生重启确认，稍后保留入口，签名失败明确提示且不重复弹框
+- [2026-11-14-扩展初始化失败恢复与用户验收.md](notes/summary/2026-11/2026-11-14-扩展初始化失败恢复与用户验收.md) — 用户确认功能验收通过，R1改为明确重启恢复，正常与故障回归通过并完成复审
 - [2026-11-14-更新入口与版本日志进度.md](notes/summary/2026-11/2026-11-14-更新入口与版本日志进度.md) — 右上角主题圆形更新入口、原生日志窗口与每版本Markdown机制的本地验证进度
 - [2026-11-14-更新悬停与验签失败反馈.md](notes/summary/2026-11/2026-11-14-更新悬停与验签失败反馈.md) — 更新气泡、临时签名安装失败根因及异步反馈修复，日志规则归入项目骨架
+- [2026-11-15-1.1.2更新适配与关于页.md](notes/summary/2026-11/2026-11-15-1.1.2更新适配与关于页.md) — 在隔离修复分支接入dev更新机制并准备1.1.2，统一关于页样式且修正冷缓存恢复地址覆盖，提交后审查通过
 - [2026-11-15-应用更新合入dev.md](notes/summary/2026-11/2026-11-15-应用更新合入dev.md) — 保留dev原有文档后合并应用更新与R1修复，仅索引冲突重新生成，合并复验通过
 - [2026-11-15-更新准备R1修复.md](notes/summary/2026-11/2026-11-15-更新准备R1修复.md) — 更新准备允许已接受的同步内部恢复排空，真实联动回归保留原网址与激活位，外部新操作继续封锁
 - [2026-11-15-更新重启隔离与验收重置.md](notes/summary/2026-11/2026-11-15-更新重启隔离与验收重置.md) — 修复Sparkle测试包自动重启丢失隔离目录，直接验证新窗口并清理重建90.0.1到90.0.2验收环境
@@ -489,8 +505,10 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
 - [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
 - [2026-11-14-更新提示与卡顿排查.md](plans/2026-11-14-更新提示与卡顿排查.md) — L级更新反馈修订，排查用户验收卡顿、补原生悬停提示并把日志规范归入项目骨架
+- [2026-11-15-1.1.2审查与正式发布.md](plans/2026-11-15-1.1.2审查与正式发布.md) — 记录1.1.2发布前复审、独立文档修复、dev合并验证和main PR发布进度
 - [2026-11-15-Sparkle测试重启隔离修复.md](plans/2026-11-15-Sparkle测试重启隔离修复.md) — 修复Sparkle自动重启丢失测试隔离目录，清理旧产物后重建双版本验收包
 - [2026-11-15-修复更新准备恢复集R1.md](plans/2026-11-15-修复更新准备恢复集R1.md) — L级修复更新准备阻断在途恢复导致空标签覆盖，补真实registry与manager及持久化联动回归
+- [2026-11-15-更新机制接入与1.1.2版本准备.md](plans/2026-11-15-更新机制接入与1.1.2版本准备.md) — 在人机验证修复工作树合入dev更新机制，统一关于页更新行并准备1.1.2，提交审查后仅推送工作分支
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -556,4 +574,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 431 documents -->
+<!-- 449 documents -->

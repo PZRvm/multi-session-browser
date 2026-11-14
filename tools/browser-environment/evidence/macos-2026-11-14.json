@@ -1,0 +1,483 @@
+{
+  "date": "2026-11-14",
+  "platform": "macOS arm64",
+  "strategy": "constructor failure requires full process restart; no forced restart",
+  "reports": [
+    {
+      "mode": "first",
+      "versions": {
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "checks": [
+        {
+          "name": "未受限注册的库构造被源头拒绝",
+          "ok": true,
+          "detail": {
+            "rejectedBeforeSideEffects": true
+          }
+        },
+        {
+          "name": "首次默认UA及会话网页/Worker/SW身份",
+          "ok": true,
+          "detail": {
+            "top": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            },
+            "worker": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            },
+            "sw": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            }
+          }
+        },
+        {
+          "name": "跨源iframe与about/blob/data上下文",
+          "ok": true,
+          "detail": {
+            "brands": [
+              {
+                "brand": "Not:A-Brand",
+                "version": "8"
+              },
+              {
+                "brand": "Chromium",
+                "version": "156"
+              }
+            ],
+            "electron": "undefined",
+            "platform": "macOS",
+            "process": "undefined",
+            "require": "undefined",
+            "shim": "undefined",
+            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
+          }
+        },
+        {
+          "name": "第二会话分区与存储隔离",
+          "ok": true,
+          "detail": {
+            "partitionIsolated": true
+          }
+        },
+        {
+          "name": "请求UA覆盖文档/fetch/favicon/Worker脚本",
+          "ok": true,
+          "detail": {
+            "requests": 17
+          }
+        },
+        {
+          "name": "MV3后台/popup/content script及消息",
+          "ok": true,
+          "detail": {
+            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+            "brands": [
+              {
+                "brand": "Not:A-Brand",
+                "version": "8"
+              },
+              {
+                "brand": "Chromium",
+                "version": "156"
+              }
+            ],
+            "platform": "macOS",
+            "process": "undefined",
+            "require": "undefined",
+            "electron": "object",
+            "shim": "object"
+          }
+        },
+        {
+          "name": "扩展下载保留且写入隔离目录",
+          "ok": true,
+          "detail": {
+            "downloaded": true
+          }
+        },
+        {
+          "name": "扩展截图与offscreen链路",
+          "ok": true,
+          "detail": {
+            "png": true,
+            "offscreen": true
+          }
+        },
+        {
+          "name": "普通网页伪报扩展ID仍被IPC拒绝",
+          "ok": true,
+          "detail": {
+            "sameSession": "UNAUTHORIZED",
+            "otherSession": "UNAUTHORIZED"
+          }
+        },
+        {
+          "name": "MV2页面与后台消息兼容",
+          "ok": true,
+          "detail": {
+            "mv2": true
+          }
+        },
+        {
+          "name": "原版DarkReader页面及内容脚本",
+          "ok": true,
+          "detail": {
+            "darkReader": "4.9.135"
+          }
+        },
+        {
+          "name": "原版CookieEditor popup与Cookie读写",
+          "ok": true,
+          "detail": {
+            "cookieEditor": "1.13.0"
+          }
+        },
+        {
+          "name": "自研录屏插件完整音视频收尾与下载",
+          "ok": true,
+          "detail": {
+            "audioIncluded": true,
+            "audioMutedLive": false,
+            "chunkCount": 2,
+            "downloadId": 1794655975038,
+            "duration": 2.683,
+            "filename": "recording-1.mp4",
+            "mimeType": "video/mp4;codecs=avc1,mp4a.40.2",
+            "reason": "user",
+            "bytes": 34674
+          }
+        },
+        {
+          "name": "插件卸载重装及再次挂载保持受限",
+          "ok": true,
+          "detail": {
+            "reloaded": true
+          }
+        },
+        {
+          "name": "两会话并发重挂载不重复注册",
+          "ok": true,
+          "detail": {
+            "simultaneousMounts": 4
+          }
+        },
+        {
+          "name": "Worker停止后恢复仍保持网站隔离与扩展消息",
+          "ok": true,
+          "detail": {
+            "restarted": true
+          }
+        },
+        {
+          "name": "真实库构造中段失败后封闭Session并撤销注册",
+          "ok": true,
+          "detail": {
+            "requiresRestart": true,
+            "constructorAttempts": 1,
+            "remainingRegistrations": 0
+          }
+        },
+        {
+          "name": "DevTools模拟可覆盖默认UA",
+          "ok": true,
+          "detail": {
+            "overridePreserved": true
+          }
+        },
+        {
+          "name": "网站和扩展无preload异常",
+          "ok": true,
+          "detail": {
+            "errors": 0
+          }
+        }
+      ]
+    },
+    {
+      "mode": "restart",
+      "versions": {
+        "electron": "45.3.0",
+        "chrome": "156.0.8078.96"
+      },
+      "checks": [
+        {
+          "name": "未受限注册的库构造被源头拒绝",
+          "ok": true,
+          "detail": {
+            "rejectedBeforeSideEffects": true
+          }
+        },
+        {
+          "name": "首次默认UA及会话网页/Worker/SW身份",
+          "ok": true,
+          "detail": {
+            "top": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            },
+            "worker": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            },
+            "sw": {
+              "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+              "brands": [
+                {
+                  "brand": "Not:A-Brand",
+                  "version": "8"
+                },
+                {
+                  "brand": "Chromium",
+                  "version": "156"
+                }
+              ],
+              "platform": "macOS",
+              "process": "undefined",
+              "require": "undefined",
+              "electron": "undefined",
+              "shim": "undefined"
+            }
+          }
+        },
+        {
+          "name": "跨源iframe与about/blob/data上下文",
+          "ok": true,
+          "detail": {
+            "brands": [
+              {
+                "brand": "Not:A-Brand",
+                "version": "8"
+              },
+              {
+                "brand": "Chromium",
+                "version": "156"
+              }
+            ],
+            "electron": "undefined",
+            "platform": "macOS",
+            "process": "undefined",
+            "require": "undefined",
+            "shim": "undefined",
+            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
+          }
+        },
+        {
+          "name": "第二会话分区与存储隔离",
+          "ok": true,
+          "detail": {
+            "partitionIsolated": true
+          }
+        },
+        {
+          "name": "请求UA覆盖文档/fetch/favicon/Worker脚本",
+          "ok": true,
+          "detail": {
+            "requests": 17
+          }
+        },
+        {
+          "name": "MV3后台/popup/content script及消息",
+          "ok": true,
+          "detail": {
+            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+            "brands": [
+              {
+                "brand": "Not:A-Brand",
+                "version": "8"
+              },
+              {
+                "brand": "Chromium",
+                "version": "156"
+              }
+            ],
+            "platform": "macOS",
+            "process": "undefined",
+            "require": "undefined",
+            "electron": "object",
+            "shim": "object"
+          }
+        },
+        {
+          "name": "扩展下载保留且写入隔离目录",
+          "ok": true,
+          "detail": {
+            "downloaded": true
+          }
+        },
+        {
+          "name": "扩展截图与offscreen链路",
+          "ok": true,
+          "detail": {
+            "png": true,
+            "offscreen": true
+          }
+        },
+        {
+          "name": "普通网页伪报扩展ID仍被IPC拒绝",
+          "ok": true,
+          "detail": {
+            "sameSession": "UNAUTHORIZED",
+            "otherSession": "UNAUTHORIZED"
+          }
+        },
+        {
+          "name": "MV2页面与后台消息兼容",
+          "ok": true,
+          "detail": {
+            "mv2": true
+          }
+        },
+        {
+          "name": "原版DarkReader页面及内容脚本",
+          "ok": true,
+          "detail": {
+            "darkReader": "4.9.135"
+          }
+        },
+        {
+          "name": "原版CookieEditor popup与Cookie读写",
+          "ok": true,
+          "detail": {
+            "cookieEditor": "1.13.0"
+          }
+        },
+        {
+          "name": "自研录屏插件完整音视频收尾与下载",
+          "ok": true,
+          "detail": {
+            "audioIncluded": true,
+            "audioMutedLive": false,
+            "chunkCount": 2,
+            "downloadId": 1794656061745,
+            "duration": 2.66,
+            "filename": "recording-2.mp4",
+            "mimeType": "video/mp4;codecs=avc1,mp4a.40.2",
+            "reason": "user",
+            "bytes": 35180
+          }
+        },
+        {
+          "name": "插件卸载重装及再次挂载保持受限",
+          "ok": true,
+          "detail": {
+            "reloaded": true
+          }
+        },
+        {
+          "name": "两会话并发重挂载不重复注册",
+          "ok": true,
+          "detail": {
+            "simultaneousMounts": 4
+          }
+        },
+        {
+          "name": "Worker停止后恢复仍保持网站隔离与扩展消息",
+          "ok": true,
+          "detail": {
+            "restarted": true
+          }
+        },
+        {
+          "name": "真实库构造中段失败后封闭Session并撤销注册",
+          "ok": true,
+          "detail": {
+            "requiresRestart": true,
+            "constructorAttempts": 1,
+            "remainingRegistrations": 0
+          }
+        },
+        {
+          "name": "DevTools模拟可覆盖默认UA",
+          "ok": true,
+          "detail": {
+            "overridePreserved": true
+          }
+        },
+        {
+          "name": "网站和扩展无preload异常",
+          "ok": true,
+          "detail": {
+            "errors": 0
+          }
+        }
+      ]
+    }
+  ],
+  "initializationUnit": "tools/browser-environment/initialization.mjs",
+  "userAcceptance": "2026-11-14 用户确认本功能验收通过，未提供平台或次数明细"
+}
