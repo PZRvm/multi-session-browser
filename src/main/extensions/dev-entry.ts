@@ -11,10 +11,12 @@ import {
   clipboard,
   ClipboardItem,
   nativeImage,
+  dialog,
   type Session,
   type WebContents
 } from 'electron'
 import { createManifestStore } from './install/manifest-store'
+import { t } from '../i18n'
 import {
   STAGED_IMAGE,
   type BridgeOperation,
@@ -22,6 +24,7 @@ import {
 } from '../../shared/extensions/protocol'
 import {
   createExtensionRuntime,
+  ExtensionRuntimeRestartRequiredError,
   type EngineOptions,
   type ExtensionRuntime,
   type MountResult
@@ -50,6 +53,7 @@ export interface ExtensionsHandle {
 }
 
 let handle: ExtensionsHandle | undefined
+const restartNotifiedSessions = new WeakSet<Session>()
 
 /** 库 windows.create 需宿主 impl.createWindow（缺省抛 "createWindow is not implemented"）。
  *  自研截图插件编辑器窗经 SW 内 chrome.windows.create 走此链。宿主默认实现：按扩展 ID
@@ -126,6 +130,27 @@ export async function mountDevExtensions(
     return result
   } catch (error) {
     console.warn(`[extensions] 分区 ${partition} 插件挂载失败:`, error)
+    if (
+      error instanceof ExtensionRuntimeRestartRequiredError &&
+      !restartNotifiedSessions.has(session)
+    ) {
+      restartNotifiedSessions.add(session)
+      // 不等待用户关框，不阻塞网页激活；同步标记防止并发挂载反复弹框。
+      void Promise.resolve()
+        .then(() =>
+          dialog.showMessageBox({
+            type: 'error',
+            title: t('dialogs.extensions.restartRequiredTitle'),
+            message: t('dialogs.extensions.restartRequiredMessage'),
+            detail: t('dialogs.extensions.restartRequiredDetail'),
+            buttons: [t('common.confirm')],
+            noLink: true
+          })
+        )
+        .catch((dialogError: unknown) => {
+          console.warn('[extensions] 插件重启提示显示失败:', dialogError)
+        })
+    }
     return { partition, error: String(error).slice(0, 200) }
   }
 }

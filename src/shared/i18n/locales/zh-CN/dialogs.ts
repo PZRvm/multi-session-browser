@@ -16,5 +16,10 @@ export const dialogs = {
     requestDetail: '会话：{session}\n站点：{origin}\n\n仅允许摄像头视频，不会开放麦克风。',
     requestDeny: '拒绝',
     requestAllow: '允许'
+  },
+  extensions: {
+    restartRequiredTitle: '插件初始化失败',
+    restartRequiredMessage: '此会话的插件需要重启应用后恢复',
+    restartRequiredDetail: '请完成当前操作后，完整退出并重新打开应用。网页浏览仍可继续。'
   }
 }

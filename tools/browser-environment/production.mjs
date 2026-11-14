@@ -525,6 +525,37 @@ export async function run({ registry, mainWindow, getExtensionsHandle, extractCr
     }
     return { restarted: true }
   })
+  await check('真实库构造中段失败后封闭Session并撤销注册', async () => {
+    const target = session.fromPartition('persist:environment-constructor-failure')
+    const originalOn = target.serviceWorkers.on
+    let faultHits = 0
+    target.serviceWorkers.on = function (event, listener) {
+      if (event === 'running-status-changed') {
+        faultHits++
+        throw new Error('INJECTED_NATIVE_CONSTRUCTOR_FAILURE')
+      }
+      return originalOn.call(this, event, listener)
+    }
+    const runtime = getExtensionsHandle().runtime
+    let first
+    try {
+      await runtime.mountPartition('persist:environment-constructor-failure', target)
+    } catch (error) {
+      first = error
+    } finally {
+      target.serviceWorkers.on = originalOn
+    }
+    assert.equal(first?.name, 'ExtensionRuntimeRestartRequiredError')
+    assert.equal(first.cause?.message, 'INJECTED_NATIVE_CONSTRUCTOR_FAILURE')
+    assert.equal(runtime.getEngine('persist:environment-constructor-failure'), undefined)
+    assert.equal(target.getPreloadScripts().filter((s) => s.id.startsWith('crx-')).length, 0)
+    await assert.rejects(
+      runtime.mountPartition('persist:environment-constructor-failure', target),
+      (error) => error === first
+    )
+    assert.equal(faultHits, 1)
+    return { requiresRestart: true, constructorAttempts: faultHits, remainingRegistrations: 0 }
+  })
   await check('DevTools模拟可覆盖默认UA', async () => {
     a.debugger.attach('1.3')
     try {

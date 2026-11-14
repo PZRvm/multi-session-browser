@@ -17,5 +17,10 @@ export const dialogs: Dictionary['dialogs'] = {
     requestDetail: '會話：{session}\n網站：{origin}\n\n僅允許攝影機視訊，不會開放麥克風。',
     requestDeny: '拒絕',
     requestAllow: '允許'
+  },
+  extensions: {
+    restartRequiredTitle: '擴充功能初始化失敗',
+    restartRequiredMessage: '此工作階段的擴充功能需要重新啟動應用程式後恢復',
+    restartRequiredDetail: '請完成目前操作後，完整退出並重新開啟應用程式。網頁瀏覽仍可繼續。'
   }
 }

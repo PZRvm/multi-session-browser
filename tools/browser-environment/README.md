@@ -4,6 +4,7 @@
 
 ```bash
 node tools/browser-environment/unit.mjs
+node tools/browser-environment/initialization.mjs
 ```
 
 应用自检要求原版 Dark Reader 解包目录与 Cookie-Editor CRX（也可给解包目录）。设置两个路径后启动，数据、下载和 JSON 结果均写入独立 `/tmp/msb-env-*`。端口按当前 worktree 元数据和系统监听情况配置，以下为此工作区使用的值：
@@ -24,4 +25,6 @@ npm run dev:agent
 
 归档见 `evidence/macos-2026-11-13.json`：首启的 16 项与后来补齐的重启 18 项。DevTools 模拟检查会刻意发送 EnvironmentDevice/1.0 UA，故原始请求列表的末尾可含此值。原生 API 绑定/CSP 日志不等于 preload 失败，断言只捕获已列出的 preload/location 异常；真实聊天频率与 Windows 不由该脚本判定。
 
-构造中段失败的依赖单例残留已写入 book 审查待办，当前自检不声称该故障已修复。
+2026-11-14 的结果见 `evidence/macos-2026-11-14.json`，首启与重启各 19 项通过。新增真实库构造中段故障注入，检查失败状态、注册撤销和重复请求拒绝。`initialization.mjs` 另以受控依赖验证并发/跨工厂、其他 Session、注册阶段重试、回滚异常、健康工厂冲突与提示去重/不阻塞/失败处理。
+
+恢复策略是明确要求完整退出再打开；不声称能释放依赖全部私有资源并在同进程重试。原生提示的自动测试使用受控 dialog，不代表实际弹框视觉验收。
