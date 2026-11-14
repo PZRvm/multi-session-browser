@@ -2,7 +2,7 @@
 description: 宿主独占受限扩展 preload 注册，使用固定版本可重复补丁消除库构造时裸注册窗口
 ---
 
-# ADR-004：宿主创建受限扩展 preload
+# ADR-006：宿主创建受限扩展 preload
 
 状态：Accepted，2026-11-13。对应 L 级 UA 与 Worker 隔离修复计划。
 

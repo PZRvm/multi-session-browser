@@ -1,3 +1,4 @@
+import { assertUpdateWritable, isUpdatePreparing } from '../updatePreparation'
 /**
  * 自研插件宿主 shim 的主进程侧（计划 20261112-自研插件宿主集成 M1/M2）：
  * electron-chrome-extensions 4.10.0 不提供 tabs.captureVisibleTab（产物 grep 0 命中），
@@ -57,6 +58,31 @@ interface OffscreenEntry {
 const offscreenByExtension = new Map<string, OffscreenEntry>()
 /** tab-stream 与 offscreen-create 之间的一次性授流目标（同扩展先后两步握手） */
 const pendingTargets = new Map<string, WebContents>()
+
+/** 自研录屏持久状态覆盖 starting/recording/paused/finalizing；采集窗闲置不等于忙碌。
+ * 未知扩展或查询失败保守拒绝重启，避免把未知状态当作空闲。 */
+export async function isExtensionCaptureBusy(): Promise<boolean> {
+  const checks = [...offscreenByExtension.values()].map(async ({ win }) => {
+    if (win.isDestroyed()) return false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        win.webContents.executeJavaScript(`(async () => {
+          const { rec } = await chrome.storage.local.get('rec')
+          return !rec || rec.state !== 'idle'
+        })()`),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(true), 2000)
+        })
+      ])
+    } catch {
+      return true
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+  return (await Promise.all(checks)).some(Boolean)
+}
 
 let shimDeps: ExtensionShimsDeps | undefined
 
@@ -134,6 +160,7 @@ const downloadImpl: ShimImpl = async (event, raw, session) => {
 // tab-stream：popup 上下文取被录目标的一次性 token。目标 = popup 宿主窗的激活
 // 会话网页（openPopup 建窗 parent=宿主窗；库弹的 popup 同样有 parent）
 const tabStreamImpl: ShimImpl = async (event, _raw, session) => {
+  assertUpdateWritable()
   try {
     const extId = resolveExtensionId(event, session)
     if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
@@ -153,6 +180,7 @@ const tabStreamImpl: ShimImpl = async (event, _raw, session) => {
 
 // offscreen-create：SW 上下文建宿主隐藏采集窗加载扩展 offscreen.html
 const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
+  assertUpdateWritable()
   try {
     const payload = raw as { url?: unknown; extId?: unknown }
     const extId = resolveExtensionId(event, session)
@@ -198,6 +226,10 @@ const offscreenCreateImpl: ShimImpl = async (event, raw, session) => {
     // 授流（captureView.ts 先例）：只认本采集窗顶层 frame 的 getDisplayMedia 请求，
     // 授被录 tab 的 mainFrame；其余请求方一律空回调拒绝
     bound.setDisplayMediaRequestHandler((request, callback) => {
+      if (isUpdatePreparing()) {
+        callback({})
+        return
+      }
       const fromSelf =
         request.frame !== null &&
         request.frame === request.frame.top &&

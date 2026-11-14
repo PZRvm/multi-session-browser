@@ -1,7 +1,9 @@
+import { createRequire } from 'node:module'
+const { readVersionReleaseNotes } = createRequire(import.meta.url)('./release-notes.cjs')
 /* eslint-disable @typescript-eslint/explicit-function-return-type -- 发布脚本直接由 Node 执行，不使用 TS 语法 */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, lstatSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 
@@ -50,6 +52,7 @@ function checkVersion() {
       '--',
       'src',
       'resources',
+      'native',
       'build',
       'scripts',
       ':(exclude)scripts/release.mjs',
@@ -82,17 +85,11 @@ function checkVersion() {
   }
 }
 
-function collectAssets(directory) {
+async function collectAssets(directory) {
+  // 版本门禁在 npm ci 前运行；只在处理附件时加载依赖第三方库的校验器。
+  const { validateUpdateAssets } = await import('./update-assets.mjs')
   const { name, version } = readVersion()
-  const names = [
-    `${name}-${version}-mac-arm64.dmg`,
-    `${name}-${version}-mac-x64.dmg`,
-    `${name}-${version}-win-x64-setup.exe`
-  ]
-  const unexpected = readdirSync(directory).filter(
-    (file) => !names.includes(file) && file !== 'SHA256SUMS.txt'
-  )
-  if (unexpected.length) throw new Error(`发布目录包含意外文件：${unexpected.join('、')}`)
+  const names = validateUpdateAssets(directory, name, version, readVersionReleaseNotes(version))
   const assets = names.map((file) => {
     const path = join(directory, file)
     const stat = lstatSync(path)
@@ -155,7 +152,7 @@ async function publish(directory) {
   const commit = git('rev-parse', 'HEAD')
   const tag = `v${version}`
   const base = `repos/${repository}`
-  const assets = collectAssets(directory)
+  const assets = await collectAssets(directory)
   let ref = getApi(`${base}/git/ref/tags/${tag}`)
   if (!ref) {
     gh(
@@ -185,11 +182,13 @@ async function publish(directory) {
   const notesPath = join(directory, '..', 'release-notes.md')
   writeFileSync(
     notesPath,
-    `多会话测试浏览器 ${tag}\n\n` +
+    readVersionReleaseNotes(version) +
+      '\n\n---\n\n' +
+      `多会话测试浏览器 ${tag}\n\n` +
       `源码提交：[${commit.slice(0, 7)}](https://github.com/${repository}/commit/${commit})\n\n` +
       '安装包：macOS Apple Silicon（arm64）、macOS Intel（x64）、Windows x64。\n' +
       'SHA256SUMS.txt 提供安装包的 SHA-256 校验和。\n\n' +
-      'macOS 包仅作临时签名，未进行 Developer ID 签名及公证；Windows 包未作代码签名。\n' +
+      'macOS 包使用临时签名，Sparkle 通过 EdDSA 验证更新来源；首次安装仍受 Gatekeeper 限制，未作 Apple 公证。Windows 包未作代码签名。\n' +
       'CI 完成静态检查、生产构建及打包；完整安装与业务功能仍需真机验收。\n'
   )
   if (!existing) {
@@ -250,7 +249,7 @@ async function publish(directory) {
 try {
   const [command, directory] = process.argv.slice(2)
   if (command === 'version') checkVersion()
-  else if (command === 'checksums' && directory) collectAssets(resolve(directory))
+  else if (command === 'checksums' && directory) await collectAssets(resolve(directory))
   else if (command === 'publish' && directory) await publish(resolve(directory))
   else throw new Error('用法：node scripts/release.mjs version | checksums <目录> | publish <目录>')
 } catch (error) {

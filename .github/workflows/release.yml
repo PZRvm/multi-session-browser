@@ -71,7 +71,11 @@ jobs:
       # 会拼出 /v<应用版本>/electron-v<electron版本>/ 404 路径（第二轮实测教训）。
       # CLI `-c.` 点属性参数也不可用：Windows runner 默认 PowerShell 会剥掉 `-c`
       # 前缀使 electron-builder 把余串当配置文件路径打开（第一轮实测 ENOENT）。
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      MAIN_VITE_UPDATE_TEST: 'false'
+      MAIN_VITE_UPDATE_HEADER: 'true'
+      MAIN_VITE_UPDATE_SETTINGS: 'true'
+      SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,9 +91,10 @@ jobs:
       - name: 生成安装包
         run: >-
           npm exec electron-builder --
-          --${{ matrix.platform }} ${{ matrix.target }} --${{ matrix.arch }}
+          --config scripts/electron-builder-release.cjs
+          --${{ matrix.platform }} --${{ matrix.arch }}
           --publish never
-      - name: 校验 macOS 临时签名与镜像
+      - name: 生成 Sparkle 清单并校验 macOS 临时签名与镜像
         if: runner.os == 'macOS'
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
@@ -98,11 +103,20 @@ jobs:
           app_dir=dist/mac
           if [[ "$RELEASE_ARCH" == arm64 ]]; then app_dir=dist/mac-arm64; fi
           codesign --verify --deep --strict "$app_dir/多会话浏览器.app"
+          node scripts/sparkle-appcast.mjs dist "$RELEASE_ARCH"
+          rm -f dist/latest-mac.yml dist/*-mac-*.blockmap
           hdiutil verify "dist/multi-session-browser-$RELEASE_VERSION-mac-$RELEASE_ARCH.dmg"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: installer-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/*.${{ matrix.extension }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest.yml
+            dist/appcast-*.xml
+            dist/release-notes-v*.md
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -115,6 +129,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    env:
+      SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
     # 按版本串行，避免不同 PR 对同一版本并发上传。
     concurrency:
       group: release-version-${{ needs.prepare.outputs.version }}
@@ -132,8 +148,11 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: installer-*
-          path: dist/release-assets
-          merge-multiple: true
+          path: dist/update-artifacts
+          merge-multiple: false
+      - run: npm ci
+      - name: 合并并校验更新清单
+        run: node scripts/update-assets.mjs dist/update-artifacts dist/release-assets
       - name: 校验附件并发布
         env:
           GH_TOKEN: ${{ github.token }}

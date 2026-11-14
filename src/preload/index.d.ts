@@ -1,3 +1,4 @@
+import type { UpdatesApi } from '../shared/updates'
 import type { ToolbarTooltipPayload } from '../shared/toolbarTooltip'
 import type { NativeEditCommand } from '../shared/nativeEditing'
 import type {
@@ -111,6 +112,7 @@ import type {
 declare global {
   interface Window {
     api: {
+      updates: UpdatesApi
       nativeEditing: {
         onCommand(callback: (command: NativeEditCommand) => void): () => void
       }
@@ -244,9 +246,9 @@ declare global {
         uninstall(id: string): Promise<import('../../shared/extensions/management').UninstallResult>
         openStore(): Promise<{ ok: boolean; error?: string }>
         /** 拖拽 CRX 导入：path 为落盘路径（webUtils 取得） */
-        importCrxFromPath(path: string): Promise<
-          import('../shared/extensions/management').InstallResult
-        >
+        importCrxFromPath(
+          path: string
+        ): Promise<import('../shared/extensions/management').InstallResult>
         /** File → 落盘路径（webUtils） */
         getCrxPath(file: File): string
         openPopup(

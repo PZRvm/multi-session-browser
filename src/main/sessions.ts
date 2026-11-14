@@ -1,3 +1,4 @@
+import { handleUpdateMutation } from './updatePreparation'
 // 会话 IPC handlers：十八条 invoke 通道（阶段 4 六条 + 阶段 5 clone / delete-batch
 // 两条 + 排序专项 reorder 一条 + 工作区专项六条 create/rename/delete/move-session/
 // reorder/set-active + 备注编辑 set-note 一条 + 独立代理 set-proxy / check-proxy
@@ -222,7 +223,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   )
 
   // create：id 由主进程生成（与现存 id 撞车则重新生成），返回新建的 StoredSession
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.create,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.create, payload, async () => {
@@ -261,7 +262,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   )
 
   // rename：名称去 trim 后为空拒绝；id 不存在抛错
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.rename,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.rename, payload, async () => {
@@ -291,7 +292,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 占位）；② 无 deps 编排回调——备注不联动窗口标题/激活位等任何浏览器编排。
   // 其余对齐 rename：结构守卫 → id 存在性 → mutateSnapshot 临界区内 clamp 落盘，
   // 返回 clamp 后的实际落盘值供 renderer 非乐观 merge
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.setNote,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.setNote, payload, async () => {
@@ -318,7 +319,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 成功后经 deps.onProxyChanged 应用到该会话分区 → 返回更新后的 StoredSession
   // （renderer 非乐观 merge，对齐 set-note 返回范式）。应用失败只告警不回滚：落盘是
   // 权威，切换/激活链会按落盘值幂等补应用
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.setProxy,
     async (event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.setProxy, payload, async () => {
@@ -378,7 +379,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 会话真实分区——凭据与连通性都以该分区为准，故 id 必须存在）。proxy 必填非 null
   // 且过 normalizeProxyConfig 单源守卫（非法整单拒绝）；探测期临时应用草稿值、结束
   // 恢复原状由引擎承担（browser/proxy.ts probeExitIpForId）。三态失败如实分类，不伪造生效
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.checkProxy,
     async (_event, payload: unknown): Promise<ProxyCheckResult> =>
       logFailure(SESSIONS_CHANNELS.checkProxy, payload, async () => {
@@ -400,58 +401,62 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   )
 
   // delete：id 不存在抛错；删的是选中项时级联指向剩余首项（无剩余则 null）
-  ipcMain.handle(SESSIONS_CHANNELS.delete, async (_event, payload: unknown): Promise<OkResult> =>
-    logFailure(SESSIONS_CHANNELS.delete, payload, async () => {
-      // id 必须为 string
-      if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
-      const id = payload.id
-      // 级联后的 activeId 须在闭包内捕获传出（快照互斥期间才可见），供编排层跟随切换
-      const nextActiveId = await mutateSnapshot((snapshot) => {
-        const index = snapshot.sessions.findIndex((s) => s.id === id)
-        if (index === -1) throw new Error(t('errors.sessionNotFound'))
-        const [removed] = snapshot.sessions.splice(index, 1)
-        if (snapshot.activeId === removed.id) {
-          snapshot.activeId = snapshot.sessions[0]?.id ?? null
-        }
-        // 工作区激活记忆净化：指向被删会话的记忆置 null（悬空不落盘）
-        clearDanglingMemory(snapshot, new Set([removed.id]))
-        return snapshot.activeId
+  handleUpdateMutation(
+    SESSIONS_CHANNELS.delete,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.delete, payload, async () => {
+        // id 必须为 string
+        if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
+        const id = payload.id
+        // 级联后的 activeId 须在闭包内捕获传出（快照互斥期间才可见），供编排层跟随切换
+        const nextActiveId = await mutateSnapshot((snapshot) => {
+          const index = snapshot.sessions.findIndex((s) => s.id === id)
+          if (index === -1) throw new Error(t('errors.sessionNotFound'))
+          const [removed] = snapshot.sessions.splice(index, 1)
+          if (snapshot.activeId === removed.id) {
+            snapshot.activeId = snapshot.sessions[0]?.id ?? null
+          }
+          // 工作区激活记忆净化：指向被删会话的记忆置 null（悬空不落盘）
+          clearDanglingMemory(snapshot, new Set([removed.id]))
+          return snapshot.activeId
+        })
+        // 落盘成功后联动（删除守卫或写盘失败时抛错，不联动）
+        deps.onDeleted(id, nextActiveId)
+        return { ok: true }
       })
-      // 落盘成功后联动（删除守卫或写盘失败时抛错，不联动）
-      deps.onDeleted(id, nextActiveId)
-      return { ok: true }
-    })
   )
 
   // setActive：null 合法（清空选中）；非 null 时 id 必须存在；
   // 落盘成功后经 onActiveChanged 触发主进程内浏览器切换（副作用声明见 shared/sessions）
-  ipcMain.handle(SESSIONS_CHANNELS.setActive, async (_event, payload: unknown): Promise<OkResult> =>
-    logFailure(SESSIONS_CHANNELS.setActive, payload, async () => {
-      // id 必须为 string 或 null；undefined 等其他类型显式拒绝，不误报「会话不存在」
-      if (!isRecord(payload)) throw invalidParams()
-      if (payload.id !== null && typeof payload.id !== 'string') throw invalidParams()
-      const nextId = payload.id
-      const stored = await mutateSnapshot((snapshot) => {
-        if (nextId !== null && !snapshot.sessions.some((s) => s.id === nextId)) {
-          throw new Error(t('errors.sessionNotFound'))
-        }
-        snapshot.activeId = nextId
-        // 工作区专项：激活落盘同临界区顺带更新所属工作区激活记忆（只随真实激活更新；
-        // 未分组会话不动 workspaces）
-        if (nextId !== null) {
-          const activated = snapshot.sessions.find((s) => s.id === nextId)
-          if (activated && activated.workspaceId !== null) {
-            const ws = snapshot.workspaces.find((w) => w.id === activated.workspaceId)
-            if (ws) ws.lastActiveSessionId = nextId
+  handleUpdateMutation(
+    SESSIONS_CHANNELS.setActive,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.setActive, payload, async () => {
+        // id 必须为 string 或 null；undefined 等其他类型显式拒绝，不误报「会话不存在」
+        if (!isRecord(payload)) throw invalidParams()
+        if (payload.id !== null && typeof payload.id !== 'string') throw invalidParams()
+        const nextId = payload.id
+        const stored = await mutateSnapshot((snapshot) => {
+          if (nextId !== null && !snapshot.sessions.some((s) => s.id === nextId)) {
+            throw new Error(t('errors.sessionNotFound'))
           }
-        }
-        return snapshot
+          snapshot.activeId = nextId
+          // 工作区专项：激活落盘同临界区顺带更新所属工作区激活记忆（只随真实激活更新；
+          // 未分组会话不动 workspaces）
+          if (nextId !== null) {
+            const activated = snapshot.sessions.find((s) => s.id === nextId)
+            if (activated && activated.workspaceId !== null) {
+              const ws = snapshot.workspaces.find((w) => w.id === activated.workspaceId)
+              if (ws) ws.lastActiveSessionId = nextId
+            }
+          }
+          return snapshot
+        })
+        // 落盘成功后联动（id 守卫或写盘失败时抛错，不联动）
+        deps.onActiveChanged(nextId)
+        pushSnapshot(stored)
+        return { ok: true }
       })
-      // 落盘成功后联动（id 守卫或写盘失败时抛错，不联动）
-      deps.onActiveChanged(nextId)
-      pushSnapshot(stored)
-      return { ok: true }
-    })
   )
 
   // get-statuses：全量会话状态 map 拉取（renderer 启动竞态兜底），
@@ -462,7 +467,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
 
   // clone：复制源会话的分区数据（登录态等持久环境）与元数据，生成同款新环境；
   // 分区复制失败即抛错不落元数据（renderer 乐观态回滚）；name 加「副本」后缀后 clamp
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.clone,
     async (_event, payload: unknown): Promise<StoredSession> =>
       logFailure(SESSIONS_CHANNELS.clone, payload, async () => {
@@ -539,7 +544,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 窗口），级联规则与单条删除一致：选中集含激活会话时指向剩余首项（无剩余则 null）；
   // 落盘成功后经 onBatchDeleted 一次切换到级联 activeId + 逐会话异步销毁。
   // 2026-10-23 批量模式退役后由工作区删除「删除全部会话」处置编排消费（消费面唯一）
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.deleteBatch,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.deleteBatch, payload, async () => {
@@ -573,36 +578,38 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 增删的会话使集合不再相等，整单拒绝）。合法时仅按入参顺序重排 snapshot.sessions
   // （元素对象原样引用、内容零变更），activeId 不动，无任何编排回调——排序是
   // 纯元数据操作，不触发浏览器切换；保存后推送元数据快照收敛乐观顺序
-  ipcMain.handle(SESSIONS_CHANNELS.reorder, async (_event, payload: unknown): Promise<OkResult> =>
-    logFailure(SESSIONS_CHANNELS.reorder, payload, async () => {
-      // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
-      if (!isRecord(payload)) throw invalidParams()
-      const ids = parseNonEmptyStringIds(payload)
-      // id 格式预校验（共用守卫）：被篡改的落盘 id 须在集合校验前拒绝
-      assertSessionIdFormat(ids)
-      // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
-      if (new Set(ids).size !== ids.length) {
-        throw new Error(t('errors.reorderDuplicateIds'))
-      }
-      const stored = await mutateSnapshot((snapshot) => {
-        // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
-        // 缺项 / 多项 / 未知三类不一致
-        const known = new Set(snapshot.sessions.map((s) => s.id))
-        if (known.size !== ids.length || !ids.every((id) => known.has(id))) {
-          throw new Error(t('errors.reorderMismatch'))
+  handleUpdateMutation(
+    SESSIONS_CHANNELS.reorder,
+    async (_event, payload: unknown): Promise<OkResult> =>
+      logFailure(SESSIONS_CHANNELS.reorder, payload, async () => {
+        // payload 必须为 record，ids 经共用校验（非空数组逐项 string）
+        if (!isRecord(payload)) throw invalidParams()
+        const ids = parseNonEmptyStringIds(payload)
+        // id 格式预校验（共用守卫）：被篡改的落盘 id 须在集合校验前拒绝
+        assertSessionIdFormat(ids)
+        // 重复 id 整单拒绝（与批量通道的去重容忍相反：全序里重复即非法排列）
+        if (new Set(ids).size !== ids.length) {
+          throw new Error(t('errors.reorderDuplicateIds'))
         }
-        const byId = new Map(snapshot.sessions.map((s) => [s.id, s]))
-        snapshot.sessions = ids.map((id) => byId.get(id) as StoredSession)
-        return snapshot
+        const stored = await mutateSnapshot((snapshot) => {
+          // 长度相等 + ids 全部已知 ⇒ 集合相等（ids 无重复已前置保证），天然覆盖
+          // 缺项 / 多项 / 未知三类不一致
+          const known = new Set(snapshot.sessions.map((s) => s.id))
+          if (known.size !== ids.length || !ids.every((id) => known.has(id))) {
+            throw new Error(t('errors.reorderMismatch'))
+          }
+          const byId = new Map(snapshot.sessions.map((s) => [s.id, s]))
+          snapshot.sessions = ids.map((id) => byId.get(id) as StoredSession)
+          return snapshot
+        })
+        pushSnapshot(stored)
+        return { ok: true }
       })
-      pushSnapshot(stored)
-      return { ok: true }
-    })
   )
 
   // workspaces:create：新建工作区。name trim 非空、≤WORKSPACE_NAME_MAX、与现存重名
   // 拒绝；纯元数据（不动会话/视野/激活），零编排回调。返回新建的 StoredWorkspace
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceCreate,
     async (_event, payload: unknown): Promise<StoredWorkspace> =>
       logFailure(SESSIONS_CHANNELS.workspaceCreate, payload, async () => {
@@ -626,7 +633,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
 
   // workspaces:rename：id 格式 + 存在性校验，name 规则同 create（重名排除自身）；
   // 纯元数据（工作区名不出现在窗口标题/页面标题，无 onRenamed 类联动），零编排回调
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceRename,
     async (_event, payload: unknown): Promise<StoredWorkspace> =>
       logFailure(SESSIONS_CHANNELS.workspaceRename, payload, async () => {
@@ -651,7 +658,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // workspaces:delete：删除工作区——其中会话全部移入未分组（会话与其数据不受影响，
   // PRD 4.8）；activeWorkspaceId 指向它时回落 'all'；activeId 不动（视野与激活正交，
   // 会话仍在，右侧无需切换）；零编排回调
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceDelete,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.workspaceDelete, payload, async () => {
@@ -677,7 +684,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // workspaces:move-session：移动会话归属（独占制）。workspaceId 传 null = 移出未分组；
   // 目标须格式合法且存在；移动到当前归属为 no-op ok（幂等）；不动 activeId 与激活记忆
   // （记忆只随真实激活更新），零编排回调
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceMoveSession,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.workspaceMoveSession, payload, async () => {
@@ -721,7 +728,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // snapshot.workspaces（元素对象原样引用、内容零变更），activeWorkspaceId、
   // activeId 与 lastActiveSessionId 均不动，零编排回调——排序是纯元数据操作，
   // 「全部会话」哨兵项不属于排序集合，天然不在 ids 内
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceReorder,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.workspaceReorder, payload, async () => {
@@ -758,7 +765,7 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
   // 当前激活会话不属于目标工作区时，级联到该工作区 lastActiveSessionId（记忆悬空
   // 则全序首个、空工作区 null），级联即真实激活故同步更新记忆；落盘成功后仅当
   // activeId 值变化时回调 onActiveChanged 触发浏览器切换。'all' 与纯视野切换零编排
-  ipcMain.handle(
+  handleUpdateMutation(
     SESSIONS_CHANNELS.workspaceSetActive,
     async (_event, payload: unknown): Promise<OkResult> =>
       logFailure(SESSIONS_CHANNELS.workspaceSetActive, payload, async () => {

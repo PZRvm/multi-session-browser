@@ -2,12 +2,30 @@ import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { patchExtensionPreloads } from './scripts/patch-extension-preloads.mjs'
+import policy from './build/update-policy.json'
 
 // --ignore-scripts 安装及直接 electron-vite 调用同样不能绕过注册补丁。
 patchExtensionPreloads()
 
+function policyFlag(name: string, fallback: boolean): boolean {
+  const value = process.env[name]
+  if (value === undefined) return fallback
+  if (value !== 'true' && value !== 'false') throw new Error(`${name} 必须为 true 或 false`)
+  return value === 'true'
+}
+const testBuild = policyFlag('MAIN_VITE_UPDATE_TEST', false)
+const updatePolicy = {
+  showHeaderEntry: policyFlag('MAIN_VITE_UPDATE_HEADER', policy.showHeaderEntry),
+  showSettingsEntry: policyFlag('MAIN_VITE_UPDATE_SETTINGS', policy.showSettingsEntry)
+}
+
 export default defineConfig({
-  main: {},
+  main: {
+    define: {
+      __UPDATE_POLICY__: JSON.stringify(updatePolicy),
+      __UPDATE_TEST_BUILD__: JSON.stringify(testBuild)
+    }
+  },
   // preload 多入口（录屏线 A'）：主桥之外增采集器专用桥 capturePreload.ts（build 内
   // 注释为单源说明，此处不重复）
   preload: {
