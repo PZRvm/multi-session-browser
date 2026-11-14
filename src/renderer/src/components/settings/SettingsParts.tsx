@@ -32,7 +32,7 @@ export function SettingsRow({
   control
 }: {
   label: string
-  desc?: string
+  desc?: React.ReactNode
   /** 描述副行语态：default 次墨；danger 用于行内错误如实呈现（数据目录打开失败、
    * 主页地址无效等，随下一次成功操作恢复） */
   descTone?: 'default' | 'danger'

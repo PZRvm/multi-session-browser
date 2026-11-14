@@ -3860,23 +3860,6 @@ body[data-role='extensions-panel'] .chrome-ext-panel {
   cursor: default;
   opacity: 0.65;
 }
-.update-about {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  justify-content: space-between;
-  padding: 16px 0;
-}
-.update-status {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--board-ink-dim);
-  font-size: 13px;
-}
-.update-about button {
-  flex: 0 0 auto;
-}
-
 .update-details {
   height: 100%;
   display: flex;

@@ -3,6 +3,7 @@ import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { TOOLTIP_FONT_STACK, TOOLTIP_METRICS } from '../../../shared/toolbarTooltip'
 import { useUpdatesStore } from '../stores/updates'
 import { useT } from '../i18n'
+import { SettingsRow } from './settings/SettingsParts'
 
 function HeaderUpdateButton({
   label,
@@ -129,20 +130,24 @@ export function UpdateEntry({ about = false }: { about?: boolean }): React.JSX.E
         onClick={onClick}
       />
     )
+  const status = state.error
+    ? t(`updates.errors.${state.error}`)
+    : state.candidateVersion
+      ? t('updates.version', { v: state.candidateVersion })
+      : state.status === 'up-to-date'
+        ? t('updates.latest')
+        : busy
+          ? label
+          : null
   return (
-    <div className="update-about">
-      <span className="update-status" role="status">
-        {state.error
-          ? t(`updates.errors.${state.error}`)
-          : state.candidateVersion
-            ? t('updates.version', { v: state.candidateVersion })
-            : state.status === 'up-to-date'
-              ? t('updates.latest')
-              : t('updates.title')}
-      </span>
-      <button type="button" className="settings-action-button" disabled={busy} onClick={onClick}>
-        {label}
-      </button>
-    </div>
+    <SettingsRow
+      label={t('updates.title')}
+      desc={<span role="status">{status}</span>}
+      control={
+        <button type="button" className="settings-action-button" disabled={busy} onClick={onClick}>
+          {label}
+        </button>
+      }
+    />
   )
 }
