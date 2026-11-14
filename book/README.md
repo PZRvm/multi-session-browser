@@ -70,6 +70,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-14-更新悬停与失败提示.md](changelogs/2026-11/2026-11-14-更新悬停与失败提示.md) — 更新与重启重试原生气泡，验签失败及交接超时单次反馈，日志规范归入项目骨架
 - [2026-11-14-测试打包耗时修正.md](changelogs/2026-11/2026-11-14-测试打包耗时修正.md) — 本地更新测试只编译一次、Mac只生成ZIP并禁用自动证书选择，避免重复编译和逐文件时间戳签名
 - [2026-11-14-移除独立代码审查技能.md](changelogs/2026-11/2026-11-14-移除独立代码审查技能.md) — 删除项目内两份独立code-review技能，审查统一走BoCode Phase5及现有清单，历史审查记录保留
+- [2026-11-15-release-version-dependencies.md](changelogs/2026-11/2026-11-15-release-version-dependencies.md) — 修复Release版本门禁在安装依赖前间接加载ZIP库而失败的问题
 - [2026-11-15-修复更新准备恢复集覆盖.md](changelogs/2026-11/2026-11-15-修复更新准备恢复集覆盖.md) — 修复安装准备与在途激活交错时覆盖空恢复集，保留网址与激活位并继续拒绝外部新操作
 - [2026-11-15-修复更新测试重启隔离.md](changelogs/2026-11/2026-11-15-修复更新测试重启隔离.md) — 修复测试包原生更新重启丢失隔离目录，改进自动启动断言并清理重建验收包
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
@@ -555,4 +556,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 430 documents -->
+<!-- 431 documents -->
