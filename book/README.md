@@ -63,6 +63,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-截图插件移除浮动.md](changelogs/2026-11/2026-11-11-截图插件移除浮动.md) — AnySearch确认Chrome标题栏能力限制，删除截图插件浮动与PiP，直接编辑回归十五项通过
 - [2026-11-11-插件图标恢复底色与录屏边框修正.md](changelogs/2026-11/2026-11-11-插件图标恢复底色与录屏边框修正.md) — 双插件重绘带底色的白色相机与摄像机图标，录屏去重复内描边并明确原生箭头边界
 - [2026-11-11-插件标题圆角与线形图标.md](changelogs/2026-11/2026-11-11-插件标题圆角与线形图标.md) — 截图标题简化为截图编辑器，录屏面板增加12px圆角，双插件改为参考图的灰色相机与摄像机图标
+- [2026-11-14-Sparkle接入.md](changelogs/2026-11/2026-11-14-Sparkle接入.md) — 工作区接入Mac免费Sparkle与EdDSA更新，保留Windows更新器和严格保存，尚未发布
 - [2026-11-14-下载完成主动确认重启.md](changelogs/2026-11/2026-11-14-下载完成主动确认重启.md) — 更新下载成功后自动弹原生重启确认，稍后保留已下载版本和右上角入口
 - [2026-11-14-更新入口位置与弹窗图标.md](changelogs/2026-11/2026-11-14-更新入口位置与弹窗图标.md) — 关于页检查更新移至数据目录下方，macOS更新确认与反馈框复用项目Logo
 - [2026-11-14-更新圆钮与版本日志.md](changelogs/2026-11/2026-11-14-更新圆钮与版本日志.md) — 更新入口移至搜索栏上方右端，新增原生日志与每版本Markdown发布机制
@@ -96,6 +97,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-002-omnibox-native-editing.md](docs/decisions/ADR-002-omnibox-native-editing.md) — 原生编辑菜单通过只读闭集推送交给当前浏览器壳，地址栏消费局部栈，其余输入保持原生编辑
 - [ADR-003-electron45-extension-storage.md](docs/decisions/ADR-003-electron45-extension-storage.md) — 用Electron45.3原生分区内sync存储跑通原版翻译插件，并保留原生存储和browser入口
 - [ADR-004-app-update-ownership.md](docs/decisions/ADR-004-app-update-ownership.md) — 主进程独占更新器，严格保存完成后才交接安装，构建策略关闭全部入口即停更
+- [ADR-005-macos-sparkle-update.md](docs/decisions/ADR-005-macos-sparkle-update.md) — macOS采用官方Sparkle与项目控制的原生桥接，以EdDSA验证更新包，普通退出取消并在重开后重新下载
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -312,6 +314,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-截图编辑窗标题栏能力调研.md](notes/learn/2026-11/2026-11-11-截图编辑窗标题栏能力调研.md) — AnySearch核实Electron隐藏标题栏与原生三灯定位方案，Chrome扩展窗口没有对应权限
 - [2026-11-11-插件画布缩放与原生提示.md](notes/learn/2026-11/2026-11-11-插件画布缩放与原生提示.md) — 截图插件用Stage重绘保持预览清晰，PiP显式传快照，原生提示避免popup自动扩张
 - [2026-11-14-Mac更新验签失败需要异步反馈.md](notes/learn/2026-11/2026-11-14-Mac更新验签失败需要异步反馈.md) — 临时签名更新包在Squirrel交接阶段被拒绝，命令返回后的错误必须独立通知
+- [2026-11-14-Sparkle取消安装会失去下载缓存.md](notes/learn/2026-11/2026-11-14-Sparkle取消安装会失去下载缓存.md) — Sparkle2.10.1在Cocoa及Electron原型中取消后重开会重下，用户已接受进程内稍后与退出重下的规则
 - [2026-11-14-下载后确认须等待下载锁释放.md](notes/learn/2026-11/2026-11-14-下载后确认须等待下载锁释放.md) — 自动重启确认必须等待下载Promise结束，再复用安装互斥与失败反馈所属窗口
 - [2026-11-14-版本日志随清单分发并绑定动作版本.md](notes/learn/2026-11/2026-11-14-版本日志随清单分发并绑定动作版本.md) — 版本日志同时服务应用与Release时的单源约束及原生窗口动作校验
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
@@ -426,6 +429,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-adoption.md](notes/summary/2026-11/2026-11-06-bocode-adoption.md) — BoCode 接入结果、根目录布局与文档迁移的选择及验证入口
 - [2026-11-11-双插件图标与窗口修复.md](notes/summary/2026-11/2026-11-11-双插件图标与窗口修复.md) — 双插件各补两张图标，截图改为清晰重绘与三灯上置，录屏改原生提示，Chrome十五项通过
 - [2026-11-13-应用更新开发进度.md](notes/summary/2026-11/2026-11-13-应用更新开发进度.md) — 应用更新已实现并跑通本地发现与真实下载，18组测试通过；恢复集高风险与异步反馈待修，正式签名和跨平台安装待验
+- [2026-11-14-Sparkle接入阶段报告.md](notes/summary/2026-11/2026-11-14-Sparkle接入阶段报告.md) — macOS已接入免费Sparkle更新并通过隔离包替换，完整验收仍受恢复集风险及平台实测门禁阻断
 - [2026-11-14-下载完成自动确认安装.md](notes/summary/2026-11/2026-11-14-下载完成自动确认安装.md) — 下载成功主动弹原生重启确认，稍后保留入口，签名失败明确提示且不重复弹框
 - [2026-11-14-更新入口与版本日志进度.md](notes/summary/2026-11/2026-11-14-更新入口与版本日志进度.md) — 右上角主题圆形更新入口、原生日志窗口与每版本Markdown机制的本地验证进度
 - [2026-11-14-更新悬停与验签失败反馈.md](notes/summary/2026-11/2026-11-14-更新悬停与验签失败反馈.md) — 更新气泡、临时签名安装失败根因及异步反馈修复，日志规则归入项目骨架
@@ -534,4 +538,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 409 documents -->
+<!-- 413 documents -->

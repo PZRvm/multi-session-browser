@@ -1,16 +1,16 @@
 ---
 description: macOS迁移Sparkle的L级计划，先验证取消安装与缓存语义，再接原生桥接、免费签名发布和双版本升级
-status: draft
+status: in_progress
 ---
 
 # macOS 更新迁移 Sparkle 开发计划
 
 > 创建时间：2026-11-14 21:44:13（Asia/Shanghai）
-> 更新时间：2026-11-14 21:51:07（Asia/Shanghai）
+> 更新时间：2026-11-14 23:31:27（Asia/Shanghai）
 > 任务等级：L。变更 Mac 更新架构、原生依赖、安装交接和发布信任，触及共享更新契约与退出门禁。
 > 分支：`feature/app-update`；基分支：`dev`；worktree：`.worktree/feature-app-update`；开发端口：`6175`。
 > 实施基线：`c544a10340d07e09066b8db89f9184100412277f`（现有应用更新、版本日志与调研已提交）。
-> 当前阶段：Phase 2，计划已编写；原生行为设计验证待执行，Phase 3—6 未开始。本轮只编写计划。
+> 当前阶段：Phase 3 接入完成，Phase 4 验证进行中。33 组定向验证、arm64 / Rosetta x64 各八个最终产品隔离场景通过。R1、Intel / Windows 实机、旧系统和真实录制组合仍阻断完整门禁，尚未进入正式 Phase 5/6。
 > 输入：[迁移影响分析](../notes/learn/2026-11/20261114213431-Sparkle迁移影响分析.md)、[PRD 4.16](../docs/requirements/PRD.md)、[现有更新计划](2026-11-13-应用自动更新.md)、[安装确认补充计划](2026-11-14-下载完成自动确认安装.md)。
 
 ## 1. Step 0：需求简报
@@ -19,7 +19,7 @@ status: draft
 
 当前 Mac 更新包可下载，但临时签名应用无法通过 Squirrel.Mac 的安装验签。用户是个人开源维护者，暂不购买 Apple Developer 证书，已指定迁移 Sparkle。
 
-迁移后，用户仍从右上角圆钮查看对应版本的日志，确认后下载；下载完成主动询问是否重启安装。点“稍后”仍保留已下载版本，普通退出不安装；重新打开后可再次确认安装。安装必须先检查录制、严格保存，保存失败或超时留在原应用。EdDSA 负责更新包来源验证，首次安装未公证应用的系统限制仍需如实说明。
+迁移后，用户仍从右上角圆钮查看对应版本的日志，确认后下载；下载完成主动询问是否重启安装。点“稍后”仍保留已下载版本，普通退出不安装；2026-11-14 实测取消会清缓存，用户已确认：应用未退出时可稍后安装，普通退出安全取消，重新打开后需重新下载。安装必须先检查录制、严格保存，保存失败或超时留在原应用。EdDSA 负责更新包来源验证，首次安装未公证应用的系统限制仍需如实说明。
 
 ### 范围、排除项与数据边界
 
@@ -48,7 +48,7 @@ status: draft
 - 权限：沿用已登记壳窗口、顶层 frame、零额外参数的 IPC 校验；renderer 不接触桥接对象、feed URL、安装路径或密钥。Mac 只加载本应用打包的原生模块与框架。
 - 通知：保留现有原生确认和错误框、popover 与窗口归属回退；不新增 renderer Modal / toast，不额外显示 Sparkle 标准更新 UI。系统可能要求的安装授权不能假装已消除。
 - 并发：保留全局单飞和递增 revision；每个原生请求带 generation，晚到事件、旧版本回调、重复确认全部拒绝。
-- 缓存与事务：ready 必须表示目标版本经过验证且可再次安装；取消后若缓存实际失效，不能继续显示 ready。该冲突必须在 Phase 2 解决。
+- 缓存与事务：ready 必须表示目标版本经过验证且可再次安装；取消后若缓存实际失效，不能继续显示 ready。用户已确认退出后重新下载；进程内稍后仍保留就绪状态。
 - 发布安全：测试密钥与正式密钥隔离；公钥进应用，私钥不进源码、产物和日志。发布先完成全部资源及签名校验，再公开 draft。
 
 ## 2. Phase 1：影响与依赖
@@ -73,29 +73,29 @@ status: draft
 
 ### 3.1 技术选型与固定输入
 
-采用官方 Sparkle + 项目可控 Node-API 桥接，参考 Innei 桥接的事件实现，保留相应许可。调研中的两个现成包分别存在发现即下载、保存失败仍继续重启的问题，不直接采用其默认行为。
+采用官方 Sparkle + 项目可控 Node-API 桥接，按官方协议独立实现，不引入第三方桥接代码；打包保留 SDK 完整 LICENSE。调研中的两个现成包分别存在发现即下载、保存失败仍继续重启的问题，不直接采用其默认行为。
 
 以 [Sparkle 2.10.1 官方 Release](https://github.com/sparkle-project/Sparkle/releases/tag/2.10.1)作为首轮验证版本。2026-11-14 查询官方 Releases API：资产 `Sparkle-2.10.1.tar.xz` 的 SHA-256 为 `1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27`。框架、headers、generate_keys、generate_appcast、sign_update 必须来自同一版本。
 
-实施时新增 `build/sparkle/sdk.json` 记录版本、来源、摘要和许可；下载后先验摘要再解包。原生模块以 Electron 45.3.0 headers 分架构显式构建，工具版本进锁文件；保持全局 `npmRebuild: false`，不重建无关依赖。验证 SDK 最低系统要求、框架加载及当前 Electron 的实际组合，升级 SDK 必须更新本计划与验证证据。
+`build/sparkle/sdk.json` 记录版本、来源、摘要、最低编译目标和许可；下载后先验摘要再解包。原生模块以固定 Electron 45.3.0 headers 分架构显式构建，使用系统 clang / Node-API C 接口，没有新增 npm 依赖；保持 `npmRebuild: false`。SDK 框架最低 macOS 12，当前应用最低 macOS 13；桥接显式设 minos 13.0，避免默认编译成 15.0。升级 SDK / Electron 必须重验。
 
 ### 3.2 先验证 G0，再完成设计
 
-Phase 2 当前未通过。先在独立工具目录做最小打包原型，不改生产更新装配，不使用真实用户数据。测试产物与测试私钥写入已忽略的 `dist/`，证据路径可引用，密钥不可入库。
+Phase 2 原生协议验证已通过。原型位于独立工具目录，不改生产更新装配，不使用真实用户数据。测试产物与测试私钥写入已忽略的 `dist/`，证据路径可引用，密钥不可入库。
 
 | G0 验证项 | 必须拿到的证据 |
 | --- | --- |
 | 可加载 | 两架构 `.node` / Sparkle.framework 能由目标 Electron 加载；错误架构、缺文件不会导致主应用崩溃 |
 | 检查与日志 | 找到新版本并展示该版本日志；服务端记录中没有应用归档下载请求；关闭日志后仍无下载 |
 | 显式下载 | 用户同意后才回复原生下载许可；下载、解包和签名检查完成后，才发 ready |
-| 稍后与退出 | ready 后点稍后，再普通退出；确认磁盘应用仍为旧版本，重新启动后缓存可恢复且不重复下载、不擅自安装 |
+| 稍后与退出 | ready 后点稍后，再普通退出；确认磁盘应用仍为旧版本；进程内稍后不重下，普通退出安全取消，重开后明确重新下载，不擅自安装 |
 | 保存拒绝 | 模拟录制、保存失败和保存超时，原生 installer 不获得重启许可，应用不退出 |
 | 确认安装 | 保存成功后才安装，应用替换并重启到新版本；恢复测试数据不丢失 |
 | 错误路径 | 错公钥、损坏归档、网络中断都不能变成 ready 或触发安装；重试不消费旧回调 |
 
 官方 [SPUUserDriver](https://sparkle-project.org/documentation/api-reference/Protocols/SPUUserDriver.html) 说明，准备安装后的 Dismiss 仍可能随普通退出安装；该阶段 Skip 可以取消，但不能据此推定缓存必然保留。验证必须观察磁盘版本和归档请求，不能只看 UI 状态。
 
-设计验证需要确定：检查使用 probing API 还是持有 user-driver 回复；何时启动 Sparkle installer；如何取消其退出安装；取消确认完成与缓存保留是否兼容。若公开 API 无法同时满足 R3/R4，不进入 Phase 3，不改成“稍后自动安装”或偷偷重新下载；记录证据与可选方案，作为真实产品冲突交由用户决定。
+设计验证需要确定：检查使用 probing API 还是持有 user-driver 回复；何时启动 Sparkle installer；如何取消其退出安装；取消确认完成与缓存保留是否兼容。首轮已证明 Skip 后退出会丢失缓存：两次运行归档请求为 [1,1]，磁盘仍是 90.0.1。用户已明确接受退出后重新下载；后续依此验证，不改成随退出安装。原始未通过结果保留在 G0 证据中。
 
 G0 通过后，将具体 API、事件顺序、退出取消结果写回本节，新增 `ADR-005-macos-sparkle-update.md` 记录架构决定。ADR-004 的主进程所有权和严格保存规则继续有效；只标注被新决定替代的 Mac 引擎部分，不将整份决定作废。
 
@@ -163,7 +163,7 @@ Phase 3/4 内为版本绑定、迟到回调、取消退出和签名拒绝先补�
 | 正常升级 | 两个 Sparkle 包发现 → 日志 → 下载 → 取消一次 → 再确认 → 保存 → 替换 → 重启；版本、URL 顺序、激活会话及隔离登录态正确 |
 | 策略与权限 | 四种入口组合；普通 dev、双隐藏零 feed 请求、零原生引擎；网页、子 frame、销毁窗和额外参数不能操作更新 |
 | 交互与并发 | 主窗和独立窗同时操作只下载一次、只确认一次；关闭发起窗安全回退；过期日志窗口不能下载新候选；popover 与主题样式保持 |
-| 普通退出 | available、downloading、ready、稍后四阶段分别退出；磁盘仍是旧版本；ready 后重开可恢复缓存且零归档重下 |
+| 普通退出 | available、downloading、ready、稍后四阶段分别退出；磁盘仍是旧版本；ready 后退出取消，重开需重新下载；进程内稍后再次安装不重下 |
 | 保存事务 | 录制中、录制状态未知、严格读写失败、超过 15 秒、期间候选失效均零安装；写入落定后才恢复或重试；原生晚到退出不能绕过门禁 |
 | 信任与网络 | 错公钥、被篡改归档、截断包、无效 feed、日志失败、断网、检查/下载/交接超时；失败单次反馈，不会伪装已最新或 ready |
 | 生命周期 | 回调重复/乱序、版本变化、取消后迟到事件、桥接销毁、原生初始化失败、安装请求拒绝；Promise 全部落定、正常写入恢复 |
@@ -184,31 +184,53 @@ agent 的 UI 验证使用 `npm run dev:agent`；它只能验证界面和零请�
 - [x] Step 0：迁移方向、现有交互、免费签名目标、范围和排除项已写明。
 - [x] Phase 1：影响与风险分析完成，见输入调研。
 - [x] Phase 2：开发计划初稿写入；这不代表 G0 或设计门禁通过。
+- [x] Phase 2 / G0：独立 Cocoa、Electron 45.3.0 arm64 / Rosetta x64 各七场景通过。含 Markdown 日志、显式下载、取消周期完成再退出、进程内稍后、模拟保存拒绝、错误签名、授权后撤销及最终替换重启；`dist/sparkle-g0/{cocoa,arm64,x64}-results.json`。不等同产品真实保存与 Intel 实机验收。
+- [x] Phase 2：采用 SPUUserDriver 的 found / ready 回复与 didFinishUpdateCycle 取消完成事件；授权后仍保留 ready 回复供交接撤销使用。ADR-005 已落盘；用户已接受退出后重下。
+- [x] Phase 3：原生桥接、固定 SDK / headers 摘要、两架构显式编译和 SDK 许可打包；产品包中已验证加载。
+- [x] Phase 3：Mac 引擎、退出取消、安装撤销、超时门禁与日志适配；Windows 保留原引擎。
+- [x] Phase 3：Mac ad-hoc 打包、归档内元数据检查、官方 EdDSA 签名和两架构 feed。
+- [x] Phase 3：发布资源门禁和 CI 配置已更新；Mac 不再强制 Apple 付费凭据。仅本地验证配置，未运行远程发布。
+- [x] Phase 4：33 组 Node 定向验证通过，覆盖原 Windows 回归及 Mac 零加载策略、版本变化、超时取消、迟到回执与写入锁。`dist/update-tests.log`。
+- [x] Phase 4：arm64 最终产品八场景通过；含网络失败重试、日志失败回退、截断包、错误签名、真实保存故障拒绝、普通退出取消、替换重启与测试 Cookie 读取。`dist/sparkle-product/4f3fafd05e/results.json`。
+- [x] Phase 4：Rosetta x64 最终产品同样八场景通过，真实 preparing / installing 发布快照、90.0.2 替换重启与 Cookie 读取均有证据。`dist/sparkle-product/60c8eac8e4/results.json`。不等同 Intel 实机。
+- [x] 基础检查：类型检查、正常生产构建、两架构测试包生成通过；lint 0 错误 / 316 条既有警告，book 索引 413 文档、零警告。端口占用测试拒绝启动，原 6185 服务保持存活。
+- [x] 进度返写：骨架、AGENTS、PRD、ADR、DESIGN、发布说明、旧计划后续入口及阶段 summary / learn / changelog 已同步；不代表 Phase 6 收口。
 
 ### 已知失败与阻断
 
-- [ ] 旧 Squirrel.Mac 的 ad-hoc 包验签失败，尚无成功替换证据；这是迁移背景，不是 Sparkle 测试结果。
 - [ ] 原审阅 R1 恢复集覆盖风险开放；独立修复并补跨模块回归后，才能使用真实数据验收、合并或发布。
+- [ ] 正式 EdDSA 公私钥尚未配置，本轮只使用隔离测试密钥；缺材料的正式构建会主动失败。
 
 ### 待实施与待测
 
-- [ ] Phase 2 / G0：原生加载、显式下载、日志、稍后、普通退出、缓存保留、保存拒绝、真实替换和错误签名全部验证。
-- [ ] Phase 2：补全具体原生 API / 取消时序，落 ADR；门禁通过后更新计划状态。
-- [ ] Phase 3：原生桥接与可复现构建。
-- [ ] Phase 3：Mac 引擎、退出、控制器与日志适配。
-- [ ] Phase 3：Mac 打包、EdDSA、公钥校验与两架构 feed。
-- [ ] Phase 3：发布资源门禁和 CI，移除 Mac 对 Apple 付费凭据的硬依赖。
-- [ ] Phase 4：定向验证与所有负例。
-- [ ] Phase 4：Mac arm64 完整升级、取消和数据恢复。
-- [ ] Phase 4：Mac x64 完整升级、取消和数据恢复。
+- [ ] Phase 4：真实录制与状态未知组合、macOS 13/14 实际运行、完整负例矩阵剩余项。
+- [ ] Phase 4：Mac arm64 全部会话恢复集和独立窗恢复验收（受 R1 阻断）。
+- [ ] Phase 4：Mac Intel 实机完整升级、取消和数据恢复；Rosetta 通过不能替代。
 - [ ] Phase 4：Windows x64 真实升级回归。
 - [ ] Phase 5：正式审阅并记录问题；不调用已删除的独立 code-review 技能。
 - [ ] Phase 6：现状文档、summary、learn、changelog、遗留问题和索引同步。
 
+### Phase 4 已取得的产品证据
+
+`tools/update-test/packaged-mac.mjs` 复用实际产品代码及打包钩子，只在隔离副本中更换测试 appId / feed 并重签。通过主进程检查器替代确认框点击，不替代保存或更新引擎；全程临时 profile，不接触真实数据。
+
+- arm64：`dist/sparkle-product/4f3fafd05e/results.json`，最终 minos 13.0 产物八场景通过。真实坏签名得到 signature、零 ready；截断包得到 download；有实际会话管理器时将 sessions.json 替换为目录，严格保存失败并拒绝安装。稍后退出保持 90.0.1；重开重新下载；保存、替换、重启后实际运行 90.0.2，测试分区 Cookie 仍可读取。不代表完整 URL / 独立窗恢复验收。
+- Rosetta x64：`dist/sparkle-product/60c8eac8e4/results.json`，最终 minos 13.0 产物八场景通过。探针曾因实际安装先销毁 renderer，无法取得旧 IPC 返回而失败；失败证据保留在 `dist/sparkle-product/de157cd7e4/results.json`。最终观察真实 preparing / installing 发布快照，并核对替换、重启和 Cookie，不降低断言。不等同 Intel 实机。
+- 测试阶段发现并修正：坏签名 3001 与 underlying validation 3002 的分类；原生模块默认 minos 15.0；取消缓存失效后 ready 应退为 available。红测保留 `dist/cancelled-cache-red.log`，经验已返写。
+- SDK minimumSystemVersion、应用声明与编译目标均进入检查；本机 macOS 15.8.1 上的通过不代表 macOS 13 / 14 实测。
+
+### 本次隔离验收提示
+
+两个架构的 90.0.1 / 90.0.2 测试包已生成，本次不必再次 build。已有旧脚本占用 6185，请先在原终端关闭该测试源，再在本 worktree 运行 `node scripts/update-test.mjs serve 90.0.2`。以显式 `MSB_USER_DATA` 临时目录运行 `dist/update-test/90.0.1/mac-arm64/多会话浏览器.app/Contents/MacOS/多会话浏览器`（Intel 用 mac 目录）；不要使用真实数据目录。确认日志 → 下载 → 稍后 → 普通退出仍为旧版本 → 重开重新下载 → 确认重启到 90.0.2。首个测试包必须重新打开本次 Sparkle 构建，旧 Squirrel 包不能沿旧链升级。完整会话恢复仍受 R1 阻断。
+
 ## 7. Done criteria
 
-G0 与全部平台测试有真实证据，普通退出不安装且缓存可用，只有确认并保存成功才安装；错签名和缺配置无法发布；版本日志与应用、Tag、Release 一致。R1 已在独立轮次关闭，正式审阅完成；新发现的问题均记录并明确对交付的影响，阻断交付的问题解决前不标 completed。
+G0 与全部平台测试有真实证据（已确认的退出重下规则），普通退出不安装，进程内缓存可用，退出后重新下载，只有确认并保存成功才安装；错签名和缺配置无法发布；版本日志与应用、Tag、Release 一致。R1 已在独立轮次关闭，正式审阅完成；新发现的问题均记录并明确对交付的影响，阻断交付的问题解决前不标 completed。
 
 同步 `AGENTS.md`、`book/docs/architecture/项目骨架.md`、PRD 4.16、相关 ADR、`DESIGN.md`、`.github/RELEASING.md` 与原计划状态；summary 写清免费签名边界、日志绑定、首版手动安装和平台证据。历史失败记录保留，只有被新验证覆盖的当前规范才更新。完成后 `npm run book:index` 零警告。
 
 本计划不授权推送、合入 dev / main 或发布线上版本；这些动作按现有发布规则执行。实际执行若遇到技术无法保留已确认体验，应停在该门槛并给出具体证据，不静默降低验收标准。
+
+### G0 接口结论（2026-11-14）
+
+Node-API 桥接初始化回调并暴露主进程内部 check / download(expectedVersion) / install(expectedVersion) / cancel 命令；found 回复只在下载许可时消费，ready 回复在交接结束前保留以支持撤销。取消按 ready Skip、在途下载 cancellation、found Dismiss 的阶段顺序处理，并等 `updater:didFinishUpdateCycleForUpdateCheck:error:` 后才放行普通退出或恢复写入。检查所得 releaseNotesLink 由 Sparkle 读取，available 以日志结果或有界失败为结算点，避免 UI 先打开空日志。安装撤销期间拦住退出，不让原生晚到请求绕过取消。

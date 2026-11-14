@@ -4,6 +4,7 @@ const { load } = require('js-yaml')
 const config = load(readFileSync('electron-builder.yml', 'utf8'))
 const version = process.env.MSB_UPDATE_TEST_VERSION
 if (!/^90\.0\.[12]$/.test(version || '')) throw new Error('测试包版本仅允许 90.0.1 / 90.0.2')
+config.appId = 'com.pzrvm.multisessionbrowser.update-test'
 config.directories.output = `dist/update-test/${version}`
 config.extraMetadata = { version, name: 'multi-session-browser-update-test' }
 config.releaseInfo = {
@@ -13,7 +14,13 @@ config.releaseInfo = {
   ).trim()
 }
 // 测试包复用 npm 已安装的同版本 Electron，避免重复下载造成非业务失败。
-config.electronDist = 'node_modules/electron/dist'
+if (!process.env.MSB_UPDATE_TEST_ARCH || process.env.MSB_UPDATE_TEST_ARCH === process.arch)
+  config.electronDist = 'node_modules/electron/dist'
+else if (
+  require('node:fs').existsSync('dist/sparkle-g0/electron-x64/Electron.app') &&
+  process.env.MSB_UPDATE_TEST_ARCH === 'x64'
+)
+  config.electronDist = 'dist/sparkle-g0/electron-x64'
 config.publish = { provider: 'generic', url: 'http://127.0.0.1:6185/' }
 // 本地验收不自动选开发证书逐文件联网签名；afterPack 已刷新临时签名。
 config.mac.identity = null

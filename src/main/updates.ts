@@ -1,12 +1,13 @@
 import type { WorkspacePickerResult } from '../shared/dialog'
 import { normalizeUpdateNotes, normalizeUpdateDate } from './updateReleaseNotes'
-import { app, autoUpdater as nativeUpdater, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { UPDATE_CHANNELS, type UpdateSnapshot } from '../shared/updates'
 import { t } from './i18n'
 import { dialogIconForDarwin } from './dialogs'
 import { updatePolicy } from './updatePolicy'
 import { createUpdateController } from './updateController'
+import { createMacSparkle } from './updates/macSparkle'
 import { beginUpdatePreparation, resumeAfterUpdate, setUpdateInstalling } from './updatePreparation'
 
 export function registerUpdates(deps: {
@@ -21,19 +22,17 @@ export function registerUpdates(deps: {
   let promptedDownloadRevision = -1
   let notifiedErrorRevision = -1
   let handoffTimer: ReturnType<typeof setTimeout> | undefined
-  let handoffListeners: Array<(...args: unknown[]) => void> = []
+  let mac: ReturnType<typeof createMacSparkle> | undefined
+  let handoffWarned = false
   const clearHandoff = (): void => {
     clearTimeout(handoffTimer)
-    for (const listener of handoffListeners)
-      nativeUpdater.removeListener('update-downloaded', listener)
-    handoffListeners = []
   }
   // 开发态不实例化更新器，也不读取 dev-app-update.yml 中的示例 URL。
   const enabled = app.isPackaged && process.platform !== 'linux'
   const policyEnabled = updatePolicy.showHeaderEntry || updatePolicy.showSettingsEntry
   // 此文件按 CJS 输出，延迟 require 避免禁用策略触发库实例化。
   const updater =
-    enabled && policyEnabled
+    enabled && policyEnabled && process.platform === 'win32'
       ? // eslint-disable-next-line @typescript-eslint/no-require-imports
         (require('electron-updater').autoUpdater as typeof import('electron-updater').autoUpdater)
       : null
@@ -49,21 +48,16 @@ export function registerUpdates(deps: {
     enabled,
     engine: {
       async check() {
-        await updater?.checkForUpdates()
+        if (mac) await mac.check()
+        else await updater?.checkForUpdates()
       },
       async download() {
-        await updater?.downloadUpdate()
+        if (mac) await mac.download()
+        else await updater?.downloadUpdate()
       },
       install() {
-        const before = new Set(nativeUpdater.listeners('update-downloaded'))
-        try {
-          updater?.quitAndInstall(false, true)
-        } finally {
-          handoffListeners = nativeUpdater
-            .listeners('update-downloaded')
-            .filter((listener) => !before.has(listener)) as Array<(...args: unknown[]) => void>
-          if (controller.getState().error) clearHandoff()
-        }
+        if (mac) mac.install()
+        else updater?.quitAndInstall(false, true)
       }
     },
     publish(state) {
@@ -98,10 +92,75 @@ export function registerUpdates(deps: {
     },
     beforeInstall() {
       setUpdateInstalling(true)
-      // 原生交接若进程仍存活且长期无结果，摘掉本次安装回调后恢复写入。
-      handoffTimer = setTimeout(() => handoffFailure('installTimeout'), 60000)
+      handoffWarned = false
+      // Mac 必须先撤销原生安装许可，收到取消完成后才恢复写入。
+      handoffTimer = setTimeout(() => {
+        if (mac) {
+          void mac
+            .cancel()
+            .then(() => handoffFailure('installTimeout'))
+            .catch(() => {})
+        } else handoffFailure('installTimeout')
+      }, 60000)
     }
   })
+  if (enabled && policyEnabled && process.platform === 'darwin') {
+    mac = createMacSparkle({
+      available: controller.available,
+      latest: controller.latest,
+      downloaded: controller.downloaded,
+      progress: controller.progress,
+      installFailure: handoffFailure,
+      cancelFailure() {
+        if (controller.getState().status !== 'installing') return
+        controller.handoffBlocked()
+        notifyHandoffFailure()
+      },
+      lateCancellation() {
+        if (controller.getState().status === 'installing') handoffFailure('installTimeout')
+        else controller.cancelled()
+      }
+    })
+    let quitAllowed = false
+    let cancellingQuit = false
+    app.prependListener('before-quit', (event) => {
+      if (!mac || quitAllowed || mac.canQuitForInstall()) return
+      if (controller.getState().status === 'preparing') {
+        event.preventDefault()
+        return
+      }
+      if (!mac.isActive() && !mac.isCancelling()) return
+      event.preventDefault()
+      if (cancellingQuit) return
+      cancellingQuit = true
+      void mac
+        .cancel()
+        .then(() => {
+          if (controller.getState().status === 'installing') handoffFailure('installTimeout')
+          controller.cancelled()
+          quitAllowed = true
+          app.quit()
+        })
+        .catch(() => {
+          // 未确认取消前保持应用存活，避免普通退出触发原生待安装更新。
+          if (controller.getState().status !== 'installing') {
+            const win = deps.windows().find((candidate) => !candidate.isDestroyed())
+            if (win)
+              void dialog
+                .showMessageBox(win, {
+                  type: 'info',
+                  icon: dialogIconForDarwin(),
+                  message: t('updates.errors.installTimeout'),
+                  buttons: [t('updates.ok')]
+                })
+                .catch((error: unknown) => console.warn('显示取消失败提示失败:', error))
+          }
+        })
+        .finally(() => {
+          cancellingQuit = false
+        })
+    })
+  }
   updater?.on('update-available', (info) =>
     controller.available(
       info.version,
@@ -124,8 +183,13 @@ export function registerUpdates(deps: {
   function handoffFailure(error: 'install' | 'signature' | 'installTimeout'): void {
     const installing = controller.getState().status === 'installing'
     controller.engineError(error)
-    if (!installing) return
-    // quitAndInstall 已返回，晚到错误不能再依赖原 IPC 的结果提示路径。
+    if (mac) controller.cancelled()
+    if (installing) notifyHandoffFailure()
+  }
+
+  function notifyHandoffFailure(): void {
+    if (handoffWarned) return
+    handoffWarned = true
     const current =
       owner && !owner.isDestroyed() && deps.windows().includes(owner)
         ? owner

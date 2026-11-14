@@ -53,6 +53,7 @@ function checkVersion() {
       '--',
       'src',
       'resources',
+      'native',
       'build',
       'scripts',
       ':(exclude)scripts/release.mjs',
@@ -186,7 +187,7 @@ async function publish(directory) {
       `源码提交：[${commit.slice(0, 7)}](https://github.com/${repository}/commit/${commit})\n\n` +
       '安装包：macOS Apple Silicon（arm64）、macOS Intel（x64）、Windows x64。\n' +
       'SHA256SUMS.txt 提供安装包的 SHA-256 校验和。\n\n' +
-      'macOS 包使用 Developer ID 签名及公证；Windows 包未作代码签名。\n' +
+      'macOS 包使用临时签名，Sparkle 通过 EdDSA 验证更新来源；首次安装仍受 Gatekeeper 限制，未作 Apple 公证。Windows 包未作代码签名。\n' +
       'CI 完成静态检查、生产构建及打包；完整安装与业务功能仍需真机验收。\n'
   )
   if (!existing) {

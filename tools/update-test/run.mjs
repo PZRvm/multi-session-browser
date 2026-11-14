@@ -5,8 +5,14 @@ import { createRequire } from 'node:module'
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
+import {
+  renderAppcast,
+  validateSigningKeys,
+  validateAppcast
+} from '../../scripts/sparkle-appcast.mjs'
 import { validateUpdateAssets, prepareUpdateAssets } from '../../scripts/update-assets.mjs'
+import { runMacTests } from './mac.mjs'
 const require = createRequire(import.meta.url)
 const temp = mkdtempSync(join(tmpdir(), 'msb-update-tests-'))
 let count = 0
@@ -18,7 +24,10 @@ async function module(file, mocks = {}, define = {}) {
     platform: 'node',
     format: 'cjs',
     outfile: path,
-    define,
+    define: {
+      ...(file === 'src/main/updates.ts' ? { 'process.platform': '"win32"' } : {}),
+      ...define
+    },
     plugins: [
       {
         name: 'test-deps',
@@ -338,6 +347,15 @@ try {
   const artifact = join(temp, 'artifacts'),
     out = join(temp, 'merged')
   const { dump, load } = require('js-yaml')
+  const pair = generateKeyPairSync('ed25519')
+  process.env.SPARKLE_PUBLIC_ED_KEY = pair.publicKey
+    .export({ type: 'spki', format: 'der' })
+    .subarray(-32)
+    .toString('base64')
+  process.env.SPARKLE_PRIVATE_KEY = pair.privateKey
+    .export({ type: 'pkcs8', format: 'der' })
+    .subarray(-32)
+    .toString('base64')
   for (const [platform, arch] of [
     ['mac', 'arm64'],
     ['mac', 'x64'],
@@ -348,38 +366,76 @@ try {
     const file = `${name}-${version}-${platform}-${arch}${platform === 'win' ? '-setup.exe' : '.zip'}`
     const data = Buffer.from(file)
     writeFileSync(join(dir, file), data)
-    if (platform === 'mac') writeFileSync(join(dir, `${name}-${version}-mac-${arch}.dmg`), 'DMG')
-    const sha512 = createHash('sha512').update(data).digest('base64')
-    writeFileSync(
-      join(dir, platform === 'mac' ? 'latest-mac.yml' : 'latest.yml'),
-      dump({
-        version,
-        releaseNotes: '本次测试更新',
-        files: [{ url: file, sha512, size: data.length }],
-        path: file,
-        sha512
-      })
-    )
+    if (platform === 'mac') {
+      writeFileSync(join(dir, `${name}-${version}-mac-${arch}.dmg`), 'DMG')
+      writeFileSync(join(dir, `release-notes-v${version}.md`), '本次测试更新')
+      writeFileSync(
+        join(dir, `appcast-${arch}.xml`),
+        renderAppcast({
+          name,
+          version,
+          arch,
+          length: data.length,
+          signature: sign(null, data, pair.privateKey).toString('base64'),
+          date: new Date().toUTCString()
+        })
+      )
+    } else {
+      const sha512 = createHash('sha512').update(data).digest('base64')
+      writeFileSync(
+        join(dir, 'latest.yml'),
+        dump({
+          version,
+          releaseNotes: '本次测试更新',
+          files: [{ url: file, sha512, size: data.length }],
+          path: file,
+          sha512
+        })
+      )
+    }
   }
-  await test('同名 Mac 清单合并为双架构，精确附件通过', async () => {
+  await test('独立 Mac feed 验签后合并，精确附件通过', async () => {
     prepareUpdateAssets(artifact, out, name, version)
-    assert.equal(validateUpdateAssets(out, name, version).length, 7)
+    assert.equal(validateUpdateAssets(out, name, version).length, 9)
   })
   await test('平台日志缺失、不一致及偏离版本正文均拒绝', async () => {
-    const winFile = join(out, 'latest.yml')
-    const original = readFileSync(winFile, 'utf8')
-    const win = load(original)
+    const winFile = join(out, 'latest.yml'),
+      original = readFileSync(winFile, 'utf8'),
+      win = load(original)
     for (const releaseNotes of [undefined, '另一份说明']) {
       writeFileSync(winFile, dump({ ...win, releaseNotes }))
       assert.throws(() => validateUpdateAssets(out, name, version))
     }
     writeFileSync(winFile, original)
     assert.throws(() => validateUpdateAssets(out, name, version, '正文被更改'))
-    const armFile = join(artifact, 'installer-mac-arm64/latest-mac.yml')
-    const armOriginal = readFileSync(armFile, 'utf8')
-    writeFileSync(armFile, dump({ ...load(armOriginal), releaseNotes: '另一份说明' }))
+    const armFile = join(artifact, `installer-mac-arm64/release-notes-v${version}.md`),
+      armOriginal = readFileSync(armFile)
+    writeFileSync(armFile, '另一份说明')
     assert.throws(() => prepareUpdateAssets(artifact, join(temp, 'notes-mismatch'), name, version))
     writeFileSync(armFile, armOriginal)
+  })
+  await test('错公钥、私钥不匹配、feed 注入和架构/版本/URL 混淆拒绝', async () => {
+    validateSigningKeys()
+    const originalKey = process.env.SPARKLE_PUBLIC_ED_KEY
+    delete process.env.SPARKLE_PUBLIC_ED_KEY
+    assert.throws(() => validateSigningKeys())
+    process.env.SPARKLE_PUBLIC_ED_KEY = Buffer.alloc(32).toString('base64')
+    assert.throws(() => validateSigningKeys())
+    assert.throws(() => validateUpdateAssets(out, name, version))
+    process.env.SPARKLE_PUBLIC_ED_KEY = originalKey
+    const file = join(out, 'appcast-arm64.xml'),
+      text = readFileSync(file, 'utf8')
+    for (const bad of [
+      text.replace('releases/download', 'evil/download'),
+      text.replace('mac-arm64', 'mac-x64'),
+      text.replace('<sparkle:version>1.1.1', '<sparkle:version>1.1.2'),
+      text.replace('</channel>', '<item />\n</channel>'),
+      text.replace('<rss', '<!DOCTYPE x [<!ENTITY a SYSTEM "file:///etc/passwd">]><rss')
+    ]) {
+      writeFileSync(file, bad)
+      assert.throws(() => validateAppcast(out, name, version, 'arm64'))
+    }
+    writeFileSync(file, text)
   })
   await test('篡改更新包、缺架构、额外附件被拒绝', async () => {
     const file = join(out, `${name}-${version}-mac-arm64.zip`),
@@ -591,7 +647,6 @@ try {
       updater.checkForUpdates = async () => updater.emit('update-available', { version: '1.1.2' })
       updater.downloadUpdate = async () => updater.emit('update-downloaded', { version: '1.1.2' })
       updater.quitAndInstall = () => {
-        native.on('update-downloaded', () => {})
         if (mode === 'sync') updater.emit('error', Error('handoff'))
       }
       globalThis.updateFeedbackTest = {
@@ -670,17 +725,11 @@ try {
       assert.equal(timers.size, 0)
     }
   })
-  await test('正式签名配置缺材料失败，公证配置符合当前 builder schema', async () => {
+  await test('正式 EdDSA 配置缺材料失败，免费签名配置符合 builder schema', async () => {
     const { spawnSync } = await import('node:child_process')
     const env = { ...process.env }
-    for (const key of [
-      'CSC_LINK',
-      'CSC_KEY_PASSWORD',
-      'APPLE_ID',
-      'APPLE_APP_SPECIFIC_PASSWORD',
-      'APPLE_TEAM_ID'
-    ])
-      delete env[key]
+    delete env.SPARKLE_PUBLIC_ED_KEY
+    delete env.SPARKLE_PRIVATE_KEY
     const r = spawnSync(
       process.execPath,
       ['-e', "require('./scripts/electron-builder-release.cjs')"],
@@ -688,7 +737,7 @@ try {
     )
     if (process.platform === 'darwin') {
       assert.notEqual(r.status, 0)
-      assert.match(r.stderr, /CSC_LINK/)
+      assert.match(r.stderr, /SPARKLE_PUBLIC_ED_KEY/)
     }
     const { validateConfiguration } = require('app-builder-lib/out/util/config/config')
     const config = require('js-yaml').load(readFileSync('electron-builder.yml', 'utf8'))
@@ -891,6 +940,7 @@ try {
     })
     assert.ok(win.dead)
   })
+  await runMacTests(module, test)
   console.log(`全部 ${checks} 组定向验证通过`)
 } finally {
   rmSync(temp, { recursive: true, force: true })

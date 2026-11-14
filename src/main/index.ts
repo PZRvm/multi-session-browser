@@ -943,6 +943,7 @@ app.whenReady().then(async () => {
       })
   }
   app.on('before-quit', (event) => {
+    if (event.defaultPrevented) return
     if (isUpdateInstalling()) return
     if (isUpdatePreparing()) {
       event.preventDefault()

@@ -1,6 +1,6 @@
 import type { UpdatePolicy, UpdateSnapshot, UpdateError } from '../shared/updates'
 
-// 最小适配面可注入受控源；生产下载、版本选择和验签仍由 electron-updater 承担。
+// 最小适配面可注入受控源；生产下载、版本选择和验签由平台更新引擎承担。
 export interface UpdateEngine {
   check(): Promise<void>
   download(): Promise<void>
@@ -29,6 +29,8 @@ export function createUpdateController(deps: UpdateControllerDeps): {
   downloaded(version: string): void
   progress(transferred: number, total: number, percent: number): void
   engineError(error?: 'install' | 'signature' | 'installTimeout'): void
+  cancelled(): void
+  handoffBlocked(): void
 } {
   let state: UpdateSnapshot = {
     revision: 0,
@@ -88,8 +90,10 @@ export function createUpdateController(deps: UpdateControllerDeps): {
         })
         try {
           await deps.engine.check()
-        } catch {
-          fail('check')
+        } catch (error) {
+          if ((error as { updateError?: string })?.updateError === 'cancelled')
+            set({ status: 'idle', error: null })
+          else fail('check')
         }
       })
     },
@@ -101,8 +105,10 @@ export function createUpdateController(deps: UpdateControllerDeps): {
         set({ status: 'downloading', error: null, progress: null })
         try {
           await deps.engine.download()
-        } catch {
-          fail('download')
+        } catch (error) {
+          const code = (error as { updateError?: string })?.updateError
+          if (code === 'cancelled') set({ status: 'available', error: null })
+          else fail(code === 'signature' ? 'signature' : 'download')
         }
       })
     },
@@ -194,6 +200,18 @@ export function createUpdateController(deps: UpdateControllerDeps): {
         set({ status: 'error', error: 'download', downloadedVersion: null })
       }
       // 检查/下载错误在对应 Promise 的 catch 中处理，避免重复恢复或覆盖 preparing。
+    },
+    cancelled() {
+      set({
+        ...(state.status === 'ready'
+          ? { status: state.candidateVersion ? 'available' : 'idle' }
+          : {}),
+        downloadedVersion: null,
+        progress: null
+      })
+    },
+    handoffBlocked() {
+      if (installHandoff) set({ error: 'installTimeout' })
     }
   }
 }

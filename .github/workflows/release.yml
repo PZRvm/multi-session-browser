@@ -74,11 +74,8 @@ jobs:
       MAIN_VITE_UPDATE_TEST: 'false'
       MAIN_VITE_UPDATE_HEADER: 'true'
       MAIN_VITE_UPDATE_SETTINGS: 'true'
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,7 +94,7 @@ jobs:
           --config scripts/electron-builder-release.cjs
           --${{ matrix.platform }} --${{ matrix.arch }}
           --publish never
-      - name: 校验 macOS 正式签名、公证与镜像
+      - name: 生成 Sparkle 清单并校验 macOS 临时签名与镜像
         if: runner.os == 'macOS'
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
@@ -106,8 +103,8 @@ jobs:
           app_dir=dist/mac
           if [[ "$RELEASE_ARCH" == arm64 ]]; then app_dir=dist/mac-arm64; fi
           codesign --verify --deep --strict "$app_dir/多会话浏览器.app"
-          codesign -dv "$app_dir/多会话浏览器.app" 2>&1 | grep "Authority=Developer ID Application"
-          xcrun stapler validate "$app_dir/多会话浏览器.app"
+          node scripts/sparkle-appcast.mjs dist "$RELEASE_ARCH"
+          rm -f dist/latest-mac.yml dist/*-mac-*.blockmap
           hdiutil verify "dist/multi-session-browser-$RELEASE_VERSION-mac-$RELEASE_ARCH.dmg"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -117,7 +114,9 @@ jobs:
             dist/*.exe
             dist/*.zip
             dist/*.blockmap
-            dist/latest*.yml
+            dist/latest.yml
+            dist/appcast-*.xml
+            dist/release-notes-v*.md
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -130,6 +129,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    env:
+      SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
     # 按版本串行，避免不同 PR 对同一版本并发上传。
     concurrency:
       group: release-version-${{ needs.prepare.outputs.version }}
