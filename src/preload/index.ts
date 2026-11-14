@@ -1,3 +1,4 @@
+import { UPDATE_CHANNELS, type UpdateSnapshot } from '../shared/updates'
 import { webUtils, contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { BROWSER_CHANNELS } from '../shared/browser'
@@ -126,6 +127,18 @@ import type {
 
 // Custom APIs for renderer
 const api = {
+  updates: {
+    getState: () => ipcRenderer.invoke(UPDATE_CHANNELS.state),
+    showDetails: () => ipcRenderer.invoke(UPDATE_CHANNELS.details),
+    check: () => ipcRenderer.invoke(UPDATE_CHANNELS.check),
+    download: () => ipcRenderer.invoke(UPDATE_CHANNELS.download),
+    install: () => ipcRenderer.invoke(UPDATE_CHANNELS.install),
+    onChanged: (cb: (state: UpdateSnapshot) => void) => {
+      const listener = (_event: IpcRendererEvent, state: UpdateSnapshot): void => cb(state)
+      ipcRenderer.on(UPDATE_CHANNELS.changed, listener)
+      return () => ipcRenderer.removeListener(UPDATE_CHANNELS.changed, listener)
+    }
+  },
   nativeEditing: {
     onCommand: (callback: (command: NativeEditCommand) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, command: unknown): void => {

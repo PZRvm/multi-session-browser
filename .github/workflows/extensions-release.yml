@@ -62,6 +62,7 @@ jobs:
           gh release create "$TAG" \
             dist/crx/recorder.crx dist/crx/screenshot.crx dist/crx/SHA256SUMS.txt \
             --title "多会话插件包 ${TAG#crx-}" \
+            --latest=false \
             --verify-tag=false \
             --notes "$(cat <<NOTES
           自研插件 CRX 独立发布（CI 现场打包，源码即本工作流检出提交）。

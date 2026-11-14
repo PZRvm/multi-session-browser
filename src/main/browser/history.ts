@@ -63,6 +63,8 @@ export interface BrowserHistory {
   dropHistory(sessionId: string): Promise<void>
   /** 退出前冲刷全部待写并封笔（此后 recordVisit no-op）；返回在途写盘的汇合 promise */
   flushAll(): Promise<void>
+  prepareUpdate(): Promise<void>
+  resumeUpdate(): void
   /** 订阅条目变化（内存合并后即触发，供 ipc.ts 定向推送）；返回退订函数 */
   onEntryChanged(cb: HistoryEntryListener): () => void
 }
@@ -97,6 +99,9 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
   const listeners = new Set<HistoryEntryListener>()
   /** 封笔标志（flushAll 后 recordVisit/getEntries 写路径 no-op） */
   let sealed = false
+  let updatePaused = false
+  const heldVisits: Array<{ id: string; fact: VisitFact }> = []
+  let writeQueue: Promise<unknown> = Promise.resolve()
 
   function fileFor(sessionId: string): string {
     // 文件名安全与会话 id 字符集同源（L2 定案）：SESSION_ID_RE 单源保证 id 只含
@@ -200,17 +205,23 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
   }
 
   /** 取内存条目快照写盘（原子写经 fs-utils 单源；失败如实告警，dirty 保留待重试） */
-  function writeSession(sessionId: string): Promise<void> {
+  function writeSession(sessionId: string, strict = false): Promise<void> {
     const map = sessions.get(sessionId)
     if (!map) return Promise.resolve() // 会话已清（dropHistory 竞态），静默跳过
-    return atomicWriteJson(fileFor(sessionId), {
-      version: HISTORY_SCHEMA_VERSION,
-      entries: [...map.values()]
-    })
+    const entries = [...map.values()].map((entry) => ({ ...entry }))
+    const write = writeQueue.then(() =>
+      atomicWriteJson(fileFor(sessionId), {
+        version: HISTORY_SCHEMA_VERSION,
+        entries
+      })
+    )
+    writeQueue = write.catch(() => undefined)
+    return write
       .then(() => {
         dirty.delete(sessionId)
       })
       .catch((error: unknown) => {
+        if (strict) throw error
         console.warn(`[history] 写会话 ${sessionId} 的历史文件失败:`, error)
       })
   }
@@ -250,6 +261,10 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
 
   return {
     recordVisit(sessionId, fact) {
+      if (updatePaused) {
+        heldVisits.push({ id: sessionId, fact: { ...fact } })
+        return
+      }
       if (sealed) return
       // about:blank（新标签页）不入史；超长 URL 不入史（截断后无法再导航，入史即坏数据）
       if (fact.url === 'about:blank') return
@@ -262,6 +277,10 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
       // 读盘未完成的毫秒窗口：沿 ensureLoaded 链排队，防内存空态覆盖磁盘既有条目
       const pending = ensureLoaded(sessionId)
       void pending.then(() => {
+        if (updatePaused) {
+          heldVisits.push({ id: sessionId, fact: { ...fact } })
+          return
+        }
         if (sealed) return
         // 与回填同判据：读盘/合并链期间会话已被 dropHistory 清场即弃置本次在途事实
         if (loads.get(sessionId) !== pending) return
@@ -426,6 +445,27 @@ export function createBrowserHistory(deps: { historyDir: () => string }): Browse
       // 冲刷后封笔：此后 recordVisit 不再合并/安排任何写盘（退出链语义，照 persistence）
       sealed = true
       await Promise.all(writes)
+    },
+
+    async prepareUpdate() {
+      updatePaused = true
+      // 等待读盘和此前 visit 微任务完成，再冻结已有历史快照。
+      await Promise.all(loads.values())
+      for (const id of timers.keys()) clearTimer(id)
+      await writeQueue
+      const results = await Promise.allSettled(
+        [...sessions.keys()].map((id) => writeSession(id, true))
+      )
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+    },
+
+    resumeUpdate() {
+      updatePaused = false
+      sealed = false
+      // 准备期间新事实保留，在放开后按原有合并/去抖路径重放。
+      for (const { id, fact } of heldVisits.splice(0)) this.recordVisit(id, fact)
+      for (const id of dirty) scheduleWrite(id)
     },
 
     onEntryChanged(cb) {

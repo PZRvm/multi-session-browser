@@ -136,7 +136,7 @@ export function summarize(data: unknown): string {
  * 原始坏数据摘要；activeId 指向不存在的会话时仅置 null，不整包丢弃。
  * v1 落盘文件兼容读取：元素缺 lastUrl 时按 '' 迁移，其余字段照常校验。
  */
-export async function loadSnapshot(): Promise<SessionsSnapshot> {
+export async function loadSnapshot(strict = false): Promise<SessionsSnapshot> {
   let raw: string
   try {
     raw = await readFile(getStorePath(), 'utf-8')
@@ -145,10 +145,11 @@ export async function loadSnapshot(): Promise<SessionsSnapshot> {
       // 首次启动尚无落盘文件，属正常情况，不告警
       return emptySnapshot()
     }
+    if (strict) throw err
     console.warn(`[store] 读取会话快照失败，已回退空快照:`, err)
     return emptySnapshot()
   }
-  return parseSnapshot(raw)
+  return parseSnapshot(raw, strict)
 }
 
 /**
@@ -169,9 +170,12 @@ let mutateQueue: Promise<unknown> = Promise.resolve()
  * loadSnapshot + saveSnapshot，否则互斥失效。fn 内对快照的就地修改
  * 会在互斥期间写穿落盘；fn 的返回值原样透传给调用方。
  */
-export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promise<T>): Promise<T> {
+export function mutateSnapshot<T>(
+  fn: (snapshot: SessionsSnapshot) => T | Promise<T>,
+  strict = false
+): Promise<T> {
   const run = async (): Promise<T> => {
-    const snapshot = await loadSnapshot()
+    const snapshot = await loadSnapshot(strict)
     const result = await fn(snapshot)
     await saveSnapshot(snapshot)
     return result
@@ -209,17 +213,19 @@ export function mutateSnapshot<T>(fn: (snapshot: SessionsSnapshot) => T | Promis
  *   （v1—v3 无此字段，静默迁移 'all'）
  * - activeId 为数字等非 string/null：回退空快照；为空串或悬空 id：按悬空处理，置 null 保留列表
  */
-function parseSnapshot(raw: string): SessionsSnapshot {
+function parseSnapshot(raw: string, strict = false): SessionsSnapshot {
   let data: unknown
   try {
     data = JSON.parse(raw)
-  } catch {
+  } catch (error) {
+    if (strict) throw error
     console.warn(`[store] 会话快照不是合法 JSON，已回退空快照。原始内容摘要: ${summarize(raw)}`)
     return emptySnapshot()
   }
 
   // 关键字段任一损坏 → 整体回退空快照
   const fallback = (reason: string): void => {
+    if (strict) throw new Error(`更新前会话快照校验失败：${reason}`)
     console.warn(
       `[store] 会话快照校验失败（${reason}），已回退空快照。原始内容摘要: ${summarize(data)}`
     )

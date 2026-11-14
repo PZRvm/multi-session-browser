@@ -1,3 +1,4 @@
+import { handleUpdateMutation } from '../../updatePreparation'
 // 录屏域编排与 IPC 装配（录屏线 A' 架构，计划 20261009231903 步骤 5 + 审查修复轮
 // 20261010：高-1/2 停止链路代际化与泄漏兜底、中-4/5/6/7/8/10 分区串对齐/写入序列化/
 // 停止原因文案/busy 区分/tabId 权威核验/宿主发起窗；复审轮中-1/2、低-4/5/6/8 busy
@@ -92,6 +93,7 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
   /** 挂载点：被录会话销毁/关闭 */
   handleSessionGone: (sessionId: string) => void
   /** 录制中锚定窗（F''：manager 弹层收起按录制态分派应用矩形）；idle 为 null */
+  isBusy: () => boolean
   getRecordedWindowId: () => string | null
 } {
   // 启动期清扫（复审低-5）：上轮崩溃/失败保留下来的半截 .part 孤儿——现行 .mp4.part
@@ -261,7 +263,7 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
     setTimeout(fallbackCheck, STOP_FALLBACK_MS)
   }
 
-  ipcMain.handle(
+  handleUpdateMutation(
     CAPTURE_CHANNELS.begin,
     async (event, payload: unknown): Promise<CaptureBeginResult> => {
       // 运行时守卫：载荷结构 + sender 作用域核验 + 激活位一致（sessionId 与 tabId 都以
@@ -493,6 +495,7 @@ export function registerRecordingIpc(deps: RecordingIpcDeps): {
     handleActiveSessionChanged,
     handleSessionGone,
     /** 录制中锚定窗（F''：manager 弹层收起按录制态分派应用矩形）；idle 为 null */
+    isBusy: () => machine.getState().status !== 'idle',
     getRecordedWindowId: () => (machine.getState().status === 'idle' ? null : recordedWindowId)
   }
 }

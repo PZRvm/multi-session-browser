@@ -1,3 +1,4 @@
+import { isUpdatePreparing, canCompleteUpdateRestore } from '../updatePreparation'
 // 浏览器 Tab 管理器：主进程持有全部 WebContentsView；分区与会话 id 由创建方传入
 // （registry 按一会话一分区注入 persist:sess-<id>，本模块不拼分区字符串）。
 // 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts 装配，见步骤 3）；
@@ -519,6 +520,7 @@ export function createTabManager(
   }
 
   function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
+    if (isUpdatePreparing() && !canCompleteUpdateRestore()) return buildSnapshot(windowId)
     // 已注销（注册表销毁会话）：拒绝一切创建，防垂死页面 window.open 复生 webContents
     if (disposed) return buildSnapshot(windowId)
     seq += 1
@@ -546,6 +548,12 @@ export function createTabManager(
 
     // 插件引擎 tabDetails 缓存失效：导航后 tabs.query 的 URL 才正确（Cookie-Editor
     // 等依赖当前页 URL 的插件 popup 依赖此点；缓存首建后 lib 永不更新，必须主动失效）
+    wc.on('will-navigate', (event) => {
+      if (isUpdatePreparing()) event.preventDefault()
+    })
+    wc.on('will-redirect', (event) => {
+      if (isUpdatePreparing()) event.preventDefault()
+    })
     wc.on('did-navigate', () => invalidateEngineTabUrl(opts.partition, wc))
     wc.on('did-navigate-in-page', () => invalidateEngineTabUrl(opts.partition, wc))
     // 任一加载/导航事件后重算快照并触发回调（含 canGoBack/canGoForward 现读）
@@ -650,6 +658,10 @@ export function createTabManager(
     // 推送 CAPTURE_CHANNELS.request）已随 2026-10-29 截图快捷键退役删除。
     wc.on('before-input-event', (event, input) => {
       const action = matchShortcut(input)
+      if (isUpdatePreparing() && action) {
+        event.preventDefault()
+        return
+      }
       if (!action) return
       // 未开 DevTools 时 ESC 原样放行（不吞键，页面自留行为不受影响）
       if (action === 'close-devtools' && !tab.devtoolsOpen) return
@@ -693,7 +705,7 @@ export function createTabManager(
     // target=_blank / window.open 一律拒绝弹窗，转为本浏览器新 Tab（落在触发页面的宿主窗口）；
     // URL 是页面可控输入，仅放行与地址栏一致的 scheme 白名单，其余（mailto: 等）拒绝且不建 Tab
     wc.setWindowOpenHandler(({ url: openUrl }) => {
-      if (openUrl && isOpenableUrl(openUrl)) newTab(openUrl, tab.windowId)
+      if (!isUpdatePreparing() && openUrl && isOpenableUrl(openUrl)) newTab(openUrl, tab.windowId)
       return { action: 'deny' }
     })
 

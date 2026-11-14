@@ -1,3 +1,4 @@
+import { handleUpdateMutation } from './updatePreparation'
 // 恢复出厂编排通道（设置专项阶段七，计划 notes/plans/20260918010928-*.md 第 3 节
 // 步骤 2）：settings:factory-reset 的 handler 与全量清理编排。需求依据 PRD 3.8.3 /
 // 4.9 / 验收 26——两步确认通过后应用回到首次启动状态，执行中任何失败都如实提示并
@@ -22,7 +23,7 @@
 // 主进程语言态的推进在 settings.ts resetSettingsToDefaults 内闭环；本文件不直接触碰
 // 两偏好域的实现（经注入/导入的单函数入口），保证失败语义单点可审。
 
-import { ipcMain, type BrowserWindow } from 'electron'
+import { type BrowserWindow } from 'electron'
 import { SETTINGS_CHANNELS } from '../shared/settings'
 import type { OkResult, SessionsSnapshot } from '../shared/sessions'
 import { WORKSPACE_VIEW_ALL } from '../shared/sessions'
@@ -59,7 +60,7 @@ async function runStep(
 }
 
 export function registerFactoryResetIpc(deps: FactoryResetDeps): void {
-  ipcMain.handle(SETTINGS_CHANNELS.factoryReset, async (event): Promise<OkResult> => {
+  handleUpdateMutation(SETTINGS_CHANNELS.factoryReset, async (event): Promise<OkResult> => {
     // ① 白名单：非设置窗来源一律拒绝（warn 留痕 + 字典文案上浮）
     const settingsWindow = deps.getSettingsWindow()
     if (

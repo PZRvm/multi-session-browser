@@ -1,3 +1,4 @@
+import { completeUpdateRestore } from '../updatePreparation'
 // 会话持久化上报与恢复集（阶段 6 自 registry 抽出，复审 L7 定案）：写侧（快照 →
 // 去抖落盘 pageTitle/lastUrl/tabs/activeTabIndex）与读侧（落盘恢复集 → manager 多开
 // Tab）的唯一事实源，registry 只做生命周期编排。本模块不含 IPC；落盘读写一律经
@@ -41,6 +42,8 @@ export interface SessionPersistence {
   flushNow(id: string): void
   /** 退出前冲刷全部待写的上报去抖并封笔（此后 recordSnapshot no-op；index.ts 的 before-quit 钩子）；返回全部在途写盘的汇合 promise——before-quit 优雅退出等它落定再放行（阶段 10 修复：撕出/导航后 500ms 内退出曾因异步写未落定即退进程而丢改动），无待写时立即 resolve */
   flushAll(): Promise<void>
+  prepareUpdate(ids: string[]): Promise<void>
+  resumeUpdate(ids: string[]): void
   /** 启动预读：读盘一次填充全部恢复集缓存（共享 in-flight promise，防重复读盘） */
   preload(): Promise<SessionsSnapshot | null>
   /** 把落盘快照中的恢复集并入缓存（补载径现读后调用） */
@@ -150,7 +153,7 @@ export function createSessionPersistence(deps: {
 
   /** 取 fire 时刻的最新归并视图写盘（去抖期内后续变化不必再各写一次）；返回写盘
    * promise（resolve 于磁盘落定或静默跳过）——before-quit 优雅退出须等它完成再放行 */
-  function flushReport(id: string): Promise<void> {
+  function flushReport(id: string, strict = false): Promise<void> {
     const view = composePersistView(id)
     if (!view) return Promise.resolve() // 会话已销毁/关闭（manager 不在注册表），静默跳过
     const { url, title } = anchorOf(view)
@@ -162,13 +165,14 @@ export function createSessionPersistence(deps: {
     // 停留旧值（复审 F1）；后置到成功回调则失败路径不前移，下次快照仍判"有变化"会重试
     return mutateSnapshot((data) => {
       const target = data.sessions.find((item) => item.id === id)
+      if (!target && strict) throw new Error(`更新前缺少会话 ${id}`)
       if (!target) return undefined // 会话已从落盘数据移除（删除竞态），静默跳过，缓存不前移
       target.pageTitle = title.length > PAGE_TITLE_MAX ? title.slice(0, PAGE_TITLE_MAX) : title
       target.lastUrl = url.length > LAST_URL_MAX ? url.slice(0, LAST_URL_MAX) : url
       target.tabs = tabs
       target.activeTabIndex = activeTabIndex
       return target.lastUrl
-    })
+    }, strict)
       .then((saved) => {
         if (saved === undefined) return
         // L2 定案守卫：destroySession 已同步清缓存时不再回填（防死条目——id 含时间戳
@@ -179,6 +183,7 @@ export function createSessionPersistence(deps: {
         reported.set(id, { url, title, tabsKey })
       })
       .catch((error: unknown) => {
+        if (strict) throw error
         console.warn(`[registry] 写会话 ${id} 的 pageTitle/lastUrl/tabs 失败:`, error)
       })
   }
@@ -234,6 +239,22 @@ export function createSessionPersistence(deps: {
       await Promise.all(writes)
     },
 
+    async prepareUpdate(ids) {
+      // 先封笔以冻结归并口径；失败恢复时逐个重新上报最新视图，不丢准备期的变化。
+      sealed = true
+      for (const id of reportTimers.keys()) clearTimer(id)
+      // mutateSnapshot 串行队列保证此前已触发的写入先落定，再写全部存活会话。
+      const results = await Promise.allSettled(ids.map((id) => flushReport(id, true)))
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed?.status === 'rejected') throw failed.reason
+    },
+
+    resumeUpdate(ids) {
+      sealed = false
+      reported.clear()
+      for (const id of ids) scheduleReport(id)
+    },
+
     preload() {
       if (!preloadPromise) {
         preloadPromise = loadSnapshot()
@@ -263,43 +284,45 @@ export function createSessionPersistence(deps: {
     },
 
     applyRestore(manager, id, hasLiveBlankTab) {
-      const restore = restoreSets.get(id)
-      if (!restore || restore.tabs.length === 0) {
-        // 空白兜底 = 用户语义起始页（PRD 3.8.2 修订）：新建/克隆会话首 Tab 与零恢复集
-        // 会话的兜底 Tab 主页非空时加载主页、留空维持空白；恢复集非空的逐条恢复不经此口
-        if (!hasLiveBlankTab) manager.newUserTab()
-        return
-      }
-      const valid: string[] = []
-      for (const tab of restore.tabs) {
-        if (isOpenableUrl(tab.url)) valid.push(tab.url)
-        else {
-          console.warn(
-            `[registry] 会话 ${id} 的恢复 URL "${tab.url.slice(0, 100)}" 未过白名单，已跳过`
-          )
+      completeUpdateRestore(() => {
+        const restore = restoreSets.get(id)
+        if (!restore || restore.tabs.length === 0) {
+          // 空白兜底 = 用户语义起始页（PRD 3.8.2 修订）：新建/克隆会话首 Tab 与零恢复集
+          // 会话的兜底 Tab 主页非空时加载主页、留空维持空白；恢复集非空的逐条恢复不经此口
+          if (!hasLiveBlankTab) manager.newUserTab()
+          return
         }
-      }
-      if (valid.length === 0) {
-        console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退用户语义起始页`)
-        if (!hasLiveBlankTab) manager.newUserTab()
-        return
-      }
-      if (hasLiveBlankTab) {
-        const first = valid[0]
-        const wc = manager.getActiveWebContents()
-        if (wc && !wc.isDestroyed()) {
-          // 失败日志由 manager 挂的 did-fail-load 单点承担
-          void wc.loadURL(first).catch(() => {})
+        const valid: string[] = []
+        for (const tab of restore.tabs) {
+          if (isOpenableUrl(tab.url)) valid.push(tab.url)
+          else {
+            console.warn(
+              `[registry] 会话 ${id} 的恢复 URL "${tab.url.slice(0, 100)}" 未过白名单，已跳过`
+            )
+          }
         }
-        for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
-      } else {
-        for (const url of valid) manager.newTab(url)
-      }
-      const targetIndex = Math.min(restore.activeTabIndex, valid.length - 1)
-      // Tab id 由 manager 生成，按快照顺序取第 targetIndex 项再 switchTab（已激活时 no-op）
-      const snap = manager.getSnapshot()
-      const target = snap.tabs[targetIndex]
-      if (target && target.id !== snap.activeTabId) manager.switchTab(target.id)
+        if (valid.length === 0) {
+          console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退用户语义起始页`)
+          if (!hasLiveBlankTab) manager.newUserTab()
+          return
+        }
+        if (hasLiveBlankTab) {
+          const first = valid[0]
+          const wc = manager.getActiveWebContents()
+          if (wc && !wc.isDestroyed()) {
+            // 失败日志由 manager 挂的 did-fail-load 单点承担
+            void wc.loadURL(first).catch(() => {})
+          }
+          for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
+        } else {
+          for (const url of valid) manager.newTab(url)
+        }
+        const targetIndex = Math.min(restore.activeTabIndex, valid.length - 1)
+        // Tab id 由 manager 生成，按快照顺序取第 targetIndex 项再 switchTab（已激活时 no-op）
+        const snap = manager.getSnapshot()
+        const target = snap.tabs[targetIndex]
+        if (target && target.id !== snap.activeTabId) manager.switchTab(target.id)
+      })
     },
 
     dropSession(id) {

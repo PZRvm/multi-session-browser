@@ -1,3 +1,4 @@
+import { UpdateEntry } from '../UpdateEntry'
 import { useEffect, useState } from 'react'
 import { SettingsPane, SettingsRow } from './SettingsParts'
 import { readableIpcError } from '../../stores/settings'
@@ -76,6 +77,7 @@ export function PaneAbout(): React.JSX.Element {
           </button>
         }
       />
+      <UpdateEntry about />
     </SettingsPane>
   )
 }

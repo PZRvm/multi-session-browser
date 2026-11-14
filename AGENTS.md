@@ -108,7 +108,11 @@ npm run build:win    # Windows 安装包（另有 build:mac / build:linux / buil
 - 日常开发从 `dev` 开功能分支，改动先合入 `dev` 验证；用户确认后，才通过本仓库 `dev → main` 的 GitHub PR 发布。未经确认不合入 `main`，不直接向 `main` 推送开发改动。
 - `dev` / `main` 的 push 与 PR 运行 CI（lint + 含 typecheck 的生产构建）；成功合并 `dev → main` PR 后检查版本，仅新版本构建安装包并发布 Releases。已有版本且应用/打包输入未变时跳过发布，应用/打包输入变化但版本未更新则报错；普通 push、标签推送及关闭未合并 PR 不发布。
 - 发布前在 `dev` 用 `npm version patch --no-git-tag-version`（或 minor / major）同步更新 `package.json` 与 `package-lock.json`，提交版本变更；CI 按该版本生成标签，禁止覆盖已发布版本。
-- 工作流与失败重试步骤见 `.github/RELEASING.md`；签名证书与公证尚未配置，自动构建沿用现有临时签名方案。
+- 正式版本日志以 `package.json.version` 绑定：改版本号时，必须在同一提交中准备唯一的 `book/changelogs/YYYY-MM/release-notes-v<version>.md`（含 frontmatter `description`，正文 1—12000 字符）。同一版本对应 Git Tag `v<version>`、绑定该 Tag 的 GitHub Release 及更新清单；Release 正文、Windows `latest.yml.releaseNotes` 与 Mac `release-notes-v<version>.md` 附件共用该文件正文；Mac 两份 appcast 的 `releaseNotesLink` 绑定该 Tag 下附件。月份只负责归档，日志缺失、重复、空白、超长或与清单不一致时拒绝正式打包/发布；不得覆盖已公开版本。完整机制见 `book/docs/architecture/项目骨架.md` 的“版本日志规范”。
+- 工作流与失败重试步骤见 `.github/RELEASING.md`；Mac 使用 Sparkle + ad-hoc + EdDSA，不再依赖付费 Apple 签名/公证。正式公钥配置仓库 Variable `SPARKLE_PUBLIC_ED_KEY`，私钥配置 Secret `SPARKLE_PRIVATE_KEY`；缺少或不匹配时拒绝发布，私钥不得入库、日志或产物。首次安装仍有 Gatekeeper 限制，首个 Sparkle 版本须手动安装。
+
+- Mac 更新由 `src/main/updates/macSparkle.ts` 与 `native/sparkle/bridge.m` 控制；只有原生确认、录制检查及严格保存成功才授权安装。进程内稍后保留 ready；普通退出必须等取消完成，重开重新下载。交接超时先撤销许可，取消未确认时不能放行退出或恢复写入。固定 SDK / headers 摘要在 `build/sparkle/sdk.json`，变更必须重验两架构；Windows 保留 electron-updater / NSIS。R1 已通过独立跨模块回归修复，平台验收仍以当前计划为准。
+- Sparkle 测试包自动重启不能假设继承 MSB_USER_DATA：仅可消费绑定 executable、目标版本、私有权限和时效的单次测试交接记录；缺失仍拒绝，禁止回落默认数据目录。原生回归必须直接校验自动启动窗口和原 profile，不能手动带环境变量重开后冒充自动重启通过。
 
 ## 架构与分层规则
 
