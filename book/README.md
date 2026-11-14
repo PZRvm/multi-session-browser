@@ -175,7 +175,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (67)**
+**Open (66)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -238,14 +238,13 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261030141215-WCO修复轮复审.md](notes/issue/2026-10/20261030141215-WCO修复轮复审.md) — "代码审查：WCO 专项修复轮复审"
 - [20261030162931-工具栏气泡与Tab融合.md](notes/issue/2026-10/20261030162931-工具栏气泡与Tab融合.md) — "代码审查：工具栏气泡与 Tab 融合专项（含截图快捷键/主页钮退役）"
 - [20261031123822-无底图标与chrome区主题适配.md](notes/issue/2026-10/20261031123822-无底图标与chrome区主题适配.md) — "代码审查：无底图标与 chrome 区主题适配"
-- [2026-11-15-发布前复审.md](notes/issue/2026-11/2026-11-15-发布前复审.md) — 复审1.1.2隔离修复与更新适配，记录发布手册的过时阻断结论
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
 - [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 既有缺口R1独立立项：destroySession不清mounted/engines登记，删除会话后remountAll仍枚举已删分区，需先实测验证再定回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (61)**
+**Resolved (62)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -279,6 +278,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-06-bocode-product-paths.md](notes/issue/2026-11/2026-11-06-bocode-product-paths.md) — 根产品与设计文档仍引用迁移前的需求和调研路径
 - [2026-11-14-扩展初始化失败恢复复审.md](notes/issue/2026-11/2026-11-14-扩展初始化失败恢复复审.md) — R1采用显式重启策略，失败会话封闭并一次性原生提示，故障注入和十九项应用回归通过，复审无新增问题
 - [2026-11-15-1.1.2更新适配代码审查.md](notes/issue/2026-11/2026-11-15-1.1.2更新适配代码审查.md) — 1.1.2更新接入、冷缓存恢复与关于页样式的提交后审查，十一项检查无新增问题，平台安装未在本轮执行
+- [2026-11-15-发布前复审.md](notes/issue/2026-11/2026-11-15-发布前复审.md) — 复审1.1.2隔离修复与更新适配，记录发布手册的过时阻断结论
 - [2026-11-15-应用更新合并前审查.md](notes/issue/2026-11/2026-11-15-应用更新合并前审查.md) — 更新合并前审查的R1已独立修复，dev待提交文件已保存，原阻断解除
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
@@ -505,6 +505,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
 - [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
 - [2026-11-14-更新提示与卡顿排查.md](plans/2026-11-14-更新提示与卡顿排查.md) — L级更新反馈修订，排查用户验收卡顿、补原生悬停提示并把日志规范归入项目骨架
+- [2026-11-15-1.1.2审查与正式发布.md](plans/2026-11-15-1.1.2审查与正式发布.md) — 记录1.1.2发布前复审、独立文档修复、dev合并验证和main PR发布进度
 - [2026-11-15-Sparkle测试重启隔离修复.md](plans/2026-11-15-Sparkle测试重启隔离修复.md) — 修复Sparkle自动重启丢失测试隔离目录，清理旧产物后重建双版本验收包
 - [2026-11-15-修复更新准备恢复集R1.md](plans/2026-11-15-修复更新准备恢复集R1.md) — L级修复更新准备阻断在途恢复导致空标签覆盖，补真实registry与manager及持久化联动回归
 - [2026-11-15-更新机制接入与1.1.2版本准备.md](plans/2026-11-15-更新机制接入与1.1.2版本准备.md) — 在人机验证修复工作树合入dev更新机制，统一关于页更新行并准备1.1.2，提交审查后仅推送工作分支
@@ -573,4 +574,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 448 documents -->
+<!-- 449 documents -->

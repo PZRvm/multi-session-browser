@@ -49,11 +49,11 @@ CI 会将来源不是本仓库 `dev` 的 `main` PR 标为失败。若需要 GitH
 
 CI 执行 lint、typecheck、生产构建、安装包生成；macOS 另外校验整个 app 的 ad-hoc 签名、DMG、Sparkle 归档内的版本/架构/公钥、归档 EdDSA 签名与 appcast。完整安装、摄像头权限、会话隔离等业务功能仍须平台验收。
 
-Mac 走免费 Sparkle / EdDSA 路线，不要求 Apple Developer ID 或公证材料。仓库 Settings → Secrets and variables → Actions 中配置：Variable `SPARKLE_PUBLIC_ED_KEY`（32 字节公钥 Base64），Secret `SPARKLE_PRIVATE_KEY`（32 字节 Ed25519 seed Base64）。缺失或不匹配拒绝发布；正式材料尚未配置，本轮只用测试密钥。私钥长期备份，不提交、不打印、不进产物，不能每次构建换一组。Windows 继续未签名。
+Mac 走免费 Sparkle / EdDSA 路线，不要求 Apple Developer ID 或公证材料。仓库 Settings → Secrets and variables → Actions 中配置：Variable `SPARKLE_PUBLIC_ED_KEY`（32 字节公钥 Base64），Secret `SPARKLE_PRIVATE_KEY`（32 字节 Ed25519 seed Base64）。缺失或不匹配拒绝发布；每次发布以 Actions 的配置和签名校验结果为准。私钥长期备份，不提交、不打印、不进产物，不能每次构建换一组。Windows 继续未签名。
 
 正式密钥由维护者自行保管：用 `build/sparkle/sdk.json` 固定的官方 SDK，在自己的终端运行 `bin/generate_keys --account multi-session-browser`，将输出公钥填入 Variable；再用 `bin/generate_keys --account multi-session-browser -x <仓库外安全文件>` 导出私钥，将文件中的 Base64 填入 Secret 并安全备份。本项目接受官方 2.10.1 的新 32 字节 seed 格式；已有旧格式需单独迁移，不能拼接或截取来冒充新格式。构建只经 stdin 调用官方 sign_update，不读取维护者 Keychain。
 
-EdDSA 用于确认更新包来源，不能消除未公证应用首次安装时的 Gatekeeper 限制。首个 Sparkle 版本要手动安装，原 Squirrel 客户端的安装验签限制不会被新 feed 修复。恢复集 R1 仍阻断真实数据验收、合并和发布，见迁移计划。
+EdDSA 用于确认更新包来源，不能消除未公证应用首次安装时的 Gatekeeper 限制。首个 Sparkle 版本要手动安装，原 Squirrel 客户端的安装验签限制不会被新 feed 修复。发布前运行 `node tools/update-test/r1.mjs` 复验恢复集冷缓存与更新保存屏障；该回归不替代各平台的完整升级验收。
 
 国内开发环境继续使用仓库 `.npmrc` 的镜像配置；GitHub runner 沿用 `.npmrc` 镜像下载二进制，不改写 `.npmrc`。
 
