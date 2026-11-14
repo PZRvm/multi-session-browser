@@ -588,25 +588,27 @@ export function createSessionBrowserRegistry(deps: {
     // 还是空白页）才补做恢复（用户已自行导航/开 Tab 则不打扰），保住 PRD 3.1.4 的恢复语义
     if (!persistence.hasRestore(id)) {
       pendingBackfill.add(id)
-      void loadSnapshot()
-        .then((snapshot) => {
-          // 已注销守卫（F2 定案）与补载资格守卫（R1 定案：复用路径已撤销），
-          // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
-          const armed = pendingBackfill.delete(id)
-          if (!managers.has(id) || !armed) return
-          persistence.ingest(snapshot)
-          const item = snapshot.sessions.find((entry) => entry.id === id)
-          if (!item || item.tabs.length === 0) return
-          // L4 叠加径（takeBatchOpened）已随 2026-10-23 批量多选退役删除
-          // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
-          // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
-          const current = manager.getSnapshot()
-          if (current.tabs.length !== 1) return
-          const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
-          if (!activeTab || activeTab.url !== BLANK_URL) return
-          persistence.applyRestore(manager, id, true)
-        })
-        .catch(() => undefined) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
+      void trackUpdateWork(
+        loadSnapshot()
+          .then((snapshot) => {
+            // 已注销守卫（F2 定案）与补载资格守卫（R1 定案：复用路径已撤销），
+            // 任一失效即不再补载；delete 恒执行保证集合条目总被清理
+            const armed = pendingBackfill.delete(id)
+            if (!managers.has(id) || !armed) return
+            persistence.ingest(snapshot)
+            const item = snapshot.sessions.find((entry) => entry.id === id)
+            if (!item || item.tabs.length === 0) return
+            // L4 叠加径（takeBatchOpened）已随 2026-10-23 批量多选退役删除
+            // 常规径守卫：补载判据从"激活 Tab 是空白页"收紧为"唯一 Tab 是空白页"——
+            // 多 Tab 恢复下，用户已自行加 Tab（tabs.length > 1）同样视为"已自行接管"，不打扰
+            const current = manager.getSnapshot()
+            if (current.tabs.length !== 1) return
+            const activeTab = current.tabs.find((tab) => tab.id === current.activeTabId)
+            if (!activeTab || activeTab.url !== BLANK_URL) return
+            persistence.applyRestore(manager, id, true)
+          })
+          .catch(() => undefined)
+      ) // loadSnapshot 坏数据自回退不 reject，此处仅兜底防未处理拒绝
     }
     return manager
   }

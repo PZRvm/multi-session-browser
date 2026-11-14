@@ -1,4 +1,4 @@
-import { isUpdatePreparing } from '../updatePreparation'
+import { isUpdatePreparing, canCompleteUpdateRestore } from '../updatePreparation'
 // 浏览器 Tab 管理器：主进程持有全部 WebContentsView；分区与会话 id 由创建方传入
 // （registry 按一会话一分区注入 persist:sess-<id>，本模块不拼分区字符串）。
 // 本模块不含任何 IPC（命令通道与状态推送由 ipc.ts 装配，见步骤 3）；
@@ -520,7 +520,7 @@ export function createTabManager(
   }
 
   function newTab(url?: string, windowId: string = WINDOW_ID_MAIN): BrowserSnapshot {
-    if (isUpdatePreparing()) return buildSnapshot(windowId)
+    if (isUpdatePreparing() && !canCompleteUpdateRestore()) return buildSnapshot(windowId)
     // 已注销（注册表销毁会话）：拒绝一切创建，防垂死页面 window.open 复生 webContents
     if (disposed) return buildSnapshot(windowId)
     seq += 1

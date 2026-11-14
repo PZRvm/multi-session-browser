@@ -1,3 +1,4 @@
+import { completeUpdateRestore } from '../updatePreparation'
 // 会话持久化上报与恢复集（阶段 6 自 registry 抽出，复审 L7 定案）：写侧（快照 →
 // 去抖落盘 pageTitle/lastUrl/tabs/activeTabIndex）与读侧（落盘恢复集 → manager 多开
 // Tab）的唯一事实源，registry 只做生命周期编排。本模块不含 IPC；落盘读写一律经
@@ -283,43 +284,45 @@ export function createSessionPersistence(deps: {
     },
 
     applyRestore(manager, id, hasLiveBlankTab) {
-      const restore = restoreSets.get(id)
-      if (!restore || restore.tabs.length === 0) {
-        // 空白兜底 = 用户语义起始页（PRD 3.8.2 修订）：新建/克隆会话首 Tab 与零恢复集
-        // 会话的兜底 Tab 主页非空时加载主页、留空维持空白；恢复集非空的逐条恢复不经此口
-        if (!hasLiveBlankTab) manager.newUserTab()
-        return
-      }
-      const valid: string[] = []
-      for (const tab of restore.tabs) {
-        if (isOpenableUrl(tab.url)) valid.push(tab.url)
-        else {
-          console.warn(
-            `[registry] 会话 ${id} 的恢复 URL "${tab.url.slice(0, 100)}" 未过白名单，已跳过`
-          )
+      completeUpdateRestore(() => {
+        const restore = restoreSets.get(id)
+        if (!restore || restore.tabs.length === 0) {
+          // 空白兜底 = 用户语义起始页（PRD 3.8.2 修订）：新建/克隆会话首 Tab 与零恢复集
+          // 会话的兜底 Tab 主页非空时加载主页、留空维持空白；恢复集非空的逐条恢复不经此口
+          if (!hasLiveBlankTab) manager.newUserTab()
+          return
         }
-      }
-      if (valid.length === 0) {
-        console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退用户语义起始页`)
-        if (!hasLiveBlankTab) manager.newUserTab()
-        return
-      }
-      if (hasLiveBlankTab) {
-        const first = valid[0]
-        const wc = manager.getActiveWebContents()
-        if (wc && !wc.isDestroyed()) {
-          // 失败日志由 manager 挂的 did-fail-load 单点承担
-          void wc.loadURL(first).catch(() => {})
+        const valid: string[] = []
+        for (const tab of restore.tabs) {
+          if (isOpenableUrl(tab.url)) valid.push(tab.url)
+          else {
+            console.warn(
+              `[registry] 会话 ${id} 的恢复 URL "${tab.url.slice(0, 100)}" 未过白名单，已跳过`
+            )
+          }
         }
-        for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
-      } else {
-        for (const url of valid) manager.newTab(url)
-      }
-      const targetIndex = Math.min(restore.activeTabIndex, valid.length - 1)
-      // Tab id 由 manager 生成，按快照顺序取第 targetIndex 项再 switchTab（已激活时 no-op）
-      const snap = manager.getSnapshot()
-      const target = snap.tabs[targetIndex]
-      if (target && target.id !== snap.activeTabId) manager.switchTab(target.id)
+        if (valid.length === 0) {
+          console.warn(`[registry] 会话 ${id} 的恢复集全部未过白名单，回退用户语义起始页`)
+          if (!hasLiveBlankTab) manager.newUserTab()
+          return
+        }
+        if (hasLiveBlankTab) {
+          const first = valid[0]
+          const wc = manager.getActiveWebContents()
+          if (wc && !wc.isDestroyed()) {
+            // 失败日志由 manager 挂的 did-fail-load 单点承担
+            void wc.loadURL(first).catch(() => {})
+          }
+          for (let i = 1; i < valid.length; i += 1) manager.newTab(valid[i])
+        } else {
+          for (const url of valid) manager.newTab(url)
+        }
+        const targetIndex = Math.min(restore.activeTabIndex, valid.length - 1)
+        // Tab id 由 manager 生成，按快照顺序取第 targetIndex 项再 switchTab（已激活时 no-op）
+        const snap = manager.getSnapshot()
+        const target = snap.tabs[targetIndex]
+        if (target && target.id !== snap.activeTabId) manager.switchTab(target.id)
+      })
     },
 
     dropSession(id) {
