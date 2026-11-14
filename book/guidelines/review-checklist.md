@@ -4,6 +4,8 @@ description: The eleven code-review checks every M/L change must pass — findin
 
 # Code review checklist
 
+Code review is BoCode Phase 5, using this checklist directly. No standalone skill is required; record new findings in `book/notes/issue/YYYY-MM/`.
+
 ## Required checks
 
 - [ ] Duplicated code
