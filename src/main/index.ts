@@ -1,6 +1,7 @@
 import { registerUpdates } from './updates'
 import { createUpdateTestContext } from './updateTestContext'
 import { isExtensionCaptureBusy } from './extensions/shims'
+import { isExtensionSessionUnavailable } from './extensions/runtime/lifecycle'
 import { isUpdatePreparing, isUpdateInstalling, trackUpdateWork } from './updatePreparation'
 import { app, shell, BrowserWindow, Menu, webContents, dialog, session } from 'electron'
 import { mkdirSync } from 'fs'
@@ -564,6 +565,8 @@ app.whenReady().then(async () => {
   // checkProxyExitIp）及下方 app 级 login 认证共用同一实例
   const engine = createSessionProxyEngine({
     partitionFor,
+    isSessionUsable: (target) => !isExtensionSessionUnavailable(target),
+    extensionProxyFile: join(app.getPath('userData'), 'extensions/proxy-settings.json'),
     idsProvider: () => knownSessionIds
   })
   const created = createSessionBrowserRegistry({
@@ -571,8 +574,15 @@ app.whenReady().then(async () => {
       windowId === WINDOW_ID_MAIN ? mainWindow : independentWindows.getWindowById(windowId),
     windows: independentWindows,
     prepareExtensions: async (partition, target) => {
-      const { mountDevExtensions } = await import('./extensions/dev-entry')
-      return mountDevExtensions(target, partition)
+      const { resumeDevExtensions } = await import('./extensions/dev-entry')
+      const result = await resumeDevExtensions(partition, target)
+      await engine.syncExtensionProxy(target)
+      return result
+    },
+    suspendExtensions: async (partition, target) => {
+      const { suspendDevExtensions } = await import('./extensions/dev-entry')
+      await suspendDevExtensions(partition, target)
+      await engine.syncExtensionProxy(target, false)
     },
     terminateExtensions: async (partition, target) => {
       const { terminateDevExtensions } = await import('./extensions/dev-entry')
@@ -903,6 +913,8 @@ app.whenReady().then(async () => {
   await import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({
+        forgetUnloadedExtensionProxies: (ids) => engine.forgetUnloadedExtensionProxies(ids),
+        removeExtensionProxy: (target, id) => engine.removeExtensionProxy(target, id),
         getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
         openSettings: (pane) => settingsWindowController?.open(pane),
         openInActiveSession: (url) => {
@@ -927,6 +939,7 @@ app.whenReady().then(async () => {
   // 点击链经 preload 生成链注入的 shim 走此通道。库 windowId = BrowserWindow.id，
   // 映射宿主 scope 后取激活会话网页截图。
   registerExtensionShims({
+    proxy: engine,
     resolveActivePage: (windowId) => {
       let scope: string | undefined
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.id === windowId) {

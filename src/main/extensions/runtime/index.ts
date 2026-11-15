@@ -8,7 +8,12 @@
  */
 import type { BaseWindow, Session, WebContents } from 'electron'
 import { rm } from 'node:fs/promises'
-import { assertExtensionSessionLive, retireExtensionSession } from './lifecycle'
+import {
+  assertExtensionSessionLive,
+  retireExtensionSession,
+  suspendExtensionSession,
+  resumeExtensionSession
+} from './lifecycle'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
 import { extensionIdFromPath } from '../install/crx'
 import { classifyInstall, type InstallState, type ManifestStore } from '../install/manifest-store'
@@ -35,6 +40,7 @@ export interface EngineOptions {
 }
 
 export interface RuntimeDeps {
+  createTabForSession?: (session: Session, details: unknown) => Promise<[WebContents, BaseWindow]>
   manifest: ManifestStore
   packagesRoot: string
   engineOptions?: EngineOptions
@@ -48,6 +54,8 @@ export interface MountResult {
 
 export interface ExtensionRuntime {
   mountPartition(partition: string, session: Session): Promise<MountResult>
+  suspendPartition(partition: string, session: Session): Promise<void>
+  resumePartition(partition: string, session: Session): void
   terminatePartition(partition: string, session: Session): Promise<void>
   getEngine(partition: string): ElectronChromeExtensions | undefined
   /** 安装 ID → 本分区实际加载 ID（分区副本路径派生，确定性；无安装记录返回 undefined） */
@@ -71,10 +79,27 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
   const terminating = new Map<string, Promise<void>>()
   const wiredSessions = new WeakSet<Session>()
   const retiredPartitions = new Set<string>()
+  const suspendedPartitions = new Set<string>()
   const resolving = new Map<string, Set<Promise<unknown>>>()
   const demandLive = (partition: string, session?: Session): void => {
     if (retiredPartitions.has(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
+    if (suspendedPartitions.has(partition)) throw new Error('EXTENSION_SESSION_SUSPENDED')
     if (session) assertExtensionSessionLive(session)
+  }
+  async function drain(partition: string): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.allSettled(
+          [pending.get(partition), ...(resolving.get(partition) ?? [])].filter(Boolean)
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('EXTENSION_DISPOSE_TIMEOUT')), 15000)
+        })
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
   }
   async function mount(partition: string, session: Session): Promise<MountResult> {
     demandLive(partition, session)
@@ -97,7 +122,13 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         throw new Error('该会话的插件引擎已由其他运行时初始化')
       }
       try {
-        const options = { session, ...deps.engineOptions }
+        const options = {
+          session,
+          ...deps.engineOptions,
+          ...(deps.createTabForSession && !deps.engineOptions?.createTab
+            ? { createTab: (details: unknown) => deps.createTabForSession!(session, details) }
+            : {})
+        }
         engines.set(partition, new ElectronChromeExtensions(options))
       } catch (error) {
         const failure = new ExtensionRuntimeRestartRequiredError(error)
@@ -211,24 +242,47 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
     return { partition, results, state }
   }
   return {
+    async suspendPartition(partition, session) {
+      suspendedPartitions.add(partition)
+      suspendExtensionSession(session)
+      await drain(partition)
+      disposeSessionShims(session)
+      wiredSessions.delete(session)
+      for (const extension of session.extensions.getAllExtensions()) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            session.extensions.off('extension-unloaded', unloaded)
+            reject(new Error('EXTENSION_SUSPEND_TIMEOUT'))
+          }, 10000)
+          const unloaded = (_event: unknown, removed: Electron.Extension): void => {
+            if (removed.id !== extension.id) return
+            clearTimeout(timer)
+            session.extensions.off('extension-unloaded', unloaded)
+            resolve()
+          }
+          session.extensions.on('extension-unloaded', unloaded)
+          try {
+            session.extensions.removeExtension(extension.id)
+          } catch (error) {
+            clearTimeout(timer)
+            session.extensions.off('extension-unloaded', unloaded)
+            reject(error)
+          }
+        })
+      }
+    },
+    resumePartition(partition, session) {
+      if (retiredPartitions.has(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
+      resumeExtensionSession(session)
+      suspendedPartitions.delete(partition)
+    },
     terminatePartition(partition, session) {
       const previous = terminating.get(partition)
       if (previous) return previous
       const task = (async () => {
         retiredPartitions.add(partition)
         retireExtensionSession(session)
-        const tasks = [pending.get(partition), ...(resolving.get(partition) ?? [])].filter(Boolean)
-        let timer: ReturnType<typeof setTimeout> | undefined
-        try {
-          await Promise.race([
-            Promise.allSettled(tasks),
-            new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new Error('EXTENSION_DISPOSE_TIMEOUT')), 15000)
-            })
-          ])
-        } finally {
-          clearTimeout(timer)
-        }
+        await drain(partition)
         disposeSessionShims(session)
         releaseSessionBridgeTargets(session)
         for (const extension of session.extensions.getAllExtensions()) {

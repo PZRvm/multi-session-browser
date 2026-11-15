@@ -21,6 +21,9 @@ import {
   EXT_SHIM_CONTEXTS,
   EXT_SHIM_DOWNLOAD,
   EXT_SHIM_OFFSCREEN_CREATE,
+  EXT_SHIM_PROXY,
+  EXT_SHIM_PROXY_CHANGE,
+  EXT_SHIM_PROXY_ERROR,
   EXT_SHIM_TAB_STREAM
 } from '../shims'
 
@@ -114,6 +117,14 @@ async function generate(libPreload: string): Promise<string> {
     '${location.href}',
     '${typeof location === "undefined" ? "extension-worker" : location.href}'
   )
+  // Electron 原生 MV2 后台页没有隔离上下文；不改变网页的安全选项。
+  const nonIsolated = 'if (!process.contextIsolated) {'
+  if (content.split(nonIsolated).length !== 2)
+    throw new Error('扩展后台上下文锚点已变化，请重新核验')
+  content = content.replace(
+    nonIsolated,
+    nonIsolated + '\n      globalThis.electron = electronContext;'
+  )
   // 补丁锚点 1：库 IIFE 尾部的注入调用；注册层过滤使网站不执行此文件。
   const injectCall = 'injectExtensionAPIs();'
   if (!content.includes(injectCall)) throw new Error('库注入调用点已变化，请重新核验')
@@ -159,6 +170,17 @@ function __msbExposeShimBridge() {
     }
   }
   const bridge = {
+    proxy: async (operation, details) => unwrap(await invokeShim('${EXT_SHIM_PROXY}', {operation,details}), 'PROXY_FAILED').details,
+    onProxyError: (listener) => {
+      const handler = (_event,details) => listener(details)
+      ipcRenderer.on('${EXT_SHIM_PROXY_ERROR}',handler)
+      return () => ipcRenderer.removeListener('${EXT_SHIM_PROXY_ERROR}',handler)
+    },
+    onProxyChange: (listener) => {
+      const handler = (_event,details) => listener(details)
+      ipcRenderer.on('${EXT_SHIM_PROXY_CHANGE}',handler)
+      return () => ipcRenderer.removeListener('${EXT_SHIM_PROXY_CHANGE}',handler)
+    },
     captureVisibleTab: async (windowId, _options) => {
       const result = await invokeShim('${EXT_SHIM_CAPTURE_TAB}', {
         windowId: typeof windowId === 'number' ? windowId : null
@@ -178,11 +200,12 @@ function __msbExposeShimBridge() {
   }
   // Electron45 的 SW preload 同样隔离（process.contextIsolated=true），预挂全局在
   // SW 主世界不可见——与页面同路：contextBridge 暴露进主世界（SW/页面统一机制）
-  require('electron').contextBridge.exposeInMainWorld('__msbShimBridge', bridge)
+  if (process.contextIsolated) require('electron').contextBridge.exposeInMainWorld('__msbShimBridge', bridge)
+  else Object.defineProperty(globalThis,'__msbShimBridge',{value:bridge,configurable:true})
 }
 // Chromium 同时提供 browser 命名空间；兼容库只补 chrome，两个入口必须一致。
 {
-  require('electron').contextBridge.executeInMainWorld({ func: () => {
+  const syncBrowserNamespace = () => {
     if (!globalThis.chrome?.runtime?.id || !globalThis.browser || globalThis.browser === globalThis.chrome) return
     for (const key of Object.keys(globalThis.chrome)) {
       const descriptor = Object.getOwnPropertyDescriptor(globalThis.browser, key)
@@ -190,7 +213,9 @@ function __msbExposeShimBridge() {
         Object.defineProperty(globalThis.browser, key, { value: globalThis.chrome[key], enumerable: true, configurable: true })
       }
     }
-  } })
+  }
+  if (process.contextIsolated) require('electron').contextBridge.executeInMainWorld({func:syncBrowserNamespace})
+  else syncBrowserNamespace()
 }`
   )
   return guarded
@@ -204,6 +229,46 @@ function __msbExposeShimBridge() {
  */
 const MSB_PAGE_SHIMS = `if (globalThis.__msbShimBridge) {
   const shimBridge = globalThis.__msbShimBridge
+  const proxyListeners = new Set()
+  const proxySettings = {}
+  const invokeProxy = (operation, details, callback) => {
+    const task = shimBridge.proxy(operation,details ?? {})
+    if (typeof callback !== 'function') return task
+    task.then(value => callback(value), error => {
+      const previous = Object.getOwnPropertyDescriptor(chrome.runtime,'lastError')
+      try {
+        Object.defineProperty(chrome.runtime,'lastError',{value:{message:String(error.message ?? error)},configurable:true})
+        callback()
+      } finally {
+        if(previous) Object.defineProperty(chrome.runtime,'lastError',previous)
+        else delete chrome.runtime.lastError
+      }
+    }).catch(error => console.warn('代理回调执行失败:',error))
+  }
+  for(const operation of ['get','set','clear']) proxySettings[operation] = (details,callback) => invokeProxy(operation,details,callback)
+  proxySettings.onChange = {
+    addListener: listener => {if(typeof listener==='function')proxyListeners.add(listener)},
+    removeListener: listener => proxyListeners.delete(listener),
+    hasListener: listener => proxyListeners.has(listener),
+    hasListeners: () => proxyListeners.size>0
+  }
+  shimBridge.onProxyChange(details => {for(const listener of proxyListeners){try{listener(details)}catch(error){console.warn('代理订阅执行失败:',error)}}})
+  const proxyErrors = new Set()
+  const onProxyError = {addListener:listener=>{if(typeof listener==='function')proxyErrors.add(listener)},removeListener:listener=>proxyErrors.delete(listener),hasListener:listener=>proxyErrors.has(listener),hasListeners:()=>proxyErrors.size>0}
+  shimBridge.onProxyError(details=>{for(const listener of proxyErrors){try{listener(details)}catch(error){console.warn('代理错误订阅失败:',error)}}})
+  if (chrome.runtime.getManifest().permissions?.includes('proxy')) {
+    Object.defineProperty(chrome,'proxy',{value:{settings:proxySettings,onProxyError},enumerable:true,configurable:true})
+    // 原生 browser 的惰性 API 必须在根 chrome 冻结前建立/替换。
+    if(globalThis.browser && globalThis.browser !== chrome) {
+      const descriptor=Object.getOwnPropertyDescriptor(globalThis.browser,'proxy')
+      if(!descriptor || descriptor.configurable) Object.defineProperty(globalThis.browser,'proxy',{value:chrome.proxy,enumerable:true,configurable:true})
+      else if(globalThis.browser.proxy) {
+        Object.defineProperty(globalThis.browser.proxy,'settings',{value:proxySettings,configurable:true})
+        Object.defineProperty(globalThis.browser.proxy,'onProxyError',{value:onProxyError,configurable:true})
+      }
+    }
+  }
+
   if (chrome.tabs && !chrome.tabs.captureVisibleTab) chrome.tabs.captureVisibleTab = shimBridge.captureVisibleTab
   if (chrome.downloads?.download) {
     // 真名回传链（审查清单 20261113124504 中项）：API 合同只回数字 id；真名经

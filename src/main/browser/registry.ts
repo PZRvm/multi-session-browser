@@ -223,6 +223,8 @@ export function createSessionBrowserRegistry(deps: {
   windows: IndependentWindows
   /** 首个网页创建前加载该分区插件；每次激活可补偿上次挂载失败。 */
   prepareExtensions?: (partition: string, target: Electron.Session) => Promise<unknown>
+  /** 克隆/导入临时静默；卸载实例但不永久退休。 */
+  suspendExtensions?: (partition: string, target: Electron.Session) => Promise<void>
   /** 永久删除屏障；普通关闭不调用。 */
   terminateExtensions?: (partition: string, target: Electron.Session) => Promise<void>
   /** 主窗缺席时重建，返回存活实例；不新建 registry 或会话 manager。 */
@@ -735,7 +737,7 @@ export function createSessionBrowserRegistry(deps: {
     cameraPermissions.disposeSession(id)
     // 代理凭据表与模块登记一并清理（独立代理专项）：凭据不留驻已销毁会话（id 含
     // 时间戳不复用，登记残留只碍反查）；closeSession 不走此分支，会话仍存活
-    proxy.dropSession(id)
+    await proxy.dropSession(id)
     emitLifecycle('session-gone', id)
     // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
     // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
@@ -812,6 +814,21 @@ export function createSessionBrowserRegistry(deps: {
       // 再抢写缩水列表
       // await：克隆随后读 restoreSets 缓存，冲刷写盘与缓存前移须先落定（审查 B）
       await persistence.settleSession(id)
+    }
+    if (manager) {
+      const partition = partitionFor(id),
+        target = session.fromPartition(partition)
+      try {
+        await deps.suspendExtensions?.(partition, target)
+      } catch (error) {
+        // 尚未关页面或复制分区；临时静默失败尝试恢复，原错误仍向上层报告。
+        try {
+          await deps.prepareExtensions?.(partition, target)
+        } catch {
+          console.warn('[registry] 临时静默失败后的插件恢复失败')
+        }
+        throw error
+      }
     }
     // 入口关该会话全部独立窗壳（步骤 5 会话级联，时序口径同 destroySession 内注释）；
     // clonePartition 经此入口调用天然覆盖——克隆前源会话独立窗口全关，窗内页面不再写入

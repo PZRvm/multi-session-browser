@@ -75,7 +75,7 @@ await build({
           contents:
             args.path === 'electron'
               ? 'export const app = {}'
-              : 'export const EXT_SHIM_CAPTURE_TAB="capture", EXT_SHIM_CONTEXTS="contexts", EXT_SHIM_DOWNLOAD="download", EXT_SHIM_OFFSCREEN_CREATE="offscreen", EXT_SHIM_TAB_STREAM="stream"'
+              : 'export const EXT_SHIM_CAPTURE_TAB="capture", EXT_SHIM_CONTEXTS="contexts", EXT_SHIM_DOWNLOAD="download", EXT_SHIM_OFFSCREEN_CREATE="offscreen", EXT_SHIM_TAB_STREAM="stream", EXT_SHIM_PROXY="proxy", EXT_SHIM_PROXY_CHANGE="proxy-change", EXT_SHIM_PROXY_ERROR="proxy-error"'
         }))
       }
     }

@@ -209,6 +209,7 @@ export async function run({ registry, mainWindow, getExtensionsHandle, extractCr
     // 重启会复用持久 SW 的脚本缓存；显式检查更新以触发真实网络请求，不清存储。
     await a.executeJavaScript('navigator.serviceWorker.getRegistration().then(reg => reg.update())')
     for (const path of ['/', '/fetch', '/favicon.ico', '/worker.js', '/sw.js']) {
+      await wait(() => requests.some((r) => r.path === path), '等待真实请求 ' + path)
       const rows = requests.filter((r) => r.path === path)
       assert(rows.length, path)
       for (const row of rows) assert.equal(row.ua, app.userAgentFallback, path)

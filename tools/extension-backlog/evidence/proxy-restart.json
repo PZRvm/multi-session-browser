@@ -1,0 +1,9 @@
+{
+  "restartRoute": "proxy",
+  "reloadBlockedThenRestored": true,
+  "optionsSessionBound": true,
+  "uninstalled": true,
+  "uninstallWhileSuspended": true,
+  "uninstallRoute": "origin",
+  "focusedWindows": 0
+}
