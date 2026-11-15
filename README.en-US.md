@@ -106,7 +106,7 @@ Isolation is built on Electron's native `session.fromPartition('persist:sess-<id
 
 | Layer    | Stack                                            |
 | :------- | :----------------------------------------------- |
-| Shell    | Electron 39 · electron-vite 5 · electron-builder |
+| Shell    | Electron 45 · electron-vite 5 · electron-builder |
 | UI       | React 19 · Ant Design 6 · Zustand 5              |
 | Language | TypeScript 5.9                                   |
 
@@ -115,6 +115,7 @@ Isolation is built on Electron's native `session.fromPartition('persist:sess-<id
 - [book/README.md](./book/README.md) — BoCode workflow, plans, and knowledge base. Source stays at the repository root; run `npm run book:index` after documentation changes.
 - [PRODUCT.md](./PRODUCT.md) — product facts and design principles
 - [AGENTS.md](./AGENTS.md) — code conventions and contribution notes
+- [third_party/README.md](./third_party/README.md) — origins, copyrights and licenses for BoCode, electron-builder and Sparkle
 
 ## 🤝 Contributing
 
