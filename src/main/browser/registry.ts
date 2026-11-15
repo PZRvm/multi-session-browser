@@ -21,7 +21,8 @@ import {
   WORKSPACE_VIEW_UNGROUPED,
   type SessionStatus,
   type SessionStatusesPayload,
-  type SessionsSnapshot
+  type SessionsSnapshot,
+  type StoredSession
 } from '../../shared/sessions'
 import { loadSnapshot, mutateSnapshot } from '../store'
 import { t } from '../i18n'
@@ -502,6 +503,16 @@ export function createSessionBrowserRegistry(deps: {
     }
   }
 
+  /** 代理配置查询共用读盘与已知会话登记；克隆目标沿用源会话配置。 */
+  async function findStoredSessionForProxy(
+    id: string,
+    snapshot?: SessionsSnapshot
+  ): Promise<StoredSession | undefined> {
+    const loaded = snapshot ?? (await loadSnapshot())
+    proxy.noteKnownIds(loaded.sessions.map((item) => item.id))
+    return loaded.sessions.find((item) => item.id === id)
+  }
+
   /**
    * 按落盘现值把代理应用到该会话分区（独立代理专项步骤 2）：读盘取配置 → 引擎应用
    * （幂等，值未变不重放）。返回会话是否仍在落盘（激活链据此放弃 await 期间被并发
@@ -509,11 +520,9 @@ export function createSessionBrowserRegistry(deps: {
    * 的 login 反查场景）
    */
   async function applyProxyFromStore(id: string, snapshot?: SessionsSnapshot): Promise<boolean> {
-    // snapshot 入参（审查低-6）：批量打开等 N 会话连发场景由调用方读盘一次复用，
+    // snapshot 入参允许调用方复用已读取的快照，
     // 避免逐会话整文件读；缺省自读（单点调用语义不变）
-    const loaded = snapshot ?? (await loadSnapshot())
-    proxy.noteKnownIds(loaded.sessions.map((item) => item.id))
-    const item = loaded.sessions.find((entry) => entry.id === id)
+    const item = await findStoredSessionForProxy(id, snapshot)
     if (!item) return false
     await proxy.applySessionProxy(id, item.proxy)
     return true
@@ -955,9 +964,7 @@ export function createSessionBrowserRegistry(deps: {
       // 元数据写盘失败的孤儿分区带一份代理配置无流量触达（id 不复用），无清理面
       if (!failed) {
         try {
-          const snapshot = await loadSnapshot()
-          proxy.noteKnownIds(snapshot.sessions.map((item) => item.id))
-          const src = snapshot.sessions.find((item) => item.id === srcId)
+          const src = await findStoredSessionForProxy(srcId)
           if (src) await proxy.applySessionProxy(dstId, src.proxy)
         } catch (error) {
           console.warn(

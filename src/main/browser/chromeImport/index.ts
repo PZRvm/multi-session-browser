@@ -555,7 +555,7 @@ function failedResult(scope: ChromeImportScope, error: unknown): ChromeImportSco
 /** scope 显示名（结果框/摘要共用，随界面语言；键名经 shared 单源映射——审查
  *  20261028170000 低-4，与 sheet 页面 scopeLabel 同源） */
 function scopeName(scope: ChromeImportScope): string {
-  return t(chromeImportScopeLabelKey(scope) as Parameters<typeof t>[0])
+  return t(chromeImportScopeLabelKey(scope))
 }
 
 /** 结果原因码 → 短句（闭集映射，随界面语言；未知码回退通用句） */

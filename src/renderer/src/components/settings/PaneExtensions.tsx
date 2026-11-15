@@ -63,9 +63,9 @@ export function PaneExtensions(): React.JSX.Element {
     return window.api.extensions.onChanged(() => refresh())
   }, [refresh])
 
-  const setNotice = (tone: 'default' | 'danger', text: string): void => {
+  const setNotice = useCallback((tone: 'default' | 'danger', text: string): void => {
     setState((s) => ({ ...s, notice: { tone, text }, installing: false }))
-  }
+  }, [])
 
   // 拖拽 CRX 导入（2026-11-13）：dragover 放行 + drop 取 File 落盘路径走既有安装事务
   const [dropActive, setDropActive] = useState(false)
@@ -119,7 +119,7 @@ export function PaneExtensions(): React.JSX.Element {
         t('settings.extensions.installFailed') + (r.error ? `（${r.error}）` : '')
       )
     }
-  }, [state.storeId, refresh, t])
+  }, [state.storeId, refresh, setNotice, t])
 
   const importCrx = useCallback(async (): Promise<void> => {
     setState((s) => ({ ...s, installing: true, notice: null }))
@@ -138,7 +138,7 @@ export function PaneExtensions(): React.JSX.Element {
     } else {
       setState((s) => ({ ...s, installing: false }))
     }
-  }, [refresh, t])
+  }, [refresh, setNotice, t])
 
   const uninstall = useCallback(
     async (id: string): Promise<void> => {
@@ -153,7 +153,7 @@ export function PaneExtensions(): React.JSX.Element {
         )
       }
     },
-    [refresh, t]
+    [refresh, setNotice, t]
   )
 
   return (

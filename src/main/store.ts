@@ -17,6 +17,9 @@ import type {
 import { cloneTabs, WORKSPACE_VIEW_ALL, WORKSPACE_VIEW_UNGROUPED } from '../shared/sessions'
 import { normalizeProxyConfig, type SessionProxyConfig } from '../shared/sessions'
 import { atomicWriteJson } from './fs-utils'
+import { summarize } from './ipc-utils'
+
+export { summarize } from './ipc-utils'
 
 /** 当前落盘 schema 版本（v3 增 tabs/activeTabIndex；v4 增工作区三件；v5 增会话 proxy）；读到不认识的版本一律按坏数据回退，v1—v4 读取时迁移 */
 const SNAPSHOT_VERSION = 5
@@ -116,18 +119,6 @@ function restoreTabs(
     }
   }
   return { tabs, activeTabIndex }
-}
-
-/** 坏数据内容摘要（截断，避免控制台刷屏）；sessions.ts 的 handler 失败日志也复用 */
-export function summarize(data: unknown): string {
-  let text: string
-  try {
-    text = JSON.stringify(data) ?? String(data)
-  } catch {
-    text = String(data)
-  }
-  const MAX = 200
-  return text.length > MAX ? `${text.slice(0, MAX)}...(截断，总长 ${text.length})` : text
 }
 
 /**

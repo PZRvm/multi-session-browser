@@ -55,7 +55,7 @@ type ProxyCheckState =
 /** 导入内容类型显示名（键名经 shared 单源映射 chromeImportScopeLabelKey，与主进程
  *  结果框同源——审查 20261028170000 低-4） */
 function scopeLabel(t: ReturnType<typeof useT>, scope: ChromeImportScope): string {
-  return t(chromeImportScopeLabelKey(scope) as Parameters<ReturnType<typeof useT>>[0])
+  return t(chromeImportScopeLabelKey(scope))
 }
 
 export default function WorkspacePickerWindow(): React.JSX.Element {

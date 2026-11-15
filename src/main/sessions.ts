@@ -42,7 +42,8 @@ import {
 } from '../shared/sessions'
 import { dialogIconForDarwin } from './dialogs'
 import { t } from './i18n'
-import { loadSnapshot, mutateSnapshot, summarize } from './store'
+import { loadSnapshot, mutateSnapshot } from './store'
+import { createIpcGuards, logFailureAsync } from './ipc-utils'
 
 /**
  * 编排依赖（冻结签名，见开发计划第 3 节契约点 3/4），由 index.ts 注入：
@@ -85,10 +86,8 @@ let seq = 0
 /** IPC 入口字段长度上限（超出直接截断，不报错，防止 MB 级字符串写穿落盘）；pageTitle/note 上限取 shared 单源 */
 const NAME_MAX = 50
 
-/** 守卫失败统一抛出的业务错误（文案经字典 errors 命名空间，报错语言 = 取词时语言） */
-function invalidParams(): Error {
-  return new Error(t('errors.invalidSessionParams'))
-}
+// 按调用时语言构造错误，保持切换语言后的校验文案与当前界面一致。
+const { invalidParams, optionalString } = createIpcGuards(() => t('errors.invalidSessionParams'))
 
 /**
  * 从 IPC payload 中解析 ids：必须为非空数组且逐项 string，否则判为非法入参。
@@ -117,13 +116,6 @@ function assertSessionIdFormat(ids: string[]): void {
   if (!ids.every((id) => SESSION_ID_RE.test(id))) {
     throw new Error(t('errors.sessionIdTampered'))
   }
-}
-
-/** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */
-function optionalString(value: unknown): string | undefined {
-  if (value === undefined) return undefined
-  if (typeof value !== 'string') throw invalidParams()
-  return value
 }
 
 /** 超长截断（按 UTF-16 码元切，中文文案不受影响） */
@@ -203,13 +195,9 @@ function clearDanglingMemory(snapshot: SessionsSnapshot, removedIds: Set<string>
   }
 }
 
-/** handler 统一包裹：失败路径主进程留 warn 日志（通道名 + payload 摘要）后原样 rethrow */
+/** 会话域只绑定日志标签；异步失败处理与摘要复用 IPC 单源。 */
 function logFailure<T>(channel: string, payload: unknown, run: () => Promise<T>): Promise<T> {
-  return run().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err)
-    console.warn(`[sessions] ${channel} 失败: ${message} payload=${summarize(payload)}`)
-    throw err
-  })
+  return logFailureAsync(channel, payload, run, 'sessions')
 }
 
 export function registerSessionIpc(deps: SessionIpcDeps): void {

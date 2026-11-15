@@ -57,7 +57,13 @@ export type ChromeImportScope = (typeof CHROME_IMPORT_SCOPES)[number]
 
 /** scope → 展示文案字典键的单源映射（主进程结果框与 sheet 页面各自用本侧 t() 取词，
  *  新增 scope 只改这里 + 字典——审查 20261028170000 低-4） */
-export function chromeImportScopeLabelKey(scope: ChromeImportScope): string {
+export function chromeImportScopeLabelKey(
+  scope: ChromeImportScope
+):
+  | 'chromeImport.dialog.scopeHistory'
+  | 'chromeImport.dialog.scopeLocalStorage'
+  | 'chromeImport.dialog.scopeCookies'
+  | 'chromeImport.dialog.scopeIndexedDB' {
   switch (scope) {
     case 'history':
       return 'chromeImport.dialog.scopeHistory'

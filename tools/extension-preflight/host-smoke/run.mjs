@@ -6,10 +6,19 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '../../..')
 const electron = join(root, 'node_modules/.bin/electron')
-const samples = process.argv[2] || join(root, '../feature-chrome-extension-preflight/tools/extension-preflight/out/.artifacts/samples')
+const samples =
+  process.argv[2] ||
+  join(
+    root,
+    '../feature-chrome-extension-preflight/tools/extension-preflight/out/.artifacts/samples'
+  )
 const build = (await import('esbuild')).build
 await build({
-  stdin: { contents: "import {injectBrowserAction} from 'electron-chrome-extensions/browser-action';injectBrowserAction()", resolveDir: root },
+  stdin: {
+    contents:
+      "import {injectBrowserAction} from 'electron-chrome-extensions/browser-action';injectBrowserAction()",
+    resolveDir: root
+  },
   bundle: true,
   platform: 'node',
   format: 'cjs',
@@ -33,9 +42,16 @@ await build({
   outfile: join(here, 'out', 'bridge-preload.cjs')
 })
 await rm('/tmp/host-smoke-userdata', { recursive: true, force: true })
-const child = spawn(electron, [here], { env: { ...process.env, HOST_SMOKE_SAMPLES: samples }, stdio: ['ignore', 'pipe', 'pipe'] })
-child.stdout.on('data', (d) => { process.stdout.write(d) })
-child.stderr.on('data', (d) => { process.stderr.write(d) })
+const child = spawn(electron, [here], {
+  env: { ...process.env, HOST_SMOKE_SAMPLES: samples },
+  stdio: ['ignore', 'pipe', 'pipe']
+})
+child.stdout.on('data', (d) => {
+  process.stdout.write(d)
+})
+child.stderr.on('data', (d) => {
+  process.stderr.write(d)
+})
 child.on('exit', async (code) => {
   console.log('ELECTRON_EXIT=' + code)
   try {
