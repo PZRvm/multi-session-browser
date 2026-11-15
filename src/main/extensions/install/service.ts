@@ -14,7 +14,7 @@ export interface InstallServiceDeps {
   manifest: ManifestStore
   packagesRoot: string
   /** 运行时移除回调（宿主在挂载会话中 removeExtension；可省略＝仅清单操作） */
-  onRemove?: (id: string) => Promise<void>
+  onRemove?: (id: string, record: InstallRecord) => Promise<void>
 }
 
 export interface InstallOutcome {
@@ -58,9 +58,25 @@ export function createInstallService(deps: InstallServiceDeps): InstallService {
     uninstall: async (id) => {
       const record = await deps.manifest.get(id)
       if (!record) return false
+      const previousPins = (await deps.manifest.read()).pins
       const removed = await deps.manifest.removeInstall(id)
       if (!removed) return false
-      await deps.onRemove?.(id)
+      try {
+        await deps.onRemove?.(id, record)
+      } catch (error) {
+        await deps.manifest.update((current) => {
+          if (current.installs.some((item) => item.id === id)) return current
+          const pins = current.pins ? [...current.pins] : []
+          const index = previousPins?.indexOf(id) ?? -1
+          if (index >= 0 && !pins.includes(id)) pins.splice(Math.min(index, pins.length), 0, id)
+          return {
+            ...current,
+            installs: [...current.installs, record],
+            ...(index >= 0 ? { pins } : {})
+          }
+        })
+        throw error
+      }
       await removeDir(join(root, `${id}-${record.version}`))
       // 分区副本目录（路径即身份的每分区加载副本）一并清理
       await removeDir(join(root, `${id}.partitions`))

@@ -13,6 +13,9 @@ import { dialogIconForDarwin } from '../dialogs'
 import { createInstallService } from './install/service'
 import { createStoreInstall } from './install/store'
 import { extensionsPaths, getExtensionsHandle, mountDevExtensions } from './dev-entry'
+import { extensionIdFromPath } from './install/crx'
+import { partitionExtensionId } from './install/partition-copy'
+import { isExtensionSessionRetired } from './runtime/lifecycle'
 import {
   EXTENSIONS_CHANNELS,
   type ExtensionListResult,
@@ -26,6 +29,8 @@ import { isValidExtensionId } from './install/manifest-store'
 
 export interface ManagementDeps {
   getMainWindow: () => BrowserWindow | null
+  forgetUnloadedExtensionProxies?: (ids: readonly string[]) => Promise<void>
+  removeExtensionProxy?: (session: Session, id: string) => Promise<void>
   /** 插件运行时权限请求（Cookie-Editor 等对站点 host 权限的授予确认） */
   approveRuntimePermissions: (
     extension: { id: string; name?: string },
@@ -131,18 +136,29 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
   const install = createInstallService({
     manifest,
     packagesRoot: paths.packagesRoot,
-    onRemove: async (id) => {
-      for (const { partition, session } of mountedSessions()) {
+    onRemove: async (id, record) => {
+      for (const [partition, session] of new Map([...handle.mounted, ...handle.suspended])) {
         try {
           // 分区副本加载 ID 与安装 ID 不同，按分区重映射后移除
-          const loadedId = await handle.runtime.resolveLoadedId(partition, id)
+          const loadedId =
+            record.source.kind === 'unpacked'
+              ? extensionIdFromPath(record.source.origin ?? '')
+              : partitionExtensionId(paths.packagesRoot, id, partition)
+          if (loadedId) await deps.removeExtensionProxy?.(session, loadedId)
           if (loadedId && session.extensions.getExtension(loadedId)) {
             await session.extensions.removeExtension(loadedId)
           }
-        } catch {
-          /* 未挂载该插件的分区幂等跳过 */
+        } catch (error) {
+          if (!isExtensionSessionRetired(session)) throw error
         }
       }
+      await deps.forgetUnloadedExtensionProxies?.(
+        record.source.kind === 'unpacked'
+          ? [extensionIdFromPath(record.source.origin ?? '')]
+          : record.partitions.map((entry) =>
+              partitionExtensionId(paths.packagesRoot, id, entry.partition)
+            )
+      )
     }
   })
   const store = createStoreInstall({

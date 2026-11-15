@@ -94,7 +94,7 @@ export function useExtPinReorder(
       setReorderId(id)
       setDragOffsetX(0)
     },
-    [applyPreview]
+    [applyPreview, setDragOffsetX]
   )
 
   const move = useCallback(
@@ -179,7 +179,7 @@ export function useExtPinReorder(
       resetAll()
       return false
     }
-  }, [applyPreview, baseIds])
+  }, [applyPreview, baseIds, setDragOffsetX])
 
   const cancel = useCallback((): void => {
     if (settleTimerRef.current !== null) {
@@ -189,7 +189,7 @@ export function useExtPinReorder(
     setReorderId(null)
     setDragOffsetX(0)
     applyPreview(null)
-  }, [applyPreview])
+  }, [applyPreview, setDragOffsetX])
 
   // 卸载清理（审查清单 20261113124504 低项）：settle 定时器悬挂会在卸载后触发
   // setSettling（React 18 起 no-op 无害但定时器悬挂），卸载时清除

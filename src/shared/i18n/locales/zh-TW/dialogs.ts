@@ -19,6 +19,10 @@ export const dialogs: Dictionary['dialogs'] = {
     requestAllow: '允許'
   },
   extensions: {
+    deleteBlockedMessage:
+      '目前無法刪除會話。請結束錄製後重試；若仍失敗，請完整退出並重新開啟應用。',
+    cleanupTitle: '會話清理未完成',
+    cleanupMessage: '會話已從清單移除，但部分資料未能清理。請完整退出應用後檢查資料目錄。',
     restartRequiredTitle: '擴充功能初始化失敗',
     restartRequiredMessage: '此工作階段的擴充功能需要重新啟動應用程式後恢復',
     restartRequiredDetail: '請完成目前操作後，完整退出並重新開啟應用程式。網頁瀏覽仍可繼續。'

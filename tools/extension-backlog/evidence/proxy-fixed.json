@@ -1,0 +1,226 @@
+{
+  "baseline": "216a444848c9f2fd990c9e824fd975cbe9295134",
+  "platform": "darwin",
+  "versions": {
+    "node": "24.22.2",
+    "acorn": "8.18.0",
+    "ada": "4.0.0",
+    "amaro": "1.1.11",
+    "ares": "1.34.9",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.3",
+    "merve": "1.2.2",
+    "modules": "150",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.70.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.11",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.4",
+    "tz": "2026e",
+    "undici": "7.30.1",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.6.75.50-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "45.3.0",
+    "chrome": "156.0.8078.96"
+  },
+  "checks": [
+    {
+      "name": "SwitchyOmega真实加载与代理控制",
+      "state": {
+        "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html#!/about",
+        "title": "SwitchyOmega Options",
+        "body": "SwitchyOmega\nSETTINGS\n Interface\n General\n Import/Export\nPROFILES\n proxy\n auto switch\n New profile…\nACTIONS\n Apply changes\n Discard changes\nAbout\n\t\nSwitchyOmega\n\nA proxy configuration tool\n\n Report issues  Save error log  Reset options\n\nVersion 2.5.20\n\n SwitchyOmega does not provide proxies, VPNs, o",
+        "proxy": "object",
+        "settings": "object",
+        "set": "function",
+        "runtime": "dmcahpboooflkdioiaeiidjlhlinkcph",
+        "manifest": "2.5.20"
+      },
+      "before": "DIRECT",
+      "attempted": {
+        "ok": true
+      },
+      "afterExtension": "PROXY 127.0.0.1:63820",
+      "actualAfterExtension": {
+        "via": "proxy",
+        "url": "http://msb-fixture.test:63819/probe"
+      },
+      "controlResolved": "PROXY 127.0.0.1:63820",
+      "actualControl": {
+        "via": "proxy",
+        "url": "http://msb-fixture.test:63819/probe?native-control"
+      },
+      "bResolved": "DIRECT",
+      "needsWork": false
+    }
+  ],
+  "dialogs": [],
+  "errors": [
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/background.html",
+      "message": "Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist."
+    },
+    {
+      "url": "chrome-extension://gjbmpbbdmnjkgolcbgpggbjhoplianhe/background.html",
+      "message": "Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://gjbmpbbdmnjkgolcbgpggbjhoplianhe/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://gjbmpbbdmnjkgolcbgpggbjhoplianhe/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://ildcapekmalmpnlconjnopfbhmgogflm/index.html",
+      "message": "injectExtensionAPIs error (chrome-extension://ildcapekmalmpnlconjnopfbhmgogflm/index.html)"
+    },
+    {
+      "url": "chrome-extension://ildcapekmalmpnlconjnopfbhmgogflm/index.html",
+      "message": "Error: TypeError: Cannot read properties of undefined (reading 'managed')"
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/background.html",
+      "message": "Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html",
+      "message": "Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' blob: filesystem:'. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked."
+    },
+    {
+      "url": "about:blank",
+      "message": "Uncaught SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document."
+    }
+  ],
+  "sample": {
+    "id": "padekgcemlokbadohgkifijomclgjgif",
+    "version": "2.5.20",
+    "sha256": "0b7b185ef8bd0dc45287d8bbc487e33a759f8e9a4556bdf072945185c50b0c1b"
+  },
+  "proxyMatrix": [
+    "手动优先与清除后恢复插件",
+    "callback错误语义与scope拒绝",
+    "onChange有效且同值不重复广播",
+    "browser命名空间与无权限扩展拒绝",
+    "HTTPS隧道与SOCKS4/5真实请求",
+    "mandatory内联PAC和URL PAC真实路由",
+    "mandatory坏脚本拒绝并保留原路线",
+    "mandatory按URL抛错时取消请求不直连",
+    "代理认证失败不伪造成功路由",
+    "SwitchyOmega原版后台配置与选择主流程",
+    "临时关闭后重新激活保持插件可用",
+    "清除插件控制与持久化准备"
+  ],
+  "authFailure": {
+    "status": 407,
+    "hits": 1,
+    "body": "Auth required"
+  },
+  "backgrounds": [
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/options.html#!/about",
+      "snapshot": {
+        "bridge": "object",
+        "set": "(details,callback) => invokeProxy(operation,details,callback)",
+        "storage": [
+          "log",
+          "omega.local.firstRun",
+          "omega.local.validResultProfiles",
+          "omega.local.currentProfileCanAddRule",
+          "omega.local.proxyImplFeatures",
+          "omega.local.showExternalProfile",
+          "omega.local.web.switchGuide",
+          "omega.local.refreshOnProfileChange",
+          "omega.local.isSystemProfile",
+          "omega.local.web.last_url"
+        ]
+      }
+    },
+    {
+      "url": "chrome-extension://dmcahpboooflkdioiaeiidjlhlinkcph/background.html",
+      "snapshot": {
+        "bridge": "undefined",
+        "set": "(details,callback) => invokeProxy(operation,details,callback)",
+        "storage": [
+          "log",
+          "omega.local.firstRun",
+          "omega.local.validResultProfiles",
+          "omega.local.currentProfileCanAddRule",
+          "omega.local.proxyImplFeatures",
+          "omega.local.showExternalProfile",
+          "omega.local.web.switchGuide",
+          "omega.local.refreshOnProfileChange",
+          "omega.local.isSystemProfile",
+          "omega.local.web.last_url"
+        ]
+      }
+    }
+  ],
+  "optionKeys": [
+    "+auto switch",
+    "+proxy",
+    "-addConditionsToBottom",
+    "-confirmDeletion",
+    "-downloadInterval",
+    "-enableQuickSwitch",
+    "-quickSwitchProfiles",
+    "-refreshOnProfileChange",
+    "-revertProxyChanges",
+    "-showExternalProfile",
+    "-showInspectMenu",
+    "-startupProfileName",
+    "schemaVersion",
+    "-monitorWebRequests"
+  ],
+  "restart": {
+    "id": "sess-mwi47iki-1",
+    "partition": "persist:sess-sess-mwi47iki-1",
+    "extension": "dmcahpboooflkdioiaeiidjlhlinkcph",
+    "originPort": 63819,
+    "proxyPort": 63820,
+    "config": {
+      "mode": "fixed_servers",
+      "rules": {
+        "singleProxy": {
+          "scheme": "http",
+          "host": "127.0.0.1",
+          "port": 63820
+        }
+      }
+    },
+    "target": "http://msb-fixture.test:63819/probe"
+  },
+  "focusedWindows": 0
+}

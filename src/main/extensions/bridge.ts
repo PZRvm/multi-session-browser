@@ -181,3 +181,14 @@ export function registerBridgeTarget(
     }
   }
 }
+
+/** 永久删除时撤销该分区所有目标，不将来源残留视为有效能力。 */
+export function releaseSessionBridgeTargets(session: Session): void {
+  for (const [token, entry] of targets) {
+    if (entry.session !== session) continue
+    entry.alive = false
+    if (!entry.wc.isDestroyed()) entry.wc.off('did-navigate', entry.onNavigated)
+    entry.staged.clear()
+    targets.delete(token)
+  }
+}

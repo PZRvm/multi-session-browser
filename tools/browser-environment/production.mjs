@@ -209,6 +209,7 @@ export async function run({ registry, mainWindow, getExtensionsHandle, extractCr
     // 重启会复用持久 SW 的脚本缓存；显式检查更新以触发真实网络请求，不清存储。
     await a.executeJavaScript('navigator.serviceWorker.getRegistration().then(reg => reg.update())')
     for (const path of ['/', '/fetch', '/favicon.ico', '/worker.js', '/sw.js']) {
+      await wait(() => requests.some((r) => r.path === path), '等待真实请求 ' + path)
       const rows = requests.filter((r) => r.path === path)
       assert(rows.length, path)
       for (const row of rows) assert.equal(row.ua, app.userAgentFallback, path)
@@ -430,6 +431,26 @@ export async function run({ registry, mainWindow, getExtensionsHandle, extractCr
           ),
         '录屏未进入recording'
       )
+      const deleting = registry.getActiveSessionId()
+      const nativeDialog = require('electron').dialog
+      const originalDialog = nativeDialog.showMessageBox
+      let blockedDialog = false
+      nativeDialog.showMessageBox = async () => {
+        blockedDialog = true
+        return { response: 0 }
+      }
+      try {
+        await assert.rejects(
+          shell.executeJavaScript(`window.api.sessions.delete({id:${JSON.stringify(deleting)}})`),
+          /EXTENSION_CAPTURE_BUSY/
+        )
+        const retained = await shell.executeJavaScript('window.api.sessions.list()')
+        assert(retained.sessions.some((item) => item.id === deleting))
+        assert(blockedDialog)
+        checks.push({ name: '录制中拒绝永久删除且保留元数据', ok: true })
+      } finally {
+        nativeDialog.showMessageBox = originalDialog
+      }
       await delay(1800)
       await win.webContents.executeJavaScript("document.getElementById('pause').click()")
       await wait(

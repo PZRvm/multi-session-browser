@@ -7,6 +7,13 @@
  * Tab 表面回调由装配方注入（index.ts 守卫装配 / E 线 M3 全量接线）。
  */
 import type { BaseWindow, Session, WebContents } from 'electron'
+import { rm } from 'node:fs/promises'
+import {
+  assertExtensionSessionLive,
+  retireExtensionSession,
+  suspendExtensionSession,
+  resumeExtensionSession
+} from './lifecycle'
 import { ElectronChromeExtensions } from 'electron-chrome-extensions'
 import { extensionIdFromPath } from '../install/crx'
 import { classifyInstall, type InstallState, type ManifestStore } from '../install/manifest-store'
@@ -17,7 +24,8 @@ import {
 } from '../install/partition-copy'
 import { loadInstallsIntoSession, type ExtensionLoadResult, type LoaderSession } from './loader'
 import { installGuardedPreload, prepareGuardedPreload } from './preload-guard'
-import { registerSessionShimIpc } from '../shims'
+import { registerSessionShimIpc, disposeSessionShims } from '../shims'
+import { releaseSessionBridgeTargets } from '../bridge'
 
 export interface EngineOptions {
   createTab?: (details: unknown) => Promise<[WebContents, BaseWindow]>
@@ -32,6 +40,7 @@ export interface EngineOptions {
 }
 
 export interface RuntimeDeps {
+  createTabForSession?: (session: Session, details: unknown) => Promise<[WebContents, BaseWindow]>
   manifest: ManifestStore
   packagesRoot: string
   engineOptions?: EngineOptions
@@ -45,6 +54,9 @@ export interface MountResult {
 
 export interface ExtensionRuntime {
   mountPartition(partition: string, session: Session): Promise<MountResult>
+  suspendPartition(partition: string, session: Session): Promise<void>
+  resumePartition(partition: string, session: Session): void
+  terminatePartition(partition: string, session: Session): Promise<void>
   getEngine(partition: string): ElectronChromeExtensions | undefined
   /** 安装 ID → 本分区实际加载 ID（分区副本路径派生，确定性；无安装记录返回 undefined） */
   resolveLoadedId(partition: string, installId: string): Promise<string | undefined>
@@ -64,8 +76,33 @@ const constructionFailures = new WeakMap<Session, ExtensionRuntimeRestartRequire
 export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
   const engines = new Map<string, ElectronChromeExtensions>()
   const pending = new Map<string, Promise<MountResult>>()
+  const terminating = new Map<string, Promise<void>>()
   const wiredSessions = new WeakSet<Session>()
+  const retiredPartitions = new Set<string>()
+  const suspendedPartitions = new Set<string>()
+  const resolving = new Map<string, Set<Promise<unknown>>>()
+  const demandLive = (partition: string, session?: Session): void => {
+    if (retiredPartitions.has(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
+    if (suspendedPartitions.has(partition)) throw new Error('EXTENSION_SESSION_SUSPENDED')
+    if (session) assertExtensionSessionLive(session)
+  }
+  async function drain(partition: string): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.allSettled(
+          [pending.get(partition), ...(resolving.get(partition) ?? [])].filter(Boolean)
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('EXTENSION_DISPOSE_TIMEOUT')), 15000)
+        })
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
   async function mount(partition: string, session: Session): Promise<MountResult> {
+    demandLive(partition, session)
     let previousFailure = constructionFailures.get(session)
     if (previousFailure) throw previousFailure
     // 安装/构建补丁从源头取消库的裸注册；缺少补丁时在库构造前拒绝。
@@ -76,6 +113,7 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
     // 异步准备期间其他工厂也可能将同一 Session 标为失败。
     previousFailure = constructionFailures.get(session)
     if (previousFailure) throw previousFailure
+    demandLive(partition, session)
     const rollback = installGuardedPreload(session, guarded)
     if (!engines.has(partition)) {
       // 工厂误复用已初始化的 Session 是前置冲突，不应污染原有健康引擎。
@@ -84,7 +122,13 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         throw new Error('该会话的插件引擎已由其他运行时初始化')
       }
       try {
-        const options = { session, ...deps.engineOptions }
+        const options = {
+          session,
+          ...deps.engineOptions,
+          ...(deps.createTabForSession && !deps.engineOptions?.createTab
+            ? { createTab: (details: unknown) => deps.createTabForSession!(session, details) }
+            : {})
+        }
         engines.set(partition, new ElectronChromeExtensions(options))
       } catch (error) {
         const failure = new ExtensionRuntimeRestartRequiredError(error)
@@ -125,15 +169,23 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         }
       }
     }
+    demandLive(partition, session)
     const adapter: LoaderSession = {
       getAllExtensions: () => session.extensions.getAllExtensions(),
-      loadExtension: (path) => session.extensions.loadExtension(path)
+      loadExtension: async (path) => {
+        demandLive(partition, session)
+        const loaded = await session.extensions.loadExtension(path)
+        demandLive(partition, session)
+        return loaded
+      }
     }
     const installs = (await deps.manifest.read()).installs
     // 分区副本路径预解析（cp + manifest 去 key；标记一致复用），随记录挂期望 ID
     const pathsById = new Map<string, string>()
     const recopied = new Set<string>()
+    demandLive(partition, session)
     for (const record of installs) {
+      demandLive(partition, session)
       if (record.source.kind === 'unpacked') {
         pathsById.set(record.id, record.source.origin ?? '')
         continue
@@ -148,8 +200,12 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         record.source.kind === 'unpacked'
           ? extensionIdFromPath(record.source.origin ?? '')
           : partitionExtensionId(deps.packagesRoot, record.id, partition),
-      recordPartition: (id, p, ok) => deps.manifest.recordPartition(id, p, ok)
+      recordPartition: (id, p, ok) => {
+        demandLive(partition, session)
+        return deps.manifest.recordPartition(id, p, ok)
+      }
     })
+    demandLive(partition, session)
     // 自愈重载：换装发生在已加载实例之下时（历史缺陷标记缺失/升级），移除后重载新目录
     for (const result of results) {
       if (result.detail !== 'already-loaded' || !recopied.has(result.id)) continue
@@ -177,6 +233,7 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         }
       }
     }
+    demandLive(partition, session)
     const records = (await deps.manifest.read()).installs
     const thisPartition = records
       .map((r) => r.partitions.find((p) => p.partition === partition))
@@ -185,7 +242,76 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
     return { partition, results, state }
   }
   return {
+    async suspendPartition(partition, session) {
+      suspendedPartitions.add(partition)
+      suspendExtensionSession(session)
+      await drain(partition)
+      disposeSessionShims(session)
+      wiredSessions.delete(session)
+      for (const extension of session.extensions.getAllExtensions()) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            session.extensions.off('extension-unloaded', unloaded)
+            reject(new Error('EXTENSION_SUSPEND_TIMEOUT'))
+          }, 10000)
+          const unloaded = (_event: unknown, removed: Electron.Extension): void => {
+            if (removed.id !== extension.id) return
+            clearTimeout(timer)
+            session.extensions.off('extension-unloaded', unloaded)
+            resolve()
+          }
+          session.extensions.on('extension-unloaded', unloaded)
+          try {
+            session.extensions.removeExtension(extension.id)
+          } catch (error) {
+            clearTimeout(timer)
+            session.extensions.off('extension-unloaded', unloaded)
+            reject(error)
+          }
+        })
+      }
+    },
+    resumePartition(partition, session) {
+      if (retiredPartitions.has(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
+      resumeExtensionSession(session)
+      suspendedPartitions.delete(partition)
+    },
+    terminatePartition(partition, session) {
+      const previous = terminating.get(partition)
+      if (previous) return previous
+      const task = (async () => {
+        retiredPartitions.add(partition)
+        retireExtensionSession(session)
+        await drain(partition)
+        disposeSessionShims(session)
+        releaseSessionBridgeTargets(session)
+        for (const extension of session.extensions.getAllExtensions()) {
+          await session.extensions.removeExtension(extension.id)
+        }
+        for (const script of session.getPreloadScripts()) {
+          if (script.id === 'crx-mv2-preload' || script.id === 'crx-mv3-preload')
+            session.unregisterPreloadScript(script.id)
+        }
+        engines.delete(partition)
+        wiredSessions.delete(session)
+        for (const record of (await deps.manifest.read()).installs) {
+          await rm(partitionExtensionDir(deps.packagesRoot, record.id, partition), {
+            recursive: true,
+            force: true
+          })
+        }
+        await deps.manifest.dropPartition(partition)
+      })()
+      terminating.set(partition, task)
+      void task.finally(() => terminating.delete(partition)).catch(() => undefined)
+      return task
+    },
     mountPartition(partition, session) {
+      try {
+        demandLive(partition, session)
+      } catch (error) {
+        return Promise.reject(error)
+      }
       const previous = pending.get(partition) ?? Promise.resolve()
       const task = previous.catch(() => undefined).then(() => mount(partition, session))
       pending.set(partition, task)
@@ -196,14 +322,35 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         .catch(() => undefined)
       return task
     },
-    getEngine: (partition) => engines.get(partition),
-    resolveLoadedId: async (partition, installId) => {
-      const record = await deps.manifest.get(installId)
-      if (!record) return undefined
-      // unpacked 的实际加载 ID 同为路径哈希（manifest 无 key 时），与 crx/store 同构推导
-      if (record.source.kind === 'unpacked') return extensionIdFromPath(record.source.origin ?? '')
-      await ensurePartitionExtensionCopy(record, deps.packagesRoot, partition)
-      return partitionExtensionId(deps.packagesRoot, installId, partition)
+    getEngine: (partition) =>
+      retiredPartitions.has(partition) ? undefined : engines.get(partition),
+    resolveLoadedId: (partition, installId) => {
+      try {
+        demandLive(partition)
+      } catch (error) {
+        return Promise.reject(error)
+      }
+      const task = (async () => {
+        const record = await deps.manifest.get(installId)
+        demandLive(partition)
+        if (!record) return undefined
+        // unpacked 的实际加载 ID 同为路径哈希（manifest 无 key 时），与 crx/store 同构推导
+        if (record.source.kind === 'unpacked')
+          return extensionIdFromPath(record.source.origin ?? '')
+        await ensurePartitionExtensionCopy(record, deps.packagesRoot, partition)
+        demandLive(partition)
+        return partitionExtensionId(deps.packagesRoot, installId, partition)
+      })()
+      const tasks = resolving.get(partition) ?? new Set<Promise<unknown>>()
+      resolving.set(partition, tasks)
+      tasks.add(task)
+      void task
+        .finally(() => {
+          tasks.delete(task)
+          if (!tasks.size) resolving.delete(partition)
+        })
+        .catch(() => undefined)
+      return task
     }
   }
 }

@@ -1,10 +1,12 @@
 // 主进程 IPC 入参运行时守卫与失败日志的公共收口：shared 中的 payload 类型只是
 // 编译期约定，跨 IPC 边界不可信任，所有 handler 入参先过这里的守卫再进业务。
-// sessions.ts 仍持有一份旧实现——该文件属阶段 1 冻结契约，待后续阶段统一迁移。
+// browser 与 sessions 共用；各域注入自己的错误文案与日志标签。
+
+import { isRecord } from '../shared/guards'
 
 export interface IpcGuards {
   /** 守卫失败统一抛出的业务错误（消息按域注入；阶段六起消息由调用点构造期经主进程
-   * t() 取词——errors 命名空间，报错语言 = 工厂装配时语言） */
+   * t() 取词——字符串在装配时固定语言，回调在校验时读取当前语言） */
   invalidParams(): Error
   isRecord(value: unknown): value is Record<string, unknown>
   /** 读取可选 string 字段：缺省返回 undefined，存在但非 string 判为非法入参 */
@@ -18,10 +20,8 @@ export interface IpcGuards {
   parseRect(payload: unknown): { x: number; y: number; width: number; height: number }
 }
 
-export function createIpcGuards(message: string): IpcGuards {
-  const invalidParams = (): Error => new Error(message)
-  const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value)
+export function createIpcGuards(message: string | (() => string)): IpcGuards {
+  const invalidParams = (): Error => new Error(typeof message === 'function' ? message() : message)
   const optionalString = (value: unknown): string | undefined => {
     if (value === undefined) return undefined
     if (typeof value !== 'string') throw invalidParams()

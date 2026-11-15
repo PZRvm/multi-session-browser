@@ -13,8 +13,8 @@ process.on('unhandledRejection', (e) => console.log('TEARDOWN_REJ', String(e).sl
 app.setPath('userData', '/tmp/host-smoke-userdata')
 app.whenReady().then(() => {
   setTimeout(() => {
-    const list = require('electron').webContents
-      .getAllWebContents()
+    const list = require('electron')
+      .webContents.getAllWebContents()
       .map((w) => w.getURL().slice(0, 70))
       .filter((u) => u.includes('chrome-extension'))
     console.log('WC_EXT_LIST ' + JSON.stringify(list))
@@ -140,162 +140,286 @@ app.whenReady().then(async () => {
           true
         )
         .catch(() => 'EXEC')
-    console.log(
-      '[known-issue] MV2 popup Loading（见 issue）:',
-      String(libText).slice(0, 20),
-      String(libPort)
-    )
+      console.log(
+        '[known-issue] MV2 popup Loading（见 issue）:',
+        String(libText).slice(0, 20),
+        String(libPort)
+      )
       // MV3 实测：uBO Lite（广告拦截，service worker 架构）装→挂→popup 渲染探针
       // Cookie-Editor（MV2）生产路径实测：真实渲染 + cookie 读路径 CRUD
-    console.log('P17 cookie-prod')
-    let cookieResult = 'SKIPPED'
-    try {
-      // 测试页同源写一个 msb_fixture cookie（与前置同款虚构值），供 popup 列表断言
-      const cookieDetail = { url: site.url, name: 'msb_fixture', value: 'prod-path', path: '/' }
-      await ses1.cookies.set(cookieDetail)
-      // popup 的 activeTab 查询依赖引擎注册的 tab：注册壳 tab（幂等）并指向测试页
-      hostTab.owner.show()
-      await hostTab.wc.loadURL(site.url + '/?session=cookie-probe').catch(() => {})
-      hostTab.owner.focus()
-      bundle.attachShellTab(handle, partition1, hostTab.wc)
-      bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
-      const cookieMeta = meta('cookie')
-      const cookieDir = join(outDir, 'packages', cookieMeta.id + '-' + '1.13.0')
-      const cookieManifest = JSON.parse(await readFile(join(cookieDir, 'manifest.json'), 'utf8'))
-      const cookiePopup = cookieManifest.browser_action?.default_popup || cookieManifest.action?.default_popup
-      const cw = new BrowserWindow({
-        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
-        backgroundColor: '#ffffff', roundedCorners: false,
-        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
-      })
-      await cw.loadURL('chrome-extension://' + cookieMeta.id + '/' + String(cookiePopup).replace(/^\//, '')).catch(() => {})
-      await delay(2500)
-      // Cookie-Editor 需要先授予 cookie 权限（前置同款：点 request-permission 后列表才读）
-      await cw.webContents.executeJavaScript("document.getElementById('request-permission')?.click()", true).catch(() => {})
-      await delay(3000)
-      const tabProbe = await cw.webContents.executeJavaScript(
-        'new Promise((res) => chrome.tabs.query({ active: true, currentWindow: true }, (ts) => res(JSON.stringify(ts.map((t) => ({ id: t.id, url: t.url, title: (t.title || "").slice(0, 20) }))))))',
-        true
-      ).catch(() => 'EXEC')
-      console.log('TABS_QUERY', String(tabProbe).slice(0, 120))
-      const listHas = await cw.webContents.executeJavaScript(
-        '(() => { const el = [...document.querySelectorAll("li,div")].find((e) => e.textContent && e.textContent.includes("msb_fixture")); return el ? "LIST_HAS_COOKIE" : "NO_COOKIE_ROW" })()',
-        true
-      ).catch(() => 'EXEC')
-      const controls = await cw.webContents.executeJavaScript(
-        'String(document.querySelectorAll("input,button,textarea").length)',
-        true
-      ).catch(() => -1)
-      cookieResult = JSON.stringify({ listHas, controls })
-      check(
-        'Cookie-Editor 生产路径实测',
-        listHas === 'LIST_HAS_COOKIE' && Number(controls) > 3,
-        'listHas=' + String(listHas) + ' controls=' + controls
-      )
-      // Dark Reader popup 渲染回归（tab 事件流接线后应脱离 Loading 渲染控件）
-      console.log('P19 dark-recheck')
-      const darkDir = join(outDir, 'packages', meta('dark').id + '-4.9.135')
-      const darkManifest = JSON.parse(await readFile(join(darkDir, 'manifest.json'), 'utf8'))
-      const darkPopup = darkManifest.browser_action?.default_popup || darkManifest.action?.default_popup
-      bundle.attachShellTab(handle, partition1, hostTab.wc)
-      bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
-      const dw = new BrowserWindow({
-        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
-        backgroundColor: '#ffffff', roundedCorners: false,
-        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
-      })
-      await dw.loadURL('chrome-extension://' + meta('dark').id + '/' + String(darkPopup).replace(/^\//, '')).catch(() => {})
-      await delay(5000)
-      const darkText = await dw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 40)', true).catch(() => 'EXEC')
-      const darkControls = await dw.webContents.executeJavaScript('String(document.querySelectorAll("input,button,select").length)', true).catch(() => -1)
-      check('Dark Reader popup 渲染回归', !/Loading/i.test(String(darkText)) && Number(darkControls) > 2, 'text=' + String(darkText).slice(0, 30) + ' controls=' + darkControls)
-      dw.destroy()
-      cw.destroy()
-    } catch (e) {
-      check('Cookie-Editor 生产路径实测', false, 'ERR:' + String(e).slice(0, 60))
-    }
-    console.log('P17 done', cookieResult)
-    // 沉浸式翻译（MV3，真实 ID bpoadfkcbjbfhfodiogcnhhhpibjhbnh）生产路径实测
-    console.log('P18 immersive')
-    let immResult = 'SKIPPED'
-    try {
-      const immBuf = await readFile('/tmp/msb-crx-test/immersive-translate.crx')
-      const immService = bundle.createInstallService({ manifest, packagesRoot: join(outDir, 'packages'), onRemove: async () => {} })
-      const imm = await immService.installFromBuffer(immBuf)
-      await handle.runtime.mountPartition(partition1, ses1)
-      const immDir = join(outDir, 'packages', imm.record.id + '-' + imm.record.version)
-      const immManifest = JSON.parse(await readFile(join(immDir, 'manifest.json'), 'utf8'))
-      const immPopup = immManifest.action?.default_popup || immManifest.browser_action?.default_popup
-      const iw = new BrowserWindow({
-        show: false, frame: false, parent: hostTab.owner, movable: false, resizable: false, skipTaskbar: true,
-        backgroundColor: '#ffffff', roundedCorners: false,
-        webPreferences: { session: ses1, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
-      })
-      let immState = 'NO_POPUP'
-      if (immPopup) {
-        await iw.loadURL('chrome-extension://' + imm.record.id + '/' + String(immPopup).replace(/^\//, '')).catch(() => { immState = 'LOAD_ERR' })
-        await delay(6000)
-        const t = await iw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 70)', true).catch(() => 'EXEC')
-        const sw = await iw.webContents.executeJavaScript(
-          'new Promise((res) => { try { chrome.runtime.getContexts ? chrome.runtime.getContexts({ contextTypes: ["SERVICE_WORKER"] }).then((cs) => res("SW:" + cs.length)) : res("NO_API") } catch (e) { res("THROW") } })',
-          true
-        ).catch(() => 'EXEC')
-        immState = JSON.stringify({ text: t.slice(0, 60), sw })
+      console.log('P17 cookie-prod')
+      let cookieResult = 'SKIPPED'
+      try {
+        // 测试页同源写一个 msb_fixture cookie（与前置同款虚构值），供 popup 列表断言
+        const cookieDetail = { url: site.url, name: 'msb_fixture', value: 'prod-path', path: '/' }
+        await ses1.cookies.set(cookieDetail)
+        // popup 的 activeTab 查询依赖引擎注册的 tab：注册壳 tab（幂等）并指向测试页
+        hostTab.owner.show()
+        await hostTab.wc.loadURL(site.url + '/?session=cookie-probe').catch(() => {})
+        hostTab.owner.focus()
+        bundle.attachShellTab(handle, partition1, hostTab.wc)
+        bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
+        const cookieMeta = meta('cookie')
+        const cookieDir = join(outDir, 'packages', cookieMeta.id + '-' + '1.13.0')
+        const cookieManifest = JSON.parse(await readFile(join(cookieDir, 'manifest.json'), 'utf8'))
+        const cookiePopup =
+          cookieManifest.browser_action?.default_popup || cookieManifest.action?.default_popup
+        const cw = new BrowserWindow({
+          show: false,
+          frame: false,
+          parent: hostTab.owner,
+          movable: false,
+          resizable: false,
+          skipTaskbar: true,
+          backgroundColor: '#ffffff',
+          roundedCorners: false,
+          webPreferences: {
+            session: ses1,
+            sandbox: true,
+            nodeIntegration: false,
+            contextIsolation: true,
+            enablePreferredSizeMode: true
+          }
+        })
+        await cw
+          .loadURL(
+            'chrome-extension://' + cookieMeta.id + '/' + String(cookiePopup).replace(/^\//, '')
+          )
+          .catch(() => {})
+        await delay(2500)
+        // Cookie-Editor 需要先授予 cookie 权限（前置同款：点 request-permission 后列表才读）
+        await cw.webContents
+          .executeJavaScript("document.getElementById('request-permission')?.click()", true)
+          .catch(() => {})
+        await delay(3000)
+        const tabProbe = await cw.webContents
+          .executeJavaScript(
+            'new Promise((res) => chrome.tabs.query({ active: true, currentWindow: true }, (ts) => res(JSON.stringify(ts.map((t) => ({ id: t.id, url: t.url, title: (t.title || "").slice(0, 20) }))))))',
+            true
+          )
+          .catch(() => 'EXEC')
+        console.log('TABS_QUERY', String(tabProbe).slice(0, 120))
+        const listHas = await cw.webContents
+          .executeJavaScript(
+            '(() => { const el = [...document.querySelectorAll("li,div")].find((e) => e.textContent && e.textContent.includes("msb_fixture")); return el ? "LIST_HAS_COOKIE" : "NO_COOKIE_ROW" })()',
+            true
+          )
+          .catch(() => 'EXEC')
+        const controls = await cw.webContents
+          .executeJavaScript(
+            'String(document.querySelectorAll("input,button,textarea").length)',
+            true
+          )
+          .catch(() => -1)
+        cookieResult = JSON.stringify({ listHas, controls })
+        check(
+          'Cookie-Editor 生产路径实测',
+          listHas === 'LIST_HAS_COOKIE' && Number(controls) > 3,
+          'listHas=' + String(listHas) + ' controls=' + controls
+        )
+        // Dark Reader popup 渲染回归（tab 事件流接线后应脱离 Loading 渲染控件）
+        console.log('P19 dark-recheck')
+        const darkDir = join(outDir, 'packages', meta('dark').id + '-4.9.135')
+        const darkManifest = JSON.parse(await readFile(join(darkDir, 'manifest.json'), 'utf8'))
+        const darkPopup =
+          darkManifest.browser_action?.default_popup || darkManifest.action?.default_popup
+        bundle.attachShellTab(handle, partition1, hostTab.wc)
+        bundle.invalidateEngineTabUrl(partition1, hostTab.wc)
+        const dw = new BrowserWindow({
+          show: false,
+          frame: false,
+          parent: hostTab.owner,
+          movable: false,
+          resizable: false,
+          skipTaskbar: true,
+          backgroundColor: '#ffffff',
+          roundedCorners: false,
+          webPreferences: {
+            session: ses1,
+            sandbox: true,
+            nodeIntegration: false,
+            contextIsolation: true,
+            enablePreferredSizeMode: true
+          }
+        })
+        await dw
+          .loadURL(
+            'chrome-extension://' + meta('dark').id + '/' + String(darkPopup).replace(/^\//, '')
+          )
+          .catch(() => {})
+        await delay(5000)
+        const darkText = await dw.webContents
+          .executeJavaScript('(document.body.innerText || "").slice(0, 40)', true)
+          .catch(() => 'EXEC')
+        const darkControls = await dw.webContents
+          .executeJavaScript(
+            'String(document.querySelectorAll("input,button,select").length)',
+            true
+          )
+          .catch(() => -1)
+        check(
+          'Dark Reader popup 渲染回归',
+          !/Loading/i.test(String(darkText)) && Number(darkControls) > 2,
+          'text=' + String(darkText).slice(0, 30) + ' controls=' + darkControls
+        )
+        dw.destroy()
+        cw.destroy()
+      } catch (e) {
+        check('Cookie-Editor 生产路径实测', false, 'ERR:' + String(e).slice(0, 60))
       }
-      check('沉浸式翻译 MV3 实测', !/Loading|NO_POPUP|LOAD_ERR/.test(immState), 'imm:' + String(immState).slice(0, 90))
-      iw.destroy()
-    } catch (e) {
-      check('沉浸式翻译 MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
-    }
-    console.log('P18 done', immResult)
-    // 前置 attachSession 完整复刻（二分实验：会话构造层 vs 进程层）
-    console.log('P20 pf-replica')
-    let pfResult = 'SKIPPED'
-    try {
-      const sesP = session.fromPartition('persist:host-smoke-pf')
-      const pfOwner = new BrowserWindow({ show: false, webPreferences: { session: sesP, sandbox: true, contextIsolation: true, nodeIntegration: false } })
-      await pfOwner.loadFile(join(__dirname, 'shell.html'))
-      const compatibilityPreload = require.resolve('electron-chrome-extensions/preload')
-      const guardedPath = join(outDir, 'pf-guarded-preload.cjs')
-      await writeFile(guardedPath, 'if (process.type === "service-worker" || process.isMainFrame) {\n' + (await readFile(compatibilityPreload, 'utf8')) + '\n}')
-      const pfTab = { wc: null, owner: null }
-      const pfEngine = new ElectronChromeExtensions({
-        session: sesP,
-        createTab: async () => [pfTab.wc, pfOwner],
-        selectTab: (wc) => wc.focus(),
-        removeTab: (wc) => !wc.isDestroyed() && wc.close(),
-        requestPermissions: async () => true
-      })
-      for (const script of sesP.getPreloadScripts().filter((s2) => s2.filePath === compatibilityPreload)) {
-        sesP.unregisterPreloadScript(script.id)
-        sesP.registerPreloadScript({ id: script.id, type: script.type, filePath: guardedPath })
+      console.log('P17 done', cookieResult)
+      // 沉浸式翻译（MV3，真实 ID bpoadfkcbjbfhfodiogcnhhhpibjhbnh）生产路径实测
+      console.log('P18 immersive')
+      let immResult = 'SKIPPED'
+      try {
+        const immBuf = await readFile('/tmp/msb-crx-test/immersive-translate.crx')
+        const immService = bundle.createInstallService({
+          manifest,
+          packagesRoot: join(outDir, 'packages'),
+          onRemove: async () => {}
+        })
+        const imm = await immService.installFromBuffer(immBuf)
+        await handle.runtime.mountPartition(partition1, ses1)
+        const immDir = join(outDir, 'packages', imm.record.id + '-' + imm.record.version)
+        const immManifest = JSON.parse(await readFile(join(immDir, 'manifest.json'), 'utf8'))
+        const immPopup =
+          immManifest.action?.default_popup || immManifest.browser_action?.default_popup
+        const iw = new BrowserWindow({
+          show: false,
+          frame: false,
+          parent: hostTab.owner,
+          movable: false,
+          resizable: false,
+          skipTaskbar: true,
+          backgroundColor: '#ffffff',
+          roundedCorners: false,
+          webPreferences: {
+            session: ses1,
+            sandbox: true,
+            nodeIntegration: false,
+            contextIsolation: true,
+            enablePreferredSizeMode: true
+          }
+        })
+        let immState = 'NO_POPUP'
+        if (immPopup) {
+          await iw
+            .loadURL(
+              'chrome-extension://' + imm.record.id + '/' + String(immPopup).replace(/^\//, '')
+            )
+            .catch(() => {
+              immState = 'LOAD_ERR'
+            })
+          await delay(6000)
+          const t = await iw.webContents
+            .executeJavaScript('(document.body.innerText || "").slice(0, 70)', true)
+            .catch(() => 'EXEC')
+          const sw = await iw.webContents
+            .executeJavaScript(
+              'new Promise((res) => { try { chrome.runtime.getContexts ? chrome.runtime.getContexts({ contextTypes: ["SERVICE_WORKER"] }).then((cs) => res("SW:" + cs.length)) : res("NO_API") } catch (e) { res("THROW") } })',
+              true
+            )
+            .catch(() => 'EXEC')
+          immState = JSON.stringify({ text: t.slice(0, 60), sw })
+        }
+        check(
+          '沉浸式翻译 MV3 实测',
+          !/Loading|NO_POPUP|LOAD_ERR/.test(immState),
+          'imm:' + String(immState).slice(0, 90)
+        )
+        iw.destroy()
+      } catch (e) {
+        check('沉浸式翻译 MV3 实测', false, 'ERR:' + String(e).slice(0, 60))
       }
-      pfTab.owner = pfOwner
-      pfTab.wc = pfOwner.webContents
-      pfEngine.addTab(pfTab.wc, pfOwner)
-      pfEngine.selectTab(pfTab.wc)
-      const darkPath = join(outDir, 'packages', meta('dark').id + '-4.9.135')
-      const ext = await sesP.extensions.loadExtension(darkPath)
-      const pw = new BrowserWindow({
-        show: false, frame: false, parent: pfOwner, movable: false, resizable: false, skipTaskbar: true,
-        backgroundColor: '#ffffff', roundedCorners: false,
-        webPreferences: { session: sesP, sandbox: true, nodeIntegration: false, contextIsolation: true, enablePreferredSizeMode: true }
-      })
-      const dmani = JSON.parse(await readFile(join(darkPath, 'manifest.json'), 'utf8'))
-      const dpp = dmani.browser_action?.default_popup || dmani.action?.default_popup
-      await pw.loadURL('chrome-extension://' + ext.id + '/' + String(dpp).replace(/^\//, '')).catch(() => {})
-      await delay(5000)
-      const ptext = await pw.webContents.executeJavaScript('(document.body.innerText || "").slice(0, 40)', true).catch(() => 'EXEC')
-      const pport = await pw.webContents.executeJavaScript('new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })', true).catch(() => 'EXEC')
-      pfResult = 'text:' + String(ptext).slice(0, 25) + ' port:' + String(pport)
-      check('前置复刻路径对照', /MSG/.test(String(pport)) && !/Loading/i.test(String(ptext)), pfResult)
-      pw.destroy()
-      pfOwner.destroy()
-    } catch (e) {
-      check('前置复刻路径对照', false, 'ERR:' + String(e).slice(0, 60))
-    }
-    console.log('P20 done', pfResult)
-    console.log('P16 ubo-mv3')
+      console.log('P18 done', immResult)
+      // 前置 attachSession 完整复刻（二分实验：会话构造层 vs 进程层）
+      console.log('P20 pf-replica')
+      let pfResult = 'SKIPPED'
+      try {
+        const sesP = session.fromPartition('persist:host-smoke-pf')
+        const pfOwner = new BrowserWindow({
+          show: false,
+          webPreferences: {
+            session: sesP,
+            sandbox: true,
+            contextIsolation: true,
+            nodeIntegration: false
+          }
+        })
+        await pfOwner.loadFile(join(__dirname, 'shell.html'))
+        const compatibilityPreload = require.resolve('electron-chrome-extensions/preload')
+        const guardedPath = join(outDir, 'pf-guarded-preload.cjs')
+        await writeFile(
+          guardedPath,
+          'if (process.type === "service-worker" || process.isMainFrame) {\n' +
+            (await readFile(compatibilityPreload, 'utf8')) +
+            '\n}'
+        )
+        const pfTab = { wc: null, owner: null }
+        const pfEngine = new ElectronChromeExtensions({
+          session: sesP,
+          createTab: async () => [pfTab.wc, pfOwner],
+          selectTab: (wc) => wc.focus(),
+          removeTab: (wc) => !wc.isDestroyed() && wc.close(),
+          requestPermissions: async () => true
+        })
+        for (const script of sesP
+          .getPreloadScripts()
+          .filter((s2) => s2.filePath === compatibilityPreload)) {
+          sesP.unregisterPreloadScript(script.id)
+          sesP.registerPreloadScript({ id: script.id, type: script.type, filePath: guardedPath })
+        }
+        pfTab.owner = pfOwner
+        pfTab.wc = pfOwner.webContents
+        pfEngine.addTab(pfTab.wc, pfOwner)
+        pfEngine.selectTab(pfTab.wc)
+        const darkPath = join(outDir, 'packages', meta('dark').id + '-4.9.135')
+        const ext = await sesP.extensions.loadExtension(darkPath)
+        const pw = new BrowserWindow({
+          show: false,
+          frame: false,
+          parent: pfOwner,
+          movable: false,
+          resizable: false,
+          skipTaskbar: true,
+          backgroundColor: '#ffffff',
+          roundedCorners: false,
+          webPreferences: {
+            session: sesP,
+            sandbox: true,
+            nodeIntegration: false,
+            contextIsolation: true,
+            enablePreferredSizeMode: true
+          }
+        })
+        const dmani = JSON.parse(await readFile(join(darkPath, 'manifest.json'), 'utf8'))
+        const dpp = dmani.browser_action?.default_popup || dmani.action?.default_popup
+        await pw
+          .loadURL('chrome-extension://' + ext.id + '/' + String(dpp).replace(/^\//, ''))
+          .catch(() => {})
+        await delay(5000)
+        const ptext = await pw.webContents
+          .executeJavaScript('(document.body.innerText || "").slice(0, 40)', true)
+          .catch(() => 'EXEC')
+        const pport = await pw.webContents
+          .executeJavaScript(
+            'new Promise((res) => { try { const p = chrome.runtime.connect({ name: "ui-bg-subscribe-to-changes" }); let got = null; p.onMessage.addListener(() => { got = "MSG" }); p.onDisconnect.addListener(() => { if (!got) got = "DISCONNECTED" }); setTimeout(() => res(got || "SILENT"), 2000) } catch (e) { res("THROW") } })',
+            true
+          )
+          .catch(() => 'EXEC')
+        pfResult = 'text:' + String(ptext).slice(0, 25) + ' port:' + String(pport)
+        check(
+          '前置复刻路径对照',
+          /MSG/.test(String(pport)) && !/Loading/i.test(String(ptext)),
+          pfResult
+        )
+        pw.destroy()
+        pfOwner.destroy()
+      } catch (e) {
+        check('前置复刻路径对照', false, 'ERR:' + String(e).slice(0, 60))
+      }
+      console.log('P20 done', pfResult)
+      console.log('P16 ubo-mv3')
 
       try {
         const uboBuf = await readFile('/tmp/msb-crx-test/ddkjiahejlhfcafbddmgiahcphecmpfh.crx')

@@ -1,4 +1,5 @@
-import { assertUpdateWritable, isUpdatePreparing } from '../updatePreparation'
+import { isExtensionSessionRetired, isExtensionSessionUnavailable } from './runtime/lifecycle'
+import { assertUpdateWritable, isUpdatePreparing, trackUpdateWork } from '../updatePreparation'
 /**
  * 自研插件宿主 shim 的主进程侧（计划 20261112-自研插件宿主集成 M1/M2）：
  * electron-chrome-extensions 4.10.0 不提供 tabs.captureVisibleTab（产物 grep 0 命中），
@@ -33,7 +34,9 @@ import { assertUpdateWritable, isUpdatePreparing } from '../updatePreparation'
  * 加载进绑定会话才受理。payload 的 extId 不参与授权；普通网页即使获得 IPC 传输
  * 或自报合法扩展 ID 也不能通过。
  */
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, webContents } from 'electron'
+import type { SessionProxyEngine } from '../browser/proxy'
+import { createManifestStore } from './install/manifest-store'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
@@ -44,8 +47,12 @@ export const EXT_SHIM_DOWNLOAD = 'msb-ext-shim-download'
 export const EXT_SHIM_TAB_STREAM = 'msb-ext-shim-tab-stream'
 export const EXT_SHIM_OFFSCREEN_CREATE = 'msb-ext-shim-offscreen-create'
 export const EXT_SHIM_CONTEXTS = 'msb-ext-shim-contexts'
+export const EXT_SHIM_PROXY = 'msb-ext-shim-proxy'
+export const EXT_SHIM_PROXY_CHANGE = 'msb-ext-shim-proxy-change'
+export const EXT_SHIM_PROXY_ERROR = 'msb-ext-shim-proxy-error'
 
 export interface ExtensionShimsDeps {
+  proxy?: SessionProxyEngine
   /** 库语义 windowId（BrowserWindow.id）→ 该窗口激活会话的网页；无窗口/无激活返回 null */
   resolveActivePage: (windowId: number | null) => WebContents | null
 }
@@ -88,6 +95,7 @@ let shimDeps: ExtensionShimsDeps | undefined
 
 /** 页面与 SW 均从 Electron 事件取权威身份，禁止回退到 payload 自报扩展 ID。 */
 function resolveExtensionId(event: ShimEvent, session: Session | undefined): string | null {
+  if (!session || isExtensionSessionUnavailable(session)) return null
   let source: string | undefined
   if ('serviceWorker' in event) {
     if (event.session !== session) return null
@@ -331,9 +339,99 @@ async function writeDownloadFile(dataUrl: string, filename: unknown): Promise<st
   }
 }
 
+const proxyRequests = new WeakMap<Session, number>()
+const proxyImpl: ShimImpl = async (event, raw, session) => {
+  let counted = false
+  try {
+    const extensionId = resolveExtensionId(event, session)
+    if (!extensionId || !session || !shimDeps?.proxy) throw new Error('UNAUTHORIZED')
+    const extension = session.extensions.getExtension(extensionId)
+    if (!extension?.manifest.permissions?.includes('proxy'))
+      throw new Error('PROXY_PERMISSION_REQUIRED')
+    if ((proxyRequests.get(session) ?? 0) >= 32) throw new Error('PROXY_BUSY')
+    if (Buffer.byteLength(JSON.stringify(raw ?? {})) > 1100 * 1024)
+      throw new Error('PROXY_PAYLOAD_TOO_LARGE')
+    proxyRequests.set(session, (proxyRequests.get(session) ?? 0) + 1)
+    counted = true
+    const payload = raw as { operation?: unknown; details?: unknown }
+    if (!payload || !['get', 'set', 'clear'].includes(String(payload.operation)))
+      throw new Error('INVALID_PROXY_OPERATION')
+    if (payload.operation !== 'get') assertUpdateWritable()
+    // 安装 generation 由宿主清单读取，不接受调用方自报优先权。
+    const installId = /([a-p]{32})\.partitions[/\\]/.exec(extension.path)?.[1]
+    const manifest = await createManifestStore(
+      join(app.getPath('userData'), 'extensions/installed.json')
+    ).read()
+    if (payload.operation !== 'get') assertUpdateWritable()
+    const priority = manifest.installs.find((record) => record.id === installId)?.generation ?? 0
+    if (isExtensionSessionUnavailable(session)) throw new Error('EXTENSION_SESSION_RETIRED')
+    const result = await trackUpdateWork(
+      shimDeps.proxy.extensionProxy(
+        session,
+        extensionId,
+        String(payload.operation),
+        payload.details,
+        priority
+      )
+    )
+    return { ok: true, details: result }
+  } catch (error) {
+    return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
+  } finally {
+    if (counted && session)
+      proxyRequests.set(session, Math.max(0, (proxyRequests.get(session) ?? 1) - 1))
+  }
+}
+
+function sendProxyEvent(
+  target: Session,
+  extensionId: string,
+  channel: string,
+  payload: unknown
+): void {
+  for (const wc of webContents.getAllWebContents()) {
+    if (
+      !wc.isDestroyed() &&
+      wc.session === target &&
+      wc.getURL().startsWith(`chrome-extension://${extensionId}/`)
+    )
+      wc.send(channel, payload)
+  }
+  for (const worker of Object.values(target.serviceWorkers.getAllRunning())) {
+    const sw = target.serviceWorkers.getWorkerFromVersionID(worker.versionId)
+    if (sw?.scope.startsWith(`chrome-extension://${extensionId}/`)) sw.send(channel, payload)
+  }
+}
+
+async function publishProxyChange(target: Session): Promise<void> {
+  if (isExtensionSessionRetired(target) || !shimDeps?.proxy) return
+  for (const extension of target.extensions.getAllExtensions()) {
+    if (!extension.manifest.permissions?.includes('proxy')) continue
+    const details = await shimDeps.proxy.extensionProxy(target, extension.id, 'get', {}, 0)
+    if (isExtensionSessionRetired(target)) return
+    sendProxyEvent(target, extension.id, EXT_SHIM_PROXY_CHANGE, details)
+  }
+}
+
 /** 页面/renderer 路：ipcMain.handle，权威会话取自 event.sender.session */
 export function registerExtensionShims(deps: ExtensionShimsDeps): void {
   shimDeps = deps
+  deps.proxy?.onExtensionProxyError((target, error) => {
+    if (isExtensionSessionRetired(target)) return
+    for (const extension of target.extensions.getAllExtensions())
+      if (extension.manifest.permissions?.includes('proxy'))
+        sendProxyEvent(target, extension.id, EXT_SHIM_PROXY_ERROR, {
+          fatal: false,
+          error,
+          details: 'Proxy request failed'
+        })
+  })
+  deps.proxy?.onExtensionProxyChanged((target) => {
+    void publishProxyChange(target).catch(() => undefined)
+  })
+  ipcMain.handle(EXT_SHIM_PROXY, (event, payload) =>
+    proxyImpl(event, payload, event.sender.session)
+  )
   ipcMain.handle(EXT_SHIM_CAPTURE_TAB, (event, payload) =>
     captureImpl(event, payload, event.sender?.session)
   )
@@ -352,6 +450,7 @@ export function registerExtensionShims(deps: ExtensionShimsDeps): void {
 }
 
 const SW_SHIM_CHANNELS: Array<[string, ShimImpl]> = [
+  [EXT_SHIM_PROXY, proxyImpl],
   [EXT_SHIM_CAPTURE_TAB, captureImpl],
   [EXT_SHIM_DOWNLOAD, downloadImpl],
   [EXT_SHIM_TAB_STREAM, tabStreamImpl],
@@ -367,10 +466,15 @@ const SW_SHIM_CHANNELS: Array<[string, ShimImpl]> = [
  * preload 世界里 chrome.runtime.id 不可得，调用方自报不可用。SW 空闲终止后重启
  * 会再发 'starting'（ipc 注册表随实例重置，必须重挂——不做版本去重），重复注册由 catch 兜底。
  */
+const sessionShimCleanup = new WeakMap<Session, () => void>()
+
 export function registerSessionShimIpc(session: Session): void {
+  if (isExtensionSessionUnavailable(session)) return
+  const wired = new Set<Electron.ServiceWorkerMain>()
   try {
     const wire = (sw: Electron.ServiceWorkerMain | undefined): void => {
-      if (!sw?.ipc) return
+      if (!sw?.ipc || isExtensionSessionUnavailable(session)) return
+      wired.add(sw)
       const scopeId = /^chrome-extension:\/\/([a-p]{32})\//.exec(sw.scope)?.[1]
       if (!scopeId) return
       for (const [channel, impl] of SW_SHIM_CHANNELS) {
@@ -392,11 +496,59 @@ export function registerSessionShimIpc(session: Session): void {
     } catch {
       /* 枚举不可用（旧 Electron）：仅事件路生效 */
     }
-    session.serviceWorkers.on('running-status-changed', (details) => {
+    const onRunning = (details: Electron.ServiceWorkersRunningStatusChangedEventParams): void => {
       if (details.runningStatus !== 'starting') return
       wire(session.serviceWorkers.getWorkerFromVersionID(details.versionId))
+    }
+    session.serviceWorkers.on('running-status-changed', onRunning)
+    sessionShimCleanup.set(session, () => {
+      session.serviceWorkers.off('running-status-changed', onRunning)
+      for (const worker of wired)
+        for (const [channel] of SW_SHIM_CHANNELS) {
+          try {
+            worker.ipc.removeHandler(channel)
+          } catch {
+            /* Worker 可能已经退出 */
+          }
+        }
+      wired.clear()
     })
   } catch {
     /* serviceWorkers emitter 不可用（旧 Electron）：SW shim 缺席，页面路不受影响 */
+  }
+}
+
+/** 活跃或状态未知的录制拒绝删除，避免销毁尚未保存的媒体。 */
+export async function assertSessionCaptureIdle(session: Session): Promise<void> {
+  for (const { win } of offscreenByExtension.values()) {
+    if (win.isDestroyed() || win.webContents.session !== session) continue
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const idle = await Promise.race([
+        win.webContents.executeJavaScript(
+          "chrome.storage.local.get('rec').then(x => x.rec?.state === 'idle')"
+        ),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), 2000)
+        })
+      ])
+      if (!idle) throw new Error('EXTENSION_CAPTURE_BUSY')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+export function disposeSessionShims(session: Session): void {
+  sessionShimCleanup.get(session)?.()
+  sessionShimCleanup.delete(session)
+  for (const [id, target] of pendingTargets) {
+    if (target.isDestroyed() || target.session === session) pendingTargets.delete(id)
+  }
+  for (const [id, entry] of offscreenByExtension) {
+    if (!entry.win.isDestroyed() && entry.win.webContents.session === session) {
+      entry.win.destroy()
+      offscreenByExtension.delete(id)
+    }
   }
 }

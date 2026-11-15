@@ -8,11 +8,18 @@ import { mkdir, rename, unlink, writeFile } from 'fs/promises'
 import { dirname } from 'path'
 
 /** 原子写 JSON：serialize(null, 2) 缩进格式；父目录不存在则递归创建 */
-export async function atomicWriteJson(target: string, value: unknown): Promise<void> {
+export async function atomicWriteJson(
+  target: string,
+  value: unknown,
+  mode?: number
+): Promise<void> {
   const tmp = `${target}.${Date.now()}-${Math.random().toString(36).slice(2, 8)}.tmp`
   try {
     await mkdir(dirname(target), { recursive: true })
-    await writeFile(tmp, JSON.stringify(value, null, 2), 'utf-8')
+    await writeFile(tmp, JSON.stringify(value, null, 2), {
+      encoding: 'utf-8',
+      ...(mode !== undefined ? { mode } : {})
+    })
     await rename(tmp, target)
   } catch (err) {
     await unlink(tmp).catch(() => undefined)

@@ -17,6 +17,8 @@ import {
 } from 'electron'
 import { createManifestStore } from './install/manifest-store'
 import { t } from '../i18n'
+import { assertSessionCaptureIdle } from './shims'
+import { assertExtensionSessionLive } from './runtime/lifecycle'
 import {
   STAGED_IMAGE,
   type BridgeOperation,
@@ -50,6 +52,7 @@ export interface ExtensionsHandle {
   paths: ExtensionsPaths
   /** 已挂载分区 → 会话（安装后重挂载与卸载移除用） */
   mounted: Map<string, Session>
+  suspended: Map<string, Session>
 }
 
 let handle: ExtensionsHandle | undefined
@@ -88,7 +91,7 @@ function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow
     }
   })
   win.once('ready-to-show', () => {
-    if (!win.isDestroyed()) win.show()
+    if (!win.isDestroyed() && !process.argv.includes('--agent-debug')) win.show()
   })
   win.loadURL(url).catch((error) => {
     // 加载失败（目标文件缺失等）销毁空窗并留痕，不留 unhandled rejection（审查清单 2.6）
@@ -98,12 +101,46 @@ function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow
   return Promise.resolve(win)
 }
 
+/** 库的 options/welcome 页保留在来源分区；不借用当前激活会话。 */
+async function createExtensionTab(
+  session: Session,
+  details: unknown
+): Promise<[WebContents, Electron.BaseWindow]> {
+  assertExtensionSessionLive(session)
+  const url = (details as { url?: unknown })?.url
+  if (
+    typeof url !== 'string' ||
+    url.length > 8192 ||
+    !/^(https?:\/\/|chrome-extension:\/\/|about:blank$)/.test(url)
+  )
+    throw new Error('INVALID_EXTENSION_TAB_URL')
+  const win = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 650,
+    webPreferences: { session, contextIsolation: true, nodeIntegration: false }
+  })
+  win.webContents.once('destroyed', () => {
+    if (!win.isDestroyed()) win.destroy()
+  })
+  try {
+    await win.loadURL(url)
+    assertExtensionSessionLive(session)
+    if (!process.argv.includes('--agent-debug')) win.show()
+    return [win.webContents, win]
+  } catch (error) {
+    if (!win.isDestroyed()) win.destroy()
+    throw error
+  }
+}
+
 /** 幂等创建运行时（进程内单例；engineOptions 由调用方传入 tab 表面回调） */
 export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHandle {
   if (!handle) {
     const paths = extensionsPaths()
     handle = {
       runtime: createExtensionRuntime({
+        createTabForSession: createExtensionTab,
         manifest: createManifestStore(paths.manifestFile),
         packagesRoot: paths.packagesRoot,
         engineOptions: {
@@ -112,7 +149,8 @@ export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHa
         }
       }),
       paths,
-      mounted: new Map()
+      mounted: new Map(),
+      suspended: new Map()
     }
   }
   return handle
@@ -126,6 +164,10 @@ export async function mountDevExtensions(
   const h = getExtensionsHandle()
   try {
     const result = await h.runtime.mountPartition(partition, session)
+    assertExtensionSessionLive(session)
+    // mount 完成后删除可能已开始，终止态不得重新登记。
+    if (!h.runtime.getEngine(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
+    h.suspended.delete(partition)
     h.mounted.set(partition, session)
     return result
   } catch (error) {
@@ -153,6 +195,28 @@ export async function mountDevExtensions(
     }
     return { partition, error: String(error).slice(0, 200) }
   }
+}
+
+export async function suspendDevExtensions(partition: string, session: Session): Promise<void> {
+  await assertSessionCaptureIdle(session)
+  const h = getExtensionsHandle()
+  h.mounted.delete(partition)
+  h.suspended.set(partition, session)
+  await h.runtime.suspendPartition(partition, session)
+}
+export async function resumeDevExtensions(partition: string, session: Session): Promise<unknown> {
+  const h = getExtensionsHandle()
+  h.runtime.resumePartition(partition, session)
+  return mountDevExtensions(session, partition)
+}
+
+/** 仅永久删除调用；普通 close/clone 保留引擎与安装记录。 */
+export async function terminateDevExtensions(partition: string, session: Session): Promise<void> {
+  await assertSessionCaptureIdle(session)
+  const h = getExtensionsHandle()
+  h.mounted.delete(partition)
+  h.suspended.delete(partition)
+  await h.runtime.terminatePartition(partition, session)
 }
 
 export { extractCrx } from './install/crx'

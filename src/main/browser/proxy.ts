@@ -12,7 +12,18 @@
 //   事件直供凭据），探测期临时把分区代理设为草稿值、结束恢复原状（净效果不改变该
 //   会话当前生效配置）；不落盘、不动引擎登记与凭据表
 
-import { net, session } from 'electron'
+import { net, session, type ProxyConfig } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { createLock } from '../extensions/install/mutex'
+import {
+  normalizeExtensionProxy,
+  readExtensionProxyRecords,
+  saveExtensionProxyRecords,
+  toElectronProxy,
+  type ExtensionProxyConfig,
+  type ExtensionProxyDetails,
+  type ExtensionProxyRecords
+} from './extensionProxyConfig'
 import type { Session } from 'electron'
 import { basename } from 'path'
 import {
@@ -54,12 +65,19 @@ function netErrorCode(error: Error): string | null {
   return match !== null ? match[0] : null
 }
 
-/** 两份归一化配置是否同值（键序恒定自 normalizeProxyConfig 字面量，JSON 比较稳定） */
-function sameProxy(a: SessionProxyConfig | null, b: SessionProxyConfig | null): boolean {
-  return a === b || (a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b))
-}
-
 export interface SessionProxyEngine {
+  forgetUnloadedExtensionProxies(ids: readonly string[]): Promise<void>
+  syncExtensionProxy(target: Session, reapply?: boolean): Promise<void>
+  extensionProxy(
+    target: Session,
+    extensionId: string,
+    operation: string,
+    details: unknown,
+    priority: number
+  ): Promise<ExtensionProxyDetails | undefined>
+  removeExtensionProxy(target: Session, extensionId: string): Promise<void>
+  onExtensionProxyError(listener: (target: Session, error: string) => void): () => void
+  onExtensionProxyChanged(listener: (target: Session) => void): () => void
   /**
    * 把代理配置应用到该会话分区（config = null = 清除回直连）：setProxy + 配置变化时
    * closeAllConnections 收尾 keep-alive；幂等（落盘值未变不重放）。凭据表与模块登记
@@ -80,12 +98,14 @@ export interface SessionProxyEngine {
    */
   probeExitIpForId(id: string, config: SessionProxyConfig): Promise<ProxyCheckResult>
   /** 销毁清理：凭据表 / 应用登记 / 已知 id 集合一并摘除（destroySession 调用） */
-  dropSession(id: string): void
+  dropSession(id: string): Promise<void>
   /** 已知会话 id 全集登记（反查兜底，覆盖「会话存在但从未 apply」）：装配层与读盘点并入 */
   noteKnownIds(ids: readonly string[]): void
 }
 
 export interface SessionProxyEngineDeps {
+  extensionProxyFile?: string
+  isSessionUsable?: (target: Session) => boolean
   /** 分区串单源（registry 的 partitionFor）：本模块禁止自拼分区字面量 */
   partitionFor: (id: string) => string
   /** 已知会话 id 兜底集现取（index.ts 注入启动快照 id；运行期增量由 registry 读盘点并入） */
@@ -102,25 +122,376 @@ export function createSessionProxyEngine(deps: SessionProxyEngineDeps): SessionP
   /** 已知会话 id 全集（storagePath 反解支线的校验集，防未知分区误认） */
   const knownIds = new Set<string>()
 
-  async function applySessionProxy(id: string, config: SessionProxyConfig | null): Promise<void> {
-    const target = session.fromPartition(deps.partitionFor(id))
-    const prev = applied.get(id)
-    if (prev !== undefined && sameProxy(prev, config)) return // 幂等：落盘值未变不重放
-    applied.set(id, config)
-    appliedSessions.set(id, target)
-    knownIds.add(id)
-    // 凭据表单源维护：带凭据登记（任一字段非空即视为有认证），清除/无认证摘除
-    if (config !== null && (config.username !== '' || config.password !== '')) {
-      credentials.set(id, { username: config.username, password: config.password })
-    } else {
-      credentials.delete(id)
+  const locked = createLock()
+  let records: ExtensionProxyRecords = {}
+  const ready = readExtensionProxyRecords(deps.extensionProxyFile).then((value) => {
+    records = value
+  })
+  // 有损坏记录时操作明确失败，不按空配置覆盖；同时避免启动时未处理拒绝。
+  void ready.catch(() => undefined)
+  const effective = new Map<
+    string,
+    { key: string; native: ProxyConfig; marker?: string; owner?: string }
+  >()
+  const listeners = new Set<(target: Session) => void>()
+  const errorListeners = new Set<(target: Session, error: string) => void>()
+  const wiring = new Map<string, () => void>()
+  const dead = new Set<string>()
+  const applying = new Set<string>()
+  const failedClosed = new Set<string>()
+  const suspended = new Map<string, Set<string>>()
+  const emitted = new Map<string, string>()
+  const emit = (target: Session): void => {
+    const id = findSessionIdBySession(target)
+    if (!id) return
+    const signature = JSON.stringify([
+      effective.get(id)?.key,
+      selected(id, target)?.[0],
+      !!applied.get(id)
+    ])
+    if (emitted.get(id) === signature) return
+    emitted.set(id, signature)
+    for (const listener of listeners) {
+      try {
+        listener(target)
+      } catch {
+        console.warn('[proxy] 状态订阅执行失败')
+      }
     }
-    await target.setProxy(
-      config !== null ? { proxyRules: toProxyRules(config) } : { mode: 'direct' }
+  }
+
+  function emitProxyError(target: Session, error: string): void {
+    for (const listener of errorListeners) {
+      try {
+        listener(target, error)
+      } catch {
+        console.warn('[proxy] 错误订阅执行失败')
+      }
+    }
+  }
+  function selected(
+    id: string,
+    target: Session,
+    source = records
+  ): [string, ExtensionProxyConfig] | undefined {
+    return Object.entries(source[id] ?? {})
+      .filter(([extension]) => {
+        const loaded = target.extensions?.getExtension(extension)
+        return loaded?.manifest.permissions?.includes('proxy')
+      })
+      .sort(([a, x], [b, y]) => y.priority - x.priority || a.localeCompare(b))
+      .map(([owner, entry]) => [owner, entry.config] as [string, ExtensionProxyConfig])[0]
+  }
+  function missingOwner(id: string, target: Session): boolean {
+    const owner = Object.entries(records[id] ?? {}).sort(
+      ([a, x], [b, y]) => y.priority - x.priority || a.localeCompare(b)
+    )[0]?.[0]
+    return (
+      !!owner && !target.extensions.getExtension(owner)?.manifest.permissions?.includes('proxy')
     )
-    // 配置变化时收尾 keep-alive：旧连接残留会继续走旧路由（直连/旧代理），新配置只对
-    // 新连接生效（含首次应用到已产生连接的分区——ensureManager 兜底路径的竞态窗）
-    await target.closeAllConnections()
+  }
+  function desired(
+    id: string,
+    target: Session,
+    manual: SessionProxyConfig | null | undefined,
+    source = records
+  ): ExtensionProxyConfig {
+    if (manual)
+      return {
+        mode: 'fixed_servers',
+        rules: { singleProxy: { scheme: manual.protocol, host: manual.host, port: manual.port } }
+      }
+    return selected(id, target, source)?.[1] ?? { mode: 'direct' }
+  }
+  function detailsFor(id: string, target: Session, extension: string): ExtensionProxyDetails {
+    const winner = selected(id, target)
+    return {
+      value: desired(id, target, applied.get(id)),
+      incognitoSpecific: false,
+      levelOfControl:
+        applied.get(id) || missingOwner(id, target)
+          ? 'not_controllable'
+          : winner
+            ? winner[0] === extension
+              ? 'controlled_by_this_extension'
+              : 'controlled_by_other_extensions'
+            : 'controllable_by_this_extension'
+    }
+  }
+  async function bounded<T>(promise: Promise<T>, ms: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('PROXY_TIMEOUT')), ms)
+        })
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  async function materialize(
+    config: ExtensionProxyConfig
+  ): Promise<{ native: ProxyConfig; marker?: string }> {
+    if (config.mode !== 'pac_script' || !config.pacScript?.mandatory)
+      return { native: toElectronProxy(config) }
+    let script = config.pacScript.data
+    if (script === undefined) {
+      const response = await net.fetch(config.pacScript.url!, {
+        credentials: 'omit',
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000)
+      })
+      if (!response.ok) throw new Error('PAC_DOWNLOAD_FAILED')
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('PAC_EMPTY')
+      const chunks: Uint8Array[] = []
+      let length = 0
+      try {
+        while (true) {
+          const part = await reader.read()
+          if (part.done) break
+          length += part.value.length
+          if (length > 1024 * 1024) throw new Error('PAC_TOO_LARGE')
+          chunks.push(part.value)
+        }
+      } finally {
+        await reader.cancel().catch(() => undefined)
+      }
+      script = Buffer.concat(chunks).toString('utf8')
+    }
+    const nonce = randomUUID()
+    const originalName = '__msbOriginal_' + nonce.replaceAll('-', '')
+    const marker = `PROXY ${nonce}.invalid:9`
+    const wrapped = `var FindProxyForURL=(function(){try{${script}\n;var ${originalName}=FindProxyForURL;return function(url,host){try{var value=${originalName}(url,host);if(typeof value!=='string'||!value.trim())return '${marker}';return value+'; ${marker}'}catch(e){return '${marker}'}}}catch(e){return function(){return '${marker}'}}})();`
+    return {
+      native: {
+        mode: 'pac_script',
+        pacScript:
+          'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(wrapped).toString('base64')
+      },
+      marker
+    }
+  }
+  function wire(id: string, target: Session): void {
+    if (wiring.has(id)) return
+    // 本项目没有其他 onBeforeRequest 所有者；所有代理策略仍由本引擎统一应用。
+    target.webRequest?.onBeforeRequest({ urls: ['<all_urls>'] }, (request, callback) => {
+      // chrome-extension 资源不经过代理；阻断它们会在切换配置时破坏后台初始化。
+      if (!/^(https?|wss?):/.test(request.url)) {
+        callback({})
+        return
+      }
+      if (
+        dead.has(id) ||
+        failedClosed.has(id) ||
+        (!applied.get(id) && missingOwner(id, target)) ||
+        applying.has(id) ||
+        (!applied.get(id) &&
+          [...(suspended.get(id) ?? [])].some(
+            (extension) => records[id]?.[extension] && !target.extensions.getExtension(extension)
+          ))
+      ) {
+        callback({ cancel: true })
+        return
+      }
+      const current = effective.get(id)
+      if (!current?.marker || !/^https?:|^wss?:/.test(request.url)) {
+        callback({})
+        return
+      }
+      void bounded(target.resolveProxy(request.url), 5000).then(
+        (result) => {
+          const cancel =
+            dead.has(id) ||
+            effective.get(id) !== current ||
+            !result.includes(current.marker!) ||
+            result.trim() === current.marker
+          if (cancel && !dead.has(id) && effective.get(id) === current)
+            emitProxyError(target, 'ERR_PAC_SCRIPT_FAILED')
+          callback({ cancel })
+        },
+        () => {
+          emitProxyError(target, 'ERR_PAC_TIMEOUT')
+          callback({ cancel: true })
+        }
+      )
+    })
+    const changed = (): void => {
+      if (dead.has(id)) return
+      void locked(async () => {
+        await ready
+        if (dead.has(id)) return
+        await applyEffective(id, target, applied.get(id))
+        emit(target)
+      }).catch(() => console.warn('[proxy] 扩展生命周期变化后的代理应用失败'))
+    }
+    target.webRequest?.onErrorOccurred({ urls: ['<all_urls>'] }, (details) => {
+      if (!dead.has(id) && /ERR_(PROXY|TUNNEL|PAC|SOCKS)/.test(details.error))
+        emitProxyError(target, details.error)
+    })
+    const loaded = (_event: unknown, extension: Electron.Extension): void => {
+      suspended.get(id)?.delete(extension.id)
+      changed()
+    }
+    const unloaded = (_event: unknown, extension: Electron.Extension): void => {
+      if (effective.get(id)?.owner === extension.id && records[id]?.[extension.id]) {
+        const ids = suspended.get(id) ?? new Set<string>()
+        ids.add(extension.id)
+        suspended.set(id, ids)
+      }
+      changed()
+    }
+    target.extensions?.on('extension-loaded', loaded)
+    target.extensions?.on('extension-unloaded', unloaded)
+    wiring.set(id, () => {
+      target.extensions?.off('extension-loaded', loaded)
+      target.extensions?.off('extension-unloaded', unloaded)
+      target.webRequest?.onBeforeRequest(null)
+      target.webRequest?.onErrorOccurred(null)
+    })
+  }
+  async function applyEffective(
+    id: string,
+    target: Session,
+    manual: SessionProxyConfig | null | undefined,
+    source = records
+  ): Promise<void> {
+    if (dead.has(id)) throw new Error('SESSION_RETIRED')
+    const config = desired(id, target, manual, source),
+      key = JSON.stringify(config)
+    const previous = effective.get(id)
+    const owner = manual ? undefined : selected(id, target, source)?.[0]
+    if (previous?.key === key && !failedClosed.has(id)) {
+      previous.owner = owner
+      return
+    }
+    const next = await materialize(config)
+    applying.add(id)
+    try {
+      await target.setProxy(next.native)
+      await target.closeAllConnections()
+      effective.set(id, { key, ...next, owner })
+      if (next.marker) {
+        const result = await bounded(
+          target.resolveProxy('http://msb-pac-validation.invalid/'),
+          5000
+        )
+        if (!result.includes(next.marker) || result.trim() === next.marker)
+          throw new Error('PAC_VALIDATION_FAILED')
+      }
+      failedClosed.delete(id)
+    } catch (error) {
+      // 回滚同样等原生落定；回滚失败保留强制标记或封闭状态，不能悄悄直连。
+      try {
+        if (previous) {
+          await target.setProxy(previous.native)
+          effective.set(id, previous)
+        } else {
+          await target.setProxy({ mode: 'direct' })
+          effective.delete(id)
+        }
+        await target.closeAllConnections()
+      } catch {
+        failedClosed.add(id)
+        throw new Error('PROXY_ROLLBACK_FAILED')
+      }
+      throw error
+    } finally {
+      applying.delete(id)
+    }
+  }
+  async function applySessionProxy(id: string, config: SessionProxyConfig | null): Promise<void> {
+    return locked(async () => {
+      await ready
+      if (dead.has(id)) throw new Error('SESSION_RETIRED')
+      const target = session.fromPartition(deps.partitionFor(id))
+      appliedSessions.set(id, target)
+      knownIds.add(id)
+      wire(id, target)
+      await applyEffective(id, target, config)
+      applied.set(id, config)
+      if (config && (config.username !== '' || config.password !== ''))
+        credentials.set(id, { username: config.username, password: config.password })
+      else credentials.delete(id)
+      emit(target)
+    })
+  }
+  async function extensionProxy(
+    target: Session,
+    extensionId: string,
+    operation: string,
+    raw: unknown,
+    priority: number,
+    hostRemoval = false
+  ): Promise<ExtensionProxyDetails | undefined> {
+    return locked(async () => {
+      await ready
+      const id = findSessionIdBySession(target)
+      if (!id || dead.has(id) || (deps.isSessionUsable?.(target) === false && !hostRemoval))
+        throw new Error('UNKNOWN_SESSION')
+      if (
+        !hostRemoval &&
+        !target.extensions.getExtension(extensionId)?.manifest.permissions?.includes('proxy')
+      )
+        throw new Error('PROXY_PERMISSION_REQUIRED')
+      const details = raw ?? {}
+      if (!details || typeof details !== 'object' || Array.isArray(details))
+        throw new Error('INVALID_PROXY_DETAILS')
+      const allowed =
+        operation === 'get' ? ['incognito'] : operation === 'set' ? ['scope', 'value'] : ['scope']
+      if (Object.keys(details).some((key) => !allowed.includes(key)))
+        throw new Error('INVALID_PROXY_DETAILS')
+      const payload = details as { scope?: unknown; incognito?: unknown; value?: unknown }
+      if (
+        (payload.scope !== undefined && payload.scope !== 'regular') ||
+        (payload.incognito !== undefined && payload.incognito !== false)
+      )
+        throw new Error('UNSUPPORTED_PROXY_SCOPE')
+      if (operation === 'get') return detailsFor(id, target, extensionId)
+      if (operation !== 'set' && operation !== 'clear') throw new Error('INVALID_PROXY_OPERATION')
+      if (!Number.isSafeInteger(priority) || priority < 0) throw new Error('INVALID_PROXY_PRIORITY')
+      const next = structuredClone(records)
+      next[id] ??= {}
+      if (operation === 'set')
+        next[id][extensionId] = { config: normalizeExtensionProxy(payload.value), priority }
+      else delete next[id][extensionId]
+      const oldEffective = effective.get(id)
+      await applyEffective(id, target, applied.get(id), next)
+      try {
+        await saveExtensionProxyRecords(deps.extensionProxyFile, next)
+      } catch (error) {
+        applying.add(id)
+        try {
+          await target.setProxy(oldEffective?.native ?? { mode: 'direct' })
+          await target.closeAllConnections()
+          if (oldEffective) effective.set(id, oldEffective)
+          else effective.delete(id)
+        } catch {
+          failedClosed.add(id)
+          throw new Error('PROXY_ROLLBACK_FAILED')
+        } finally {
+          applying.delete(id)
+        }
+        throw error
+      }
+      records = next
+      emit(target)
+      return undefined
+    })
+  }
+  async function forgetUnloadedExtensionProxies(ids: readonly string[]): Promise<void> {
+    await locked(async () => {
+      await ready
+      const next = structuredClone(records)
+      for (const entries of Object.values(next)) for (const id of ids) delete entries[id]
+      await saveExtensionProxyRecords(deps.extensionProxyFile, next)
+      records = next
+    })
+  }
+  async function removeExtensionProxy(target: Session, extensionId: string): Promise<void> {
+    await extensionProxy(target, extensionId, 'clear', {}, 0, true)
   }
 
   function findSessionIdBySession(target: Session): string | null {
@@ -247,24 +618,14 @@ export function createSessionProxyEngine(deps: SessionProxyEngineDeps): SessionP
       // 则并发场景恢复到的就是新值本身（等值重放幂等），净效果「不改变当前生效配置」
       // 对并发也成立。从未应用（undefined）的分区是 Chromium 缺省「跟随系统」，如实
       // 还原到 system（不得臆造 direct）
-      const restore = id !== null ? applied.get(id) : undefined
-      const changed = restore === undefined || !sameProxy(restore, config)
       try {
-        await target.setProxy(
-          restore === undefined
-            ? { mode: 'system' }
-            : restore === null
-              ? { mode: 'direct' }
-              : { proxyRules: toProxyRules(restore) }
-        )
-        // 恢复值与草稿值不同才收尾 keep-alive：探测期经草稿代理新建的连接不得残留
-        // （同值 = 草稿即已保存的配置，连接本就应走它）
-        if (changed) await target.closeAllConnections()
-      } catch (error) {
-        console.warn(
-          `[proxy] 会话 ${id} 探测后恢复代理配置失败（激活链/下次应用将按落盘配置补齐）:`,
-          error
-        )
+        const restore = id !== null ? effective.get(id)?.native : undefined
+        await target.setProxy(restore ?? { mode: 'system' })
+        await target.closeAllConnections()
+      } catch {
+        // 恢复失败必须覆盖探测结果，禁止将失去有效代理的探测报告为成功。
+        // eslint-disable-next-line no-unsafe-finally
+        throw new Error('PROXY_RESTORE_FAILED')
       }
     }
   }
@@ -273,15 +634,33 @@ export function createSessionProxyEngine(deps: SessionProxyEngineDeps): SessionP
     id: string,
     config: SessionProxyConfig
   ): Promise<ProxyCheckResult> {
-    const target = session.fromPartition(deps.partitionFor(id))
-    return probeOnSession(id, target, config)
+    return locked(async () => {
+      await ready
+      if (dead.has(id)) throw new Error('SESSION_RETIRED')
+      const target = session.fromPartition(deps.partitionFor(id))
+      return probeOnSession(id, target, config)
+    })
   }
 
-  function dropSession(id: string): void {
-    applied.delete(id)
-    appliedSessions.delete(id)
-    credentials.delete(id)
-    knownIds.delete(id)
+  async function dropSession(id: string): Promise<void> {
+    dead.add(id)
+    await locked(async () => {
+      await ready
+      const next = structuredClone(records)
+      delete next[id]
+      await saveExtensionProxyRecords(deps.extensionProxyFile, next)
+      records = next
+      wiring.get(id)?.()
+      wiring.delete(id)
+      effective.delete(id)
+      emitted.delete(id)
+      suspended.delete(id)
+      failedClosed.delete(id)
+      applied.delete(id)
+      appliedSessions.delete(id)
+      credentials.delete(id)
+      knownIds.delete(id)
+    })
   }
 
   function noteKnownIds(ids: readonly string[]): void {
@@ -289,6 +668,30 @@ export function createSessionProxyEngine(deps: SessionProxyEngineDeps): SessionP
   }
 
   return {
+    syncExtensionProxy: (target, reapply = true) =>
+      locked(async () => {
+        await ready
+        const id = findSessionIdBySession(target)
+        if (id && !dead.has(id) && reapply) {
+          await applyEffective(id, target, applied.get(id))
+          emit(target)
+        }
+      }),
+    onExtensionProxyError: (listener) => {
+      errorListeners.add(listener)
+      return () => {
+        errorListeners.delete(listener)
+      }
+    },
+    extensionProxy,
+    removeExtensionProxy,
+    onExtensionProxyChanged: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    forgetUnloadedExtensionProxies,
     applySessionProxy,
     findSessionIdBySession,
     getCredentials,

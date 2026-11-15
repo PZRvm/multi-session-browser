@@ -234,6 +234,7 @@ export interface ManifestStore {
     partitions: Array<{ partition: string; ok: boolean }>
   }): Promise<InstallRecord>
   /** 记录一次分区加载结果：新增或覆盖该分区条目，generation 沿用安装记录代次（幂等） */
+  dropPartition(partition: string): Promise<void>
   recordPartition(id: string, partition: string, ok: boolean): Promise<InstallRecord | undefined>
   /** 移除安装记录（清单层面）；存在返回 true，不存在返回 false */
   removeInstall(id: string): Promise<boolean>
@@ -278,6 +279,17 @@ export function createManifestStore(file: string): ManifestStore {
         }
         await persistAtomic(file, next)
         return record
+      }),
+    dropPartition: (partition) =>
+      locked(async () => {
+        const current = await readRaw(file)
+        await persistAtomic(file, {
+          ...current,
+          installs: current.installs.map((record) => ({
+            ...record,
+            partitions: record.partitions.filter((p) => p.partition !== partition)
+          }))
+        })
       }),
     recordPartition: (id, partition, ok) =>
       locked(async () => {

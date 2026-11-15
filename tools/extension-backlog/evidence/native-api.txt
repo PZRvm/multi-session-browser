@@ -1,0 +1,9 @@
+app.log: [89013:1115/215719.675077:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.set
+app.log: [89013:1115/215720.645336:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear
+app.log: [89013:1115/215720.741116:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear
+app-second.log: [90011:1115/215805.768152:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.set
+app-second.log: [90011:1115/215806.693827:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear
+app-second.log: [90011:1115/215806.771826:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear
+app-third-fixed.log: [96340:1115/220307.703339:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.set
+app-third-fixed.log: [96340:1115/220308.675252:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear
+app-third-fixed.log: [96340:1115/220308.703601:ERROR:extensions/browser/extension_function_dispatcher.cc:550] Unknown Extension API - types.ChromeSetting.clear

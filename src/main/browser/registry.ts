@@ -21,7 +21,8 @@ import {
   WORKSPACE_VIEW_UNGROUPED,
   type SessionStatus,
   type SessionStatusesPayload,
-  type SessionsSnapshot
+  type SessionsSnapshot,
+  type StoredSession
 } from '../../shared/sessions'
 import { loadSnapshot, mutateSnapshot } from '../store'
 import { t } from '../i18n'
@@ -223,6 +224,10 @@ export function createSessionBrowserRegistry(deps: {
   windows: IndependentWindows
   /** 首个网页创建前加载该分区插件；每次激活可补偿上次挂载失败。 */
   prepareExtensions?: (partition: string, target: Electron.Session) => Promise<unknown>
+  /** 克隆/导入临时静默；卸载实例但不永久退休。 */
+  suspendExtensions?: (partition: string, target: Electron.Session) => Promise<void>
+  /** 永久删除屏障；普通关闭不调用。 */
+  terminateExtensions?: (partition: string, target: Electron.Session) => Promise<void>
   /** 主窗缺席时重建，返回存活实例；不新建 registry 或会话 manager。 */
   ensureMainWindow: () => BrowserWindow
   /** 合并激活元数据保存后，通知主窗口会话列表镜像。 */
@@ -498,6 +503,16 @@ export function createSessionBrowserRegistry(deps: {
     }
   }
 
+  /** 代理配置查询共用读盘与已知会话登记；克隆目标沿用源会话配置。 */
+  async function findStoredSessionForProxy(
+    id: string,
+    snapshot?: SessionsSnapshot
+  ): Promise<StoredSession | undefined> {
+    const loaded = snapshot ?? (await loadSnapshot())
+    proxy.noteKnownIds(loaded.sessions.map((item) => item.id))
+    return loaded.sessions.find((item) => item.id === id)
+  }
+
   /**
    * 按落盘现值把代理应用到该会话分区（独立代理专项步骤 2）：读盘取配置 → 引擎应用
    * （幂等，值未变不重放）。返回会话是否仍在落盘（激活链据此放弃 await 期间被并发
@@ -505,11 +520,9 @@ export function createSessionBrowserRegistry(deps: {
    * 的 login 反查场景）
    */
   async function applyProxyFromStore(id: string, snapshot?: SessionsSnapshot): Promise<boolean> {
-    // snapshot 入参（审查低-6）：批量打开等 N 会话连发场景由调用方读盘一次复用，
+    // snapshot 入参允许调用方复用已读取的快照，
     // 避免逐会话整文件读；缺省自读（单点调用语义不变）
-    const loaded = snapshot ?? (await loadSnapshot())
-    proxy.noteKnownIds(loaded.sessions.map((item) => item.id))
-    const item = loaded.sessions.find((entry) => entry.id === id)
+    const item = await findStoredSessionForProxy(id, snapshot)
     if (!item) return false
     await proxy.applySessionProxy(id, item.proxy)
     return true
@@ -718,19 +731,22 @@ export function createSessionBrowserRegistry(deps: {
     // 如实告警后跳过（会话元数据已删，分区残留由克隆失败清理路径或人工处理）
     if (cloningIds.has(id)) {
       console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
-      return
+      throw new Error('SESSION_BUSY')
     }
     // 导入静默窗口守卫：导入写分区中途销毁会让迁移/清数据与写入竞态（同克隆时序理由）
     if (importingIds.has(id)) {
       console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次销毁请求已跳过`)
-      return
+      throw new Error('SESSION_BUSY')
     }
+    const partition = partitionFor(id)
+    const target = session.fromPartition(partition)
+    await deps.terminateExtensions?.(partition, target)
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
     // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
     cameraPermissions.disposeSession(id)
     // 代理凭据表与模块登记一并清理（独立代理专项）：凭据不留驻已销毁会话（id 含
     // 时间戳不复用，登记残留只碍反查）；closeSession 不走此分支，会话仍存活
-    proxy.dropSession(id)
+    await proxy.dropSession(id)
     emitLifecycle('session-gone', id)
     // 先关该会话全部独立窗壳（步骤 5 会话级联）：closeAllForSession 同步发起 win.close()
     // 即返回，closed（含页面 unload）异步落地——销毁链不必等它；窗口内页面 webContents
@@ -749,8 +765,6 @@ export function createSessionBrowserRegistry(deps: {
     const wasActive = activeSessionId === id
     if (wasActive) activeSessionId = null
 
-    const partition = partitionFor(id)
-    const target = session.fromPartition(partition)
     if (manager) {
       // ② 先注销 manager（封死 newTab）：销毁等待期内垂死页面仍可能经 window.open
       //    触发 newTab 复生 webContents（复生 = 清除后数据覆写回盘 + 泄漏，H2 定案路径）
@@ -759,8 +773,8 @@ export function createSessionBrowserRegistry(deps: {
       // ③ 先销毁该分区全部页面 webContents（原生受管 DevTools 随宿主 wc.close() 自然带走）；
       //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒），
       //    销毁机制由 killPartitionWebContents 共享（closeSession 同用）
-      await killPartitionWebContents(target, id, '清除')
     }
+    await killPartitionWebContents(target, id, '清除')
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
     //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
     try {
@@ -770,6 +784,7 @@ export function createSessionBrowserRegistry(deps: {
         `[registry] 清除会话 ${id} 分区存储失败（分区 ${partition}，目录 userData/Partitions/ 下可能残留，请手动核查）:`,
         error
       )
+      throw error
     }
     // ③ 删分区落盘目录（force 容忍目录本就不存在——从未激活过的会话；
     //    partitionDir 对被篡改 id 抛错也落此 catch，目录不会被误删）
@@ -780,6 +795,7 @@ export function createSessionBrowserRegistry(deps: {
         `[registry] 删除会话 ${id} 分区目录失败（分区 ${partition}，目录位于 userData/Partitions/ 下，残留请手动核查）:`,
         error
       )
+      throw error
     }
     if (wasActive) notifySnapshot()
   }
@@ -807,6 +823,21 @@ export function createSessionBrowserRegistry(deps: {
       // 再抢写缩水列表
       // await：克隆随后读 restoreSets 缓存，冲刷写盘与缓存前移须先落定（审查 B）
       await persistence.settleSession(id)
+    }
+    if (manager) {
+      const partition = partitionFor(id),
+        target = session.fromPartition(partition)
+      try {
+        await deps.suspendExtensions?.(partition, target)
+      } catch (error) {
+        // 尚未关页面或复制分区；临时静默失败尝试恢复，原错误仍向上层报告。
+        try {
+          await deps.prepareExtensions?.(partition, target)
+        } catch {
+          console.warn('[registry] 临时静默失败后的插件恢复失败')
+        }
+        throw error
+      }
     }
     // 入口关该会话全部独立窗壳（步骤 5 会话级联，时序口径同 destroySession 内注释）；
     // clonePartition 经此入口调用天然覆盖——克隆前源会话独立窗口全关，窗内页面不再写入
@@ -933,9 +964,7 @@ export function createSessionBrowserRegistry(deps: {
       // 元数据写盘失败的孤儿分区带一份代理配置无流量触达（id 不复用），无清理面
       if (!failed) {
         try {
-          const snapshot = await loadSnapshot()
-          proxy.noteKnownIds(snapshot.sessions.map((item) => item.id))
-          const src = snapshot.sessions.find((item) => item.id === srcId)
+          const src = await findStoredSessionForProxy(srcId)
           if (src) await proxy.applySessionProxy(dstId, src.proxy)
         } catch (error) {
           console.warn(
