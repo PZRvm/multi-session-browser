@@ -39,6 +39,7 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const switchWorkspace = useSessionsStore((s) => s.switchWorkspace)
   const createWorkspace = useSessionsStore((s) => s.createWorkspace)
+  const addSession = useSessionsStore((s) => s.addSession)
   const renameWorkspace = useSessionsStore((s) => s.renameWorkspace)
   const deleteWorkspace = useSessionsStore((s) => s.deleteWorkspace)
   const deleteSessions = useSessionsStore((s) => s.deleteSessions)
@@ -130,9 +131,13 @@ export default function WorkspaceSwitcher(): React.JSX.Element {
         message.error(t('sessions.workspaceSwitcher.errors.createFailed'))
         return
       }
-      // 建即切入（空工作区空态引导用户就地新建会话）
+      // 建即切入并创建首个会话，复用新会话的激活与默认标签页流程
       void switchWorkspace(created.id).then((ok) => {
-        if (!ok) message.error(t('sessions.workspaceSwitcher.errors.switchFailed'))
+        if (!ok) {
+          message.error(t('sessions.workspaceSwitcher.errors.switchFailed'))
+          return
+        }
+        void addSession(created.id)
       })
     })
     closePanel()
