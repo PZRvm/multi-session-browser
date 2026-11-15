@@ -462,6 +462,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-14-更新入口与版本日志进度.md](notes/summary/2026-11/2026-11-14-更新入口与版本日志进度.md) — 右上角主题圆形更新入口、原生日志窗口与每版本Markdown机制的本地验证进度
 - [2026-11-14-更新悬停与验签失败反馈.md](notes/summary/2026-11/2026-11-14-更新悬停与验签失败反馈.md) — 更新气泡、临时签名安装失败根因及异步反馈修复，日志规则归入项目骨架
 - [2026-11-15-1.1.2更新适配与关于页.md](notes/summary/2026-11/2026-11-15-1.1.2更新适配与关于页.md) — 在隔离修复分支接入dev更新机制并准备1.1.2，统一关于页样式且修正冷缓存恢复地址覆盖，提交后审查通过
+- [2026-11-15-book待办核对.md](notes/summary/2026-11/2026-11-15-book待办核对.md) — 对照当前代码与后续完成记录，区分真实未做事项、平台待验和过时计划状态
 - [2026-11-15-应用更新合入dev.md](notes/summary/2026-11/2026-11-15-应用更新合入dev.md) — 保留dev原有文档后合并应用更新与R1修复，仅索引冲突重新生成，合并复验通过
 - [2026-11-15-更新准备R1修复.md](notes/summary/2026-11/2026-11-15-更新准备R1修复.md) — 更新准备允许已接受的同步内部恢复排空，真实联动回归保留原网址与激活位，外部新操作继续封锁
 - [2026-11-15-更新重启隔离与验收重置.md](notes/summary/2026-11/2026-11-15-更新重启隔离与验收重置.md) — 修复Sparkle测试包自动重启丢失隔离目录，直接验证新窗口并清理重建90.0.1到90.0.2验收环境
@@ -575,4 +576,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 450 documents -->
+<!-- 451 documents -->
