@@ -34,6 +34,8 @@ CI 会将来源不是本仓库 `dev` 的 `main` PR 标为失败。若需要 GitH
    - Windows x64：`windows-2025`，NSIS EXE。
 5. 三个构建均成功后，发布任务生成 `SHA256SUMS.txt`，创建指向该合并提交的 `v<版本号>` 标签与 Release 草稿。上传并逐个核对完整附件集的文件名、大小和远程 SHA-256，全部一致后才公开发布。
 
+仅修改 `README*`、`book/`、`third_party/` 等未进入打包输入的文档，并保持当前版本号时，`dev → main` 合并仍运行 CI；Release 的版本校验任务通过后跳过安装包与公开 Release，客户端不会因此收到新版本。仅用于仓库来源记录的第三方许可文档属于此类。若更改根 `LICENSE`、打包白名单或把许可文件加入应用资源，则属于打包输入变更，需要准备新版本，不能按纯文档处理。第三方来源与完整原文见 [third_party](../third_party/README.md)。
+
 普通 push（包括本地 git merge 后直接 push 到 `main`）不会发布；发布入口是 GitHub 上成功合并 `dev → main` PR。版本号不由 CI 自动递增，已有版本不会被覆盖。已创建标签指向本次提交时允许重试；指向其他提交且应用与打包输入相同时跳过发布，否则要求更新版本。
 
 打包输入检查范围为 `src/`、`resources/`、`native/`、`build/`、除 `scripts/release.mjs` 外的 `scripts/`、`electron-builder.yml`、`electron.vite.config.ts`、`package.json`、`package-lock.json` 和 `LICENSE`，与已有版本标签比较。

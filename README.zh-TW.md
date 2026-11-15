@@ -106,7 +106,7 @@ src/
 
 | 層     | 技術                                             |
 | :----- | :----------------------------------------------- |
-| 應用殼 | Electron 39 · electron-vite 5 · electron-builder |
+| 應用殼 | Electron 45 · electron-vite 5 · electron-builder |
 | 介面   | React 19 · Ant Design 6 · Zustand 5              |
 | 語言   | TypeScript 5.9                                   |
 
@@ -115,6 +115,7 @@ src/
 - [book/README.md](./book/README.md) —— BoCode 工作流程、計畫與知識庫；原始碼保留根目錄，文件變更後執行 `npm run book:index`
 - [PRODUCT.md](./PRODUCT.md) —— 產品事實與設計原則
 - [AGENTS.md](./AGENTS.md) —— 程式碼約定與貢獻須知
+- [third_party/README.md](./third_party/README.md) —— BoCode、electron-builder 與 Sparkle 的來源、版權和授權條款
 
 ## 🤝 參與貢獻
 

@@ -76,6 +76,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-修复更新准备恢复集覆盖.md](changelogs/2026-11/2026-11-15-修复更新准备恢复集覆盖.md) — 修复安装准备与在途激活交错时覆盖空恢复集，保留网址与激活位并继续拒绝外部新操作
 - [2026-11-15-修复更新测试重启隔离.md](changelogs/2026-11/2026-11-15-修复更新测试重启隔离.md) — 修复测试包原生更新重启丢失隔离目录，改进自动启动断言并清理重建验收包
 - [2026-11-15-更新适配与关于页排版.md](changelogs/2026-11/2026-11-15-更新适配与关于页排版.md) — 隔离修复工作树接入dev更新机制，准备1.1.2并统一关于页更新行，补冷缓存恢复修复和验证记录
+- [2026-11-15-第三方许可与文档发布说明.md](changelogs/2026-11/2026-11-15-第三方许可与文档发布说明.md) — 补充BoCode和构建更新工具的第三方许可入口，说明纯文档合并main不会更新客户端
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -574,4 +575,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 449 documents -->
+<!-- 450 documents -->
