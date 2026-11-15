@@ -1,3 +1,4 @@
+import { isExtensionSessionRetired } from './runtime/lifecycle'
 import { assertUpdateWritable, isUpdatePreparing } from '../updatePreparation'
 /**
  * 自研插件宿主 shim 的主进程侧（计划 20261112-自研插件宿主集成 M1/M2）：
@@ -88,6 +89,7 @@ let shimDeps: ExtensionShimsDeps | undefined
 
 /** 页面与 SW 均从 Electron 事件取权威身份，禁止回退到 payload 自报扩展 ID。 */
 function resolveExtensionId(event: ShimEvent, session: Session | undefined): string | null {
+  if (!session || isExtensionSessionRetired(session)) return null
   let source: string | undefined
   if ('serviceWorker' in event) {
     if (event.session !== session) return null
@@ -367,10 +369,15 @@ const SW_SHIM_CHANNELS: Array<[string, ShimImpl]> = [
  * preload 世界里 chrome.runtime.id 不可得，调用方自报不可用。SW 空闲终止后重启
  * 会再发 'starting'（ipc 注册表随实例重置，必须重挂——不做版本去重），重复注册由 catch 兜底。
  */
+const sessionShimCleanup = new WeakMap<Session, () => void>()
+
 export function registerSessionShimIpc(session: Session): void {
+  if (isExtensionSessionRetired(session)) return
+  const wired = new Set<Electron.ServiceWorkerMain>()
   try {
     const wire = (sw: Electron.ServiceWorkerMain | undefined): void => {
-      if (!sw?.ipc) return
+      if (!sw?.ipc || isExtensionSessionRetired(session)) return
+      wired.add(sw)
       const scopeId = /^chrome-extension:\/\/([a-p]{32})\//.exec(sw.scope)?.[1]
       if (!scopeId) return
       for (const [channel, impl] of SW_SHIM_CHANNELS) {
@@ -392,11 +399,59 @@ export function registerSessionShimIpc(session: Session): void {
     } catch {
       /* 枚举不可用（旧 Electron）：仅事件路生效 */
     }
-    session.serviceWorkers.on('running-status-changed', (details) => {
+    const onRunning = (details: Electron.ServiceWorkersRunningStatusChangedEventParams): void => {
       if (details.runningStatus !== 'starting') return
       wire(session.serviceWorkers.getWorkerFromVersionID(details.versionId))
+    }
+    session.serviceWorkers.on('running-status-changed', onRunning)
+    sessionShimCleanup.set(session, () => {
+      session.serviceWorkers.off('running-status-changed', onRunning)
+      for (const worker of wired)
+        for (const [channel] of SW_SHIM_CHANNELS) {
+          try {
+            worker.ipc.removeHandler(channel)
+          } catch {
+            /* Worker 可能已经退出 */
+          }
+        }
+      wired.clear()
     })
   } catch {
     /* serviceWorkers emitter 不可用（旧 Electron）：SW shim 缺席，页面路不受影响 */
+  }
+}
+
+/** 活跃或状态未知的录制拒绝删除，避免销毁尚未保存的媒体。 */
+export async function assertSessionCaptureIdle(session: Session): Promise<void> {
+  for (const { win } of offscreenByExtension.values()) {
+    if (win.isDestroyed() || win.webContents.session !== session) continue
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const idle = await Promise.race([
+        win.webContents.executeJavaScript(
+          "chrome.storage.local.get('rec').then(x => x.rec?.state === 'idle')"
+        ),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), 2000)
+        })
+      ])
+      if (!idle) throw new Error('EXTENSION_CAPTURE_BUSY')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+export function disposeSessionShims(session: Session): void {
+  sessionShimCleanup.get(session)?.()
+  sessionShimCleanup.delete(session)
+  for (const [id, target] of pendingTargets) {
+    if (target.isDestroyed() || target.session === session) pendingTargets.delete(id)
+  }
+  for (const [id, entry] of offscreenByExtension) {
+    if (!entry.win.isDestroyed() && entry.win.webContents.session === session) {
+      entry.win.destroy()
+      offscreenByExtension.delete(id)
+    }
   }
 }

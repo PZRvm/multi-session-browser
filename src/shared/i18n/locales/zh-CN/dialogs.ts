@@ -18,6 +18,10 @@ export const dialogs = {
     requestAllow: '允许'
   },
   extensions: {
+    deleteBlockedMessage:
+      '当前无法删除会话。请结束录制后重试；若仍失败，请完整退出并重新打开应用。',
+    cleanupTitle: '会话清理未完成',
+    cleanupMessage: '会话已从列表移除，但部分数据未能清理。请完整退出应用后检查数据目录。',
     restartRequiredTitle: '插件初始化失败',
     restartRequiredMessage: '此会话的插件需要重启应用后恢复',
     restartRequiredDetail: '请完成当前操作后，完整退出并重新打开应用。网页浏览仍可继续。'

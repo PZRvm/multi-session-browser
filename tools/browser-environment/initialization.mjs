@@ -23,12 +23,15 @@ const stubs = {
   }`,
   './preload-guard': `export async function prepareGuardedPreload(){globalThis.__msbInitProbe.prepared++;return '/guarded'}
     export function installGuardedPreload(session){const p=globalThis.__msbInitProbe;if(session.registrationFails){session.registrationFails=false;throw Error('REGISTER_FAILED')};p.registered++;session.scripts=2;return ()=>{p.rollbacks++;session.scripts=0;if(session.rollbackFails)throw Error('ROLLBACK_FAILED')}}`,
-  '../shims': 'export function registerSessionShimIpc(){globalThis.__msbInitProbe.wired++}',
+  '../shims':
+    'export function registerSessionShimIpc(){globalThis.__msbInitProbe.wired++};export function disposeSessionShims(){}',
+  '../bridge': 'export function releaseSessionBridgeTargets(){}',
   '../install/crx': 'export function extensionIdFromPath(){return ""}',
   '../install/manifest-store': 'export function classifyInstall(){return "ready"}',
   '../install/partition-copy':
     'export function ensurePartitionExtensionCopy(){};export function partitionExtensionDir(){};export function partitionExtensionId(){}',
-  './loader': 'export async function loadInstallsIntoSession(){return []}'
+  './loader':
+    'export async function loadInstallsIntoSession(){if(globalThis.__msbInitProbe.loaderGate)await globalThis.__msbInitProbe.loaderGate;return []}'
 }
 await build({
   entryPoints: ['src/main/extensions/runtime/index.ts'],
@@ -51,7 +54,10 @@ await build({
   ]
 })
 const runtimeModule = await import(pathToFileURL(runtimeFile).href)
-const deps = { manifest: { read: async () => ({ installs: [] }) }, packagesRoot: '/unused' }
+const deps = {
+  manifest: { read: async () => ({ installs: [] }), dropPartition: async () => {} },
+  packagesRoot: '/unused'
+}
 const target = (extra = {}) => ({ extensions: { getAllExtensions: () => [] }, ...extra })
 const runtime = runtimeModule.createExtensionRuntime(deps)
 const original = new Error('INJECTED_CONSTRUCTOR_FAILURE')
@@ -127,6 +133,7 @@ const feedback = (globalThis.__msbFeedbackProbe = {
   }
 })
 const feedbackStubs = {
+  './shims': 'export async function assertSessionCaptureIdle(){}',
   electron: `export const app={getPath:()=>'/tmp/msb-init-feedback'};export const BrowserWindow={};export const clipboard={};export const ClipboardItem={};export const nativeImage={};export const dialog={showMessageBox:options=>globalThis.__msbFeedbackProbe.show(options)};`,
   './runtime': `export {ExtensionRuntimeRestartRequiredError} from ${JSON.stringify(pathToFileURL(runtimeFile).href)};export function createExtensionRuntime(){return globalThis.__msbFeedbackProbe.runtime}`,
   './install/manifest-store': 'export function createManifestStore(){return {}}',
@@ -182,5 +189,56 @@ feedback.runtime.mountPartition = async () => {
 await mountDevExtensions({}, 'recoverable')
 assert.equal(feedback.dialogs.length, 2, '可恢复错误不应提示必须重启')
 console.log('INIT_PASS 原生提示去重/不阻塞、提示失败处理、普通失败不误报需重启')
+
+// 删除与挂载交错：同步封锁新请求，排空既有 loader 后卸载，不能重新登记。
+let releaseLoader
+probe.loaderGate = new Promise((resolve) => {
+  releaseLoader = resolve
+})
+const terminating = target({
+  getPreloadScripts: () => [],
+  extensions: {
+    getAllExtensions: () => [{ id: 'loaded' }],
+    removeExtension: async () => {
+      probe.removed = true
+    }
+  }
+})
+const mounting = runtime.mountPartition('terminating', terminating)
+const mountDeadline = Date.now() + 2000
+while (!runtime.getEngine('terminating')) {
+  assert(Date.now() < mountDeadline, '挂载应进入 loader')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+const disposed = runtime.terminatePartition('terminating', terminating)
+await assert.rejects(runtime.mountPartition('terminating', terminating), /RETIRED/)
+await assert.rejects(runtime.resolveLoadedId('terminating', 'unknown'), /RETIRED/)
+assert.equal(runtime.getEngine('terminating'), undefined)
+releaseLoader()
+await assert.rejects(mounting, /RETIRED/)
+await disposed
+assert(probe.removed)
+probe.loaderGate = undefined
+console.log('DISPOSE_PASS 在途挂载排空、新挂载/解析拒绝、卸载与引擎摘除')
+
+// 卸载失败保持封闭，重试清理可继续，但绝不允许重新挂载。
+let removeFails = true
+const failedDispose = target({
+  getPreloadScripts: () => [],
+  extensions: {
+    getAllExtensions: () => [{ id: 'loaded' }],
+    removeExtension: async () => {
+      if (removeFails) throw Error('REMOVE_FAILED')
+    }
+  }
+})
+await runtime.mountPartition('dispose-failure', failedDispose)
+await assert.rejects(runtime.terminatePartition('dispose-failure', failedDispose), /REMOVE_FAILED/)
+await assert.rejects(runtime.mountPartition('dispose-failure', failedDispose), /RETIRED/)
+removeFails = false
+await runtime.terminatePartition('dispose-failure', failedDispose)
+assert(runtime.getEngine('healthy'), '其他 Session 不受失败回收影响')
+console.log('DISPOSE_PASS 卸载失败保持封闭、可重试清理、其他会话继续工作')
+
 delete globalThis.__msbInitProbe
 delete globalThis.__msbFeedbackProbe

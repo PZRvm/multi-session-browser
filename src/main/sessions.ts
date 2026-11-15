@@ -61,14 +61,16 @@ import { loadSnapshot, mutateSnapshot, summarize } from './store'
  * - checkProxyExitIp：check-proxy 按草稿值经该会话分区探测出口 IP（不落盘不动生效配置）
  */
 interface SessionIpcDeps {
+  /** 删除元数据提交前排空扩展；失败时保留列表和网页分区数据。 */
+  beforeDelete?(ids: string[]): Promise<void>
   onActiveChanged(id: string | null): void
-  onDeleted(id: string, nextActiveId: string | null): void
+  onDeleted(id: string, nextActiveId: string | null): void | Promise<void>
   /** rename 落盘成功后回调（clamp 后的实际落盘名）：独立窗口标题与会话名严格同源的同步入口 */
   onRenamed(id: string, name: string): void
   getStatuses(): SessionStatusesPayload
   clonePartition(srcId: string, dstId: string): Promise<void>
   getRestoreSet(srcId: string): { tabs: StoredTab[]; activeTabIndex: number } | undefined
-  onBatchDeleted(ids: string[], nextActiveId: string | null): void
+  onBatchDeleted(ids: string[], nextActiveId: string | null): void | Promise<void>
   /** set-proxy 落盘成功后的分区应用入口（proxy 传 null = 清除回直连） */
   onProxyChanged(id: string, proxy: SessionProxyConfig | null): Promise<void>
   /** check-proxy 的探测入口：按草稿值经该会话分区探测，返回三态结论 */
@@ -408,6 +410,9 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // id 必须为 string
         if (!isRecord(payload) || typeof payload.id !== 'string') throw invalidParams()
         const id = payload.id
+        const before = await loadSnapshot()
+        if (!before.sessions.some((s) => s.id === id)) throw new Error(t('errors.sessionNotFound'))
+        await deps.beforeDelete?.([id])
         // 级联后的 activeId 须在闭包内捕获传出（快照互斥期间才可见），供编排层跟随切换
         const nextActiveId = await mutateSnapshot((snapshot) => {
           const index = snapshot.sessions.findIndex((s) => s.id === id)
@@ -421,7 +426,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           return snapshot.activeId
         })
         // 落盘成功后联动（删除守卫或写盘失败时抛错，不联动）
-        deps.onDeleted(id, nextActiveId)
+        pushSnapshot(await loadSnapshot())
+        await deps.onDeleted(id, nextActiveId)
         return { ok: true }
       })
   )
@@ -553,6 +559,10 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
         // 去重：重复 id 只删一次，防编排层重复销毁
         const ids = [...new Set(parseNonEmptyStringIds(payload))]
         assertSessionIdFormat(ids)
+        const before = await loadSnapshot()
+        if (!ids.every((id) => before.sessions.some((s) => s.id === id)))
+          throw new Error(t('errors.sessionNotFound'))
+        await deps.beforeDelete?.(ids)
         const nextActiveId = await mutateSnapshot((snapshot) => {
           const idSet = new Set(ids)
           const known = new Set(snapshot.sessions.map((s) => s.id))
@@ -565,7 +575,8 @@ export function registerSessionIpc(deps: SessionIpcDeps): void {
           return snapshot.activeId
         })
         // 落盘成功后联动（校验守卫或写盘失败时抛错，不联动）
-        deps.onBatchDeleted(ids, nextActiveId)
+        pushSnapshot(await loadSnapshot())
+        await deps.onBatchDeleted(ids, nextActiveId)
         return { ok: true }
       })
   )

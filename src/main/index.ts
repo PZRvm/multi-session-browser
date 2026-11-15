@@ -2,7 +2,7 @@ import { registerUpdates } from './updates'
 import { createUpdateTestContext } from './updateTestContext'
 import { isExtensionCaptureBusy } from './extensions/shims'
 import { isUpdatePreparing, isUpdateInstalling, trackUpdateWork } from './updatePreparation'
-import { app, shell, BrowserWindow, Menu, webContents } from 'electron'
+import { app, shell, BrowserWindow, Menu, webContents, dialog, session } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -574,6 +574,10 @@ app.whenReady().then(async () => {
       const { mountDevExtensions } = await import('./extensions/dev-entry')
       return mountDevExtensions(target, partition)
     },
+    terminateExtensions: async (partition, target) => {
+      const { terminateDevExtensions } = await import('./extensions/dev-entry')
+      await terminateDevExtensions(partition, target)
+    },
     ensureMainWindow: () => {
       if (!mainWindow || mainWindow.isDestroyed()) createWindow()
       return mainWindow!
@@ -657,12 +661,50 @@ app.whenReady().then(async () => {
       mainWindow?.webContents.send(SESSIONS_CHANNELS.changed, snapshot)
     }
   })
+  async function destroyDeletedSession(id: string): Promise<void> {
+    try {
+      await trackUpdateWork(created.destroySession(id))
+    } catch (error) {
+      console.warn(`[main] 销毁会话 ${id} 失败:`, error)
+      void dialog
+        .showMessageBox({
+          type: 'error',
+          title: t('dialogs.extensions.cleanupTitle'),
+          message: t('dialogs.extensions.cleanupMessage'),
+          buttons: [t('common.confirm')]
+        })
+        .catch(() => undefined)
+      throw error
+    }
+  }
   registerSessionIpc({
+    beforeDelete: async (ids) => {
+      try {
+        const { terminateDevExtensions } = await import('./extensions/dev-entry')
+        const { assertSessionCaptureIdle } = await import('./extensions/shims')
+        const targets = ids.map((id) => ({
+          partition: partitionFor(id),
+          target: session.fromPartition(partitionFor(id))
+        }))
+        for (const { target } of targets) await assertSessionCaptureIdle(target)
+        for (const { partition, target } of targets) await terminateDevExtensions(partition, target)
+      } catch (error) {
+        void dialog
+          .showMessageBox({
+            type: 'error',
+            title: t('dialogs.extensions.cleanupTitle'),
+            message: t('dialogs.extensions.deleteBlockedMessage'),
+            buttons: [t('common.confirm')]
+          })
+          .catch(() => undefined)
+        throw error
+      }
+    },
     getMainWindow: () => mainWindow,
     onActiveChanged: (id: string | null): void => {
       created.switchSession(id)
     },
-    onDeleted: (id: string, nextActiveId: string | null): void => {
+    onDeleted: async (id: string, nextActiveId: string | null): Promise<void> => {
       // 先切后毁：切换即时响应 UI，销毁（含清分区数据）异步收尾。
       // switchSession 包 catch（R3 定案）：切换抛错（如级联落到的 next id 被判非法）
       // 不得跳过销毁——否则盘已删净而分区残留。destroy 的 catch 兜底：销毁链含
@@ -672,9 +714,7 @@ app.whenReady().then(async () => {
       } catch (error) {
         console.warn(`[main] 删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
-      void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
-        console.warn(`[main] 销毁会话 ${id} 失败:`, error)
-      })
+      await destroyDeletedSession(id)
     },
     // rename 落盘成功后同步该会话全部独立窗口标题（窗口标题与会话名严格同源；
     // clamp 后的实际落盘名由 sessions.ts 传入，无 renderer 侧乐观标题）
@@ -693,17 +733,15 @@ app.whenReady().then(async () => {
     // 批量关闭选中：一次切到级联 activeId（同步摘 view、广播快照）再逐会话异步销毁
     // 清分区（N 次逐条切换不可取——一次切换 + 并行销毁，计划契约点 3 定案）；选中集
     // 不含激活会话时级联 id 即原激活值，switchSession 同 id no-op 无副作用
-    onBatchDeleted: (ids: string[], nextActiveId: string | null): void => {
+    onBatchDeleted: async (ids: string[], nextActiveId: string | null): Promise<void> => {
       try {
         created.switchSession(nextActiveId)
       } catch (error) {
         console.warn(`[main] 批量删除后级联切换到 ${nextActiveId} 失败:`, error)
       }
-      for (const id of ids) {
-        void trackUpdateWork(created.destroySession(id)).catch((error: unknown) => {
-          console.warn(`[main] 销毁会话 ${id} 失败:`, error)
-        })
-      }
+      const results = await Promise.allSettled(ids.map(destroyDeletedSession))
+      const failure = results.find((r) => r.status === 'rejected')
+      if (failure?.status === 'rejected') throw failure.reason
     },
     // 独立代理增量（步骤 2）：set-proxy 落盘成功后按落盘值应用到该会话分区（引擎幂等，
     // proxy 传 null = 清除回直连）；handler 侧 await + 告警，失败由激活链兜底补应用

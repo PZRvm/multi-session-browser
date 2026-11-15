@@ -17,6 +17,7 @@ import {
 } from 'electron'
 import { createManifestStore } from './install/manifest-store'
 import { t } from '../i18n'
+import { assertSessionCaptureIdle } from './shims'
 import {
   STAGED_IMAGE,
   type BridgeOperation,
@@ -126,6 +127,8 @@ export async function mountDevExtensions(
   const h = getExtensionsHandle()
   try {
     const result = await h.runtime.mountPartition(partition, session)
+    // mount 完成后删除可能已开始，终止态不得重新登记。
+    if (!h.runtime.getEngine(partition)) throw new Error('EXTENSION_SESSION_RETIRED')
     h.mounted.set(partition, session)
     return result
   } catch (error) {
@@ -153,6 +156,14 @@ export async function mountDevExtensions(
     }
     return { partition, error: String(error).slice(0, 200) }
   }
+}
+
+/** 仅永久删除调用；普通 close/clone 保留引擎与安装记录。 */
+export async function terminateDevExtensions(partition: string, session: Session): Promise<void> {
+  await assertSessionCaptureIdle(session)
+  const h = getExtensionsHandle()
+  h.mounted.delete(partition)
+  await h.runtime.terminatePartition(partition, session)
 }
 
 export { extractCrx } from './install/crx'

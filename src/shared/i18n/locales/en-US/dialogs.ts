@@ -21,6 +21,11 @@ export const dialogs: Dictionary['dialogs'] = {
     requestAllow: 'Allow'
   },
   extensions: {
+    deleteBlockedMessage:
+      'The session cannot be deleted. Stop recording and try again. If it still fails, quit the application completely and reopen it.',
+    cleanupTitle: 'Session cleanup incomplete',
+    cleanupMessage:
+      'The session was removed from the list, but some data could not be cleaned up. Quit the application completely and check the data directory.',
     restartRequiredTitle: 'Extension initialization failed',
     restartRequiredMessage: 'Extensions in this session require an app restart',
     restartRequiredDetail:

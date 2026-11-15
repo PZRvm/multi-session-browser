@@ -223,6 +223,8 @@ export function createSessionBrowserRegistry(deps: {
   windows: IndependentWindows
   /** 首个网页创建前加载该分区插件；每次激活可补偿上次挂载失败。 */
   prepareExtensions?: (partition: string, target: Electron.Session) => Promise<unknown>
+  /** 永久删除屏障；普通关闭不调用。 */
+  terminateExtensions?: (partition: string, target: Electron.Session) => Promise<void>
   /** 主窗缺席时重建，返回存活实例；不新建 registry 或会话 manager。 */
   ensureMainWindow: () => BrowserWindow
   /** 合并激活元数据保存后，通知主窗口会话列表镜像。 */
@@ -718,13 +720,16 @@ export function createSessionBrowserRegistry(deps: {
     // 如实告警后跳过（会话元数据已删，分区残留由克隆失败清理路径或人工处理）
     if (cloningIds.has(id)) {
       console.warn(`[registry] 会话 ${id} 正在克隆中，本次销毁请求已跳过`)
-      return
+      throw new Error('SESSION_BUSY')
     }
     // 导入静默窗口守卫：导入写分区中途销毁会让迁移/清数据与写入竞态（同克隆时序理由）
     if (importingIds.has(id)) {
       console.warn(`[registry] 会话 ${id} 正在导入 Chrome 数据，本次销毁请求已跳过`)
-      return
+      throw new Error('SESSION_BUSY')
     }
+    const partition = partitionFor(id)
+    const target = session.fromPartition(partition)
+    await deps.terminateExtensions?.(partition, target)
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
     // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
     cameraPermissions.disposeSession(id)
@@ -749,8 +754,6 @@ export function createSessionBrowserRegistry(deps: {
     const wasActive = activeSessionId === id
     if (wasActive) activeSessionId = null
 
-    const partition = partitionFor(id)
-    const target = session.fromPartition(partition)
     if (manager) {
       // ② 先注销 manager（封死 newTab）：销毁等待期内垂死页面仍可能经 window.open
       //    触发 newTab 复生 webContents（复生 = 清除后数据覆写回盘 + 泄漏，H2 定案路径）
@@ -759,8 +762,8 @@ export function createSessionBrowserRegistry(deps: {
       // ③ 先销毁该分区全部页面 webContents（原生受管 DevTools 随宿主 wc.close() 自然带走）；
       //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒），
       //    销毁机制由 killPartitionWebContents 共享（closeSession 同用）
-      await killPartitionWebContents(target, id, '清除')
     }
+    await killPartitionWebContents(target, id, '清除')
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
     //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
     try {
@@ -770,6 +773,7 @@ export function createSessionBrowserRegistry(deps: {
         `[registry] 清除会话 ${id} 分区存储失败（分区 ${partition}，目录 userData/Partitions/ 下可能残留，请手动核查）:`,
         error
       )
+      throw error
     }
     // ③ 删分区落盘目录（force 容忍目录本就不存在——从未激活过的会话；
     //    partitionDir 对被篡改 id 抛错也落此 catch，目录不会被误删）
@@ -780,6 +784,7 @@ export function createSessionBrowserRegistry(deps: {
         `[registry] 删除会话 ${id} 分区目录失败（分区 ${partition}，目录位于 userData/Partitions/ 下，残留请手动核查）:`,
         error
       )
+      throw error
     }
     if (wasActive) notifySnapshot()
   }

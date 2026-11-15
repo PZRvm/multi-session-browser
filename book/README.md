@@ -112,6 +112,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-004-app-update-ownership.md](docs/decisions/ADR-004-app-update-ownership.md) — 主进程独占更新器，严格保存完成后才交接安装，构建策略关闭全部入口即停更
 - [ADR-005-macos-sparkle-update.md](docs/decisions/ADR-005-macos-sparkle-update.md) — macOS采用官方Sparkle与项目控制的原生桥接，以EdDSA验证更新包，普通退出取消并在重开后重新下载
 - [ADR-006-host-owned-extension-preloads.md](docs/decisions/ADR-006-host-owned-extension-preloads.md) — 宿主独占受限扩展 preload 注册，使用固定版本可重复补丁消除库构造时裸注册窗口
+- [ADR-007-extension-session-retirement.md](docs/decisions/ADR-007-extension-session-retirement.md) — 永久删除先封闭并排空扩展Session，保留库内部不可重用对象而不声称完全内存释放
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -178,7 +179,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (67)**
+**Open (66)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -245,10 +246,9 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261111162757-四插件兼容与新会话同步审阅.md](notes/issue/2026-11/20261111162757-四插件兼容与新会话同步审阅.md) — 四插件和新会话同步修复的十一项审阅，记录既有会话销毁后扩展运行时未回收的缺口
-- [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 两次真实应用确认删除会话后仍被安装重挂载并重建分区目录，待实现永久删除回收协议
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (62)**
+**Resolved (64)**
 
 - [20260912004007-阶段4多会话浏览器绑定审查.md](notes/issue/2026-09/20260912004007-阶段4多会话浏览器绑定审查.md) — "代码审查：阶段 4 多会话与浏览器绑定"
 - [20260912021122-阶段5会话克隆与批量操作审查.md](notes/issue/2026-09/20260912021122-阶段5会话克隆与批量操作审查.md) — "代码审查：阶段 5 会话克隆与批量操作（close-then-copy / 批量三通道 / 批量模式 UI）"
@@ -284,6 +284,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-1.1.2更新适配代码审查.md](notes/issue/2026-11/2026-11-15-1.1.2更新适配代码审查.md) — 1.1.2更新接入、冷缓存恢复与关于页样式的提交后审查，十一项检查无新增问题，平台安装未在本轮执行
 - [2026-11-15-发布前复审.md](notes/issue/2026-11/2026-11-15-发布前复审.md) — 复审1.1.2隔离修复与更新适配，记录发布手册的过时阻断结论
 - [2026-11-15-应用更新合并前审查.md](notes/issue/2026-11/2026-11-15-应用更新合并前审查.md) — 更新合并前审查的R1已独立修复，dev待提交文件已保存，原阻断解除
+- [2026-11-15-扩展删除回收实现审查.md](notes/issue/2026-11/2026-11-15-扩展删除回收实现审查.md) — 审查永久删除封锁排空、元数据回执、资源回收和关闭克隆边界，未发现新增阻断
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
 - [20261103174933-dev验证与main自动发布审查.md](notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md) — "代码审查：dev 验证与 main 自动发布"
@@ -307,6 +308,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261111-双插件验收合并前审查.md](notes/issue/2026-11/20261111-双插件验收合并前审查.md) — 双插件验收修订合并前核对八项代码检查与交接事实，无新增阻塞项
 - [20261111171845-双插件界面修复审查.md](notes/issue/2026-11/20261111171845-双插件界面修复审查.md) — 审查双插件图标、编辑预览缩放、标题区与原生提示改动，未发现新增阻塞项
 - [20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md](notes/issue/2026-11/20261111175817-Chrome截图窗标题栏限制与浮动移除审查.md) — 普通Chrome不能隐藏系统标题栏，浮动与PiP已删除并通过直接编辑回归，保留需求未满足记录
+- [20261111183802-会话销毁不回收扩展运行时.md](notes/issue/2026-11/20261111183802-会话销毁不回收扩展运行时.md) — 两次真实应用确认删除会话后仍被安装重挂载并重建分区目录，待实现永久删除回收协议
 - [20261112133000-自研插件页面上下文shim失效.md](notes/issue/2026-11/20261112133000-自研插件页面上下文shim失效.md) — 自研插件页面上下文shim失效已修复（主世界注入+SW ipc接线+onClicked派发），2026-11-12端到端全绿；本文档转修复记录
 - [20261112175039-自研插件宿主修复波.md](notes/issue/2026-11/20261112175039-自研插件宿主修复波.md) — 自研插件宿主修复波（34d1c20+6aded4e）八项代码审查清单：高中低各0/3/3，六条已全部修复勾销（4f4a892）
 - [20261113170129-网站频繁验证码与浏览器身份排查.md](notes/issue/2026-11/20261113170129-网站频繁验证码与浏览器身份排查.md) — 飞书内嵌豆包聊天触发图片人机验证，已复现中文 UA 编码差异和普通网站 Service Worker 误注入扩展桥，尚待风控因果对照
@@ -582,4 +584,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 457 documents -->
+<!-- 459 documents -->
