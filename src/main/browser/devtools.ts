@@ -227,7 +227,6 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
       action: 'allow',
       overrideBrowserWindowOptions: {
         webPreferences: {
-          preload: '',
           sandbox: true,
           contextIsolation: true,
           nodeIntegration: false,

@@ -499,6 +499,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-更新准备R1修复.md](notes/summary/2026-11/2026-11-15-更新准备R1修复.md) — 更新准备允许已接受的同步内部恢复排空，真实联动回归保留原网址与激活位，外部新操作继续封锁
 - [2026-11-15-更新重启隔离与验收重置.md](notes/summary/2026-11/2026-11-15-更新重启隔离与验收重置.md) — 修复Sparkle测试包自动重启丢失隔离目录，直接验证新窗口并清理重建90.0.1到90.0.2验收环境
 - [2026-11-16-DevTools窗口记忆与脚本清理.md](notes/summary/2026-11/2026-11-16-DevTools窗口记忆与脚本清理.md) — 按会话记忆浮动窗口并跨重启恢复，修复先销毁工具时的回收，删除已验收的两份回归脚本
+- [2026-11-16-scripts收敛与DevTools审查.md](notes/summary/2026-11/2026-11-16-scripts收敛与DevTools审查.md) — scripts仅保留11份基础设施脚本，修复DevTools审查发现的写入重试与设备页配置问题
 - [2026-11-16-会话插件代理接入.md](notes/summary/2026-11/2026-11-16-会话插件代理接入.md) — 代理插件从回调假成功改为真实会话路由，说明手动优先、失败恢复与平台边界
 - [2026-11-16-历史issue核对与规范修复.md](notes/summary/2026-11/2026-11-16-历史issue核对与规范修复.md) — 核对65份历史open issue，关闭52份并保留13份功能、性能、规模观察或平台待验记录
 - [2026-11-16-历史图标体积上限修正.md](notes/summary/2026-11/2026-11-16-历史图标体积上限修正.md) — 图标上限提高到256KiB，真实94KiB图标成功缓存，重复读取和重建服务读盘不再下载
@@ -557,6 +558,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-扩展运行时删除回收.md](plans/2026-11-15-扩展运行时删除回收.md) — 真实复现删除会话后被安装重新加载，规划永久删除封锁、在途排空与扩展资源回收
 - [2026-11-15-更新机制接入与1.1.2版本准备.md](plans/2026-11-15-更新机制接入与1.1.2版本准备.md) — 在人机验证修复工作树合入dev更新机制，统一关于页更新行并准备1.1.2，提交审查后仅推送工作分支
 - [2026-11-16-DevTools窗口记忆与验收脚本清理.md](plans/2026-11-16-DevTools窗口记忆与验收脚本清理.md) — 按会话恢复浮动工具窗口几何并处理屏幕变化，删除用户已验收的两份回归脚本
+- [2026-11-16-scripts架构收敛与DevTools发布.md](plans/2026-11-16-scripts架构收敛与DevTools发布.md) — 清除scripts中的测试文件，直接修复审查问题，合入dev并经PR发布1.1.6到main
 - [2026-11-16-历史issue核对与规范修复.md](plans/2026-11-16-历史issue核对与规范修复.md) — 核对65份未关闭issue，关闭有证据的旧项，修复代码规范问题并发布1.1.3
 - [2026-11-16-历史图标体积上限修正.md](plans/2026-11-16-历史图标体积上限修正.md) — 将图标下载与缓存上限从64KiB提高到256KiB，验证真实94KiB图标及上下界
 - [2026-11-16-历史图标审查修复与发布.md](plans/2026-11-16-历史图标审查修复与发布.md) — 修复图标解码、排队取消、展示回收和旧图重试，补旧历史页面图标发现并合入dev提交发布PR
@@ -629,4 +631,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 504 documents -->
+<!-- 506 documents -->

@@ -10,6 +10,7 @@ interface WindowState {
   retired: boolean
   pending: Rectangle | null
   writing: Promise<void> | null
+  dirty: boolean
 }
 
 const states = new WeakMap<Session, WindowState>()
@@ -33,7 +34,8 @@ function stateFor(session: Session): WindowState {
     file: session.storagePath ? join(session.storagePath, 'DevTools Window.json') : null,
     retired: false,
     pending: null,
-    writing: null
+    writing: null,
+    dirty: false
   }
   if (state.file) {
     try {
@@ -60,6 +62,7 @@ function drain(state: WindowState): void {
       state.pending = null
       try {
         await atomicWriteJson(file, { version: 1, bounds })
+        if (state.bounds === bounds) state.dirty = false
       } catch (error) {
         console.warn('[devtools] 保存窗口偏好失败，本次运行仍保留记忆:', error)
       }
@@ -83,12 +86,14 @@ export function rememberDevToolsWindowBounds(session: Session, bounds: Rectangle
     previous.x === bounds.x &&
     previous.y === bounds.y &&
     previous.width === bounds.width &&
-    previous.height === bounds.height
+    previous.height === bounds.height &&
+    (!state.dirty || state.writing || !state.file)
   )
     return
   state.bounds = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
   if (state.file) {
-    state.pending = { ...state.bounds }
+    state.dirty = true
+    state.pending = state.bounds
     drain(state)
   }
 }
