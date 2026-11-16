@@ -465,7 +465,7 @@ Electron \+ Playwright \+ Chromium 原生内核
 
 - 不做远程分布式浏览器，所有会话本地运行
 
-- 不自定义改造DevTools原生能力，完全复用官方调试面板
+- 不重写 DevTools 调试面板，完全复用官方界面与调试能力。2026-11-16 用户授权例外：允许宿主兼容适配以修复浮动设备模拟，接管原生视图承载与布局消息，保留会话和具体 webContents 的固定绑定；不改造面板内容。详见 [ADR-010](../decisions/ADR-010-devtools-host-compatibility.md)。
 
 - 一期不做自动化测试脚本，仅保留手动测试、手动调试能力
 

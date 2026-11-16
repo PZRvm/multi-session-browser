@@ -6,14 +6,16 @@ import { screen } from 'electron'
 import type { Rectangle } from 'electron'
 
 /** 逐轴 clamp：上界不小于下界（极端小工作区时贴左/上对齐，不越界） */
-export function clampRectIntoWorkArea(rect: Rectangle): Rectangle {
+export function clampRectIntoWorkArea(rect: Rectangle, fitSize = false): Rectangle {
   const area = screen.getDisplayMatching(rect).workArea
+  const width = fitSize ? Math.min(rect.width, Math.max(1, area.width)) : rect.width
+  const height = fitSize ? Math.min(rect.height, Math.max(1, area.height)) : rect.height
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.min(Math.max(v, lo), Math.max(lo, hi))
   return {
-    x: clamp(rect.x, area.x, area.x + area.width - rect.width),
-    y: clamp(rect.y, area.y, area.y + area.height - rect.height),
-    width: rect.width,
-    height: rect.height
+    x: clamp(rect.x, area.x, area.x + area.width - width),
+    y: clamp(rect.y, area.y, area.y + area.height - height),
+    width,
+    height
   }
 }

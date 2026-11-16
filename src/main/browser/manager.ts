@@ -26,6 +26,7 @@ import type { VisitFact } from './history'
 import { invalidateEngineTabUrl, notifyEngineTab } from '../extensions/dev-entry'
 import { escapeHtml } from './html'
 import { isOpenableUrl } from './url'
+import { createDevToolsHost, type DevToolsHost } from './devtools'
 
 const BLANK_URL = 'about:blank'
 export { BLANK_URL }
@@ -73,6 +74,7 @@ interface TabEntry {
   loadError: { code: number; description: string; url: string } | null
   /** 该 Tab 的 DevTools 开关态；快照 devtoolsOpen 取该窗口激活 Tab 的此字段 */
   devtoolsOpen: boolean
+  devtoolsHost: DevToolsHost | null
 }
 
 export type SnapshotListener = (snapshot: BrowserSnapshot) => void
@@ -139,6 +141,8 @@ export interface TabManager {
   getActiveWebContents: (windowId?: string) => WebContents | null
   /** 窗口（重）建后重挂该窗口激活 Tab 的页面 view；macOS 关窗重开由 index.ts 调用 */
   attachToWindow: (windowId?: string) => void
+  /** 会话切换时摘除完整页面/DevTools 组合视图，保留实例。 */
+  detachFromWindow: (windowId?: string) => void
   /**
    * 窗口销毁级联（windows.ts 的 closed 回调经 registry 触达）：销毁该窗口作用域全部
    * Tab 的 webContents 并清该窗口激活/布局/悬挂槽位；仅对已销毁窗口调用，不做 view
@@ -229,6 +233,10 @@ export function createTabManager(
     getFallbackBackground: () => string
     /** 当前解析主题（'light' | 'dark'）现取：registry 注入外观快照——错误卡配色派生（现取口径同上） */
     getResolvedTheme: () => 'light' | 'dark'
+    /** 原生浮动 DevTools 可在后台会话发起操作；新 Tab 不得挂到其他会话的前台窗口。 */
+    isWindowActive?: (windowId: string) => boolean
+    /** DevTools 链接新建并激活 Tab 后通知 registry，沿现有生命周期处理录制等订阅。 */
+    onDevToolsTabOpened?: (tabId: string, windowId: string) => void
     /**
      * 录制中锚定窗现取（录屏线 F''，可缺省）：该窗的弹层收起用「整尺寸移出屏幕」
      * 替代 1×1——被录 view 的合成输出尺寸不变（弹层期间捕获画面不出现缩小损坏段）；
@@ -381,7 +389,8 @@ export function createTabManager(
     if (activeId === null) return
     const tab = tabs.get(activeId)
     if (!tab || tab.view.webContents.isDestroyed()) return
-    tab.view.setBounds(rect)
+    if (tab.devtoolsHost) tab.devtoolsHost.setBounds(rect)
+    else tab.view.setBounds(rect)
   }
 
   /** 对该窗口激活 view 应用 currentRect 现值（HTML 全屏进出的收口应用点） */
@@ -404,14 +413,23 @@ export function createTabManager(
   function attachView(tab: TabEntry): void {
     const win = getWindow(tab.windowId)
     if (!win) return
-    win.contentView.addChildView(tab.view)
-    tab.view.setBounds(currentRect(tab.windowId))
+    if (!opts.isWindowActive || opts.isWindowActive(tab.windowId)) {
+      if (tab.devtoolsHost) tab.devtoolsHost.attach(win, currentRect(tab.windowId))
+      else {
+        win.contentView.addChildView(tab.view)
+        tab.view.setBounds(currentRect(tab.windowId))
+      }
+    }
     // 插件引擎 tab 注册（幂等）：已挂载分区的内容脚本注入与 popup tab 语义前置；
     // 未装插件（无引擎）时 no-op，零开销
     notifyEngineTab(opts.partition, tab.view.webContents, win)
   }
 
   function detachView(tab: TabEntry): void {
+    if (tab.devtoolsHost) {
+      tab.devtoolsHost.detach()
+      return
+    }
     const win = getWindow(tab.windowId)
     if (!win) return
     win.contentView.removeChildView(tab.view)
@@ -420,7 +438,7 @@ export function createTabManager(
   /**
    * 激活指定窗口的 Tab：旧 Tab 的页面 view 脱离但保持存活，新 Tab 的页面 view 挂入
    * （挂入窗口 = 该 Tab 归属窗口，调用方保证二者一致）。原生 DevTools 由对应页面
-   * webContents 自己持有，随页面 view 一起切换，不另建宿主。
+   * webContents 固定绑定；兼容宿主与页面组合视图一起挂摘，浮动调试窗保留原目标。
    * 摘除前对旧 Tab 停止页内查找并清高亮——「切 Tab 即清旧 Tab 高亮」的源头保证，
    * renderer 关栏无需依赖先发 find-stop 的推送时序（会话切换走 registry 的
    * detachActiveView，同款清理在其内承担）
@@ -541,7 +559,8 @@ export function createTabManager(
       faviconUrl: null,
       loading: false,
       loadError: null,
-      devtoolsOpen: false
+      devtoolsOpen: false,
+      devtoolsHost: null
     }
     tabs.set(id, tab)
     const wc = view.webContents
@@ -616,10 +635,28 @@ export function createTabManager(
     // DevTools 经原生关闭钮等途径关闭时同步状态；本方主动关闭已先复位，守卫拦下重复处理。
     wc.on('devtools-closed', () => {
       if (!tab.devtoolsOpen) return
-      tab.devtoolsOpen = false
+      closeTabDevTools(tab)
       emitChange()
     })
-    // 原生受管 DevTools 每次打开都会创建自己的 webContents；在其聚焦时接管 F12 关闭语义。
+    // DevTools 的资源链接走专门事件，不经过页面 window.open。归属取来源 Tab 的
+    // 当前窗口（可被转移），不取主窗口当前激活会话；后台会话只更新自己的 Tab 集。
+    wc.on('devtools-open-url', (_event, openUrl) => {
+      const win = getWindow(tab.windowId)
+      if (
+        disposed ||
+        isUpdatePreparing() ||
+        tabs.get(tab.id) !== tab ||
+        wc.isDestroyed() ||
+        !win ||
+        win.isDestroyed() ||
+        !isOpenableUrl(openUrl)
+      ) {
+        return
+      }
+      const snapshot = newTab(openUrl, tab.windowId)
+      if (snapshot.activeTabId) opts.onDevToolsTabOpened?.(snapshot.activeTabId, tab.windowId)
+    })
+    // 官方 DevTools 每次打开创建独立 webContents；在其聚焦时接管 F12 关闭语义。
     wc.on('devtools-opened', () => {
       const devtools = wc.devToolsWebContents
       if (!devtools) return
@@ -942,12 +979,22 @@ export function createTabManager(
     applyRect(windowId, applied)
   }
 
-  /** 打开该 Tab 的原生受管 DevTools；停靠位置和设备模拟布局全部交由 Chromium 管理 */
+  /** 官方面板保留 Dock side 与设备工具栏；兼容宿主只处理原生视图布局。 */
   function openTabDevTools(tab: TabEntry): void {
     const wc = tab.view.webContents
     if (wc.isDestroyed()) return
-    wc.openDevTools()
     tab.devtoolsOpen = true
+    const host = createDevToolsHost(tab.view, () => {
+      if (!tab.devtoolsOpen) return
+      closeTabDevTools(tab)
+      emitChange()
+    })
+    tab.devtoolsHost = host
+    const win = getWindow(tab.windowId)
+    if (win && (!opts.isWindowActive || opts.isWindowActive(tab.windowId))) {
+      host.attach(win, currentRect(tab.windowId))
+    }
+    host.open()
   }
 
   /** 关闭该 Tab 的原生受管 DevTools */
@@ -955,8 +1002,11 @@ export function createTabManager(
     if (!tab.devtoolsOpen) return
     // 先复位标志再关，防 closeDevTools 同步触发 devtools-closed 事件造成重入
     tab.devtoolsOpen = false
+    const host = tab.devtoolsHost
+    tab.devtoolsHost = null
     const wc = tab.view.webContents
-    if (!wc.isDestroyed()) wc.closeDevTools()
+    if (host) host.close()
+    else if (!wc.isDestroyed()) wc.closeDevTools()
   }
 
   /** 切换该窗口激活 Tab 的 DevTools：已开则关、未开则开；无激活 Tab 时 no-op 返回该窗口快照 */
@@ -999,7 +1049,7 @@ export function createTabManager(
     const win = getWindow(windowId)
     if (!tab || !win || tab.view.webContents.isDestroyed()) return
     // 已挂入时只同步 bounds（含悬挂收起）；未挂入则复用 attachView 路径（activate 与重挂两路共用）
-    if (!win.contentView.children.includes(tab.view)) {
+    if (tab.devtoolsHost || !win.contentView.children.includes(tab.view)) {
       attachView(tab)
     } else {
       tab.view.setBounds(currentRect(windowId))
@@ -1009,6 +1059,14 @@ export function createTabManager(
   function onSnapshotChanged(cb: SnapshotListener): () => void {
     listeners.add(cb)
     return () => listeners.delete(cb)
+  }
+
+  function detachFromWindow(windowId: string = WINDOW_ID_MAIN): void {
+    const activeId = activeByWindow.get(windowId)
+    const tab = activeId ? tabs.get(activeId) : undefined
+    if (!tab) return
+    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.stopFindInPage('clearSelection')
+    detachView(tab)
   }
 
   function onFocusAddressRequest(cb: FocusAddressListener): () => void {
@@ -1059,6 +1117,7 @@ export function createTabManager(
     closeDevTools,
     getActiveWebContents,
     attachToWindow,
+    detachFromWindow,
     dispose,
     getSnapshot,
     onSnapshotChanged,

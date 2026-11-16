@@ -356,9 +356,9 @@ Cmd/Ctrl+F 唤起的页内查找停靠条（Chrome find bar 对齐）。**停靠
 
 **2026-10-29 承载反转增记（Tab 融合专项，随同日参考图定稿）**：上方自绘 fixed 层在 Windows WCO 去标题栏后与右上角系统控制区遮挡冲突、且弹层始终受网页原生层盖压约束——承载反转回**主进程透明原生子窗、定位改图标正下方**（上方自绘层退役；`.chrome-tools-pop` DOM 降级为恒隐藏的纯测量层，2026-10-31 起度量经 `shared/toolbarTooltip.ts` 单源与主进程渲染层同源配对）。机理段落见上方「截图/录屏钮与导航键悬停气泡」条目。
 
-### 原生 DevTools（Managed DevTools）— 阶段 3 新增
+### 官方 DevTools 与兼容宿主 — 阶段 3 新增，2026-11-16 修订
 
-每个 Tab 直接调用其页面 `webContents.openDevTools()`，由 Electron/Chromium 创建并管理原生 DevTools；不再通过 `setDevToolsWebContents` 注入第二个 WebContentsView。DevTools 的停靠按钮、方向、分隔条、设备模拟页面和尺寸调整均为 Chromium 原生能力，并沿用其上次停靠状态。应用只维护激活 Tab 的 `devtoolsOpen` 快照和 F12/ESC 路由，不注入 DevTools 样式或布局。这样既保持 DevTools 与页面 webContents 一对一绑定，也避免应用停靠占位与 Chromium 设备模拟布局形成两套互相冲突的坐标系统。阶段 4 会话绑定后，DevTools 随所在 Tab 的 webContents 自然归属其会话分区，切换会话即整体交换（无需任何额外接线）。
+2026-11-16 用户授权宿主兼容适配，取代阶段 3 的完全受管承载：每个 Tab 通过 `setDevToolsWebContents` 绑定独立 WebContentsView，加载 Electron 官方 DevTools，停靠方向、分隔条、设备工具栏和偏好仍由官方前端决定。主进程 `browser/devtools.ts` 转发原生布局消息：停靠时面板与网页组合在浏览区；浮动时面板移入原生 BaseWindow，设备辅助页留在原浏览区，网页按 placeholder 的矩形叠放。专用 sandbox preload 不加载私有前端模块，也不注入样式或重写调试面板。网页、工具与设备辅助页沿用同一会话 Session，并保持具体 webContents 的固定绑定；切 Tab/会话只挂摘组合视图，浮动调试窗保留原目标。关闭工具或目标页须回收辅助页与浮动窗口。决定与边界见 [ADR-010](book/docs/decisions/ADR-010-devtools-host-compatibility.md)。
 
 ### 会话绑定浏览器（Session-bound Browser）— 阶段 4 新增
 
@@ -426,7 +426,7 @@ Tab 拖出/拖入是 tear-off 与跨窗转移的唯一入口：**指针捕获自
 - **工作区切换框已交付（工作区专项）**：板头下下拉 combobox（视野过滤 + 激活位级联 + 过滤快捷新建 + 右键行内操作条），计数砖随视野，拖拽全序不变（详见「工作区切换框」条目）。仍属留白的：工作区自身的排序（下拉按创建序）、拼音/首字母过滤、下拉面板键盘 Tab 焦点域的完整 roving 管理（当前 ↑↓/Enter/Esc 覆盖主路径）、按工作区的配置承载（代理/UA 等二期能力挂靠时另行修订）。
 - **独立窗口特性收官（阶段 10）**：Tab 拖出/拖入/跨窗转移（含插入位精确定位与插入指示器）、退出落盘归并（全部 Tab 按 URL 与顺序回主窗、独立窗不恢复）、会话克隆恢复集归并口径均已交付（见「拖拽手势」「会话绑定浏览器」条目）。仍属留白的：Windows 平台的指针坐标形态与插入指示实测（本环境无 Windows 机器，坐标/光标轮询兜底已就位，见「拖拽手势」已知边界）；插入位 hint 的极端陈旧窗口（毫秒级 last-known 与末位回退之间的取舍已定案为 last-known）。
 - **会话克隆已交付（阶段 5；批量模式已于 2026-10-23 用户裁决退役删除）**：行菜单「克隆会话」（close-then-copy 分区复制 + 元数据随行 +「副本」命名 + 完成即激活）。克隆语义边界：复制的是持久化环境数据（登录态/Cookie/LocalStorage 等），源会话活页面状态不进入克隆、克隆期间源 webContents 关闭（切回按 lastUrl 重载）。仍属留白的：克隆源活页面保真、后台会话懒销毁/内存上限策略（一期 keep-alive 定案）；Tab 列表全量持久化已于阶段 6 交付（见下条）。
-- **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用只持有 `devtoolsOpen` 并推送，renderer 纯镜像。
+- **DevTools 停靠状态由 Chromium 管理**：停靠方向和比例沿用 DevTools 自身偏好，不进入应用快照；应用快照只持有 `devtoolsOpen` 并推送，renderer 纯镜像；组合视图与浮动窗口由主进程持有运行态。
 - **会话元数据已持久化（schema v3，阶段 6）**：主进程 `userData/sessions.json`（version 3：id/name/note/pageTitle/lastUrl/tabs/activeTabIndex；v1/v2 读取时按容错规则迁移（v2 的 lastUrl 派生单元素 tabs），原子写入）为唯一事实源，renderer 经 `window.api.sessions` 读写。Tab 列表按 URL 级持久化（顺序与激活位，PRD 3.6.4）：重启激活会话时多开恢复，页面运行态与 DevTools 开关态仍不持久化（URL 级恢复，与 lastUrl 恢复同口径）；恢复 URL 逐条过白名单，坏值跳过并告警。
 - **图标统一走 @ant-design/icons**：全应用（板面 MoreOutlined / PlusOutlined，Chrome 侧 LeftOutlined / RightOutlined / ReloadOutlined / CloseOutlined / HomeOutlined / PlusOutlined / LoadingOutlined）一律从 `@ant-design/icons` 导入，禁止手写内联 SVG 图标；antd 图标按 1em 字号渲染，尺寸由所在控件的 `font-size` 控制。
 - **`--accent-ink-dim`（缺省 #4a3a00）在 `:root` 定义但零引用，且未随主题系统配置**：琥珀系缺省值存在、体系里未启用，未收录进本记录的 token 表与 themeSystems 配置单源；启用前先入配置再引用，避免非琥珀主题下取到错值。

@@ -4,6 +4,10 @@
 import type { Dictionary } from '../../index'
 
 export const browser: Dictionary['browser'] = {
+  devtools: {
+    windowTitle: 'Developer Tools - {url}',
+    failed: 'Developer tools layout could not initialize. Close it and try again.'
+  },
   tabs: {
     listAria: 'Browser tabs',
     newTab: 'New Tab',
