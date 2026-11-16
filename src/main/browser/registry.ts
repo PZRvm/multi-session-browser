@@ -41,6 +41,7 @@ import { createSessionPersistence, type RestoreSet } from './persistence'
 import { createBrowserHistory, type BrowserHistory } from './history'
 import { createHistoryIcons } from './historyIcons'
 import { createHistoryIconTools } from './historyIconTools'
+import { flushDevToolsWindowStates, retireDevToolsWindowState } from './devtoolsWindowState'
 import type { SessionProxyEngine } from './proxy'
 import type { IndependentWindows } from './windows'
 
@@ -785,6 +786,7 @@ export function createSessionBrowserRegistry(deps: {
       //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒），
       //    销毁机制由 killPartitionWebContents 共享（closeSession 同用）
     }
+    await retireDevToolsWindowState(target)
     await killPartitionWebContents(target, id, '清除')
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
     //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
@@ -866,7 +868,9 @@ export function createSessionBrowserRegistry(deps: {
     // 杀 webContents（共享销毁机制，含宽限与有界重扫）
     manager.dispose()
     detachActiveView(manager)
-    await killPartitionWebContents(session.fromPartition(partitionFor(id)), id, '关闭')
+    const target = session.fromPartition(partitionFor(id))
+    await killPartitionWebContents(target, id, '关闭')
+    await flushDevToolsWindowStates(target)
   }
 
   /**
@@ -1311,6 +1315,7 @@ export function createSessionBrowserRegistry(deps: {
   function flushPendingReports(): Promise<void> {
     return Promise.all([
       persistence.flushAll(),
+      flushDevToolsWindowStates(),
       history.flushAll(),
       historyIcons.shutdown().finally(historyIconTools.dispose)
     ]).then(() => undefined)

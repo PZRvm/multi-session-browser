@@ -1,7 +1,8 @@
 import { BaseWindow, WebContentsView, dialog } from 'electron'
-import type { BrowserWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Rectangle, WebContents } from 'electron'
 import { join } from 'path'
 import { t } from '../i18n'
+import { rememberDevToolsWindowBounds, restoreDevToolsWindowBounds } from './devtoolsWindowState'
 
 /** 兼容层只承载官方面板及设备辅助页，不依赖 DevTools 私有前端模块。 */
 export interface DevToolsHost {
@@ -35,9 +36,10 @@ function pageBounds(value: unknown): Rectangle | null {
 
 export function createDevToolsHost(page: WebContentsView, onClose: () => void): DevToolsHost {
   const wc = page.webContents
+  const sourceSession = wc.session
   const view = new WebContentsView({
     webPreferences: {
-      session: wc.session,
+      session: sourceSession,
       preload: join(__dirname, '../preload/devtoolsPreload.js'),
       sandbox: true,
       contextIsolation: true,
@@ -45,10 +47,12 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
       backgroundThrottling: false
     }
   })
+  const devtools = view.webContents
   let owner: BrowserWindow | null = null
   let bounds: Rectangle = { x: 0, y: 0, width: 1, height: 1 }
   let inspected: Rectangle | null = null
   let toolbox: WebContentsView | null = null
+  let toolboxContents: WebContents | null = null
   let floating: BaseWindow | null = null
   let docked = true
   let closed = false
@@ -62,23 +66,33 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
   }
 
   function floatingBounds(): void {
-    if (!floating || floating.isDestroyed()) return
+    if (closed || devtools.isDestroyed() || !floating || floating.isDestroyed()) return
     const [width, height] = floating.getContentSize()
     view.setBounds({ x: 0, y: 0, width, height })
+    rememberFloatingBounds()
+  }
+
+  function rememberFloatingBounds(): void {
+    if (floating && !floating.isDestroyed()) {
+      rememberDevToolsWindowBounds(sourceSession, floating.getNormalBounds())
+    }
   }
 
   function ensureFloating(): BaseWindow {
     if (!floating) {
+      const restored = restoreDevToolsWindowBounds(sourceSession)
       floating = new BaseWindow({
         width: 900,
         height: 700,
-        minWidth: 400,
-        minHeight: 300,
+        ...restored,
+        minWidth: Math.min(400, restored?.width ?? 400),
+        minHeight: Math.min(300, restored?.height ?? 300),
         show: false,
         autoHideMenuBar: true,
         title: t('browser.devtools.windowTitle', { url: wc.getURL() })
       })
       floating.on('resize', floatingBounds)
+      floating.on('move', rememberFloatingBounds)
       floating.on('close', (event) => {
         if (closed) return
         event.preventDefault()
@@ -164,12 +178,13 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
   wc.on('did-navigate-in-page', updateTitle)
 
   const startupTimer = setTimeout(fail, 8000)
-  view.webContents.on('ipc-message', (event, channel, message: unknown) => {
+  devtools.on('ipc-message', (event, channel, message: unknown) => {
     if (
       closed ||
+      devtools.isDestroyed() ||
       channel !== 'msb:devtools-layout' ||
-      event.senderFrame !== view.webContents.mainFrame ||
-      !isFrontend(view.webContents.getURL()) ||
+      event.senderFrame !== devtools.mainFrame ||
+      !isFrontend(devtools.getURL()) ||
       !message ||
       typeof message !== 'object'
     )
@@ -196,15 +211,16 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
       if (!agent) {
         if (!docked) floating?.show()
         else owner?.focus()
-        view.webContents.focus()
+        devtools.focus()
       }
     }
   })
-  view.webContents.setWindowOpenHandler(({ url }) => {
-    const expected = view.webContents
+  devtools.setWindowOpenHandler(({ url }) => {
+    if (closed || devtools.isDestroyed()) return { action: 'deny' }
+    const expected = devtools
       .getURL()
       .replace('devtools_app.html', 'device_mode_emulation_frame.html')
-    if (closed || !isFrontend(view.webContents.getURL()) || url !== expected || toolbox) {
+    if (!isFrontend(devtools.getURL()) || url !== expected || toolbox) {
       return { action: 'deny' }
     }
     return {
@@ -222,40 +238,42 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
         // options 携带 Chromium 已创建的子 webContents，必须原样认领以保留 opener。
         // 另建空白 webContents 会让工具栏画在已脱管的页面，且破坏布局与生命周期。
         const child = new WebContentsView(options)
+        const childContents = child.webContents
         // allow 与 Chromium 提交子页之间，来源工具可能已经关闭。
         if (closed || wc.isDestroyed()) {
-          child.webContents.close({ waitForBeforeUnload: false })
-          return child.webContents
+          childContents.close({ waitForBeforeUnload: false })
+          return childContents
         }
         toolbox = child
-        child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-        child.webContents.on('will-navigate', (event, target) => {
+        toolboxContents = childContents
+        childContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+        childContents.on('will-navigate', (event, target) => {
           if (target !== expected) event.preventDefault()
         })
-        child.webContents.on('will-redirect', (event, target) => {
+        childContents.on('will-redirect', (event, target) => {
           if (target !== expected) event.preventDefault()
         })
-        child.webContents.on('render-process-gone', fail)
-        child.webContents.once('destroyed', () => {
+        childContents.on('render-process-gone', fail)
+        childContents.once('destroyed', () => {
           if (toolbox === child) toolbox = null
           if (!closed) onClose()
         })
         layout()
-        return child.webContents
+        return childContents
       }
     }
   })
-  view.webContents.on('will-navigate', (event, url) => {
+  devtools.on('will-navigate', (event, url) => {
     if (!isFrontend(url)) event.preventDefault()
   })
-  view.webContents.once('destroyed', () => {
+  devtools.once('destroyed', () => {
     if (!closed) onClose()
   })
-  view.webContents.on('render-process-gone', fail)
+  devtools.on('render-process-gone', fail)
 
   return {
     open() {
-      wc.setDevToolsWebContents(view.webContents)
+      wc.setDevToolsWebContents(devtools)
       // 不指定 mode，保留 Electron 分区中记住的 Dock side；显示和焦点由宿主负责。
       wc.openDevTools()
     },
@@ -284,6 +302,7 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
     close() {
       if (closed) return
       closed = true
+      rememberFloatingBounds()
       clearTimeout(startupTimer)
       wc.removeListener('destroyed', pageDestroyed)
       wc.removeListener('did-navigate', updateTitle)
@@ -292,9 +311,9 @@ export function createDevToolsHost(page: WebContentsView, onClose: () => void): 
       if (toolbox) remove(owner, toolbox)
       remove(floating, view)
       if (!wc.isDestroyed()) wc.closeDevTools()
-      if (!view.webContents.isDestroyed()) view.webContents.close({ waitForBeforeUnload: false })
-      if (toolbox && !toolbox.webContents.isDestroyed())
-        toolbox.webContents.close({ waitForBeforeUnload: false })
+      if (!devtools.isDestroyed()) devtools.close({ waitForBeforeUnload: false })
+      if (toolboxContents && !toolboxContents.isDestroyed())
+        toolboxContents.close({ waitForBeforeUnload: false })
       floating?.destroy()
       if (!wc.isDestroyed()) page.setBounds(bounds)
     }
