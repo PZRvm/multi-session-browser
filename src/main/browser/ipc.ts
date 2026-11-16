@@ -681,7 +681,28 @@ export function registerBrowserIpc(
     (event, payload: unknown): OmniboxSuggestShowResult =>
       logFailure(OMNIBOX_SUGGEST_CHANNELS.show, payload, () => {
         const windowId = requireOwnerWindow(event)
-        const canPresent = suggestWindows.show(windowId, parseSuggestShow(payload))
+        const scope = requireScope(event)
+        const parsed = parseSuggestShow(payload)
+        // URL 和 favicon 都来自主进程历史，禁止把 renderer 的图标字段变成任意网络请求。
+        let entries: Promise<HistoryEntry[]> | null = null
+        const stillCurrent = (): boolean => {
+          if (event.sender.isDestroyed()) return false
+          try {
+            return requireScope(event).sessionId === scope.sessionId
+          } catch {
+            return false
+          }
+        }
+        const canPresent = suggestWindows.show(windowId, parsed, {
+          scope: scope.sessionId,
+          async resolve(url) {
+            entries ??= manager.history.getEntries(scope.sessionId)
+            const entry = (await entries).find((item) => item.url === url)
+            if (!entry || !stillCurrent()) return null
+            const icon = await manager.resolveHistoryIcon(scope.sessionId, entry)
+            return stillCurrent() ? icon : null
+          }
+        })
         return { ok: true, canPresent }
       })
   )

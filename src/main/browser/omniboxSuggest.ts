@@ -35,6 +35,11 @@ import type {
 } from '../../shared/omniboxSuggest'
 import type { ThemeSystemId } from '../../shared/themeSystems'
 
+interface SuggestIcons {
+  scope: string
+  resolve: (url: string) => Promise<string | null>
+}
+
 export interface OmniboxSuggestWindows {
   /**
    * 开/更新面板（幂等全量）：懒创建子窗、重定位、data 推送、显窗（不夺焦）。
@@ -42,7 +47,7 @@ export interface OmniboxSuggestWindows {
    * 后仍放不下「一行 + 底边框」时拒绝展示（不建不显），false 由 ipc.ts 回传 shell
    * 收回融合态
    */
-  show(windowId: string, payload: OmniboxSuggestShowPayload): boolean
+  show(windowId: string, payload: OmniboxSuggestShowPayload, icons?: SuggestIcons): boolean
   /** 收起面板：隐藏子窗（不销毁，复用）；建窗就绪前到达的 hide 撤销未决的显窗 */
   hide(windowId: string): void
   /** 销毁子窗并出池（宿主窗口 closed 级联；已不在池时 no-op） */
@@ -113,6 +118,10 @@ export function createOmniboxSuggestWindows(deps: {
     itemCount: number
     /** 就绪前最后一条 show 的数据（仅保留最新），就绪即 flush */
     pendingData: OmniboxSuggestDataPayload | null
+    /** 当前展示包身份，异步图标不得覆盖新查询、隐藏后的面板或其他会话 */
+    data: OmniboxSuggestDataPayload | null
+    iconScope: string | null
+    icons: Map<string, string | null>
     /** 宿主 move/resize 跟随监听挂摘（show 挂、hide/dispose 摘，防泄漏） */
     detachFollow: () => void
     /** 鼠标穿通态镜像（去重用） */
@@ -120,6 +129,33 @@ export function createOmniboxSuggestWindows(deps: {
   }
 
   const children = new Map<string, ChildEntry>()
+
+  function loadIcons(
+    windowId: string,
+    entry: ChildEntry,
+    data: OmniboxSuggestDataPayload,
+    icons?: SuggestIcons
+  ): void {
+    if (!icons) return
+    for (const item of data.items) {
+      void icons
+        .resolve(item.url)
+        .then((src) => {
+          if (
+            children.get(windowId) !== entry ||
+            entry.data !== data ||
+            !entry.visible ||
+            entry.win.isDestroyed()
+          )
+            return
+          entry.icons.set(item.url, src)
+          if (item.faviconUrl === src) return
+          item.faviconUrl = src
+          if (entry.ready) entry.win.webContents.send(OMNIBOX_SUGGEST_CHANNELS.data, data)
+        })
+        .catch(() => undefined)
+    }
+  }
 
   function destroy(windowId: string): void {
     const entry = children.get(windowId)
@@ -130,11 +166,27 @@ export function createOmniboxSuggestWindows(deps: {
     console.log(`[omnibox-suggest] 子窗已销毁（宿主 ${windowId}）`)
   }
 
-  function show(windowId: string, payload: OmniboxSuggestShowPayload): boolean {
+  function show(
+    windowId: string,
+    payload: OmniboxSuggestShowPayload,
+    icons?: SuggestIcons
+  ): boolean {
     const owner = deps.getWindow(windowId)
     if (!owner || owner.isDestroyed()) return false
+    const existing = children.get(windowId)
+    const sameScope = existing?.iconScope === icons?.scope
+    if (sameScope && existing) {
+      const urls = new Set(payload.items.map((item) => item.url))
+      for (const url of existing.icons.keys()) {
+        if (!urls.has(url)) existing.icons.delete(url)
+      }
+    }
     const data: OmniboxSuggestDataPayload = {
-      items: payload.items,
+      // 子窗不请求远程资源；缓存未就绪时立即显示搜索图标。
+      items: payload.items.map((item) => ({
+        ...item,
+        faviconUrl: sameScope ? (existing?.icons.get(item.url) ?? null) : null
+      })),
       query: payload.query,
       activeIndex: payload.activeIndex
     }
@@ -146,15 +198,20 @@ export function createOmniboxSuggestWindows(deps: {
       // 下一次 show 接受驱动，届时锚点/条目/数据整包更新）；follow 期间的空间不足
       // 同样只隐藏不移位
       const starved = children.get(windowId)
-      if (starved) starved.visible = false
+      if (starved) {
+        starved.visible = false
+        starved.data = null
+      }
       if (starved && !starved.win.isDestroyed() && starved.win.isVisible()) {
         starved.win.hide()
         console.log(`[omnibox-suggest] 工作区空间不足，面板拒绝展示（宿主 ${windowId}）`)
       }
       return false
     }
-    const existing = children.get(windowId)
     if (existing) {
+      existing.data = data
+      existing.iconScope = icons?.scope ?? null
+      if (!sameScope) existing.icons.clear()
       existing.anchor = payload.anchor
       existing.itemCount = payload.items.length
       existing.visible = true
@@ -172,6 +229,7 @@ export function createOmniboxSuggestWindows(deps: {
           existing.pendingData = data
         }
       }
+      loadIcons(windowId, existing, data, icons)
       return true
     }
 
@@ -217,10 +275,14 @@ export function createOmniboxSuggestWindows(deps: {
       anchor: payload.anchor,
       itemCount: payload.items.length,
       pendingData: data,
+      data,
+      iconScope: icons?.scope ?? null,
+      icons: new Map(),
       passthrough: false,
       detachFollow: () => undefined
     }
     children.set(windowId, entry)
+    loadIcons(windowId, entry, data, icons)
 
     // 宿主 move/resize 跟随：以缓存锚点 + 现取内容区原点重算（监听随 show 挂、
     // hide/dispose 摘；监听挂在宿主上，宿主销毁时随之失效）。同步重估可呈现性：
@@ -293,6 +355,7 @@ export function createOmniboxSuggestWindows(deps: {
     const entry = children.get(windowId)
     if (!entry || entry.win.isDestroyed()) return
     entry.visible = false
+    entry.data = null
     entry.pendingData = null
     if (entry.win.isVisible()) entry.win.hide()
   }

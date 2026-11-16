@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SearchOutlined } from '@ant-design/icons'
 import { useT } from '../../i18n'
 import { splitByQuery } from './omniboxSuggest'
 import type { OmniboxSuggestItemPayload } from '../../../../shared/omniboxSuggest'
@@ -7,12 +8,16 @@ import type { OmniboxSuggestItemPayload } from '../../../../shared/omniboxSugges
 // favicon 占位全部收在这里；开合时机、键盘状态机与提交编排留在 Toolbar。
 // 视觉契约见 DESIGN.md「地址栏历史建议」条目（chrome 灰阶、无阴影、显隐瞬切）。
 
-/** 建议行 favicon：加载失败（CSP 拦截 file:// 图标、远端 404 等）回退灰阶圆点占位
- * （L5 定案），不留 16px 空框；失败态按行记忆（key 为条目 url，换行即重置） */
+/** 图标数据由主进程按会话获取；解码失败回退搜索图标，src 变化时由 key 重置失败态。 */
 function SuggestFavicon({ src }: { src: string }): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   if (failed) {
-    return <span className="chrome-omnibox-suggest-favicon chrome-omnibox-suggest-favicon-dot" />
+    return (
+      <SearchOutlined
+        className="chrome-omnibox-suggest-favicon chrome-omnibox-suggest-search"
+        aria-hidden
+      />
+    )
   }
   return (
     <img
@@ -94,9 +99,12 @@ export default function OmniboxSuggestPanel({
           onClick={() => onPick(item.entry.url)}
         >
           {item.entry.faviconUrl ? (
-            <SuggestFavicon src={item.entry.faviconUrl} />
+            <SuggestFavicon key={item.entry.faviconUrl} src={item.entry.faviconUrl} />
           ) : (
-            <span className="chrome-omnibox-suggest-favicon chrome-omnibox-suggest-favicon-dot" />
+            <SearchOutlined
+              className="chrome-omnibox-suggest-favicon chrome-omnibox-suggest-search"
+              aria-hidden
+            />
           )}
           {item.entry.title ? (
             <>
