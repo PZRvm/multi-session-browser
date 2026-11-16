@@ -10,12 +10,14 @@ function HeaderUpdateButton({
   tooltip,
   busy,
   downloaded,
+  progress,
   onClick
 }: {
   label: string
   tooltip: string
   busy: boolean
   downloaded: boolean
+  progress: number | null
   onClick: () => void
 }): React.JSX.Element {
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -73,6 +75,13 @@ function HeaderUpdateButton({
           onClick()
         }}
       >
+        {progress !== null && (
+          <span
+            className="update-progress-fill update-progress-fill-vertical"
+            aria-hidden="true"
+            style={{ transform: `scaleY(${progress / 100})` }}
+          />
+        )}
         {downloaded ? <ReloadOutlined /> : <DownloadOutlined />}
       </button>
       {anchor && (
@@ -104,12 +113,17 @@ export function UpdateEntry({ about = false }: { about?: boolean }): React.JSX.E
     return null
   if (!about && !state.candidateVersion && !state.downloadedVersion) return null
   const busy = ['checking', 'downloading', 'preparing', 'installing'].includes(state.status)
+  const percent = state.progress?.percent
+  const progress =
+    state.status === 'downloading' && percent != null && Number.isFinite(percent)
+      ? Math.max(0, Math.min(100, percent))
+      : null
   const action = state.downloadedVersion || state.candidateVersion ? 'showDetails' : 'check'
   const label =
     state.status === 'downloading'
-      ? state.progress?.percent == null
+      ? progress === null
         ? t('updates.downloading')
-        : t('updates.percent', { n: Math.floor(state.progress.percent) })
+        : t('updates.percent', { n: Math.floor(progress) })
       : busy
         ? t(`updates.${state.status as 'checking' | 'preparing' | 'installing'}`)
         : state.downloadedVersion
@@ -127,6 +141,7 @@ export function UpdateEntry({ about = false }: { about?: boolean }): React.JSX.E
         tooltip={state.error ? t(`updates.errors.${state.error}`) : label}
         busy={busy}
         downloaded={!!state.downloadedVersion}
+        progress={progress}
         onClick={onClick}
       />
     )
@@ -144,8 +159,20 @@ export function UpdateEntry({ about = false }: { about?: boolean }): React.JSX.E
       label={t('updates.title')}
       desc={<span role="status">{status}</span>}
       control={
-        <button type="button" className="settings-action-button" disabled={busy} onClick={onClick}>
-          {label}
+        <button
+          type="button"
+          className="settings-action-button update-settings-button"
+          disabled={busy}
+          onClick={onClick}
+        >
+          {progress !== null && (
+            <span
+              className="update-progress-fill"
+              aria-hidden="true"
+              style={{ transform: `scaleX(${progress / 100})` }}
+            />
+          )}
+          <span className="update-button-label">{label}</span>
         </button>
       }
     />

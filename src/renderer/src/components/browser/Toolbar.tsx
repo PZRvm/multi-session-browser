@@ -555,8 +555,9 @@ function Toolbar(): React.JSX.Element {
   const scope = omniboxScopeKey(sessionId, activeTabId)
 
   const inputRef = useRef<HTMLInputElement>(null)
-  // null 表示非编辑态：显示主进程 URL；聚焦编辑期间改用本地草稿，失焦/回车成功后回归
+  // null 表示没有草稿：显示主进程 URL；草稿保留到提交、取消或切换作用域。
   const [draft, setDraft] = useState<string | null>(null)
+  const [focused, setFocused] = useState(false)
   // 待导航锁定也属于可编辑原文，快照 URL 离开提交基线或作用域改变后即失效。
   const [pending, setPending] = useState<{
     scope: string
@@ -671,7 +672,7 @@ function Toolbar(): React.JSX.Element {
   // 建议集缩短后的高亮位钳制（渲染期派生而非 effect 内 setState——防级联渲染）：
   // 越界（输入变化/镜像更新条数变少）视为无高亮
   const activeSuggestIndex = suggestIndex < suggestions.length ? suggestIndex : -1
-  const panelOpen = draft !== null && !suggestDismissed && suggestions.length > 0
+  const panelOpen = focused && draft !== null && !suggestDismissed && suggestions.length > 0
   // 子窗展示条目（结构化窄类型）：随 suggestions 记忆化，避免无关渲染触发重发
   const items = useMemo(
     () =>
@@ -1062,13 +1063,21 @@ function Toolbar(): React.JSX.Element {
             setCompletion(null)
           }}
           onFocus={() => {
-            clearEditing()
-            setDraft(pendingShown ?? mainUrl)
+            setFocused(true)
+            setDraft((current) => current ?? pendingShown ?? mainUrl)
             setSuggestDismissed(false)
           }}
           onBlur={() => {
-            clearEditing()
-            setDraft(null)
+            setFocused(false)
+            // 没有改动的 URL 不作为草稿锁住，后续网页导航仍可回填真实地址。
+            if (!searchMode && !acceptedTarget && draft === (pendingShown ?? mainUrl))
+              setDraft(null)
+            composing.current = false
+            undoEdits.current = []
+            redoEdits.current = []
+            beforeEdit.current = null
+            selectionRequest.current = null
+            setCompletion(null)
             setSuggestIndex(-1)
           }}
           onKeyDown={onKeyDown}

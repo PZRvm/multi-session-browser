@@ -3860,6 +3860,35 @@ body[data-role='extensions-panel'] .chrome-ext-panel {
   cursor: default;
   opacity: 0.65;
 }
+.update-button,
+.update-settings-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.update-progress-fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--accent);
+  opacity: 0.3;
+  transform-origin: left;
+  pointer-events: none;
+}
+.update-progress-fill-vertical {
+  background: var(--accent-ink);
+  opacity: 0.3;
+  transform-origin: bottom;
+}
+.update-button:has(.update-progress-fill) {
+  opacity: 1;
+}
+.update-settings-button {
+  min-width: 100px;
+}
+.update-button-label {
+  font-variant-numeric: tabular-nums;
+}
 .update-details {
   height: 100%;
   display: flex;
