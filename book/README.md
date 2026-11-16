@@ -199,7 +199,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (14)**
+**Open (15)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -212,6 +212,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md](notes/issue/2026-10/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md) — "修复轮复审：地址栏交互与 Chrome 站点数据导入"
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
+- [2026-11-16-顶栏设计规范尺寸冲突.md](notes/issue/2026-11/2026-11-16-顶栏设计规范尺寸冲突.md) — DESIGN旧布局条目仍声明40px顶栏和80px顶区，与已验收的36px和76px冲突
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
@@ -517,6 +518,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-浮动DevTools修复.md](notes/summary/2026-11/2026-11-16-浮动DevTools修复.md) — 独立分支恢复官方浮动设备工具栏并修复链接归属，12组回归与Mac实机通过，窗口几何记忆另行登记
 - [2026-11-16-浮动DevTools排查.md](notes/summary/2026-11/2026-11-16-浮动DevTools排查.md) — Electron45浮动DevTools设备模拟失效的实证、链接事件缺口和会话切换行为，含正常项与未测边界
 - [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
+- [2026-11-16-顶栏代码审查.md](notes/summary/2026-11/2026-11-16-顶栏代码审查.md) — 审查主窗和独立窗顶栏分支，记录一项设计规范冲突及跨平台验证范围
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -639,4 +641,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 514 documents -->
+<!-- 516 documents -->
