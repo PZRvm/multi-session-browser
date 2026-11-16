@@ -2707,9 +2707,12 @@ body[data-role='omnibox-suggest'] .chrome-omnibox-suggest {
   border-radius: 2px;
 }
 
-.chrome-omnibox-suggest-favicon-dot {
-  border-radius: 50%;
-  background: var(--chrome-disabled);
+.chrome-omnibox-suggest-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-ink-dim);
+  font-size: 16px;
 }
 
 .chrome-omnibox-suggest-title {

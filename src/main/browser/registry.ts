@@ -1,4 +1,4 @@
-import { trackUpdateWork } from '../updatePreparation'
+import { isUpdatePreparing, trackUpdateWork } from '../updatePreparation'
 // 会话浏览器注册表：每会话一个独立分区的 TabManager（分区字符串 persist:sess-<id>
 // 只在此处拼装，manager 只接收现成值），对外暴露 TabManager 兼容命令面（命令按来源
 // 窗口作用域路由：主窗口 → 激活会话的 'main' 作用域，独立窗口 → 其绑定会话的该窗口
@@ -39,6 +39,8 @@ import {
 import { createCameraPermissionBroker } from './permissions'
 import { createSessionPersistence, type RestoreSet } from './persistence'
 import { createBrowserHistory, type BrowserHistory } from './history'
+import { createHistoryIcons } from './historyIcons'
+import { createHistoryIconTools } from './historyIconTools'
 import type { SessionProxyEngine } from './proxy'
 import type { IndependentWindows } from './windows'
 
@@ -211,6 +213,11 @@ export interface SessionBrowserRegistry extends TabManager {
    * 在本注册表内完成（ensureManager 采集、destroySession 清史、clonePartition 携带）
    */
   readonly history: BrowserHistory
+  /** 历史建议按可信会话获取图片数据，关闭/删除期间不发起请求 */
+  resolveHistoryIcon(
+    id: string,
+    entry: { url: string; faviconUrl: string | null }
+  ): Promise<string | null>
 }
 
 export function createSessionBrowserRegistry(deps: {
@@ -282,6 +289,18 @@ export function createSessionBrowserRegistry(deps: {
    */
   const history = createBrowserHistory({
     historyDir: () => join(app.getPath('userData'), 'history')
+  })
+  const historyIconTools = createHistoryIconTools()
+  const historyIcons = createHistoryIcons({
+    validate: historyIconTools.validate,
+    findIcons: historyIconTools.findIcons,
+    cacheDir: (id) => join(partitionDir(partitionFor(id)), 'History Favicons'),
+    fetch: (id, url, signal) =>
+      session.fromPartition(partitionFor(id)).fetch(url, {
+        signal,
+        credentials: 'include',
+        bypassCustomProtocolHandlers: true
+      })
   })
   /**
    * 持久化上报与恢复集（阶段 6 自本文件抽出为 browser/persistence.ts，复审 L7 定案）：
@@ -741,6 +760,7 @@ export function createSessionBrowserRegistry(deps: {
     const partition = partitionFor(id)
     const target = session.fromPartition(partition)
     await deps.terminateExtensions?.(partition, target)
+    await historyIcons.cancel(id, true)
     // 删除会话先封死该 Session 的权限 handler 与在途请求；closeSession（克隆临时收尾）
     // 不走此分支，源会话本次运行内的授权决定得以保留，目标 id 天然不继承。
     cameraPermissions.disposeSession(id)
@@ -811,6 +831,7 @@ export function createSessionBrowserRegistry(deps: {
    * resolve（窗口级联照走——克隆前源会话独立窗口全关的收口不依赖 manager 存在）
    */
   async function closeSession(id: string): Promise<void> {
+    await historyIcons.cancel(id)
     const manager = managers.get(id)
     if (manager) {
       // 显式操作打断启动恢复（与 switchSession 同规）：防止恢复路径在关闭后重建该会话的
@@ -1293,7 +1314,11 @@ export function createSessionBrowserRegistry(deps: {
 
   /** 退出前冲刷全部待写的上报去抖并封笔（index.ts 的 before-quit 钩子；聚合 persistence 与 history 两路写盘，返回全部在途写盘的汇合 promise） */
   function flushPendingReports(): Promise<void> {
-    return Promise.all([persistence.flushAll(), history.flushAll()]).then(() => undefined)
+    return Promise.all([
+      persistence.flushAll(),
+      history.flushAll(),
+      historyIcons.shutdown().finally(historyIconTools.dispose)
+    ]).then(() => undefined)
   }
 
   function getStatuses(): SessionStatusesPayload {
@@ -1352,6 +1377,7 @@ export function createSessionBrowserRegistry(deps: {
       const results = await Promise.allSettled([
         persistence.prepareUpdate([...managers.keys()]),
         history.prepareUpdate(),
+        historyIcons.cancelAll().finally(historyIconTools.dispose),
         ...[...managers.keys()].map(async (id) => {
           const partition = session.fromPartition(partitionFor(id))
           partition.flushStorageData()
@@ -1365,6 +1391,11 @@ export function createSessionBrowserRegistry(deps: {
       persistence.resumeUpdate([...managers.keys()])
       history.resumeUpdate()
     },
-    history
+    history,
+    resolveHistoryIcon(id, entry) {
+      if (cloningIds.has(id) || importingIds.has(id) || isUpdatePreparing())
+        return Promise.resolve(null)
+      return historyIcons.resolve(id, entry)
+    }
   }
 }
