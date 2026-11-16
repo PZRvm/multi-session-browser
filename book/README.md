@@ -79,6 +79,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-扩展回收与代理实测立项.md](changelogs/2026-11/2026-11-15-扩展回收与代理实测立项.md) — 两轮真实应用确认扩展删除回收和代理假成功，分别建立L级计划，未修改产品实现
 - [2026-11-15-更新适配与关于页排版.md](changelogs/2026-11/2026-11-15-更新适配与关于页排版.md) — 隔离修复工作树接入dev更新机制，准备1.1.2并统一关于页更新行，补冷缓存恢复修复和验证记录
 - [2026-11-15-第三方许可与文档发布说明.md](changelogs/2026-11/2026-11-15-第三方许可与文档发布说明.md) — 补充BoCode和构建更新工具的第三方许可入口，说明纯文档合并main不会更新客户端
+- [2026-11-16-历史图标dev集成与发布PR.md](changelogs/2026-11/2026-11-16-历史图标dev集成与发布PR.md) — 历史图标审查修复已合入并推送dev，准备1.1.5及main发布PR，首轮push和PR的CI全绿
 - [2026-11-16-历史图标体积上限修正.md](changelogs/2026-11/2026-11-16-历史图标体积上限修正.md) — 单张历史图标下载和缓存上限从64KiB提高到256KiB，保留超限拒绝
 - [2026-11-16-历史图标审查问题修复.md](changelogs/2026-11/2026-11-16-历史图标审查问题修复.md) — 修复四项图标审查问题和SCRM旧历史图标发现，增加真实解码与CI回归
 - [2026-11-16-历史建议图标缓存.md](changelogs/2026-11/2026-11-16-历史建议图标缓存.md) — 历史建议沿会话获取并缓存图标，旧历史补取站点图标，缺失失败统一搜索图标
@@ -617,4 +618,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 492 documents -->
+<!-- 493 documents -->
