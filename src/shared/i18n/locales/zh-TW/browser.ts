@@ -4,6 +4,10 @@
 import type { Dictionary } from '../../index'
 
 export const browser: Dictionary['browser'] = {
+  devtools: {
+    windowTitle: '開發者工具 - {url}',
+    failed: '開發者工具版面初始化失敗，請關閉後重試'
+  },
   /** Tab 条（TabStrip）：Tab 列表 aria 与新建/关闭钮 */
   tabs: {
     /** Tab 栏（role=tablist）的 aria-label */

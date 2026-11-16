@@ -86,6 +86,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-插件会话代理.md](changelogs/2026-11/2026-11-16-插件会话代理.md) — 接入会话隔离的插件代理设置、手动优先仲裁与生命周期恢复
 - [2026-11-16-新分组自动创建会话.md](changelogs/2026-11/2026-11-16-新分组自动创建会话.md) — 新建分组成功切入后自动创建并选中一个默认会话，右侧立即提供标签页
 - [2026-11-16-更新进度填充与地址栏草稿.md](changelogs/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 为更新入口增加下载进度填充，修复地址栏失焦丢失未提交输入
+- [2026-11-16-浮动DevTools修复.md](changelogs/2026-11/2026-11-16-浮动DevTools修复.md) — 修复官方DevTools浮动设备模拟和资源链接，增加安全宿主与12组构建回归，保留窗口几何记忆待办
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -125,6 +126,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-007-extension-session-retirement.md](docs/decisions/ADR-007-extension-session-retirement.md) — 永久删除先封闭并排空扩展Session，保留库内部不可重用对象而不声称完全内存释放
 - [ADR-008-会话代理控制权.md](docs/decisions/ADR-008-会话代理控制权.md) — 内置手动代理优先于插件，原生身份授权与单源事务确保失败不悄悄直连
 - [ADR-009-history-favicon-cache.md](docs/decisions/ADR-009-history-favicon-cache.md) — 历史建议图标由主进程沿会话Session获取，分区内缓存，子窗仅显示图片数据
+- [ADR-010-devtools-host-compatibility.md](docs/decisions/ADR-010-devtools-host-compatibility.md) — 用户允许用官方DevTools加宿主兼容层修复浮动设备模拟，内部布局桥只开放给可信工具主frame
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -191,7 +193,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (13)**
+**Open (15)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -203,6 +205,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261015033335-独立代理专项审查.md](notes/issue/2026-10/20261015033335-独立代理专项审查.md) — "代码审查：独立代理专项（分支全部未提交改动）"
 - [20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md](notes/issue/2026-10/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md) — "修复轮复审：地址栏交互与 Chrome 站点数据导入"
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
+- [2026-11-16-DevTools宿主修复审查.md](notes/issue/2026-11/2026-11-16-DevTools宿主修复审查.md) — 浮动DevTools修复的十一项审查完成，记录窗口位置与尺寸不记忆的低优先级兼容差异
+- [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
@@ -367,6 +371,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-代理屏障不能拦插件资源.md](notes/learn/2026-11/2026-11-16-代理屏障不能拦插件资源.md) — 代理切换屏障误伤扩展资源导致重开后台失效，真实请求和后台初始化都要验证
 - [2026-11-16-历史图标必须沿会话网络加载.md](notes/learn/2026-11/2026-11-16-历史图标必须沿会话网络加载.md) — 原生建议子窗使用默认Session，历史图标应由会话Session获取并向子窗传图片数据
 - [2026-11-16-地址栏草稿与焦点分离.md](notes/learn/2026-11/2026-11-16-地址栏草稿与焦点分离.md) — 地址栏保留失焦草稿时必须单独控制建议焦点，并放行未编辑URL的导航回填
+- [2026-11-16-浮动设备模拟要核验辅助宿主.md](notes/learn/2026-11/2026-11-16-浮动设备模拟要核验辅助宿主.md) — Electron45浮动设备模拟依赖辅助宿主，按钮开启不能证明模拟生效，DevTools链接另走专门事件
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -500,6 +505,8 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-历史建议图标缓存.md](notes/summary/2026-11/2026-11-16-历史建议图标缓存.md) — 历史建议按会话补取并缓存图标，缺失失败显示搜索图标，十项回归和Mac隔离应用验收通过
 - [2026-11-16-新分组自动创建会话.md](notes/summary/2026-11/2026-11-16-新分组自动创建会话.md) — 新建分组自动创建并选中一个会话，记录真实界面回归和十一项代码审查结果
 - [2026-11-16-更新进度填充与地址栏草稿.md](notes/summary/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 更新按钮随下载百分比填充，地址栏失焦保留输入，含本机交互与主题验证结果
+- [2026-11-16-浮动DevTools修复.md](notes/summary/2026-11/2026-11-16-浮动DevTools修复.md) — 独立分支恢复官方浮动设备工具栏并修复链接归属，12组回归与Mac实机通过，窗口几何记忆另行登记
+- [2026-11-16-浮动DevTools排查.md](notes/summary/2026-11/2026-11-16-浮动DevTools排查.md) — Electron45浮动DevTools设备模拟失效的实证、链接事件缺口和会话切换行为，含正常项与未测边界
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -553,6 +560,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-历史建议图标缓存.md](plans/2026-11-16-历史建议图标缓存.md) — 按会话获取并缓存历史建议图标，冷启动优先读缓存，失败显示搜索图标
 - [2026-11-16-新分组自动创建会话.md](plans/2026-11-16-新分组自动创建会话.md) — 新建分组后复用会话创建与激活流程，避免进入无会话和无标签页的状态
 - [2026-11-16-更新进度填充与地址栏草稿.md](plans/2026-11-16-更新进度填充与地址栏草稿.md) — M级修复更新按钮下载进度填充与地址栏失焦丢草稿，限渲染层交互
+- [2026-11-16-浮动DevTools修复.md](plans/2026-11-16-浮动DevTools修复.md) — 在独立分支修复浮动设备工具栏与DevTools链接打开，验证固定调试目标和视图回收
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -618,4 +626,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 493 documents -->
+<!-- 501 documents -->

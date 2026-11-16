@@ -36,6 +36,7 @@ export default defineConfig({
       rollupOptions: {
         input: [
           resolve('src/preload/index.ts'),
+          resolve('src/preload/devtoolsPreload.ts'),
           resolve('src/main/browser/recording/capturePreload.ts')
         ]
       }
