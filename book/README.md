@@ -81,6 +81,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-第三方许可与文档发布说明.md](changelogs/2026-11/2026-11-15-第三方许可与文档发布说明.md) — 补充BoCode和构建更新工具的第三方许可入口，说明纯文档合并main不会更新客户端
 - [2026-11-16-插件会话代理.md](changelogs/2026-11/2026-11-16-插件会话代理.md) — 接入会话隔离的插件代理设置、手动优先仲裁与生命周期恢复
 - [2026-11-16-新分组自动创建会话.md](changelogs/2026-11/2026-11-16-新分组自动创建会话.md) — 新建分组成功切入后自动创建并选中一个默认会话，右侧立即提供标签页
+- [2026-11-16-更新进度填充与地址栏草稿.md](changelogs/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 为更新入口增加下载进度填充，修复地址栏失焦丢失未提交输入
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -90,6 +91,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [release-notes-v1.1.1.md](changelogs/2026-11/release-notes-v1.1.1.md) — 1.1.1版本加入应用内更新与版本日志，Mac接入Sparkle并修复安装准备时的标签恢复集覆盖
 - [release-notes-v1.1.2.md](changelogs/2026-11/release-notes-v1.1.2.md) — 1.1.2版本的浏览器身份一致性、网站Worker隔离与关于页更新显示改进
 - [release-notes-v1.1.3.md](changelogs/2026-11/release-notes-v1.1.3.md) — 1.1.3版本的新分组默认会话、扩展删除回收与会话插件代理支持
+- [release-notes-v1.1.4.md](changelogs/2026-11/release-notes-v1.1.4.md) — 1.1.4版本的更新进度填充与地址栏失焦输入保留
 
 ### docs/
 
@@ -353,6 +355,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-扩展回收与代理兼容实测.md](notes/learn/2026-11/2026-11-15-扩展回收与代理兼容实测.md) — 三次真实开发应用复现删除会话后重建分区，以及SwitchyOmega代理回调成功但请求仍直连
 - [2026-11-15-更新封锁须允许在途内部恢复.md](notes/learn/2026-11/2026-11-15-更新封锁须允许在途内部恢复.md) — 拒绝新命令与排空已有恢复不能共用创建禁令，否则合法空快照会覆盖旧恢复集
 - [2026-11-16-代理屏障不能拦插件资源.md](notes/learn/2026-11/2026-11-16-代理屏障不能拦插件资源.md) — 代理切换屏障误伤扩展资源导致重开后台失效，真实请求和后台初始化都要验证
+- [2026-11-16-地址栏草稿与焦点分离.md](notes/learn/2026-11/2026-11-16-地址栏草稿与焦点分离.md) — 地址栏保留失焦草稿时必须单独控制建议焦点，并放行未编辑URL的导航回填
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -481,6 +484,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-会话插件代理接入.md](notes/summary/2026-11/2026-11-16-会话插件代理接入.md) — 代理插件从回调假成功改为真实会话路由，说明手动优先、失败恢复与平台边界
 - [2026-11-16-历史issue核对与规范修复.md](notes/summary/2026-11/2026-11-16-历史issue核对与规范修复.md) — 核对65份历史open issue，关闭52份并保留13份功能、性能、规模观察或平台待验记录
 - [2026-11-16-新分组自动创建会话.md](notes/summary/2026-11/2026-11-16-新分组自动创建会话.md) — 新建分组自动创建并选中一个会话，记录真实界面回归和十一项代码审查结果
+- [2026-11-16-更新进度填充与地址栏草稿.md](notes/summary/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 更新按钮随下载百分比填充，地址栏失焦保留输入，含本机交互与主题验证结果
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -530,6 +534,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-更新机制接入与1.1.2版本准备.md](plans/2026-11-15-更新机制接入与1.1.2版本准备.md) — 在人机验证修复工作树合入dev更新机制，统一关于页更新行并准备1.1.2，提交审查后仅推送工作分支
 - [2026-11-16-历史issue核对与规范修复.md](plans/2026-11-16-历史issue核对与规范修复.md) — 核对65份未关闭issue，关闭有证据的旧项，修复代码规范问题并发布1.1.3
 - [2026-11-16-新分组自动创建会话.md](plans/2026-11-16-新分组自动创建会话.md) — 新建分组后复用会话创建与激活流程，避免进入无会话和无标签页的状态
+- [2026-11-16-更新进度填充与地址栏草稿.md](plans/2026-11-16-更新进度填充与地址栏草稿.md) — M级修复更新按钮下载进度填充与地址栏失焦丢草稿，限渲染层交互
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -595,4 +600,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 470 documents -->
+<!-- 475 documents -->
