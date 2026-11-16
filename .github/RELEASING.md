@@ -95,6 +95,6 @@ description: 1.2.3版本的用户可见变化
 - 描述本次发布的实际变化。
 ```
 
-`scripts/release-notes.cjs`提取正文，Windows builder 将它写入 latest.yml.releaseNotes，Mac 工具生成同版 Markdown 附件供 appcast 引用，发布脚本用同一正文作为GitHub Release开头。源文件缺失、重复、超长，或各平台日志不一致都会阻止发布。修改版本号时同步准备该版本文件；普通开发记录不自动拼成发布说明。测试90.0.1/90.0.2使用`tools/update-test/fixtures/`内专用日志，不占用正式版本文件。
+`scripts/release-notes.cjs`提取正文，Windows builder 将它写入 latest.yml.releaseNotes，Mac 工具生成同版 Markdown 附件供 appcast 引用，发布脚本用同一正文作为GitHub Release开头。源文件缺失、重复、超长，或各平台日志不一致都会阻止发布。修改版本号时同步准备该版本文件；普通开发记录不自动拼成发布说明。`tools/update-test/fixtures/`中的90.0.1/90.0.2日志保留为历史夹具；scripts 中的本地更新测试构建和服务入口已退休。
 
 首个 Sparkle 版本必须手动安装。之后只在启动或用户手动检查时发现稳定版，用户点击才下载，确认才安装；普通退出不自动安装；Mac 进程内稍后可继续安装，普通退出等待取消完成，重开需重新下载。版本日志与运行机制见 [项目骨架中的更新规范](../book/docs/architecture/项目骨架.md)。本地可测试，不需要等待下一次业务功能发布。

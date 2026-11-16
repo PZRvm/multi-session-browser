@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const dir = mkdtempSync(join(tmpdir(), 'msb-r1-'))
 globalThis.r1dir = dir
-const mock = `import {EventEmitter} from 'node:events';export const app={getPath:()=>globalThis.r1dir};export const ipcMain={handle(){}};export const session={fromPartition:()=>({flushStorageData(){},cookies:{flushStore:async()=>{}}})};export const webContents={getAllWebContents:()=>[]};export const BrowserWindow={fromWebContents:()=>null};export class WebContentsView{constructor(){this.webContents=new EventEmitter();Object.assign(this.webContents,{id:1,isDestroyed:()=>false,loadURL:async()=>{},focus(){},stopFindInPage(){},close(){},setWindowOpenHandler(){},navigationHistory:{canGoBack:()=>false,canGoForward:()=>false}})}setBackgroundColor(){}setBounds(){}}`
+const mock = `import {EventEmitter} from 'node:events';export const app={getPath:()=>globalThis.r1dir};export const ipcMain={handle(){}};export const session={fromPartition:()=>({flushStorageData(){},cookies:{flushStore:async()=>{}}})};export const webContents={getAllWebContents:()=>[]};export const BrowserWindow={fromWebContents:()=>null};export class WebContentsView{constructor(){this.webContents=new EventEmitter();Object.assign(this.webContents,{id:1,isDestroyed:()=>false,loadURL:async()=>{},focus(){},stopFindInPage(){},close(){},setWindowOpenHandler(){},navigationHistory:{canGoBack:()=>false,canGoForward:()=>false}})}setBackgroundColor(){}setBounds(){}}
+const unexpected=()=>{throw Error('R1 恢复集回归不应打开原生窗口或查询显示器')};export const screen={getDisplayMatching:unexpected};export const dialog={showMessageBox:unexpected};export class BaseWindow{constructor(){unexpected()}}`
 try {
   const file = join(dir, 'test.cjs')
   await build({

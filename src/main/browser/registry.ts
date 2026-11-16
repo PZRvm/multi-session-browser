@@ -41,6 +41,7 @@ import { createSessionPersistence, type RestoreSet } from './persistence'
 import { createBrowserHistory, type BrowserHistory } from './history'
 import { createHistoryIcons } from './historyIcons'
 import { createHistoryIconTools } from './historyIconTools'
+import { flushDevToolsWindowStates, retireDevToolsWindowState } from './devtoolsWindowState'
 import type { SessionProxyEngine } from './proxy'
 import type { IndependentWindows } from './windows'
 
@@ -418,24 +419,13 @@ export function createSessionBrowserRegistry(deps: {
 
   /**
    * 摘除某 manager 指定窗口作用域激活 Tab 的页面 view：脱离 contentView 但 webContents
-   * 保活（挂摘保活，阶段4步骤1 冒烟已证），重挂由 manager.attachToWindow 按其缓存矩形
-   * 完成。view 未挂入（后台 manager）时自然 no-op。manager 未暴露 view 引用，经窗口
-   * 子视图按 webContents 身份反查（同一时刻每个窗口每个 manager 至多一个激活 view 挂着）。
+   * 保活，重挂由 manager.attachToWindow 按其缓存矩形完成。组合视图的具体引用和
+   * DevTools 设备辅助页归 manager 管理，后台 manager 未挂入时自然 no-op。
    * 现调用方均为主窗口作用域——会话切换/销毁收尾只发生在主窗口（独立窗口的摘挂由
    * manager 挂归窗口自决 + windows.ts closed 级联，不经此函数）
    */
   function detachActiveView(manager: TabManager, windowId: string = WINDOW_ID_MAIN): void {
-    const win = getWindow(windowId)
-    const wc = manager.getActiveWebContents(windowId)
-    if (!win || !wc) return
-    // 摘除前停止页内查找并清高亮（切会话/销毁/批量打开后台化路径的源头清理，与
-    // manager.activate 的切 Tab 清理同规——陈旧高亮不得跨激活位留存）
-    if (!wc.isDestroyed()) wc.stopFindInPage('clearSelection')
-    const view = win.contentView.children.find(
-      (child): child is WebContentsView =>
-        child instanceof WebContentsView && child.webContents === wc
-    )
-    if (view) win.contentView.removeChildView(view)
+    manager.detachFromWindow(windowId)
   }
 
   function statusesPayload(): SessionStatusesPayload {
@@ -568,6 +558,8 @@ export function createSessionBrowserRegistry(deps: {
       getHomepageUrl,
       getFallbackBackground,
       getResolvedTheme,
+      isWindowActive: (windowId) => windowBoundTo(windowId, id),
+      onDevToolsTabOpened: (tabId, windowId) => emitLifecycle('tab-switched', id, tabId, windowId),
       getRecordingWindowId: deps.getRecordingWindowId
     })
     managers.set(id, manager)
@@ -794,6 +786,7 @@ export function createSessionBrowserRegistry(deps: {
       //    webContents 存活时清存储会被内存态覆写回盘（冒烟定案时序，顺序不可颠倒），
       //    销毁机制由 killPartitionWebContents 共享（closeSession 同用）
     }
+    await retireDevToolsWindowState(target)
     await killPartitionWebContents(target, id, '清除')
     // ② 清分区存储（cookies / localStorage / 缓存索引等）；失败如实告警不静默，
     //    文案带分区名与目录位置（userData/Partitions/ 下），残留可人工核查
@@ -875,7 +868,9 @@ export function createSessionBrowserRegistry(deps: {
     // 杀 webContents（共享销毁机制，含宽限与有界重扫）
     manager.dispose()
     detachActiveView(manager)
-    await killPartitionWebContents(session.fromPartition(partitionFor(id)), id, '关闭')
+    const target = session.fromPartition(partitionFor(id))
+    await killPartitionWebContents(target, id, '关闭')
+    await flushDevToolsWindowStates(target)
   }
 
   /**
@@ -1297,6 +1292,10 @@ export function createSessionBrowserRegistry(deps: {
     return () => focusListeners.delete(cb)
   }
 
+  function detachFromWindow(windowId: string = WINDOW_ID_MAIN): void {
+    scopedManager(windowId)?.detachFromWindow(windowId)
+  }
+
   function onFindRequest(cb: FindRequestListener): () => void {
     findRequestListeners.add(cb)
     return () => findRequestListeners.delete(cb)
@@ -1316,6 +1315,7 @@ export function createSessionBrowserRegistry(deps: {
   function flushPendingReports(): Promise<void> {
     return Promise.all([
       persistence.flushAll(),
+      flushDevToolsWindowStates(),
       history.flushAll(),
       historyIcons.shutdown().finally(historyIconTools.dispose)
     ]).then(() => undefined)
@@ -1354,6 +1354,7 @@ export function createSessionBrowserRegistry(deps: {
     closeDevTools,
     getActiveWebContents,
     attachToWindow,
+    detachFromWindow,
     destroyTabsInWindow,
     applyFallbackBackground,
     dispose,

@@ -1,6 +1,10 @@
 // 右侧浏览器区命名空间（源语言 zh-CN）：Tab 条/工具栏/页内查找栏/地址栏建议面板/
 // 浏览器框架空态。阶段六步骤 4 簇 B 填充（快捷键动作无 UI 可见描述，不入本域）
 export const browser = {
+  devtools: {
+    windowTitle: '开发者工具 - {url}',
+    failed: '开发者工具布局初始化失败，请关闭后重试'
+  },
   /** Tab 条（TabStrip）：Tab 列表 aria 与新建/关闭钮 */
   tabs: {
     /** Tab 栏（role=tablist）的 aria-label */
