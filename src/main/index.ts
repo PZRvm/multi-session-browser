@@ -22,7 +22,7 @@ import {
 } from './browser/registry'
 import { createSessionProxyEngine } from './browser/proxy'
 import { buildDefaultUserAgent } from './browser/userAgent'
-import { createIndependentWindows } from './browser/windows'
+import { createIndependentWindows, type IndependentWindows } from './browser/windows'
 import { createOmniboxSuggestWindows, type OmniboxSuggestWindows } from './browser/omniboxSuggest'
 import { createExtensionsPanelWindows, type ExtensionsPanelWindows } from './extensions/panel'
 import { registerExtensionShims } from './extensions/shims'
@@ -141,6 +141,8 @@ let registry: SessionBrowserRegistry | null = null
 // 独立窗口；registry 的 getWindow('main')、ipc 定向推送、会话状态推送均经此引用。
 // macOS 关窗期间自然为 null（closed 置空），重开由 activate → createWindow 回填
 let mainWindow: BrowserWindow | null = null
+// 外观控制器先于登记表创建，主题回调经此晚绑定引用同步独立窗WCO。
+let independentWindowsForAppearance: IndependentWindows | null = null
 // 建议子窗池（原生子窗口化专项）：宿主窗口 closed 级联销毁各自子窗——主窗 closed
 // 钩子与独立窗 onWindowClosed 回调经此引用（whenReady 内创建，回调触发时必已就绪）
 let suggestWindows: OmniboxSuggestWindows | null = null
@@ -170,19 +172,20 @@ const appearanceController = createAppearanceController({
     // WebContentsView 兜底底色只随亮暗：页面画布中性底不随主题三系（2026-10-30
     // 专项裁定，DESIGN「兜底底色」条目；browserViewFallbackBackground 恒中性常量）
     registry?.applyFallbackBackground(browserViewFallbackBackground(snapshot.resolvedTheme))
-    // win32 WCO overlay 配色同步（2026-10-30 专项；同日主题化随系）：亮暗翻转或主题
-    // 色切换即改主窗 overlay 底/符号色——底随 chromeTabbar token 随系（与 renderer
-    // --chrome-tabbar 同源），符号色恒中性墨（chrome 墨族全局常量）。仅主窗有
-    // overlay：独立窗与子窗均系统框，setTitleBarOverlay 对无 overlay 窗口会抛错，
-    // 不可进 appearance 的全窗 setBackgroundColor 循环；主窗不存在（未建/macOS
-    // 关窗期）静默跳过，重开由 createWindow 现取快照回填初值
-    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
+    // 仅主窗和独立浏览窗使用WCO；其他子窗保留系统框，不能调用setTitleBarOverlay。
+    if (process.platform !== 'win32') return
+    const overlayWindows = [
+      mainWindow,
+      ...(independentWindowsForAppearance?.listAll().map((entry) => entry.win) ?? [])
+    ]
+    for (const win of overlayWindows) {
+      if (!win || win.isDestroyed()) continue
       // 原生 API 边界调用包 try-catch（dock.setIcon 同款先例，审查 20261030135910
       // 中-1）：overlay 配色是纯视觉增益，失败仅中文告警——不得阻断主题切换（路径一
       // 经 setMode/setThemeColor 上抛即 IPC 拒绝），更不得沿 nativeTheme updated 事件
       // 路径（handleNativeThemeUpdated → syncSnapshot → 本回调）以未捕获异常崩进程
       try {
-        mainWindow.setTitleBarOverlay({
+        win.setTitleBarOverlay({
           color: chromeTabbarSurface(snapshot.themeColor, snapshot.resolvedTheme),
           symbolColor: chromeOverlaySymbol(snapshot.resolvedTheme)
         })
@@ -304,7 +307,7 @@ function createWindow(): void {
   // 收起功能退役删除，三灯恒显）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）；
   // win32 主窗携 winc=wco（WCO 无标题栏形态标记——renderer 板头品牌 icon 门控消费，
-  // 2026-10-30 无底图标专项；与 darwin traffic 同 query 值域互斥，Linux/独立窗不带）。
+  // 2026-10-30 无底图标专项；与darwin traffic同query值域互斥，Linux不带）。
   // 窗口拖动由板头与 Tab 栏空白区 app-region: drag 承担（无门控恒生效——去栏平台
   // 自动升级为主拖拽带，零改动）。
   // Windows WCO（2026-10-30 专项，调研 notes/think-report/20261030130138 / DESIGN
@@ -493,6 +496,7 @@ app.whenReady().then(async () => {
     },
     // 建窗 query sys 现取（独立窗 renderer 首帧主题注入，主窗同款契约）
     getThemeColor: () => appearanceController.getSnapshot().themeColor,
+    getResolvedTheme: () => appearanceController.getSnapshot().resolvedTheme,
     onWindowReady: (sessionId: string, windowId: string): void => {
       registry?.onIndependentWindowReady(sessionId, windowId)
     },
@@ -503,6 +507,7 @@ app.whenReady().then(async () => {
       registry?.onIndependentWindowClosed(sessionId, windowId)
     }
   })
+  independentWindowsForAppearance = independentWindows
 
   // 建议子窗池（原生子窗口化专项）：每宿主窗口至多一个透明无框子窗承载地址栏建议
   //（懒创建/隐藏复用/宿主 move-resize 跟随），宿主窗口解析与 registry 同源

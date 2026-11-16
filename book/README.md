@@ -88,6 +88,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-新分组自动创建会话.md](changelogs/2026-11/2026-11-16-新分组自动创建会话.md) — 新建分组成功切入后自动创建并选中一个默认会话，右侧立即提供标签页
 - [2026-11-16-更新进度填充与地址栏草稿.md](changelogs/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 为更新入口增加下载进度填充，修复地址栏失焦丢失未提交输入
 - [2026-11-16-浮动DevTools修复.md](changelogs/2026-11/2026-11-16-浮动DevTools修复.md) — 修复官方DevTools浮动设备模拟和资源链接，增加安全宿主与12组构建回归，保留窗口几何记忆待办
+- [2026-11-16-独立窗口去系统标题栏.md](changelogs/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立浏览窗隐藏系统标题行，保留标签栏并为两端原生窗口按钮让位
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -374,6 +375,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-历史图标必须沿会话网络加载.md](notes/learn/2026-11/2026-11-16-历史图标必须沿会话网络加载.md) — 原生建议子窗使用默认Session，历史图标应由会话Session获取并向子窗传图片数据
 - [2026-11-16-地址栏草稿与焦点分离.md](notes/learn/2026-11/2026-11-16-地址栏草稿与焦点分离.md) — 地址栏保留失焦草稿时必须单独控制建议焦点，并放行未编辑URL的导航回填
 - [2026-11-16-浮动设备模拟要核验辅助宿主.md](notes/learn/2026-11/2026-11-16-浮动设备模拟要核验辅助宿主.md) — Electron45浮动设备模拟依赖辅助宿主，按钮开启不能证明模拟生效，DevTools链接另走专门事件
+- [2026-11-16-独立窗口原生按钮避让.md](notes/learn/2026-11/2026-11-16-独立窗口原生按钮避让.md) — 独立窗口去标题栏须同时处理建窗选项、标签避让和Windows逐窗主题更新
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -511,6 +513,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-更新进度填充与地址栏草稿.md](notes/summary/2026-11/2026-11-16-更新进度填充与地址栏草稿.md) — 更新按钮随下载百分比填充，地址栏失焦保留输入，含本机交互与主题验证结果
 - [2026-11-16-浮动DevTools修复.md](notes/summary/2026-11/2026-11-16-浮动DevTools修复.md) — 独立分支恢复官方浮动设备工具栏并修复链接归属，12组回归与Mac实机通过，窗口几何记忆另行登记
 - [2026-11-16-浮动DevTools排查.md](notes/summary/2026-11/2026-11-16-浮动DevTools排查.md) — Electron45浮动DevTools设备模拟失效的实证、链接事件缺口和会话切换行为，含正常项与未测边界
+- [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -567,6 +570,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-新分组自动创建会话.md](plans/2026-11-16-新分组自动创建会话.md) — 新建分组后复用会话创建与激活流程，避免进入无会话和无标签页的状态
 - [2026-11-16-更新进度填充与地址栏草稿.md](plans/2026-11-16-更新进度填充与地址栏草稿.md) — M级修复更新按钮下载进度填充与地址栏失焦丢草稿，限渲染层交互
 - [2026-11-16-浮动DevTools修复.md](plans/2026-11-16-浮动DevTools修复.md) — 在独立分支修复浮动设备工具栏与DevTools链接打开，验证固定调试目标和视图回收
+- [2026-11-16-独立窗口去系统标题栏.md](plans/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口保留网页标签栏，将Mac原生三灯和Windows原生窗口控制嵌入顶行
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -632,4 +636,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 507 documents -->
+<!-- 511 documents -->

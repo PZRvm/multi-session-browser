@@ -2024,7 +2024,7 @@ select.picker-input {
      百分比相对列宽（窗口宽 - 左栏 - 分隔条），会少避让左栏整宽；100vw -
      env(titlebar-area-width) 恰为 overlay 占宽（env 值浏览器维护，最大化/拖宽自动
      跟随），外加原 10px 呼吸位。Tab 溢出靠既有 flex 收缩在避让线内完成，无一 Tab
-     钻入按钮区。fallback 100vw 时 calc 恒为 10px——mac/Linux/独立窗（无 overlay）
+     钻入按钮区。fallback 100vw 时 calc 恒为 10px——mac/Linux（无 overlay）
      零行为变化，天然平台门控不新增 query */
   padding: 6px calc(10px + 100vw - env(titlebar-area-width, 100vw)) 0 10px;
   background: var(--chrome-tabbar);
@@ -2042,6 +2042,11 @@ select.picker-input {
      拖拽行不破版）；Tab/新建钮/窗口控制钮 no-drag 保持交互。drag 区吞鼠标事件，
      子元素必须逐个 no-drag 才可点 */
   -webkit-app-region: drag;
+}
+
+.independent-traffic > .chrome-tabs {
+  /* 原生三灯从x=14开始，预留整组按钮及与首个标签之间的拖窗空白。 */
+  padding-left: 94px;
 }
 
 /* Tab 序列裁切层（2026-10-30 WCO 修复轮，审查 20261030135910 低-3）：Tab 压至内容
