@@ -13,7 +13,12 @@ import icon from '../../../resources/icon.png?asset'
 import { installShellInputGuard } from '../inputGuard'
 import { getCurrentLanguage } from '../i18n'
 import { clampRectIntoWorkArea } from './screen'
-import type { ThemeSystemId } from '../../shared/themeSystems'
+import {
+  chromeOverlaySymbol,
+  chromeTabbarSurface,
+  type ThemeSystemId
+} from '../../shared/themeSystems'
+import type { ResolvedTheme } from '../../shared/appearance'
 
 /** 默认/最小窗口尺寸（DIP）：Chrome 新窗口量级，可自由调整 */
 const DEFAULT_WIDTH = 1024
@@ -73,6 +78,8 @@ export function createIndependentWindows(deps: {
   getBackgroundColor: () => string
   /** 当前主题色（建窗 query sys 现取，renderer 首帧主题注入防闪色；index.ts 注入） */
   getThemeColor: () => ThemeSystemId
+  /** Windows 原生控制区配色与标签栏保持一致 */
+  getResolvedTheme: () => ResolvedTheme
   /** ready-to-show：窗口就绪（防白屏时点），registry 经此挂入该窗口作用域激活 Tab 的 view */
   onWindowReady: (sessionId: string, windowId: string) => void
   /** 窗口已销毁：registry 经此销毁该窗口作用域全部 Tab（含 webContents）并清槽位 */
@@ -127,6 +134,9 @@ export function createIndependentWindows(deps: {
     at?: { x?: number; y?: number }
   ): { windowId: string; win: BrowserWindow } {
     const position = at ? positionAt(at) : null
+    const darwin = process.platform === 'darwin'
+    const win32 = process.platform === 'win32'
+    const winc: Record<string, string> = darwin ? { winc: 'traffic' } : win32 ? { winc: 'wco' } : {}
     const win = new BrowserWindow({
       ...(position ? { x: position.x, y: position.y } : {}),
       width: DEFAULT_WIDTH,
@@ -137,6 +147,20 @@ export function createIndependentWindows(deps: {
       autoHideMenuBar: true,
       backgroundColor: deps.getBackgroundColor(),
       title,
+      // 原生按钮与36px标签栏同排；Mac左侧由独立框留空，Windows沿用WCO动态避让。
+      ...(darwin
+        ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 14, y: 12 } }
+        : {}),
+      ...(win32
+        ? {
+            titleBarStyle: 'hidden' as const,
+            titleBarOverlay: {
+              height: 36,
+              color: chromeTabbarSurface(deps.getThemeColor(), deps.getResolvedTheme()),
+              symbolColor: chromeOverlaySymbol(deps.getResolvedTheme())
+            }
+          }
+        : {}),
       ...(process.platform === 'linux' ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -194,7 +218,8 @@ export function createIndependentWindows(deps: {
         session: sessionId,
         windowId,
         sys,
-        lang: getCurrentLanguage()
+        lang: getCurrentLanguage(),
+        ...winc
       })
       win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${query.toString()}`)
     } else {
@@ -204,7 +229,8 @@ export function createIndependentWindows(deps: {
           session: sessionId,
           windowId,
           sys,
-          lang: getCurrentLanguage()
+          lang: getCurrentLanguage(),
+          ...winc
         }
       })
     }
