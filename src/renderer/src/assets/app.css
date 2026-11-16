@@ -2049,6 +2049,24 @@ select.picker-input {
   padding-left: 94px;
 }
 
+/* 独立窗标签贴近顶部，与原生窗口按钮同排；顶栏和工具栏边界仍为40px。 */
+.independent-window > .chrome-tabs {
+  padding-top: 4px;
+}
+
+.independent-window .chrome-tab {
+  height: 36px;
+}
+
+.independent-window .chrome-newtab {
+  align-self: center;
+  margin-bottom: 0;
+}
+
+.independent-window .chrome-tab-insert {
+  top: 4px;
+}
+
 /* Tab 序列裁切层（2026-10-30 WCO 修复轮，审查 20261030135910 低-3）：Tab 压至内容
    下限（favicon + 关闭钮）后仍溢出的尾段在本层内横向滚动裁切，不再钻入右上角 WCO
    按钮区；新建钮在外层恒显于避让线内。滚动条全隐（Chrome tabstrip 无滚动条观感，
