@@ -199,7 +199,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (15)**
+**Open (14)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -212,12 +212,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md](notes/issue/2026-10/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md) — "修复轮复审：地址栏交互与 Chrome 站点数据导入"
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
-- [2026-11-16-顶栏设计规范尺寸冲突.md](notes/issue/2026-11/2026-11-16-顶栏设计规范尺寸冲突.md) — DESIGN旧布局条目仍声明40px顶栏和80px顶区，与已验收的36px和76px冲突
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (123)**
+**Resolved (124)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -312,6 +311,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-历史图标展示缓存回收.md](notes/issue/2026-11/2026-11-16-历史图标展示缓存回收.md) — 建议窗口的图标展示Map未限容量，过期图标离线回退后也沿用七天刷新周期
 - [2026-11-16-历史图标损坏图片被缓存.md](notes/issue/2026-11/2026-11-16-历史图标损坏图片被缓存.md) — 仅按文件头识别图片会把损坏PNG缓存七天，渲染失败后既不尝试根图标也不失效缓存
 - [2026-11-16-历史图标排队取消等待其他会话.md](notes/issue/2026-11/2026-11-16-历史图标排队取消等待其他会话.md) — 图标请求在获得全局并发槽位后才建立取消控制器，删除会话会等待其他会话排队下载
+- [2026-11-16-顶栏设计规范尺寸冲突.md](notes/issue/2026-11/2026-11-16-顶栏设计规范尺寸冲突.md) — DESIGN旧布局条目仍声明40px顶栏和80px顶区，与已验收的36px和76px冲突
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
 - [20261103174933-dev验证与main自动发布审查.md](notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md) — "代码审查：dev 验证与 main 自动发布"
@@ -576,6 +576,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-更新进度填充与地址栏草稿.md](plans/2026-11-16-更新进度填充与地址栏草稿.md) — M级修复更新按钮下载进度填充与地址栏失焦丢草稿，限渲染层交互
 - [2026-11-16-浮动DevTools修复.md](plans/2026-11-16-浮动DevTools修复.md) — 在独立分支修复浮动设备工具栏与DevTools链接打开，验证固定调试目标和视图回收
 - [2026-11-16-独立窗口去系统标题栏.md](plans/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口保留网页标签栏，将Mac原生三灯和Windows原生窗口控制嵌入顶行
+- [2026-11-16-顶栏审查修复与发布.md](plans/2026-11-16-顶栏审查修复与发布.md) — 修复顶栏设计尺寸冲突，补三平台建窗和Windows主题回归，再合dev准备1.1.7发布PR
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -641,4 +642,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 516 documents -->
+<!-- 517 documents -->
