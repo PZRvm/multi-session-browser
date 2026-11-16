@@ -147,7 +147,7 @@ export function createIndependentWindows(deps: {
       autoHideMenuBar: true,
       backgroundColor: deps.getBackgroundColor(),
       title,
-      // 原生按钮与40px标签栏同排；Mac左侧由独立框留空，Windows沿用WCO动态避让。
+      // 原生按钮与36px标签栏同排；Mac左侧由独立框留空，Windows沿用WCO动态避让。
       ...(darwin
         ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 14, y: 12 } }
         : {}),
@@ -155,7 +155,7 @@ export function createIndependentWindows(deps: {
         ? {
             titleBarStyle: 'hidden' as const,
             titleBarOverlay: {
-              height: 40,
+              height: 36,
               color: chromeTabbarSurface(deps.getThemeColor(), deps.getResolvedTheme()),
               symbolColor: chromeOverlaySymbol(deps.getResolvedTheme())
             }
