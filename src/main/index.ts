@@ -301,8 +301,8 @@ function createWindow(): void {
   // macOS 窗体 chrome（2026-09-20 用户二次裁决：去原生标题条与页内标题，但窗口控制
   // 调用 mac 原生三灯——自绘圆点方案废弃）：darwin 用 titleBarStyle hidden 去标题条，
   // 保留原生三灯并经 trafficLightPosition 定位到左侧板头行左端（x 与板头内边距对齐，
-  // y 居中于板头行：板头契约高 40px、灯高 16px，(40-16)/2=12——魔法数与板头高度强
-  // 耦合（app.css .board-head 头注登记对账），板头内容高度变化时须连本校准复核，
+  // y=12与独立窗一致，保持与标签内容对齐；顶栏已统一36px，变更须连同
+  // app.css .board-head和.chrome-tabs复核，
   // review 20260920161302 低-3 留痕；侧边栏收起态的三灯整组隐藏联动已随 2026-10-23
   // 收起功能退役删除，三灯恒显）；
   // renderer 板头左端留 spacer 占位（winc=traffic 建窗 query 门控，仅 darwin 携带）；
@@ -313,7 +313,7 @@ function createWindow(): void {
   // Windows WCO（2026-10-30 专项，调研 notes/think-report/20261030130138 / DESIGN
   // 主窗窗体条目）：win32 同去系统标题条，窗口控制改 Windows 原生 overlay 按钮
   //（最小化/最大化/关闭，Win11 Snap Layouts 可用）浮于窗口右上角；overlay height
-  // 与顶区对齐契约（板头/Tab 栏 40px）强耦，改值须连校（mac 三灯 y=12 同款警示）；
+  // 与顶区对齐契约（板头/Tab栏36px）强耦，改值须连校；
   // 配色单源 themeSystems（实色——Electron #48193 透明色 hover 渲染 bug）：底随
   // chromeTabbar token 随主题色三系（2026-10-30 主题化扩签，与 renderer --chrome-tabbar
   // 同源），亮暗翻转或切系经 onThemeSurfaceChanged 桥接 setTitleBarOverlay 同步，
@@ -335,7 +335,7 @@ function createWindow(): void {
       ? {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
-            height: 40,
+            height: 36,
             color: chromeTabbarSurface(appearance.themeColor, appearance.resolvedTheme),
             symbolColor: chromeOverlaySymbol(appearance.resolvedTheme)
           }

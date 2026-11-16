@@ -257,13 +257,9 @@ body.col-resizing {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  /* 顶区对齐契约（2026-09-28 用户三裁决：两线全对齐/压左栏/跨平台统一；同日二次
-     裁决：板头与 Tab 条各加高 4px → 40px）：高 40px 与右区 Tab 条（.chrome-tabs
-     40px）同高——板头底线对齐 Tab 条底几何位（Tab 条底线已于 2026-10-30 WCO
-     专项退役，见 .chrome-tabs 头注；底线仅在板头侧存续）；顶区总高 40+40=80 两栏
-     一致由 .workspace-bar 40px 封口对齐工具栏底线；红绿灯 trafficLightPosition
-     y=12 与本值强耦（main/index.ts，(40-16)/2），改值须连校 */
-  height: 40px;
+  /* 与标签栏同高36px；下方工作区栏和工具栏均40px，两列顶区总高76px。
+     原生三灯保留y=12，与标签内容对齐；Windows控制区同步为36px。 */
+  height: 36px;
   padding: 0 14px;
   border-bottom: 1px solid var(--board-hairline);
   /* 主窗 macOS（winc=traffic 门控）：板头整行即窗口拖拽带（原生标题条已去，原生
@@ -292,7 +288,7 @@ body.col-resizing {
 }
 
 /* Windows 主窗板头品牌 icon（winc=wco 门控，2026-10-30 无底图标专项）：16px 去底
-   品牌图形前置标题文本（40px 板头行内垂直居中由父级 inline-flex 承担），与文字
+   品牌图形前置标题文本（36px板头行内垂直居中由父级inline-flex承担），与文字
    间距沿用 .board-title 既有 gap 6px；flex none 防窄栏挤压形变 */
 .board-title-icon {
   flex: none;
@@ -2014,11 +2010,11 @@ select.picker-input {
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  /* 顶区对齐契约（2026-09-28）：高 40px 与左栏板头（.board-head 40px）同高——
-     栏底 = 板头底线；tab 30px 底部对齐不变，加高全部让给栏顶呼吸位。
+  /* 顶区对齐契约（2026-11-16）：主窗和独立窗均高36px，标签距顶6px、高30px；
+     主窗左侧板头同步36px。Windows原生控制区在建窗配置中同步此高度。
      2026-10-29 融合裁决：栏底横向发丝线退役（选中 Tab 改色后与工具栏连成同色
-     连续面，线会切断融合；左栏板头底线与右区工具栏底线不受影响），几何 40px 不变 */
-  height: 40px;
+     连续面，线会切断融合；左栏板头底线与右区工具栏底线不受影响） */
+  height: 36px;
   /* WCO 避让（2026-10-30 Windows 去标题栏专项）：右侧按窗口控制 overlay 宽度动态
      预留。基准必须用 100vw（视口宽，与 env 同基准）而非 100%——本栏在右列，padding
      百分比相对列宽（窗口宽 - 左栏 - 分隔条），会少避让左栏整宽；100vw -
@@ -2030,7 +2026,7 @@ select.picker-input {
   background: var(--chrome-tabbar);
   /* Tab 栏底线退役（2026-10-30 用户裁决，WCO 专项收尾）：右上角窗口控制区把线的
      右端遮断、残线观感不完整，整条退役——Tab 栏与工具栏改由色差分界（tabbar →
-     toolbar 灰阶阶梯，Chrome 原生同法）；几何 40px 不变，Tab 底缘对齐板头底线
+     toolbar 灰阶阶梯，Chrome 原生同法）；Tab底缘对齐板头底线
      反而更精确（原内容底 39 + 1px 线）；左栏板头底线（board-hairline）另属板面
      发丝线语系、保持不动（板头块对齐契约注释随改）。融合专项同日独立裁定同一
      退役（见上方契约注释——选中 Tab 改色后与工具栏连成连续面），双裁决殊途同归 */
@@ -2047,25 +2043,6 @@ select.picker-input {
 .independent-traffic > .chrome-tabs {
   /* 原生三灯从x=14开始，预留整组按钮及与首个标签之间的拖窗空白。 */
   padding-left: 94px;
-}
-
-/* 独立窗顶栏缩至36px，标签距顶6px；Windows原生控制区同步此高度。 */
-.independent-window > .chrome-tabs {
-  height: 36px;
-  padding-top: 6px;
-}
-
-.independent-window .chrome-tab {
-  height: 30px;
-}
-
-.independent-window .chrome-newtab {
-  align-self: center;
-  margin-bottom: 0;
-}
-
-.independent-window .chrome-tab-insert {
-  top: 6px;
 }
 
 /* Tab 序列裁切层（2026-10-30 WCO 修复轮，审查 20261030135910 低-3）：Tab 压至内容
@@ -2281,7 +2258,7 @@ img.chrome-tab-favicon {
   flex: none;
   width: 26px;
   height: 26px;
-  margin-bottom: 3px;
+  align-self: center;
   /* 拖拽带内保持可点（主窗 macOS，同 .chrome-tab） */
   -webkit-app-region: no-drag;
   border: none;

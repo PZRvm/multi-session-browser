@@ -20,9 +20,7 @@ function IndependentWindowFrame(): React.JSX.Element {
   useBrowserShortcuts()
 
   return (
-    <section
-      className={`browser-frame independent-window${windowTrafficControls ? ' independent-traffic' : ''}`}
-    >
+    <section className={`browser-frame${windowTrafficControls ? ' independent-traffic' : ''}`}>
       {!htmlFullscreen && <TabStrip />}
       {!htmlFullscreen && <Toolbar />}
       <div className="chrome-body">
