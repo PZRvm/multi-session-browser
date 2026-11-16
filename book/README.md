@@ -95,6 +95,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [release-notes-v1.1.2.md](changelogs/2026-11/release-notes-v1.1.2.md) — 1.1.2版本的浏览器身份一致性、网站Worker隔离与关于页更新显示改进
 - [release-notes-v1.1.3.md](changelogs/2026-11/release-notes-v1.1.3.md) — 1.1.3版本的新分组默认会话、扩展删除回收与会话插件代理支持
 - [release-notes-v1.1.4.md](changelogs/2026-11/release-notes-v1.1.4.md) — 1.1.4版本的更新进度填充与地址栏失焦输入保留
+- [release-notes-v1.1.5.md](changelogs/2026-11/release-notes-v1.1.5.md) — 1.1.5版本改进历史建议网站图标加载、会话缓存与失败搜索图标兜底
 
 ### docs/
 
@@ -294,7 +295,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-15-发布前复审.md](notes/issue/2026-11/2026-11-15-发布前复审.md) — 复审1.1.2隔离修复与更新适配，记录发布手册的过时阻断结论
 - [2026-11-15-应用更新合并前审查.md](notes/issue/2026-11/2026-11-15-应用更新合并前审查.md) — 更新合并前审查的R1已独立修复，dev待提交文件已保存，原阻断解除
 - [2026-11-15-扩展删除回收实现审查.md](notes/issue/2026-11/2026-11-15-扩展删除回收实现审查.md) — 审查永久删除封锁排空、元数据回执、资源回收和关闭克隆边界，未发现新增阻断
-- [2026-11-16-SCRM站点图标无法缓存.md](notes/issue/2026-11/2026-11-16-SCRM站点图标无法缓存.md) — SCRM原图超限已提高到256KiB并验证缓存，null旧历史缺少页面图标发现仍待处理
+- [2026-11-16-SCRM站点图标无法缓存.md](notes/issue/2026-11/2026-11-16-SCRM站点图标无法缓存.md) — SCRM原图上限与null旧历史页面图标发现均已修复，真实图标与离线重建验证通过
 - [2026-11-16-会话插件代理实现审查.md](notes/issue/2026-11/2026-11-16-会话插件代理实现审查.md) — 会话代理十一项审查及排队后权限复验修复的复核结果
 - [2026-11-16-历史图标展示缓存回收.md](notes/issue/2026-11/2026-11-16-历史图标展示缓存回收.md) — 建议窗口的图标展示Map未限容量，过期图标离线回退后也沿用七天刷新周期
 - [2026-11-16-历史图标损坏图片被缓存.md](notes/issue/2026-11/2026-11-16-历史图标损坏图片被缓存.md) — 仅按文件头识别图片会把损坏PNG缓存七天，渲染失败后既不尝试根图标也不失效缓存
@@ -616,4 +617,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 491 documents -->
+<!-- 492 documents -->
