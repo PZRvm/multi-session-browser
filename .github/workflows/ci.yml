@@ -47,4 +47,6 @@ jobs:
       - name: 校验知识库索引已提交
         run: git diff --exit-code -- book/README.md
       - run: npm run lint
+      - name: 顶栏跨平台配置回归
+        run: node tools/window-chrome/check.mjs
       - run: npm run build

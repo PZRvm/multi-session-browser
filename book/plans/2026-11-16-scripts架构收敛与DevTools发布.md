@@ -1,6 +1,6 @@
 ---
 description: 清除scripts中的测试文件，直接修复审查问题，合入dev并经PR发布1.1.6到main
-status: in_progress
+status: completed
 ---
 
 # scripts 架构收敛与 DevTools 发布
@@ -27,8 +27,10 @@ review 检查宿主资源回收、来源 URL/主 frame、坐标和显示器恢�
 - [x] 删除测试脚本与更新当前说明。
 - [x] 审查、直接修复、临时验证。
 - [x] lint/typecheck/build/index；提交代码（清理 978e124、审查修复 af02c74）。
-- [ ] 合入 dev，准备并提交 1.1.6，推送并检查 CI。
-- [ ] 创建 dev→main PR，检查通过后 merge commit 合并。
-- [ ] 检查 main CI 与 Release，记录最终结果。
+- [x] 合入 dev，准备并提交 1.1.6（3a78461），推送并检查 CI。
+- [x] 创建 dev→main PR，检查通过后 merge commit 合并（PR #16，cc9140c）。
+- [x] 检查 main CI 与 Release，记录最终结果。
 
-已通过：生产导入图与远端基线确认；13 组窗口偏好和 12 组宿主临时检查；R1 更新保存屏障；Mac 隔离实例实际 390×844、缩放 1、设备页权限隔离及关闭回收；最终 lint、typecheck/build、索引和 diff 检查。修复写入失败不重试、空 preload 配置及 R1 夹具缺少原生 API 的问题，见[报告](../notes/summary/2026-11/2026-11-16-scripts收敛与DevTools审查.md)。已普通合并到本地 dev；package/lock 与唯一 1.1.6 日志准备完成。待测：版本门禁、dev 复验与远端发布。最后更新：2026-11-16。
+已通过：生产导入图与远端基线确认；13 组窗口偏好和 12 组宿主临时检查；R1 更新保存屏障；Mac 隔离实例实际 390×844、缩放 1、设备页权限隔离及关闭回收；最终 lint、typecheck/build、索引和 diff 检查。修复写入失败不重试、空 preload 配置及 R1 夹具缺少原生 API 的问题，见[报告](../notes/summary/2026-11/2026-11-16-scripts收敛与DevTools审查.md)。
+
+1.1.6 已随 package/lock 与唯一日志提交；dev push、main PR 及合并后 main 的 CI、Git policy 全绿。[PR #16](https://github.com/PZRvm/multi-session-browser/pull/16) 于 2026-11-16 08:40:09 UTC 合并，main 提交 cc9140c8c9c36776c3372640fa32c8e797e799fc；本地 dev 快进到该合并提交。[Release 工作流](https://github.com/PZRvm/multi-session-browser/actions/runs/43833106066) 全部成功，[v1.1.6](https://github.com/PZRvm/multi-session-browser/releases/tag/v1.1.6) 于 08:54:53 UTC 正式公开，共 11 份附件。标签指向合并提交，发布日志与源正文一致，10 份产物的远程 SHA256 与附件清单一致。无失败或待处理的发布项；平台业务未测边界见报告。最后更新：2026-11-16。

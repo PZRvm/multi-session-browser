@@ -3,7 +3,7 @@ import Toolbar from './browser/Toolbar'
 import FindBar from './browser/FindBar'
 import BrowserContentAnchor from './browser/BrowserContentAnchor'
 import { useBrowserShortcuts } from './browser/useBrowserShortcuts'
-import { useBrowserStore } from '../stores/browser'
+import { useBrowserStore, windowTrafficControls } from '../stores/browser'
 import { useUiStore } from '../stores/ui'
 
 // 独立窗口框架：与主窗口 BrowserFrame 同构的三段（Tab 栏 + 工具栏 + 内容区），无左栏
@@ -20,7 +20,7 @@ function IndependentWindowFrame(): React.JSX.Element {
   useBrowserShortcuts()
 
   return (
-    <section className="browser-frame">
+    <section className={`browser-frame${windowTrafficControls ? ' independent-traffic' : ''}`}>
       {!htmlFullscreen && <TabStrip />}
       {!htmlFullscreen && <Toolbar />}
       <div className="chrome-body">

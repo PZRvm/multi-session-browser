@@ -31,4 +31,8 @@ scripts 保留 11 份：`build-sparkle.mjs`、`check-commit-message.mjs`、`elec
 - macOS / Electron 45.3.0，隔离 profile、agent 启动：浮动设备模式实际 390×844、visualViewport.scale=1、maxTouchPoints=1；设备辅助页宿主桥与 require 均不存在，opener 保留。关闭后仅主窗及原网页、应用壳存活，无附属页面残留。
 - lint、包含 typecheck 的生产构建与知识库索引检查通过。未重新运行 Windows/Linux 或多显示器业务验收；这些不由本机及 CI 构建结果代替。
 
-版本与远端结果按计划持续记录；1.1.6 发布说明与 package/lock 在 dev 同次版本提交准备。
+## 远端结果
+
+清理提交 `978e124`、审查修复 `af02c74` 已合入 dev，`3a78461` 同步 1.1.6 版本与日志。[PR #16](https://github.com/PZRvm/multi-session-browser/pull/16) 经 CI/Git policy 全绿后，以 merge commit `cc9140c` 合入 main；合并后 main 检查也全绿。未直接提交或推送 main。
+
+[Release 工作流](https://github.com/PZRvm/multi-session-browser/actions/runs/43833106066) 的三个安装包构建、Mac 签名/更新清单校验和远程附件对账全部成功。[v1.1.6](https://github.com/PZRvm/multi-session-browser/releases/tag/v1.1.6) 于 2026-11-16 08:54:53 UTC 正式公开，共 11 份附件；标签指向 cc9140c 完整合并提交。另行下载核对：版本日志与源正文一致，10 份产物的 GitHub SHA256 与 SHA256SUMS.txt 一致。
