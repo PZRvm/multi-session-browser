@@ -125,6 +125,10 @@ export default function SettingsWindow(): React.JSX.Element {
             '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif'
         },
         components: {
+          Switch: {
+            colorPrimary: 'var(--accent)',
+            colorPrimaryHover: 'var(--accent-strong)'
+          },
           Segmented: {
             trackBg: 'var(--board-bg-raised)',
             itemColor: 'var(--board-ink-dim)',
