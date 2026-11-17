@@ -572,7 +572,8 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
               autoComplete="off"
               value={proxyDraft.port}
               aria-label={t('sessions.sessionProxy.portLabel')}
-              onChange={(e) => updateProxyDraft({ port: e.target.value })}
+              placeholder={t('sessions.sessionProxy.portLabel')}
+              onChange={(e) => updateProxyDraft({ port: e.target.value.replace(/[^0-9]/g, '') })}
             />
           </div>
           <input
