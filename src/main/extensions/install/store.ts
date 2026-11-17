@@ -28,7 +28,10 @@ export interface StoreInstallOutcome {
 }
 
 export interface StoreInstallHandle {
-  installFromStore(id: string): Promise<StoreInstallOutcome>
+  installFromStore(
+    id: string,
+    confirm?: StoreInstallDeps['confirmInstall']
+  ): Promise<StoreInstallOutcome>
 }
 
 function crxUrl(id: string): string {
@@ -42,12 +45,13 @@ function crxUrl(id: string): string {
 }
 
 export function createStoreInstall(deps: StoreInstallDeps): StoreInstallHandle {
-  const installFromStore = async (id: string): Promise<StoreInstallOutcome> => {
+  const installFromStore = async (
+    id: string,
+    confirm: StoreInstallDeps['confirmInstall'] = deps.confirmInstall
+  ): Promise<StoreInstallOutcome> => {
     if (!deps.allowlist.includes('*') && !deps.allowlist.includes(id))
       throw new Error('STORE_ID_NOT_ALLOWED: ' + id)
-    const approved = await deps
-      .confirmInstall({ id, name: id, version: 'store' })
-      .catch(() => false)
+    const approved = await confirm({ id, name: id, version: 'store' }).catch(() => false)
     if (!approved) throw new Error('STORE_CONFIRM_DENIED')
     const response = await fetch(crxUrl(id), { redirect: 'follow' })
     if (!response.ok) throw new Error('STORE_DOWNLOAD_HTTP_' + response.status)

@@ -1,3 +1,6 @@
+import type { StorePageTheme } from '../../shared/extensions/storePage'
+import { registerStorePageIpc } from './store-page'
+import { createLock, createKeyedLock } from './install/mutex'
 /**
  * 插件管理 IPC（用户入口层）：
  * list/install-store/import-crx/uninstall 四通道；商店安装经允许列表('*'=开放)
@@ -26,8 +29,11 @@ import {
   type UninstallResult
 } from '../../shared/extensions/management'
 import { isValidExtensionId } from './install/manifest-store'
+import { getCurrentLanguage, onMainLanguageChanged } from '../i18n'
+import { isUsableExtensionName, resolveLocalizedName } from './localizedName'
 
 export interface ManagementDeps {
+  getStoreTheme(): StorePageTheme
   getMainWindow: () => BrowserWindow | null
   forgetUnloadedExtensionProxies?: (ids: readonly string[]) => Promise<void>
   removeExtensionProxy?: (session: Session, id: string) => Promise<void>
@@ -101,10 +107,17 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     return out
   }
   /** 安装后重挂载全部已挂载分区：loader 幂等去重，只补新插件 */
-  const remountAll = async (): Promise<void> => {
+  const remountAll = async (expectedId?: string): Promise<void> => {
+    let failed = false
     for (const { session, partition } of mountedSessions()) {
-      await mountDevExtensions(session, partition)
+      const result = await mountDevExtensions(session, partition)
+      if (
+        expectedId &&
+        ('error' in result || result.results.some((item) => item.id === expectedId && !item.ok))
+      )
+        failed = true
     }
+    if (failed) throw new Error('STORE_SESSION_LOAD_FAILED')
   }
   const confirmInstall = async (details: {
     id: string
@@ -168,6 +181,32 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     allowlist: ['*'],
     confirmInstall
   })
+  const mutationLock = createLock()
+  const storeLock = createKeyedLock()
+  const installingStore = new Set<string>()
+  const installStore = (id: string, approve?: () => Promise<boolean>): Promise<InstallOutcome> =>
+    storeLock(id, async () => {
+      installingStore.add(id)
+      try {
+        return await mutationLock(async () => {
+          const outcome = await store.installFromStore(id, approve)
+          try {
+            await remountAll(outcome.id)
+          } finally {
+            broadcastExtensionsChanged()
+          }
+          return { ok: true, record: await manifest.get(outcome.id), duplicate: outcome.duplicate }
+        })
+      } finally {
+        installingStore.delete(id)
+      }
+    })
+  registerStorePageIpc({
+    theme: deps.getStoreTheme,
+    installed: async (id) => Boolean(await manifest.get(id)),
+    installing: (id) => installingStore.has(id),
+    install: (id, approve) => installStore(id, approve)
+  })
   /** 读解包 manifest 的 popup 页面路径（MV3 action / MV2 browser_action） */
   const readPopupPath = (extensionId: string): string | undefined => {
     const record = manifestCache.get(extensionId)
@@ -195,12 +234,14 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
 
   /** 读解包目录 manifest：icons 最大 ≤48 → PNG dataURL；action/browser_action → 可弹窗 */
   const readManifestExtra = async (
-    record: InstallRecord
+    record: InstallRecord,
+    language: ReturnType<typeof getCurrentLanguage>
   ): Promise<{ icon?: string; hasAction: boolean; displayName?: string }> => {
     const dir = join(paths.packagesRoot, `${record.id}-${record.version}`)
     try {
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as {
         name?: unknown
+        default_locale?: unknown
         icons?: Record<string, string>
         action?: { default_icon?: Record<string, string> | string }
         browser_action?: { default_icon?: Record<string, string> | string }
@@ -226,14 +267,19 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
           icon = undefined
         }
       }
-      const displayName =
-        typeof manifest.name === 'string' && manifest.name.length > 0 ? manifest.name : undefined
+      const displayName = await resolveLocalizedName(
+        dir,
+        manifest.name,
+        manifest.default_locale,
+        language
+      )
       return { icon, hasAction: !!(manifest.action || manifest.browser_action), displayName }
     } catch {
       return { hasAction: false }
     }
   }
   ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListResult> => {
+    const language = getCurrentLanguage()
     await refreshManifestCache()
     const m = await manifest.read()
     const pins = m.pins ?? []
@@ -241,19 +287,8 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     return {
       items: await Promise.all(
         m.installs.map(async (r) => {
-          const extra = await readManifestExtra(r)
-          // 名称自愈：早期安装的记录无 name 字段（后加），从解包 manifest 回填清单
-          if (!r.name && extra.displayName) {
-            await manifest
-              .update((cur) => ({
-                ...cur,
-                installs: cur.installs.map((v) =>
-                  v.id === r.id ? { ...v, name: extra.displayName } : v
-                )
-              }))
-              .catch(() => undefined)
-          }
-          const displayName = r.name ?? extra.displayName ?? r.id
+          const extra = await readManifestExtra(r, language)
+          const displayName = extra.displayName ?? (isUsableExtensionName(r.name) ? r.name : r.id)
           return {
             id: r.id,
             name: displayName,
@@ -443,7 +478,8 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
           p.path.length > 512
         )
           return { ok: false, error: 'INVALID_PATH' }
-        const outcome = await install.installFromFile(p.path)
+        const filePath = p.path
+        const outcome = await mutationLock(() => install.installFromFile(filePath))
         await refreshManifestCache()
         await remountAll()
         broadcastExtensionsChanged()
@@ -472,6 +508,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       if (!w.isDestroyed()) w.webContents.send(EXTENSIONS_CHANNELS.changed)
     }
   }
+  onMainLanguageChanged(broadcastExtensionsChanged)
   /** 固定/取消固定单个插件（显式目标态）：清单幂等集合语义，落库后广播 */
   ipcMain.handle(
     EXTENSIONS_CHANNELS.setPinned,
@@ -535,10 +572,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         if (typeof id !== 'string' || !/^[a-p]{32}$/.test(id)) {
           return { ok: false, error: 'INVALID_ID' }
         }
-        const outcome = await store.installFromStore(id)
-        await remountAll()
-        broadcastExtensionsChanged()
-        return { ok: true, record: await manifest.get(outcome.id), duplicate: outcome.duplicate }
+        return await installStore(id)
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
       }
@@ -591,7 +625,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         }
         const { response } = await dialog.showMessageBox(dialogOpts)
         if (response !== 1) return { ok: false, error: 'CANCELED' }
-        const ok = await install.uninstall(id)
+        const ok = await mutationLock(() => install.uninstall(id))
         if (ok) broadcastExtensionsChanged()
         return ok ? { ok: true } : { ok: false, error: 'NOT_FOUND' }
       } catch (error) {

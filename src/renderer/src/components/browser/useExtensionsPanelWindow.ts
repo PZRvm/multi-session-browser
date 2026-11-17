@@ -28,6 +28,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
   // 面板刷新计数（插件固定专项 2026-11-13）：面板钉子 togglePin 后 +1 重跑开面板
   // effect（list 现取 → show 全量），面板不关、钉态即时翻转（Chrome 菜单语义）
   const [refreshTick, setRefreshTick] = useState(0)
+  const listRequestRef = useRef(0)
   const openRef = useRef(open)
   // 最新开合态镜像供 mousedown 快照读取（commit 后更新；事件回调读，不涉渲染期访问）
   useEffect(() => {
@@ -48,6 +49,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
   useEffect(() => {
     if (!open) return
     let alive = true
+    const request = ++listRequestRef.current
     const rect = hostRef.current?.getBoundingClientRect()
     if (!rect) {
       setOpen(false)
@@ -57,7 +59,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
     void window.api.extensions
       .list()
       .then((r) => {
-        if (!alive || !openRef.current) return
+        if (!alive || !openRef.current || request !== listRequestRef.current) return
         return window.api.extensionsPanel.show({
           anchor: {
             x: Math.round(rect.left),
@@ -69,7 +71,7 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
         })
       })
       .then((result) => {
-        if (!alive) return
+        if (!alive || request !== listRequestRef.current) return
         // 主进程裁定不可呈现（工作区下方空间不足）：收回开合态不展示
         if (!result || !result.ok || !result.canPresent) {
           setOpen(false)
@@ -78,12 +80,20 @@ export function useExtensionsPanelWindow(hostRef: RefObject<HTMLButtonElement | 
         setPresented(true)
       })
       .catch(() => {
-        if (alive) setOpen(false)
+        if (alive && request === listRequestRef.current) setOpen(false)
       })
     return () => {
       alive = false
     }
   }, [open, refreshTick, hostRef])
+
+  useEffect(() => {
+    return window.api.extensions.onChanged(() => {
+      // 立即作废在途旧语言请求，随后由 effect 推送最新全量数据。
+      listRequestRef.current++
+      if (openRef.current) setRefreshTick((tick) => tick + 1)
+    })
+  }, [])
 
   // 收面板：open 翻 false 即 hide（closed 推送驱动的关闭也经 setOpen 汇入本 effect）
   useEffect(() => {

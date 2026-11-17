@@ -26,7 +26,13 @@ try {
         setup(b) {
           b.onResolve({ filter: /.*/ }, (a) => {
             if (
-              ['electron', './permissions', '../extensions/dev-entry', '../i18n'].includes(a.path)
+              [
+                'electron',
+                './permissions',
+                '../extensions/dev-entry',
+                '../extensions/store-page',
+                '../i18n'
+              ].includes(a.path)
             )
               return { path: a.path, namespace: 'mock' }
           })
@@ -37,9 +43,11 @@ try {
                 ? mock
                 : a.path === './permissions'
                   ? 'export const createCameraPermissionBroker=()=>({install(){},disposeSession(){}})'
-                  : a.path === '../i18n'
-                    ? 'export const t=x=>x'
-                    : 'export const invalidateEngineTabUrl=()=>{};export const notifyEngineTab=()=>{}'
+                  : a.path === '../extensions/store-page'
+                    ? 'export const prepareStorePageSession=()=>{};export const attachStorePageTarget=()=>{}'
+                    : a.path === '../i18n'
+                      ? 'export const t=x=>x'
+                      : 'export const invalidateEngineTabUrl=()=>{};export const notifyEngineTab=()=>{}'
           }))
         }
       }
