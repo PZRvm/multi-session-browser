@@ -503,4 +503,4 @@ Mac1024px原生窗口截图、480px暗色渲染视口12标签、新建/切换和
 
 ### 商店详情页安装按钮（2026-11-17）
 
-Operate模式的局部控件：只在官方HTTPS商店详情顶层页面显示。Shadow DOM隔离，右下角距边20px，系统字体15px/600，最小高48px，内距12px 24px、999px全圆角（胶囊形）。普通、悬停、按压、文字和焦点使用应用当前主题的accent/accentStrong/accentPress/accentInk，已安装禁用态使用raised/inkDim并移除阴影；安装中保留主题主色，显示旋转加载图标及aria-busy，禁止重复点击。普通态使用0 3px 10px、约12%黑色的浅阴影。配色由主进程appearanceController解析后的主题提供，不依赖商店页面或系统prefers-color-scheme，琥珀/雾蓝/苔绿及显式亮暗切换在下一轮状态更新生效。可安装时以600px透视和translateZ做3.2秒周期的深度双跳（32px主跳、12px回弹、中间停顿）；悬停/键盘聚焦、安装中或已安装时停跳，页面隐藏时暂停动画。prefers-reduced-motion关闭空间跳动，加载旋转从0.8秒降为2秒一圈。文案经三语字典，安装中及已安装禁用。离开详情页移除；不修改官方按钮或全局站点文字，不使用渲染层结果toast。
+Operate模式的局部控件：只在官方HTTPS商店详情顶层页面显示。Shadow DOM隔离，右下角距边20px，系统字体15px/600，最小高48px，内距12px 24px、999px全圆角（胶囊形）。普通、悬停、按压、文字和焦点使用应用当前主题的accent/accentStrong/accentPress/accentInk，已安装禁用态使用raised/inkDim并移除阴影；安装中保留主题主色，显示旋转加载图标及aria-busy，禁止重复点击。普通态使用0 3px 10px、约12%黑色的浅阴影。配色由主进程appearanceController解析后的主题提供，不依赖商店页面或系统prefers-color-scheme，琥珀/雾蓝/苔绿及显式亮暗切换在下一轮状态更新生效。可安装时以600px透视和translateZ做4秒周期的持续缓慢深度起伏（0→32px→0，平滑往返，无中间停顿）；悬停/键盘聚焦、安装中或已安装时停跳，页面隐藏时暂停动画。prefers-reduced-motion关闭空间跳动，加载旋转从0.8秒降为2秒一圈。文案经三语字典，安装中及已安装禁用。离开详情页移除；不修改官方按钮或全局站点文字，不使用渲染层结果toast。

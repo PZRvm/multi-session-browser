@@ -36,14 +36,14 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
         const shadow = host.attachShadow({ mode: 'closed' })
         const style = document.createElement('style')
         style.textContent = `:host{position:fixed;right:20px;bottom:20px;z-index:2147483647;color-scheme:light dark;perspective:600px}
-          button{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 15px system-ui,sans-serif;min-height:48px;max-width:calc(100vw - 40px);padding:12px 24px;border:0;border-radius:999px;background:var(--store-accent);color:var(--store-accent-ink);box-shadow:0 3px 10px #0000001f;cursor:pointer;animation:store-depth 3.2s ease-in-out infinite}
+          button{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 15px system-ui,sans-serif;min-height:48px;max-width:calc(100vw - 40px);padding:12px 24px;border:0;border-radius:999px;background:var(--store-accent);color:var(--store-accent-ink);box-shadow:0 3px 10px #0000001f;cursor:pointer;animation:store-depth 4s ease-in-out infinite}
           button:hover:not(:disabled){background:var(--store-accent-strong)}button:active:not(:disabled){background:var(--store-accent-press)}
           button:hover,button:focus-visible{animation:none;transform:translateZ(0)}
           button:disabled{animation:none}
           button[aria-busy="true"]{cursor:wait}
           button[aria-busy="true"]::before{content:"";width:14px;height:14px;flex-shrink:0;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:store-spin .8s linear infinite}
           :host([data-motion-paused]) button,:host([data-motion-paused]) button::before{animation-play-state:paused}
-          @keyframes store-depth{0%,46%,100%{transform:translateZ(0)}16%{transform:translateZ(32px)}28%{transform:translateZ(0)}37%{transform:translateZ(12px)}}
+          @keyframes store-depth{0%,100%{transform:translateZ(0)}50%{transform:translateZ(32px)}}
           @keyframes store-spin{to{transform:rotate(360deg)}}
           @media(prefers-reduced-motion:reduce){button{animation:none}button[aria-busy="true"]::before{animation-duration:2s}}
           button:focus-visible{outline:3px solid var(--store-accent);outline-offset:4px}

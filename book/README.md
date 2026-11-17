@@ -97,6 +97,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-代理端口输入.md](changelogs/2026-11/2026-11-17-代理端口输入.md) — 代理设置端口框显示端口占位提示，并过滤非数字输入
 - [2026-11-17-商店安装按钮视觉强化.md](changelogs/2026-11/2026-11-17-商店安装按钮视觉强化.md) — 商店安装按钮从浅灰次级样式改为48px高对比蓝色主按钮，提高右下角入口可发现性
 - [2026-11-17-商店按钮全圆角与主题适配.md](changelogs/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店安装按钮改全圆角，配色随应用当前主题色和亮暗模式更新
+- [2026-11-17-商店按钮持续慢速跳动.md](changelogs/2026-11/2026-11-17-商店按钮持续慢速跳动.md) — 商店按钮改为四秒周期的连续Z轴起伏，取消双跳与中间停顿
 - [2026-11-17-商店按钮深度跳动与安装加载.md](changelogs/2026-11/2026-11-17-商店按钮深度跳动与安装加载.md) — 可安装按钮增加Z轴深度双跳，阴影减淡，安装中提供旋转加载并暂停跳动
 - [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
 - [2026-11-17-截图录屏开关主题色.md](changelogs/2026-11/2026-11-17-截图录屏开关主题色.md) — 显示截图与录屏按钮的开关选中背景跟随主题色
@@ -663,4 +664,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 538 documents -->
+<!-- 539 documents -->
