@@ -527,6 +527,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-浮动DevTools排查.md](notes/summary/2026-11/2026-11-16-浮动DevTools排查.md) — Electron45浮动DevTools设备模拟失效的实证、链接事件缺口和会话切换行为，含正常项与未测边界
 - [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
 - [2026-11-16-顶栏代码审查.md](notes/summary/2026-11/2026-11-16-顶栏代码审查.md) — 审查主窗和独立窗顶栏分支，记录一项设计规范冲突及跨平台验证范围
+- [2026-11-17-Mac更新与原功能GUI用户验收.md](notes/summary/2026-11/2026-11-17-Mac更新与原功能GUI用户验收.md) — 根据用户确认关闭Mac更新与原功能GUI待验，保留Windows及系统输入显示的独立验证边界
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -564,7 +565,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
 - [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
 - [2026-11-13-UA兼容与扩展Worker隔离修复.md](plans/2026-11-13-UA兼容与扩展Worker隔离修复.md) — 分离产品名称与默认 UA、限定扩展 preload 来源，逐项验证网站环境、插件功能与真人验证频率
-- [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用更新已发布并修复恢复集问题，继续跟踪Intel Mac、Windows及多窗录屏组合实机验收
+- [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用更新已发布并修复恢复集问题，Mac总体用户验收通过，继续跟踪Windows实机验收
 - [2026-11-14-macOS更新迁移Sparkle.md](plans/2026-11-14-macOS更新迁移Sparkle.md) — macOS迁移Sparkle的L级计划，先验证取消安装与缓存语义，再接原生桥接、免费签名发布和双版本升级
 - [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
 - [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
@@ -651,4 +652,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 526 documents -->
+<!-- 527 documents -->
