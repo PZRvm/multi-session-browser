@@ -216,7 +216,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (15)**
+**Open (16)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -230,6 +230,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
 - [2026-11-17-商店入口旧TODO注释.md](notes/issue/2026-11/2026-11-17-商店入口旧TODO注释.md) — 设置页仍保留商店伴随插件待排期注释，已被受限preload自有按钮方案取代
+- [2026-11-17-商店按钮取消后停跳与旧语言加载文案.md](notes/issue/2026-11/2026-11-17-商店按钮取消后停跳与旧语言加载文案.md) — 商店安装按钮取消后可能被悬停动画锁住，点击加载文字也可能沿用创建时语言
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
@@ -604,6 +605,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口去系统标题栏.md](plans/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口保留网页标签栏，将Mac原生三灯和Windows原生窗口控制嵌入顶行
 - [2026-11-16-顶栏审查修复与发布.md](plans/2026-11-16-顶栏审查修复与发布.md) — 修复顶栏设计尺寸冲突，补三平台建窗和Windows主题回归，再合dev准备1.1.7发布PR
 - [2026-11-17-商店按钮全圆角与主题适配.md](plans/2026-11-17-商店按钮全圆角与主题适配.md) — L级在商店状态窄桥携带应用主题token，按钮改全圆角并同步三套主题的亮暗模式
+- [2026-11-17-商店按钮审查修复与发布.md](plans/2026-11-17-商店按钮审查修复与发布.md) — 修复审查发现的按钮恢复与语言问题，验证后合入dev并准备1.1.9发布PR
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [2026-11-17-插件名称本地化修复.md](plans/2026-11-17-插件名称本地化修复.md) — 按应用语言解析扩展名称并刷新三处展示，兼容旧占位符安装记录
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
@@ -671,4 +673,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 546 documents -->
+<!-- 548 documents -->
