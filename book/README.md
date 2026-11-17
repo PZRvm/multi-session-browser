@@ -544,6 +544,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
 - [2026-11-16-顶栏代码审查.md](notes/summary/2026-11/2026-11-16-顶栏代码审查.md) — 审查主窗和独立窗顶栏分支，记录一项设计规范冲突及跨平台验证范围
 - [2026-11-17-Mac更新与原功能GUI用户验收.md](notes/summary/2026-11/2026-11-17-Mac更新与原功能GUI用户验收.md) — 根据用户确认关闭Mac更新与原功能GUI待验，保留Windows及系统输入显示的独立验证边界
+- [2026-11-17-商店安装审查与1.1.9发布准备.md](notes/summary/2026-11/2026-11-17-商店安装审查与1.1.9发布准备.md) — 商店安装与本地化分支审查修复后合入dev，升级1.1.9并推送创建发布PR19
 - [2026-11-17-商店按钮全圆角与主题适配.md](notes/summary/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店按钮改胶囊形并跟随应用三套主题亮暗，六态与系统设置相反时的行为验证通过
 - [2026-11-17-商店详情页安装按钮.md](notes/summary/2026-11/2026-11-17-商店详情页安装按钮.md) — 商店详情新增自有安装按钮，真实Dark Reader下载验签及新会话加载通过，记录受限桥与验证边界
 - [2026-11-17-插件名称本地化修复.md](notes/summary/2026-11/2026-11-17-插件名称本地化修复.md) — 插件名称占位符已按应用语言解析，旧安装无需重装，三处显示及语言切换回归通过
@@ -675,4 +676,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 550 documents -->
+<!-- 551 documents -->
