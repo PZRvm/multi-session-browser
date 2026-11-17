@@ -1,4 +1,12 @@
-import { dialog, ipcMain, type BrowserWindow, type Session, type WebContents } from 'electron'
+import projectIcon from '../../../resources/icon.png?asset'
+import {
+  dialog,
+  ipcMain,
+  nativeImage,
+  type BrowserWindow,
+  type Session,
+  type WebContents
+} from 'electron'
 import { join } from 'node:path'
 import {
   STORE_PAGE_CHANNELS,
@@ -117,7 +125,12 @@ export function registerStorePageIpc(deps: StorePageDeps): void {
         return result.response === 1 && valid()
       })
       if (valid() && parent()) {
-        await show({ type: 'info', message: t('storePage.success'), buttons: [t('storePage.ok')] })
+        await show({
+          type: 'info',
+          icon: nativeImage.createFromPath(projectIcon),
+          message: t('storePage.success'),
+          buttons: [t('storePage.ok')]
+        })
       }
       return true
     } catch (error) {

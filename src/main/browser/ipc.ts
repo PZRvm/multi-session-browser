@@ -804,6 +804,7 @@ export function registerBrowserIpc(
           : pick.kind === 'open'
             ? { kind: 'open', id: pick.id }
             : { kind: pick.kind }
+      if (pick.kind === 'manage') extensionsPanelWindows.hide(windowId)
       owner.webContents.send(EXTENSIONS_PANEL_CHANNELS.picked, forward)
       return { ok: true }
     })

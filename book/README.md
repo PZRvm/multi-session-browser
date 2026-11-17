@@ -102,6 +102,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店按钮深度跳动与安装加载.md](changelogs/2026-11/2026-11-17-商店按钮深度跳动与安装加载.md) — 可安装按钮增加Z轴深度双跳，阴影减淡，安装中提供旋转加载并暂停跳动
 - [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
 - [2026-11-17-截图录屏开关主题色.md](changelogs/2026-11/2026-11-17-截图录屏开关主题色.md) — 显示截图与录屏按钮的开关选中背景跟随主题色
+- [2026-11-17-插件安装图标与窗口收尾.md](changelogs/2026-11/2026-11-17-插件安装图标与窗口收尾.md) — 插件安装完成框使用项目Logo，管理入口收起插件面板，商店导航发起后关闭设置窗
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
 - [2026-11-17-项目文档同步与剩余事项.md](changelogs/2026-11/2026-11-17-项目文档同步与剩余事项.md) — 同步最近标签与端口修复，校正更新和插件旧状态，并汇总非Windows剩余工作
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
@@ -665,4 +666,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 540 documents -->
+<!-- 541 documents -->

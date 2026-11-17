@@ -47,7 +47,9 @@ let response = 0,
   fail = false
 let onDialog = () => {}
 const bridge = await load('src/main/extensions/store-page.ts', {
+  '../../../resources/icon.png?asset': '/project/icon.png',
   electron: {
+    nativeImage: { createFromPath: (path) => ({ path }) },
     ipcMain: { handle: (key, fn) => handlers.set(key, fn) },
     dialog: {
       showMessageBox: async (...args) => {
@@ -122,6 +124,7 @@ assert.equal(await install(), false)
 assert.equal(dialogs.at(-1).at(-1).type, 'error')
 fail = false
 assert.equal(await install(), true)
+assert.equal(dialogs.at(-1).at(-1).icon.path, '/project/icon.png')
 assert.equal((await status()).installed, true)
 const prior = calls
 assert.equal(await install(), true)

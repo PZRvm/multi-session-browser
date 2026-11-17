@@ -929,7 +929,10 @@ app.whenReady().then(async () => {
         openInActiveSession: (url) => {
           // 设置窗无会话作用域：宿主代为导航激活会话当前标签（商店入口）
           const wc = created.getActiveWebContents(WINDOW_ID_MAIN)
-          if (wc) void wc.loadURL(url).catch(() => {})
+          if (wc) {
+            void wc.loadURL(url).catch(() => {})
+            settingsWindowController?.dispose()
+          }
         },
         getPopupTarget: (sender) => {
           const scope = created.resolveSenderScope(sender)
