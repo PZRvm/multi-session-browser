@@ -340,12 +340,16 @@ function Toolbar(): React.JSX.Element {
   }, [])
   const extReorder = useExtPinReorder(pinsOrder, applyPinsOrder)
   useEffect(() => {
+    // 拖拽结束后补拉，覆盖拖拽期间暂缓的语言变更。
+    if (extReorder.reorderId !== null) return
     let alive = true
+    let request = 0
     const pull = (): void => {
+      const current = ++request
       window.api.extensions
         .list()
         .then((r) => {
-          if (!alive) return
+          if (!alive || current !== request) return
           setExtItems(r.items)
           setPinsOrder(r.pins)
         })
@@ -361,7 +365,7 @@ function Toolbar(): React.JSX.Element {
       alive = false
       off()
     }
-  }, [extReorder.dragActiveRef])
+  }, [extReorder.dragActiveRef, extReorder.reorderId])
   /** 固定图标点击开 popup：现读按钮 rect 传锚点（openPopup 定位公式按 28px 钮调的，同构沿用） */
   const openPinnedPopup = (item: ExtensionListItem, el: HTMLElement): void => {
     const rect = el.getBoundingClientRect()

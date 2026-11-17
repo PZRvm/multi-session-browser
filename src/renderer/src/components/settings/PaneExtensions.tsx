@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Input } from 'antd'
 import {
   ApiOutlined,
@@ -36,31 +36,31 @@ export function PaneExtensions(): React.JSX.Element {
     storeId: ''
   })
 
+  const requestRef = useRef(0)
   const refresh = useCallback(async (): Promise<void> => {
+    const request = ++requestRef.current
     const r = await window.api.extensions.list()
+    if (request !== requestRef.current) return
     setState((s) => ({ ...s, items: r.items, loading: false }))
   }, [])
 
   // 首拉：挂载后异步取清单（取消守卫防卸载后写入）
   useEffect(() => {
     let alive = true
-    window.api.extensions
-      .list()
-      .then((r) => {
-        if (alive) setState((s) => ({ ...s, items: r.items, loading: false }))
-      })
-      .catch(() => {
-        if (alive) setState((s) => ({ ...s, loading: false }))
-      })
+    const requests = requestRef
+    void refresh().catch(() => {
+      if (alive) setState((s) => ({ ...s, loading: false }))
+    })
     return () => {
       alive = false
+      requests.current++
     }
-  }, [])
+  }, [refresh])
 
   // pins/安装集跨面变更联动（审查三轮 2.5）：订阅 extensions:changed → refresh——
   // 面板钉子/工具栏拖拽/其他窗口的固定与安装变更即时反映到设置页，不再陈旧
   useEffect(() => {
-    return window.api.extensions.onChanged(() => refresh())
+    return window.api.extensions.onChanged(() => void refresh().catch(() => undefined))
   }, [refresh])
 
   const setNotice = useCallback((tone: 'default' | 'danger', text: string): void => {

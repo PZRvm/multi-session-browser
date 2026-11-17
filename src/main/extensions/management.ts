@@ -29,6 +29,8 @@ import {
   type UninstallResult
 } from '../../shared/extensions/management'
 import { isValidExtensionId } from './install/manifest-store'
+import { getCurrentLanguage, onMainLanguageChanged } from '../i18n'
+import { isUsableExtensionName, resolveLocalizedName } from './localizedName'
 
 export interface ManagementDeps {
   getStoreTheme(): StorePageTheme
@@ -232,12 +234,14 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
 
   /** 读解包目录 manifest：icons 最大 ≤48 → PNG dataURL；action/browser_action → 可弹窗 */
   const readManifestExtra = async (
-    record: InstallRecord
+    record: InstallRecord,
+    language: ReturnType<typeof getCurrentLanguage>
   ): Promise<{ icon?: string; hasAction: boolean; displayName?: string }> => {
     const dir = join(paths.packagesRoot, `${record.id}-${record.version}`)
     try {
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as {
         name?: unknown
+        default_locale?: unknown
         icons?: Record<string, string>
         action?: { default_icon?: Record<string, string> | string }
         browser_action?: { default_icon?: Record<string, string> | string }
@@ -263,14 +267,19 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
           icon = undefined
         }
       }
-      const displayName =
-        typeof manifest.name === 'string' && manifest.name.length > 0 ? manifest.name : undefined
+      const displayName = await resolveLocalizedName(
+        dir,
+        manifest.name,
+        manifest.default_locale,
+        language
+      )
       return { icon, hasAction: !!(manifest.action || manifest.browser_action), displayName }
     } catch {
       return { hasAction: false }
     }
   }
   ipcMain.handle(EXTENSIONS_CHANNELS.list, async (): Promise<ExtensionListResult> => {
+    const language = getCurrentLanguage()
     await refreshManifestCache()
     const m = await manifest.read()
     const pins = m.pins ?? []
@@ -278,19 +287,8 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     return {
       items: await Promise.all(
         m.installs.map(async (r) => {
-          const extra = await readManifestExtra(r)
-          // 名称自愈：早期安装的记录无 name 字段（后加），从解包 manifest 回填清单
-          if (!r.name && extra.displayName) {
-            await manifest
-              .update((cur) => ({
-                ...cur,
-                installs: cur.installs.map((v) =>
-                  v.id === r.id ? { ...v, name: extra.displayName } : v
-                )
-              }))
-              .catch(() => undefined)
-          }
-          const displayName = r.name ?? extra.displayName ?? r.id
+          const extra = await readManifestExtra(r, language)
+          const displayName = extra.displayName ?? (isUsableExtensionName(r.name) ? r.name : r.id)
           return {
             id: r.id,
             name: displayName,
@@ -510,6 +508,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       if (!w.isDestroyed()) w.webContents.send(EXTENSIONS_CHANNELS.changed)
     }
   }
+  onMainLanguageChanged(broadcastExtensionsChanged)
   /** 固定/取消固定单个插件（显式目标态）：清单幂等集合语义，落库后广播 */
   ipcMain.handle(
     EXTENSIONS_CHANNELS.setPinned,
