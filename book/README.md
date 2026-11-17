@@ -111,6 +111,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [release-notes-v1.1.5.md](changelogs/2026-11/release-notes-v1.1.5.md) — 1.1.5版本改进历史建议网站图标加载、会话缓存与失败搜索图标兜底
 - [release-notes-v1.1.6.md](changelogs/2026-11/release-notes-v1.1.6.md) — 1.1.6版本修复浮动开发者工具的设备模拟、资源链接和窗口记忆
 - [release-notes-v1.1.7.md](changelogs/2026-11/release-notes-v1.1.7.md) — 1.1.7版本优化独立窗口标题栏和主窗口顶部布局
+- [release-notes-v1.1.8.md](changelogs/2026-11/release-notes-v1.1.8.md) — 1.1.8版本优化标签宽度、代理端口输入和截图录屏开关主题色
 
 ### docs/
 
@@ -650,4 +651,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 525 documents -->
+<!-- 526 documents -->
