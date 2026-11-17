@@ -21,6 +21,8 @@ async function load(path, imports) {
   return module.exports
 }
 const shared = await load('src/shared/extensions/storePage.ts', {})
+const { THEME_SYSTEMS } = await load('src/shared/themeSystems.ts', {})
+let theme = THEME_SYSTEMS.amber.light
 const id = 'eimadpbcbfnmbkopoojfekhnkhdbieeh'
 const url = `https://chromewebstore.google.com/detail/dark-reader/${id}`
 assert.equal(shared.storeDetailId(url), id)
@@ -76,6 +78,7 @@ Object.assign(wc, {
 const win = { isDestroyed: () => false }
 bridge.attachStorePageTarget(wc, () => win)
 bridge.registerStorePageIpc({
+  theme: () => theme,
   installed: async () => installed,
   installing: () => false,
   install: async (_id, approve) => {
@@ -89,6 +92,10 @@ const event = { sender: wc, senderFrame: wc.mainFrame }
 const status = () => handlers.get(shared.STORE_PAGE_CHANNELS.status)(event, id)
 const install = () => handlers.get(shared.STORE_PAGE_CHANNELS.install)(event, id)
 assert.equal((await status()).installed, false)
+assert.equal((await status()).theme.accent, THEME_SYSTEMS.amber.light.accent)
+assert.equal(Object.keys((await status()).theme).length, 6)
+theme = THEME_SYSTEMS.mist.dark
+assert.equal((await status()).theme.accent, THEME_SYSTEMS.mist.dark.accent)
 assert.equal(
   await handlers.get(shared.STORE_PAGE_CHANNELS.status)({ ...event, senderFrame: { url } }, id),
   null

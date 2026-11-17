@@ -1,3 +1,4 @@
+import type { StorePageTheme } from '../../shared/extensions/storePage'
 import { registerStorePageIpc } from './store-page'
 import { createLock, createKeyedLock } from './install/mutex'
 /**
@@ -30,6 +31,7 @@ import {
 import { isValidExtensionId } from './install/manifest-store'
 
 export interface ManagementDeps {
+  getStoreTheme(): StorePageTheme
   getMainWindow: () => BrowserWindow | null
   forgetUnloadedExtensionProxies?: (ids: readonly string[]) => Promise<void>
   removeExtensionProxy?: (session: Session, id: string) => Promise<void>
@@ -198,6 +200,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       }
     })
   registerStorePageIpc({
+    theme: deps.getStoreTheme,
     installed: async (id) => Boolean(await manifest.get(id)),
     installing: (id) => installingStore.has(id),
     install: (id, approve) => installStore(id, approve)

@@ -96,6 +96,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏审查集成与发布PR.md](changelogs/2026-11/2026-11-16-顶栏审查集成与发布PR.md) — 顶栏审查修复已合dev，准备1.1.7并创建main发布PR，首轮CI与Git policy全绿
 - [2026-11-17-代理端口输入.md](changelogs/2026-11/2026-11-17-代理端口输入.md) — 代理设置端口框显示端口占位提示，并过滤非数字输入
 - [2026-11-17-商店安装按钮视觉强化.md](changelogs/2026-11/2026-11-17-商店安装按钮视觉强化.md) — 商店安装按钮从浅灰次级样式改为48px高对比蓝色主按钮，提高右下角入口可发现性
+- [2026-11-17-商店按钮全圆角与主题适配.md](changelogs/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店安装按钮改全圆角，配色随应用当前主题色和亮暗模式更新
 - [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
 - [2026-11-17-截图录屏开关主题色.md](changelogs/2026-11/2026-11-17-截图录屏开关主题色.md) — 显示截图与录屏按钮的开关选中背景跟随主题色
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
@@ -533,6 +534,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
 - [2026-11-16-顶栏代码审查.md](notes/summary/2026-11/2026-11-16-顶栏代码审查.md) — 审查主窗和独立窗顶栏分支，记录一项设计规范冲突及跨平台验证范围
 - [2026-11-17-Mac更新与原功能GUI用户验收.md](notes/summary/2026-11/2026-11-17-Mac更新与原功能GUI用户验收.md) — 根据用户确认关闭Mac更新与原功能GUI待验，保留Windows及系统输入显示的独立验证边界
+- [2026-11-17-商店按钮全圆角与主题适配.md](notes/summary/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店按钮改胶囊形并跟随应用三套主题亮暗，六态与系统设置相反时的行为验证通过
 - [2026-11-17-商店详情页安装按钮.md](notes/summary/2026-11/2026-11-17-商店详情页安装按钮.md) — 商店详情新增自有安装按钮，真实Dark Reader下载验签及新会话加载通过，记录受限桥与验证边界
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
@@ -593,6 +595,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-浮动DevTools修复.md](plans/2026-11-16-浮动DevTools修复.md) — 在独立分支修复浮动设备工具栏与DevTools链接打开，验证固定调试目标和视图回收
 - [2026-11-16-独立窗口去系统标题栏.md](plans/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口保留网页标签栏，将Mac原生三灯和Windows原生窗口控制嵌入顶行
 - [2026-11-16-顶栏审查修复与发布.md](plans/2026-11-16-顶栏审查修复与发布.md) — 修复顶栏设计尺寸冲突，补三平台建窗和Windows主题回归，再合dev准备1.1.7发布PR
+- [2026-11-17-商店按钮全圆角与主题适配.md](plans/2026-11-17-商店按钮全圆角与主题适配.md) — L级在商店状态窄桥携带应用主题token，按钮改全圆角并同步三套主题的亮暗模式
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
@@ -659,4 +662,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 534 documents -->
+<!-- 537 documents -->

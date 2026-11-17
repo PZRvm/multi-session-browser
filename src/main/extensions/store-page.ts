@@ -1,6 +1,10 @@
 import { dialog, ipcMain, type BrowserWindow, type Session, type WebContents } from 'electron'
 import { join } from 'node:path'
-import { STORE_PAGE_CHANNELS, storeDetailId } from '../../shared/extensions/storePage'
+import {
+  STORE_PAGE_CHANNELS,
+  storeDetailId,
+  type StorePageTheme
+} from '../../shared/extensions/storePage'
 import { t } from '../i18n'
 import { isUpdatePreparing } from '../updatePreparation'
 import { assertExtensionSessionLive } from './runtime/lifecycle'
@@ -34,6 +38,7 @@ export function attachStorePageTarget(wc: WebContents, parent: () => BrowserWind
 }
 
 interface StorePageDeps {
+  theme(): StorePageTheme
   installed(id: string): Promise<boolean>
   installing(id: string): boolean
   install(id: string, approve: () => Promise<boolean>): Promise<unknown>
@@ -70,7 +75,9 @@ export function registerStorePageIpc(deps: StorePageDeps): void {
     if (!valid || typeof id !== 'string') return null
     const installed = await deps.installed(id)
     if (!valid()) return null
+    const { accent, accentStrong, accentPress, accentInk, raised, inkDim } = deps.theme()
     return {
+      theme: { accent, accentStrong, accentPress, accentInk, raised, inkDim },
       installed,
       installing: deps.installing(id),
       installLabel: t('storePage.install'),

@@ -1,3 +1,5 @@
+import type { ThemeModeTokens } from '../themeSystems'
+
 /** 商店页面桥闭集；详情ID只从官方HTTPS URL提取。 */
 export const STORE_PAGE_CHANNELS = {
   status: 'store-page:status',
@@ -15,7 +17,13 @@ export function storeDetailId(value: string): string | null {
   }
 }
 
+export type StorePageTheme = Pick<
+  ThemeModeTokens,
+  'accent' | 'accentStrong' | 'accentPress' | 'accentInk' | 'raised' | 'inkDim'
+>
+
 export interface StorePageStatus {
+  theme: StorePageTheme
   installed: boolean
   installing: boolean
   installLabel: string

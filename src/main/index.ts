@@ -67,7 +67,7 @@ import {
 } from '../shared/sessions'
 import { getAppDisplayNameForOS } from '../shared/appDisplay'
 import { WINDOW_ID_MAIN, browserViewFallbackBackground } from '../shared/browser'
-import { chromeOverlaySymbol, chromeTabbarSurface } from '../shared/themeSystems'
+import { chromeOverlaySymbol, chromeTabbarSurface, THEME_SYSTEMS } from '../shared/themeSystems'
 import type { TFunc } from '../shared/i18n'
 import { NATIVE_EDITING_CHANNELS, type NativeEditCommand } from '../shared/nativeEditing'
 
@@ -918,6 +918,10 @@ app.whenReady().then(async () => {
   await import('./extensions/management')
     .then(({ registerExtensionsManagement }) =>
       registerExtensionsManagement({
+        getStoreTheme: () => {
+          const appearance = appearanceController.getSnapshot()
+          return THEME_SYSTEMS[appearance.themeColor][appearance.resolvedTheme]
+        },
         forgetUnloadedExtensionProxies: (ids) => engine.forgetUnloadedExtensionProxies(ids),
         removeExtensionProxy: (target, id) => engine.removeExtensionProxy(target, id),
         getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),

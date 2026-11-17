@@ -35,11 +35,11 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
         const shadow = host.attachShadow({ mode: 'closed' })
         const style = document.createElement('style')
         style.textContent = `:host{position:fixed;right:20px;bottom:20px;z-index:2147483647;color-scheme:light dark}
-          button{font:600 15px system-ui,sans-serif;min-height:48px;max-width:calc(100vw - 40px);padding:12px 24px;border:0;border-radius:8px;background:#0b57d0;color:#fff;box-shadow:0 4px 14px #0000003d;cursor:pointer}
-          button:hover:not(:disabled){background:#0842a0}button:active:not(:disabled){background:#062e6f}
-          button:focus-visible{outline:3px solid #0b57d0;outline-offset:4px}
-          button:disabled{background:#e8eaed;color:#5f6368;box-shadow:none;cursor:default}
-          @media(prefers-color-scheme:dark){button{background:#a8c7fa;color:#062e6f;box-shadow:0 4px 14px #00000066}button:hover:not(:disabled){background:#c2d7fb}button:active:not(:disabled){background:#8ab4f8}button:focus-visible{outline-color:#a8c7fa}button:disabled{background:#303134;color:#bdc1c6;box-shadow:none}}`
+          button{font:600 15px system-ui,sans-serif;min-height:48px;max-width:calc(100vw - 40px);padding:12px 24px;border:0;border-radius:999px;background:var(--store-accent);color:var(--store-accent-ink);box-shadow:0 4px 14px #0000003d;cursor:pointer}
+          button:hover:not(:disabled){background:var(--store-accent-strong)}button:active:not(:disabled){background:var(--store-accent-press)}
+          button:focus-visible{outline:3px solid var(--store-accent);outline-offset:4px}
+          button:disabled{background:var(--store-raised);color:var(--store-ink-dim);box-shadow:none;cursor:default}
+`
         button = document.createElement('button')
         button.type = 'button'
         button.addEventListener('click', async (event) => {
@@ -59,6 +59,11 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
         })
         shadow.append(style, button)
         document.body.append(host)
+      }
+      const theme = status.theme
+      for (const [key, value] of Object.entries(theme)) {
+        const variable = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+        host!.style.setProperty(`--store-${variable}`, value)
       }
       currentId = id
       const busy = pending || status.installing
