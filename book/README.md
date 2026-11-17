@@ -603,6 +603,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏审查修复与发布.md](plans/2026-11-16-顶栏审查修复与发布.md) — 修复顶栏设计尺寸冲突，补三平台建窗和Windows主题回归，再合dev准备1.1.7发布PR
 - [2026-11-17-商店按钮全圆角与主题适配.md](plans/2026-11-17-商店按钮全圆角与主题适配.md) — L级在商店状态窄桥携带应用主题token，按钮改全圆角并同步三套主题的亮暗模式
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
+- [2026-11-17-插件名称本地化修复.md](plans/2026-11-17-插件名称本地化修复.md) — 按应用语言解析扩展名称并刷新三处展示，兼容旧占位符安装记录
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -668,4 +669,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 543 documents -->
+<!-- 544 documents -->
