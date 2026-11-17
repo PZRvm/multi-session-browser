@@ -424,6 +424,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261114194001-更新入口与版本日志调研.md](notes/learn/2026-11/20261114194001-更新入口与版本日志调研.md) — 右上角主题圆钮与版本Markdown日志的实现路径，复用更新清单releaseNotes及现有原生sheet
 - [20261114213431-Sparkle迁移影响分析.md](notes/learn/2026-11/20261114213431-Sparkle迁移影响分析.md) — macOS由Squirrel迁移Sparkle的代码与发布影响，保留既有交互并先验证下载控制和安装事务
 - [20261117154847-商店页面直接安装入口调研.md](notes/learn/2026-11/20261117154847-商店页面直接安装入口调研.md) — 商店原按钮缺少网页桥接，推荐借鉴现有依赖实现受限适配并复用项目安装事务
+- [20261117175313-插件名称本地化修复调研.md](notes/learn/2026-11/20261117175313-插件名称本地化修复调研.md) — 插件名称应在主进程按应用语言动态解析消息文件，兼容旧占位符记录并复用现有刷新通道
 - [logo-light-generation.md](notes/learn/2026-11/logo-light-generation.md) — "Logo 亮色版生成记录"
 
 ### notes/review-todo/
@@ -667,4 +668,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 542 documents -->
+<!-- 543 documents -->
