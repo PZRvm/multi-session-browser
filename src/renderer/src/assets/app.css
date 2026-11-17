@@ -2077,6 +2077,8 @@ select.picker-input {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* 默认等宽，标题和图标不参与定宽；空间不足时沿用flex收缩及列表裁切。 */
+  width: 200px;
   height: 30px;
   /* 右内边距窄于左（8 vs 14）：关闭钮贴近右缘（Chrome 对齐），右缘留白与栏内
      8px 间隙同律；左侧保持内容呼吸位 */

@@ -135,7 +135,7 @@ Electron 三进程结构（electron-vite 脚手架）：
 ## 界面设计
 
 - 前端页面设计（新界面、布局与视觉改动、组件风格调整）必须使用 impeccable 技能进行：动手前先走 `$impeccable` 对应命令的流程（新界面用 new-work 路径，已有界面微调用 polish/critique 等 scoped 命令），不要绕过技能直接凭感觉写样式
-- 设计决策以 `PRODUCT.md` 的产品事实与设计原则为依据（纯中文界面、效率优先、Chrome 交互惯例）
+- 设计决策以 `PRODUCT.md` 的产品事实与设计原则为依据（默认简体中文并支持繁体中文/英文、效率优先、Chrome 交互惯例）
 - **模态框一律原生，不写渲染层模态框**（2026-09-30 用户裁决）：破坏性确认与信息反馈走主进程 `dialog.showMessageBox`（PRD 4.10，src/main/dialogs.ts）；选择/输入类模态走主进程模态子窗口原生 sheet（PRD 4.11，src/main/workspacePickerWindow.ts，新场景扩 kind 复用同机制）。不新增渲染层 antd Modal / modal.confirm 作模态——原唯一例外「打开测试地址」输入弹层已于 2026-10-23 随批量多选功能退役删除（用户裁决），渲染层模态例外清零，新功能不得仿照
 - **操作结果反馈（toast）一律原生提示框，不写渲染层 toast**（同裁决）：导入/导出等动作的完成与失败反馈用主进程 information 型 `showMessageBox`（主进程动作完成点内联弹出，参考 src/main/browser/chromeImport/index.ts）；需要不打断的轻量进度提示可用板面反馈条（面板内 inline 非浮层）。不新增渲染层 antd message / notification 浮层作结果反馈（批量操作及其 batchFeedback 反馈条已于 2026-10-23 随批量多选退役删除）
 
@@ -143,7 +143,7 @@ Electron 三进程结构（electron-vite 脚手架）：
 
 - **agent 调试本应用一律用 `npm run dev:agent`，不要裸 `npm run dev` 反复重启**（2026-11-13）：agent 模式经 `--agent-debug` 开 CDP 端口 9222（chrome-devtools-mcp，六个 agent 已配置 electron-devtools MCP）+ 主窗静默隐藏不激活，agent 靠 CDP 截图/DOM/console 自主验证——renderer 改动走 HMR、主进程改动重启应用也全程不抢用户前台焦点。隐藏窗 CDP 截图已实测无黑帧（backgroundThrottling:false 保障）；并发实例用 MSB_DEV_PORT 换端口 + MSB_USER_DATA 隔离数据。用户日常 `npm run dev` 行为不变
 - `.npmrc` 配了 npmmirror 镜像下载 Electron 二进制（国内网络环境），不要删除；npm 11 对 `electron_mirror` 等键的 "Unknown project config" 警告无害，勿因警告删配置
-- `postinstall`（electron-builder install-app-deps）已移除（2026-10-30）：唯一原生依赖 classic-level 自带全平台 N-API 预编译二进制（Node/Electron 通用），源码重编译无必要、还要求 Windows 装 VS C++ 工具链；将来新增非 N-API 原生依赖时需恢复该步骤
+- 原 `electron-builder install-app-deps` postinstall 已移除（2026-10-30）；当前 `postinstall` 执行 `node scripts/patch-extension-preloads.mjs`，安装依赖后必须保留该受限 preload 补丁。npm依赖方面：classic-level 自带全平台 N-API 预编译二进制（Node/Electron 通用），源码重编译无必要、还要求 Windows 装 VS C++ 工具链；将来新增非 N-API 原生依赖时需恢复该步骤
 - 脚手架的 `optimizer.watchWindowShortcuts` 会在 dev 模式接管 F12/Ctrl+R，而 F12 是本产品的核心功能（唤起会话 DevTools），实现 3 阶段时需处理这一冲突
 - PRD 5.1 提到的 Playwright 一期不使用（会话隔离由 Electron 原生 partition 承担），勿引入
 - 平台差异：macOS 关窗不退出（模板行为）；打包后 `resources/icon.png` 仅 Linux 用，Windows/Mac 用 `build/` 下的 ico/icns

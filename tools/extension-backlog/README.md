@@ -1,5 +1,7 @@
 # 扩展遗留问题实测
 
+当前状态（2026-11-17）：下文为修复前诊断快照。永久删除回收与SwitchyOmega代理兼容均已在Mac实现并验证，分别见[回收计划](../../book/plans/2026-11-15-扩展运行时删除回收.md)及[代理报告](../../book/notes/summary/2026-11/2026-11-16-会话插件代理接入.md)。`needsWork=true`记录当时复现，不代表当前缺陷仍存在；完整平台联合矩阵仍由[插件任务](../../book/notes/task/2026-11-09-Chrome插件与双端工具插件.md)跟踪。
+
 这是一份开发应用诊断探针，不是修复实现。证据基线 `6e47219`，macOS / Electron 45.3.0，三次独立 profile 均复现。`probe.mjs` 由现有 `MSB_EXTENSIONS_SELFTEST=plugins` 入口传入的真实 registry、主窗和扩展句柄驱动，使用实际 preload IPC 安装 CRX、切换/删除会话、配置内置代理。
 
 固定 SwitchyOmega 官方 `2.5.20`：
