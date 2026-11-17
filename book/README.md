@@ -95,6 +95,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏1.1.7合并与发布结果.md](changelogs/2026-11/2026-11-16-顶栏1.1.7合并与发布结果.md) — 用户授权合并PR17，main校验和三平台Release成功，1.1.7公开11个附件
 - [2026-11-16-顶栏审查集成与发布PR.md](changelogs/2026-11/2026-11-16-顶栏审查集成与发布PR.md) — 顶栏审查修复已合dev，准备1.1.7并创建main发布PR，首轮CI与Git policy全绿
 - [2026-11-17-代理端口输入.md](changelogs/2026-11/2026-11-17-代理端口输入.md) — 代理设置端口框显示端口占位提示，并过滤非数字输入
+- [2026-11-17-商店安装按钮视觉强化.md](changelogs/2026-11/2026-11-17-商店安装按钮视觉强化.md) — 商店安装按钮从浅灰次级样式改为48px高对比蓝色主按钮，提高右下角入口可发现性
 - [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
 - [2026-11-17-截图录屏开关主题色.md](changelogs/2026-11/2026-11-17-截图录屏开关主题色.md) — 显示截图与录屏按钮的开关选中背景跟随主题色
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
@@ -658,4 +659,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 533 documents -->
+<!-- 534 documents -->

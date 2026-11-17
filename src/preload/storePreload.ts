@@ -35,10 +35,11 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
         const shadow = host.attachShadow({ mode: 'closed' })
         const style = document.createElement('style')
         style.textContent = `:host{position:fixed;right:20px;bottom:20px;z-index:2147483647;color-scheme:light dark}
-          button{font:500 14px system-ui,sans-serif;min-height:36px;max-width:calc(100vw - 40px);padding:8px 16px;border:1px solid #747775;border-radius:6px;background:#f1f3f4;color:#202124;cursor:pointer}
-          button:hover:not(:disabled){background:#e3e3e3}button:focus-visible{outline:2px solid #1a73e8;outline-offset:3px}
-          button:disabled{cursor:default;color:#5f6368}
-          @media(prefers-color-scheme:dark){button{background:#303134;color:#e8eaed}button:hover:not(:disabled){background:#3c4043}button:disabled{color:#bdc1c6}}`
+          button{font:600 15px system-ui,sans-serif;min-height:48px;max-width:calc(100vw - 40px);padding:12px 24px;border:0;border-radius:8px;background:#0b57d0;color:#fff;box-shadow:0 4px 14px #0000003d;cursor:pointer}
+          button:hover:not(:disabled){background:#0842a0}button:active:not(:disabled){background:#062e6f}
+          button:focus-visible{outline:3px solid #0b57d0;outline-offset:4px}
+          button:disabled{background:#e8eaed;color:#5f6368;box-shadow:none;cursor:default}
+          @media(prefers-color-scheme:dark){button{background:#a8c7fa;color:#062e6f;box-shadow:0 4px 14px #00000066}button:hover:not(:disabled){background:#c2d7fb}button:active:not(:disabled){background:#8ab4f8}button:focus-visible{outline-color:#a8c7fa}button:disabled{background:#303134;color:#bdc1c6;box-shadow:none}}`
         button = document.createElement('button')
         button.type = 'button'
         button.addEventListener('click', async (event) => {
