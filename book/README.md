@@ -402,6 +402,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-地址栏草稿与焦点分离.md](notes/learn/2026-11/2026-11-16-地址栏草稿与焦点分离.md) — 地址栏保留失焦草稿时必须单独控制建议焦点，并放行未编辑URL的导航回填
 - [2026-11-16-浮动设备模拟要核验辅助宿主.md](notes/learn/2026-11/2026-11-16-浮动设备模拟要核验辅助宿主.md) — Electron45浮动设备模拟依赖辅助宿主，按钮开启不能证明模拟生效，DevTools链接另走专门事件
 - [2026-11-16-独立窗口原生按钮避让.md](notes/learn/2026-11/2026-11-16-独立窗口原生按钮避让.md) — 独立窗口去标题栏须同时处理建窗选项、标签避让和Windows逐窗主题更新
+- [2026-11-17-main发布PR标题与检查事件.md](notes/learn/2026-11/2026-11-17-main发布PR标题与检查事件.md) — main发布PR的标题也须使用中文Clean Commit格式，修改标题后需新同步事件重跑策略检查
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -676,4 +677,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 551 documents -->
+<!-- 552 documents -->
