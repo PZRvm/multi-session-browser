@@ -96,6 +96,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏审查集成与发布PR.md](changelogs/2026-11/2026-11-16-顶栏审查集成与发布PR.md) — 顶栏审查修复已合dev，准备1.1.7并创建main发布PR，首轮CI与Git policy全绿
 - [2026-11-17-代理端口输入.md](changelogs/2026-11/2026-11-17-代理端口输入.md) — 代理设置端口框显示端口占位提示，并过滤非数字输入
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
+- [2026-11-17-项目文档同步与剩余事项.md](changelogs/2026-11/2026-11-17-项目文档同步与剩余事项.md) — 同步最近标签与端口修复，校正更新和插件旧状态，并汇总非Windows剩余工作
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -545,9 +546,10 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/task/
 
-**Open (1)**
+**Open (2)**
 
-- [2026-11-09-Chrome插件与双端工具插件.md](notes/task/2026-11-09-Chrome插件与双端工具插件.md) — Chrome插件安装与双插件已实现，集中跟踪扩展回收、代理兼容和全平台待验
+- [2026-11-09-Chrome插件与双端工具插件.md](notes/task/2026-11-09-Chrome插件与双端工具插件.md) — 插件安装、双插件、删除回收及代理兼容已完成Mac验证，继续跟踪固定样本联合矩阵与host-smoke待验
+- [2026-11-17-项目剩余事项.md](notes/task/2026-11-17-项目剩余事项.md) — 对照1.1.7后的代码和完成证据，去重列出非Windows待办、Mac验收及延期事项
 
 **Done (2)**
 
@@ -560,7 +562,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-11-双插件图标与编辑窗口修复.md](plans/2026-11-11-双插件图标与编辑窗口修复.md) — 为截图录屏插件补齐图标，修复编辑预览缩放和标题区、录屏提示裁切
 - [2026-11-11-截图插件移除浮动与标题栏调研.md](plans/2026-11-11-截图插件移除浮动与标题栏调研.md) — 调研Chrome与Electron标题栏边界，按用户要求移除截图插件浮动及PiP，只保留直接编辑
 - [2026-11-13-UA兼容与扩展Worker隔离修复.md](plans/2026-11-13-UA兼容与扩展Worker隔离修复.md) — 分离产品名称与默认 UA、限定扩展 preload 来源，逐项验证网站环境、插件功能与真人验证频率
-- [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用自动更新L级开发计划，覆盖主窗与独立窗入口、关于页、双入口隐藏停更、严格保存、GitHub更新附件和macOS正式签名，开发中，正式签名及跨平台实机升级待验
+- [2026-11-13-应用自动更新.md](plans/2026-11-13-应用自动更新.md) — 应用更新已发布并修复恢复集问题，继续跟踪Intel Mac、Windows及多窗录屏组合实机验收
 - [2026-11-14-macOS更新迁移Sparkle.md](plans/2026-11-14-macOS更新迁移Sparkle.md) — macOS迁移Sparkle的L级计划，先验证取消安装与缓存语义，再接原生桥接、免费签名发布和双版本升级
 - [2026-11-14-下载完成自动确认安装.md](plans/2026-11-14-下载完成自动确认安装.md) — 下载成功后自动弹原生重启确认，稍后保留入口，复用既有安装与验签失败链路
 - [2026-11-14-更新入口与版本日志.md](plans/2026-11-14-更新入口与版本日志.md) — L级反馈增量，主窗右上角主题圆形更新入口及按版本分发的日志原生窗口
@@ -647,4 +649,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 522 documents -->
+<!-- 524 documents -->

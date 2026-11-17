@@ -50,6 +50,8 @@
 | 🌐 **会话独立代理**          | 每会话 HTTP / SOCKS5 代理、账号密码认证、出口 IP 一键检测                                           |
 | 🔄 **Chrome 数据导入**       | 探测本机 Chrome Profile，dry-run 预览后把历史记录与站点数据导入指定会话                             |
 | 📸 **截图与录屏**            | 快速截图（内置编辑器）与快速录屏，成果直存本地                                                      |
+| 🧩 **Chrome 插件** | 商店 ID / CRX 安装、固定排序、会话隔离运行；内置代理优先于插件代理 |
+| ⬆️ **应用内更新** | 下载进度、原生版本日志与重启确认；Mac Sparkle / Windows electron-updater |
 | 🌗 **三态外观 × 三套主题色** | 跟随系统 / 白天 / 黑夜 × 琥珀 / 雾蓝 / 苔绿                                                         |
 | 🌍 **三语界面**              | 简体中文 / 繁體中文 / English                                                                       |
 | 💾 **全量持久化**            | 会话、工作区、页面、设置，重启完整恢复                                                              |
@@ -71,7 +73,7 @@
 ```bash
 git clone https://github.com/PZRvm/multi-session-browser.git
 cd multi-session-browser
-npm install   # 仅支持 npm
+npm install   # Node.js >=22.12，仅支持 npm
 npm run dev
 ```
 
@@ -113,6 +115,7 @@ src/
 ## 📚 更多文档
 
 - [book/README.md](./book/README.md) —— BoCode 工作流、计划与知识库；源码保留根目录，文档改动后运行 `npm run book:index`
+- [项目剩余事项](./book/notes/task/2026-11-17-项目剩余事项.md) —— 当前待办与验收缺口，Windows 单独列出
 - [PRODUCT.md](./PRODUCT.md) —— 产品事实与设计原则
 - [AGENTS.md](./AGENTS.md) —— 代码约定与贡献须知
 - [third_party/README.md](./third_party/README.md) —— BoCode、electron-builder 与 Sparkle 的来源、版权和许可证

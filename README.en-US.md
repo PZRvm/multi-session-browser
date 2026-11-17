@@ -50,6 +50,8 @@ A typical day of multi-role testing: sign in to account A, and account B gets ki
 | 🌐 **Per-session proxy**        | HTTP / SOCKS5 proxy per session with auth and one-click exit-IP check                                                 |
 | 🔄 **Chrome data import**       | Detect local Chrome profiles, preview with dry-run, then import history and site data into a session                  |
 | 📸 **Screenshot & recording**   | Quick screenshot with a built-in editor, plus screen recording — saved straight to disk                               |
+| 🧩 **Chrome extensions** | Install by store ID or CRX, pin and reorder, run per session; manual proxy settings take priority |
+| ⬆️ **In-app updates** | Download progress, native release notes and restart confirmation; Sparkle on Mac, electron-updater on Windows |
 | 🌗 **Appearance**               | System / light / dark modes × amber / mist-blue / moss-green themes                                                   |
 | 🌍 **Three languages**          | 简体中文 / 繁體中文 / English                                                                                         |
 | 💾 **Full persistence**         | Sessions, workspaces, pages and settings survive restarts                                                             |
@@ -71,7 +73,7 @@ Download the Windows x64, macOS Apple Silicon, or Intel installer from [GitHub R
 ```bash
 git clone https://github.com/PZRvm/multi-session-browser.git
 cd multi-session-browser
-npm install   # npm only
+npm install   # Node.js >=22.12; npm only
 npm run dev
 ```
 
@@ -113,6 +115,7 @@ Isolation is built on Electron's native `session.fromPartition('persist:sess-<id
 ## 📚 More Docs
 
 - [book/README.md](./book/README.md) — BoCode workflow, plans, and knowledge base. Source stays at the repository root; run `npm run book:index` after documentation changes.
+- [Remaining work](./book/notes/task/2026-11-17-项目剩余事项.md) — current work and validation gaps, with Windows listed separately (Chinese)
 - [PRODUCT.md](./PRODUCT.md) — product facts and design principles
 - [AGENTS.md](./AGENTS.md) — code conventions and contribution notes
 - [third_party/README.md](./third_party/README.md) — origins, copyrights and licenses for BoCode, electron-builder and Sparkle
