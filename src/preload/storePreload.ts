@@ -12,6 +12,8 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
   let currentId: string | null = null
   let pending = false
   let updating = false
+  let installingLabel = ''
+  let resumeMotion: (() => void) | null = null
 
   const refresh = async (): Promise<void> => {
     if (updating) return
@@ -30,6 +32,7 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
         id
       )
       if (!status || id !== storeDetailId(location.href) || !document.body) return
+      installingLabel = status.installingLabel
       if (!host?.isConnected) {
         host = document.createElement('div')
         host.toggleAttribute('data-motion-paused', document.hidden)
@@ -76,6 +79,7 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
           })
           settling.onfinish = resume
         }
+        resumeMotion = resume
         control.addEventListener('pointerenter', settle)
         control.addEventListener('pointerleave', resume)
         control.addEventListener('focus', () => {
@@ -91,7 +95,7 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
           pending = true
           button!.disabled = true
           button!.setAttribute('aria-busy', 'true')
-          button!.textContent = status.installingLabel
+          button!.textContent = installingLabel
           try {
             await ipcRenderer.invoke(STORE_PAGE_CHANNELS.install, targetId)
           } catch (error) {
@@ -111,7 +115,9 @@ if (process.isMainFrame && location.origin === 'https://chromewebstore.google.co
       }
       currentId = id
       const busy = pending || status.installing
+      const wasDisabled = button!.disabled
       button!.disabled = busy || status.installed
+      if (wasDisabled && !button!.disabled) resumeMotion?.()
       button!.setAttribute('aria-busy', String(busy))
       button!.textContent = busy
         ? status.installingLabel

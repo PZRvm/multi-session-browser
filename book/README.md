@@ -98,6 +98,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店安装按钮视觉强化.md](changelogs/2026-11/2026-11-17-商店安装按钮视觉强化.md) — 商店安装按钮从浅灰次级样式改为48px高对比蓝色主按钮，提高右下角入口可发现性
 - [2026-11-17-商店按钮两秒循环与悬停平滑回落.md](changelogs/2026-11/2026-11-17-商店按钮两秒循环与悬停平滑回落.md) — 商店按钮改两秒循环，悬停从当前深度缓慢回落，移出平滑恢复循环
 - [2026-11-17-商店按钮全圆角与主题适配.md](changelogs/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店安装按钮改全圆角，配色随应用当前主题色和亮暗模式更新
+- [2026-11-17-商店按钮审查修复.md](changelogs/2026-11/2026-11-17-商店按钮审查修复.md) — 修复商店按钮取消后停跳及加载旧语言，并适配R1回归夹具的新模块边界
 - [2026-11-17-商店按钮持续慢速跳动.md](changelogs/2026-11/2026-11-17-商店按钮持续慢速跳动.md) — 商店按钮改为四秒周期的连续Z轴起伏，取消双跳与中间停顿
 - [2026-11-17-商店按钮深度跳动与安装加载.md](changelogs/2026-11/2026-11-17-商店按钮深度跳动与安装加载.md) — 可安装按钮增加Z轴深度双跳，阴影减淡，安装中提供旋转加载并暂停跳动
 - [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
@@ -216,7 +217,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (16)**
+**Open (15)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -230,12 +231,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
 - [2026-11-17-商店入口旧TODO注释.md](notes/issue/2026-11/2026-11-17-商店入口旧TODO注释.md) — 设置页仍保留商店伴随插件待排期注释，已被受限preload自有按钮方案取代
-- [2026-11-17-商店按钮取消后停跳与旧语言加载文案.md](notes/issue/2026-11/2026-11-17-商店按钮取消后停跳与旧语言加载文案.md) — 商店安装按钮取消后可能被悬停动画锁住，点击加载文字也可能沿用创建时语言
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (125)**
+**Resolved (126)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -331,6 +331,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-历史图标损坏图片被缓存.md](notes/issue/2026-11/2026-11-16-历史图标损坏图片被缓存.md) — 仅按文件头识别图片会把损坏PNG缓存七天，渲染失败后既不尝试根图标也不失效缓存
 - [2026-11-16-历史图标排队取消等待其他会话.md](notes/issue/2026-11/2026-11-16-历史图标排队取消等待其他会话.md) — 图标请求在获得全局并发槽位后才建立取消控制器，删除会话会等待其他会话排队下载
 - [2026-11-16-顶栏设计规范尺寸冲突.md](notes/issue/2026-11/2026-11-16-顶栏设计规范尺寸冲突.md) — DESIGN旧布局条目仍声明40px顶栏和80px顶区，与已验收的36px和76px冲突
+- [2026-11-17-商店按钮取消后停跳与旧语言加载文案.md](notes/issue/2026-11/2026-11-17-商店按钮取消后停跳与旧语言加载文案.md) — 商店安装按钮取消后可能被悬停动画锁住，点击加载文字也可能沿用创建时语言
 - [2026-11-17-扩展本地化名称占位符直接显示.md](notes/issue/2026-11/2026-11-17-扩展本地化名称占位符直接显示.md) — Dark Theme扩展名称为__MSG_extName__，安装与列表未解析语言文件导致占位符直接展示
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
@@ -673,4 +674,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 548 documents -->
+<!-- 549 documents -->
