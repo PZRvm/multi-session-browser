@@ -95,6 +95,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏1.1.7合并与发布结果.md](changelogs/2026-11/2026-11-16-顶栏1.1.7合并与发布结果.md) — 用户授权合并PR17，main校验和三平台Release成功，1.1.7公开11个附件
 - [2026-11-16-顶栏审查集成与发布PR.md](changelogs/2026-11/2026-11-16-顶栏审查集成与发布PR.md) — 顶栏审查修复已合dev，准备1.1.7并创建main发布PR，首轮CI与Git policy全绿
 - [2026-11-17-代理端口输入.md](changelogs/2026-11/2026-11-17-代理端口输入.md) — 代理设置端口框显示端口占位提示，并过滤非数字输入
+- [2026-11-17-商店详情页安装按钮.md](changelogs/2026-11/2026-11-17-商店详情页安装按钮.md) — 官方商店详情增加自有安装按钮，复用CRX验签与全局安装，并校验远程页面授权
 - [2026-11-17-截图录屏开关主题色.md](changelogs/2026-11/2026-11-17-截图录屏开关主题色.md) — 显示截图与录屏按钮的开关选中背景跟随主题色
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
 - [2026-11-17-项目文档同步与剩余事项.md](changelogs/2026-11/2026-11-17-项目文档同步与剩余事项.md) — 同步最近标签与端口修复，校正更新和插件旧状态，并汇总非Windows剩余工作
@@ -141,6 +142,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-008-会话代理控制权.md](docs/decisions/ADR-008-会话代理控制权.md) — 内置手动代理优先于插件，原生身份授权与单源事务确保失败不悄悄直连
 - [ADR-009-history-favicon-cache.md](docs/decisions/ADR-009-history-favicon-cache.md) — 历史建议图标由主进程沿会话Session获取，分区内缓存，子窗仅显示图片数据
 - [ADR-010-devtools-host-compatibility.md](docs/decisions/ADR-010-devtools-host-compatibility.md) — 用户允许用官方DevTools加宿主兼容层修复浮动设备模拟，内部布局桥只开放给可信工具主frame
+- [ADR-011-store-page-install.md](docs/decisions/ADR-011-store-page-install.md) — 官方商店详情使用隔离世界自有按钮，远程安装请求只经受限桥进入统一事务
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -207,7 +209,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (14)**
+**Open (15)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -220,6 +222,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md](notes/issue/2026-10/20261028165249-地址栏交互与Chrome站点数据导入修复轮复审.md) — "修复轮复审：地址栏交互与 Chrome 站点数据导入"
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
+- [2026-11-17-商店入口旧TODO注释.md](notes/issue/2026-11/2026-11-17-商店入口旧TODO注释.md) — 设置页仍保留商店伴随插件待排期注释，已被受限preload自有按钮方案取代
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
@@ -529,6 +532,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口去系统标题栏.md](notes/summary/2026-11/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口去掉额外系统标题行，Mac三灯与Windows原生控制区和网页标签同排
 - [2026-11-16-顶栏代码审查.md](notes/summary/2026-11/2026-11-16-顶栏代码审查.md) — 审查主窗和独立窗顶栏分支，记录一项设计规范冲突及跨平台验证范围
 - [2026-11-17-Mac更新与原功能GUI用户验收.md](notes/summary/2026-11/2026-11-17-Mac更新与原功能GUI用户验收.md) — 根据用户确认关闭Mac更新与原功能GUI待验，保留Windows及系统输入显示的独立验证边界
+- [2026-11-17-商店详情页安装按钮.md](notes/summary/2026-11/2026-11-17-商店详情页安装按钮.md) — 商店详情新增自有安装按钮，真实Dark Reader下载验签及新会话加载通过，记录受限桥与验证边界
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -588,6 +592,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-浮动DevTools修复.md](plans/2026-11-16-浮动DevTools修复.md) — 在独立分支修复浮动设备工具栏与DevTools链接打开，验证固定调试目标和视图回收
 - [2026-11-16-独立窗口去系统标题栏.md](plans/2026-11-16-独立窗口去系统标题栏.md) — 独立窗口保留网页标签栏，将Mac原生三灯和Windows原生窗口控制嵌入顶行
 - [2026-11-16-顶栏审查修复与发布.md](plans/2026-11-16-顶栏审查修复与发布.md) — 修复顶栏设计尺寸冲突，补三平台建窗和Windows主题回归，再合dev准备1.1.7发布PR
+- [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -653,4 +658,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 528 documents -->
+<!-- 533 documents -->

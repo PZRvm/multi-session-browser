@@ -1,3 +1,5 @@
+import { registerStorePageIpc } from './store-page'
+import { createLock, createKeyedLock } from './install/mutex'
 /**
  * 插件管理 IPC（用户入口层）：
  * list/install-store/import-crx/uninstall 四通道；商店安装经允许列表('*'=开放)
@@ -101,10 +103,17 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     return out
   }
   /** 安装后重挂载全部已挂载分区：loader 幂等去重，只补新插件 */
-  const remountAll = async (): Promise<void> => {
+  const remountAll = async (expectedId?: string): Promise<void> => {
+    let failed = false
     for (const { session, partition } of mountedSessions()) {
-      await mountDevExtensions(session, partition)
+      const result = await mountDevExtensions(session, partition)
+      if (
+        expectedId &&
+        ('error' in result || result.results.some((item) => item.id === expectedId && !item.ok))
+      )
+        failed = true
     }
+    if (failed) throw new Error('STORE_SESSION_LOAD_FAILED')
   }
   const confirmInstall = async (details: {
     id: string
@@ -167,6 +176,31 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     downloadDir: join(paths.root, 'store-download'),
     allowlist: ['*'],
     confirmInstall
+  })
+  const mutationLock = createLock()
+  const storeLock = createKeyedLock()
+  const installingStore = new Set<string>()
+  const installStore = (id: string, approve?: () => Promise<boolean>): Promise<InstallOutcome> =>
+    storeLock(id, async () => {
+      installingStore.add(id)
+      try {
+        return await mutationLock(async () => {
+          const outcome = await store.installFromStore(id, approve)
+          try {
+            await remountAll(outcome.id)
+          } finally {
+            broadcastExtensionsChanged()
+          }
+          return { ok: true, record: await manifest.get(outcome.id), duplicate: outcome.duplicate }
+        })
+      } finally {
+        installingStore.delete(id)
+      }
+    })
+  registerStorePageIpc({
+    installed: async (id) => Boolean(await manifest.get(id)),
+    installing: (id) => installingStore.has(id),
+    install: (id, approve) => installStore(id, approve)
   })
   /** 读解包 manifest 的 popup 页面路径（MV3 action / MV2 browser_action） */
   const readPopupPath = (extensionId: string): string | undefined => {
@@ -443,7 +477,8 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
           p.path.length > 512
         )
           return { ok: false, error: 'INVALID_PATH' }
-        const outcome = await install.installFromFile(p.path)
+        const filePath = p.path
+        const outcome = await mutationLock(() => install.installFromFile(filePath))
         await refreshManifestCache()
         await remountAll()
         broadcastExtensionsChanged()
@@ -535,10 +570,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         if (typeof id !== 'string' || !/^[a-p]{32}$/.test(id)) {
           return { ok: false, error: 'INVALID_ID' }
         }
-        const outcome = await store.installFromStore(id)
-        await remountAll()
-        broadcastExtensionsChanged()
-        return { ok: true, record: await manifest.get(outcome.id), duplicate: outcome.duplicate }
+        return await installStore(id)
       } catch (error) {
         return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
       }
@@ -591,7 +623,7 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
         }
         const { response } = await dialog.showMessageBox(dialogOpts)
         if (response !== 1) return { ok: false, error: 'CANCELED' }
-        const ok = await install.uninstall(id)
+        const ok = await mutationLock(() => install.uninstall(id))
         if (ok) broadcastExtensionsChanged()
         return ok ? { ok: true } : { ok: false, error: 'NOT_FOUND' }
       } catch (error) {

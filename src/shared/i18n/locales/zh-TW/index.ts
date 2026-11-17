@@ -1,3 +1,4 @@
+import { storePage } from './storePage'
 import { updates } from './updates'
 // zh-TW 字典合并出口：整体挂 Dictionary 约束（各命名空间文件已逐个受约束，此处兜底）
 import type { Dictionary } from '../../index'
@@ -21,5 +22,6 @@ export const zhTW: Dictionary = {
   settings,
   chromeImport,
   capture,
-  updates
+  updates,
+  storePage
 }

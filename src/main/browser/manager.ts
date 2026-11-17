@@ -7,7 +7,8 @@ import { isUpdatePreparing, canCompleteUpdateRestore } from '../updatePreparatio
 // 布局缓存按窗口分槽；步骤 3 起独立窗口作用域可达（tear-off 迁移 + windows.ts 登记表，
 // 本模块仍不感知窗口创建/销毁——级联经 registry 回调触达 destroyTabsInWindow）。
 
-import { BrowserWindow, WebContentsView } from 'electron'
+import { BrowserWindow, WebContentsView, session } from 'electron'
+import { prepareStorePageSession, attachStorePageTarget } from '../extensions/store-page'
 import type { Input, WebContents } from 'electron'
 import {
   WINDOW_ID_MAIN,
@@ -543,6 +544,7 @@ export function createTabManager(
     if (disposed) return buildSnapshot(windowId)
     seq += 1
     const id = `tab-${seq}`
+    prepareStorePageSession(session.fromPartition(opts.partition))
     const view = new WebContentsView({
       // 只设分区，不设 preload/nodeIntegration/contextIsolation（网页内容不可信）
       webPreferences: { partition: opts.partition }
@@ -564,6 +566,7 @@ export function createTabManager(
     }
     tabs.set(id, tab)
     const wc = view.webContents
+    attachStorePageTarget(wc, () => getWindow(tab.windowId))
 
     // 插件引擎 tabDetails 缓存失效：导航后 tabs.query 的 URL 才正确（Cookie-Editor
     // 等依赖当前页 URL 的插件 popup 依赖此点；缓存首建后 lib 永不更新，必须主动失效）
