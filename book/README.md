@@ -107,6 +107,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-插件安装图标与窗口收尾.md](changelogs/2026-11/2026-11-17-插件安装图标与窗口收尾.md) — 插件安装完成框使用项目Logo，管理入口收起插件面板，商店导航发起后关闭设置窗
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
 - [2026-11-17-项目文档同步与剩余事项.md](changelogs/2026-11/2026-11-17-项目文档同步与剩余事项.md) — 同步最近标签与端口修复，校正更新和插件旧状态，并汇总非Windows剩余工作
+- [2026-11-19-会话导入与快捷交互.md](changelogs/2026-11/2026-11-19-会话导入与快捷交互.md) — Chrome 历史、Cookie 和 localStorage 导入后即时可见，地址栏回车直达并支持双击会话行重命名
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -218,7 +219,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (15)**
+**Open (16)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -232,11 +233,12 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
 - [2026-11-17-商店入口旧TODO注释.md](notes/issue/2026-11/2026-11-17-商店入口旧TODO注释.md) — 设置页仍保留商店伴随插件待排期注释，已被受限preload自有按钮方案取代
+- [2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md](notes/issue/2026-11/2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md) — Electron 45.3.0 自身生成的 IndexedDB schema 16 快照仍被当前导入版本门禁拒绝
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (126)**
+**Resolved (127)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -334,6 +336,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-顶栏设计规范尺寸冲突.md](notes/issue/2026-11/2026-11-16-顶栏设计规范尺寸冲突.md) — DESIGN旧布局条目仍声明40px顶栏和80px顶区，与已验收的36px和76px冲突
 - [2026-11-17-商店按钮取消后停跳与旧语言加载文案.md](notes/issue/2026-11/2026-11-17-商店按钮取消后停跳与旧语言加载文案.md) — 商店安装按钮取消后可能被悬停动画锁住，点击加载文字也可能沿用创建时语言
 - [2026-11-17-扩展本地化名称占位符直接显示.md](notes/issue/2026-11/2026-11-17-扩展本地化名称占位符直接显示.md) — Dark Theme扩展名称为__MSG_extName__，安装与列表未解析语言文件导致占位符直接展示
+- [2026-11-19-Chrome导入后活跃localStorage未更新.md](notes/issue/2026-11/2026-11-19-Chrome导入后活跃localStorage未更新.md) — Chrome 导入写入 localStorage 后，已访问过同源存储的会话在重启应用前仍读到旧值
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
 - [20261103174933-dev验证与main自动发布审查.md](notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md) — "代码审查：dev 验证与 main 自动发布"
@@ -403,6 +406,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-浮动设备模拟要核验辅助宿主.md](notes/learn/2026-11/2026-11-16-浮动设备模拟要核验辅助宿主.md) — Electron45浮动设备模拟依赖辅助宿主，按钮开启不能证明模拟生效，DevTools链接另走专门事件
 - [2026-11-16-独立窗口原生按钮避让.md](notes/learn/2026-11/2026-11-16-独立窗口原生按钮避让.md) — 独立窗口去标题栏须同时处理建窗选项、标签避让和Windows逐窗主题更新
 - [2026-11-17-main发布PR标题与检查事件.md](notes/learn/2026-11/2026-11-17-main发布PR标题与检查事件.md) — main发布PR的标题也须使用中文Clean Commit格式，修改标题后需新同步事件重跑策略检查
+- [2026-11-19-导入完成要等待会话恢复快照.md](notes/learn/2026-11/2026-11-19-导入完成要等待会话恢复快照.md) — 导入返回早于活跃会话快照时，即使数据已写入，历史也可能重拉失败
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -549,6 +553,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店按钮全圆角与主题适配.md](notes/summary/2026-11/2026-11-17-商店按钮全圆角与主题适配.md) — 商店按钮改胶囊形并跟随应用三套主题亮暗，六态与系统设置相反时的行为验证通过
 - [2026-11-17-商店详情页安装按钮.md](notes/summary/2026-11/2026-11-17-商店详情页安装按钮.md) — 商店详情新增自有安装按钮，真实Dark Reader下载验签及新会话加载通过，记录受限桥与验证边界
 - [2026-11-17-插件名称本地化修复.md](notes/summary/2026-11/2026-11-17-插件名称本地化修复.md) — 插件名称占位符已按应用语言解析，旧安装无需重装，三处显示及语言切换回归通过
+- [2026-11-19-会话导入与快捷交互阶段验收.md](notes/summary/2026-11/2026-11-19-会话导入与快捷交互阶段验收.md) — 记录 Chrome 历史、Cookie 与 localStorage 即时生效，以及地址栏回车和会话双击的实测
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -612,6 +617,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店按钮审查修复与发布.md](plans/2026-11-17-商店按钮审查修复与发布.md) — 修复审查发现的按钮恢复与语言问题，验证后合入dev并准备1.1.9发布PR
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [2026-11-17-插件名称本地化修复.md](plans/2026-11-17-插件名称本地化修复.md) — 按应用语言解析扩展名称并刷新三处展示，兼容旧占位符安装记录
+- [2026-11-19-会话导入与快捷交互.md](plans/2026-11-19-会话导入与快捷交互.md) — 修复 Chrome 导入后当前会话的数据可见性，并增加地址栏回车直达与双击会话行重命名
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -677,4 +683,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 552 documents -->
+<!-- 558 documents -->
