@@ -35,9 +35,10 @@ export const chromeImport = {
   },
   /** 导入结果反馈（主进程按 execute 逐 scope 结果组装；分状态如实呈现） */
   result: {
+    sessionRestoreFailed: '会话窗口恢复失败，导入结果如下',
     historyDone: '历史导入完成：新增 {added}，合并 {merged}',
     localStorageDone:
-      'localStorage 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}',
+      'localStorage 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}',
     cookiesDone:
       'Cookie 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}，跳过 {skipped}',
     indexedDbDone:
@@ -53,6 +54,7 @@ export const chromeImport = {
     reasonAuth: '未能获得系统钥匙串授权解密',
     reasonTargetChanged: '目标会话数据已变化，请重新发起导入',
     reasonIo: '文件系统错误',
+    reasonLocalStorageIo: '浏览器存储读写失败',
     reasonRollback: '失败还原未成功',
     reasonUnsupported: '不支持的数据格式'
   },

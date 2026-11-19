@@ -31,9 +31,10 @@ export const chromeImport: Dictionary['chromeImport'] = {
     confirmBtn: '確認匯入'
   },
   result: {
+    sessionRestoreFailed: '工作階段視窗恢復失敗，匯入結果如下',
     historyDone: '記錄匯入完成：新增 {added}，合併 {merged}',
     localStorageDone:
-      'localStorage 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}',
+      'localStorage 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}',
     cookiesDone:
       'Cookie 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}，略過 {skipped}',
     indexedDbDone:
@@ -49,6 +50,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     reasonAuth: '未能取得系統鑰匙圈授權解密',
     reasonTargetChanged: '目標會話資料已變化，請重新發起匯入',
     reasonIo: '檔案系統錯誤',
+    reasonLocalStorageIo: '瀏覽器儲存讀寫失敗',
     reasonRollback: '失敗還原未成功',
     reasonUnsupported: '不支援的資料格式'
   },

@@ -33,9 +33,10 @@ export const chromeImport: Dictionary['chromeImport'] = {
     confirmBtn: 'Import'
   },
   result: {
+    sessionRestoreFailed: 'The session view could not be restored. Import results follow.',
     historyDone: 'History imported: {added} added, {merged} merged',
     localStorageDone:
-      'localStorage imported: {added} added, {merged} merged, {conflicts} conflicts resolved by your choice',
+      'localStorage imported: {added} added, {merged} merged, {conflicts}, unsupported {unsupported} conflicts resolved by your choice',
     cookiesDone:
       'Cookies imported: {added} added, {merged} merged, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
     indexedDbDone:
@@ -53,6 +54,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     reasonAuth: 'system keychain authorization for decryption was not granted',
     reasonTargetChanged: 'target session data changed, start the import again',
     reasonIo: 'file system error',
+    reasonLocalStorageIo: 'browser storage read or write failed',
     reasonRollback: 'failure rollback did not succeed',
     reasonUnsupported: 'unsupported data format'
   },

@@ -154,7 +154,7 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         // 导入不经 recordVisit 链路（无逐条推送），完成后重拉镜像使建议即时可用；
         // 原生结果框已由主进程弹出
         if (result.results.some((item) => item.scope === 'history' && item.status === 'done')) {
-          refetchHistory()
+          refetchHistory(session.id)
         }
         await closeWorkspacePicker()
       } catch {
