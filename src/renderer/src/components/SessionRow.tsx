@@ -228,6 +228,12 @@ function SessionRow({
         onClick={() => {
           selectSession(session.id)
         }}
+        onDoubleClick={(e) => {
+          if (e.button !== 0 || mode !== 'none' || isDragSource || dropPos !== null) return
+          // 双击会单独冒泡，菜单按钮的图标也要排除。
+          if (e.target instanceof Element && e.target.closest('button, input')) return
+          startNameEdit()
+        }}
         onContextMenu={(e) => {
           // 行右键 → 主进程系统原生菜单（2026-10-15 反馈轮四）：OS 级绘制盖过页面
           // 原生层，可盖在浏览器区上方且点任意位置关闭；编辑态不弹（旧
