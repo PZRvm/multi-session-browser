@@ -21,7 +21,7 @@ const documentHeaders = [
 ]
 const documentBody = Buffer.from('<!doctype html>').toString('base64')
 const STORAGE_COMMAND_TIMEOUT_MS = 15_000
-const STORAGE_WORKERS = 4
+const STORAGE_WORKERS = 10
 
 async function waitForBrowser<T>(task: Promise<T>, operation: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
