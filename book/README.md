@@ -118,6 +118,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [release-notes-v1.0.0.md](changelogs/2026-11/release-notes-v1.0.0.md) — "🚀 多会话测试浏览器 v1.0.0"
 - [release-notes-v1.1.0.md](changelogs/2026-11/release-notes-v1.1.0.md) — "🚀 多会话测试浏览器 v1.1.0：Chrome 插件体系、地址栏补全搜索、工具栏按钮显隐配置"
 - [release-notes-v1.1.1.md](changelogs/2026-11/release-notes-v1.1.1.md) — 1.1.1版本加入应用内更新与版本日志，Mac接入Sparkle并修复安装准备时的标签恢复集覆盖
+- [release-notes-v1.1.10.md](changelogs/2026-11/release-notes-v1.1.10.md) — 1.1.10修复Chrome数据导入与标签恢复，支持地址栏回车补全和双击会话重命名
 - [release-notes-v1.1.2.md](changelogs/2026-11/release-notes-v1.1.2.md) — 1.1.2版本的浏览器身份一致性、网站Worker隔离与关于页更新显示改进
 - [release-notes-v1.1.3.md](changelogs/2026-11/release-notes-v1.1.3.md) — 1.1.3版本的新分组默认会话、扩展删除回收与会话插件代理支持
 - [release-notes-v1.1.4.md](changelogs/2026-11/release-notes-v1.1.4.md) — 1.1.4版本的更新进度填充与地址栏失焦输入保留
@@ -696,4 +697,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 571 documents -->
+<!-- 572 documents -->
