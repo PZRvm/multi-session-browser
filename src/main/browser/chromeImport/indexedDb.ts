@@ -1,54 +1,9 @@
-// IndexedDB 站点快照导入引擎（站点数据导入专项步骤 5，计划
-// notes/plans/20261028112040-地址栏交互与Chrome站点数据导入开发计划.md 第 5 节；
-// 引擎契约见本目录 types.ts；字节级格式事实与正反例证据见步骤 1 技术验证记录
-// notes/accept/20261028112040-…/20261028123936-步骤1技术验证记录.md §3）。
-//
-// 裁决单位（PRD 3.9 / 计划 3.7）：一个站点 = <origin>.indexeddb.leveldb 与
-// <origin>.indexeddb.blob 成对目录（blob 文件走嵌套编号路径如 1/00/2，只复制 .leveldb
-// 不完整；源侧 blob 目录不存在 = 该站点无 Blob，可容忍；只有 .blob 没有 .leveldb 的
-// 孤立目录不是完整站点，跳过不计）。快照整体替换或整体保留，绝不在一个 LevelDB 内
-// 混合两侧记录。
-//
-// 版本门禁（本模块最重要的安全线，步骤 1 §3.2 字节级负结论）：schema version 过新的
-// 库拷入后目标引擎打开时会**静默重置**（6124B WAL 被重写为 218B 空库日志、数据蒸发、
-// 无任何错误上浮），因此拷入前必须手读源 WAL 解出全局元数据键 00 00 00 00 02 的
-// schema version 并比对 IDB_SUPPORTED_SCHEMA_VERSION——classic-level 打不开 IDB 库
-// （MANIFEST 声明比较器 idb_cmp1），校验只能自实现 WAL 解码。WAL 为 LevelDB 记录
-// 格式：32KB 块、记录头 7B = crc32c(4) + len(2LE) + type(1)，type 0/len 0 为块尾
-// trailer、type 5-8 为带 1B log number 的可回收记录；payload 为 WriteBatch（8B seq
-// + 4B count + 变长条目，put 条目 = 1 + klen/vlen varint + key + value）。版本键
-// value 形如 [varint 0x15][int32 大端 version]（Chromium 142 写 15、Chrome 156 写
-// 16）。已知边界：库若已压实（版本键只存于 .ldb SST 而非任一 WAL），版本读不到按
-// source-layout-unknown 拒绝该站点——宁拒勿拷。
-//
-// 【前置契约——调用方必须保证，本模块不自检】apply 在编排层静默窗口内被调用（目标
-// 会话全部 webContents 已关闭、分区后台句柄已收尾）；确认窗口期的目标漂移复核由
-// 编排层负责（types.ts 生命周期注释）。本模块对 rm 遇 EBUSY 短等重试一次，仍失败
-// 按 io-error 如实报告，不做强制句柄收尾。
-//
-// 写入与还原：逐文件复制成对目录（源侧符号链接/非常规文件一律拒绝），.leveldb 侧
-// 跳过 LOCK（目标引擎自行重建）与 LOG/LOG.old（引擎运行日志），保留 CURRENT /
-// MANIFEST-* / *.log（WAL 数据日志）。冲突替换：目标成对目录改名入临时备份 → rm
-// → 复制源 → 校验（CURRENT 引用的 MANIFEST 在位 + 目标侧重读 schema version 与源
-// 一致 + blob 目录在位）；任一步失败恢复备份（跨设备退化为复制+删除），后续站点
-// 跳过，结果标 partial/failed + rolledBack；还原失败 = rollback-failed 独立语义：
-// 保留临时区唯一恢复副本（中文告警带路径交人工核查），绝不自动删除——dispose 亦
-// 不碰它。每站点校验通过即视为原子提交并即时清理该站点备份（后续站点失败不回卷
-// 已提交站点，partial 语义与计划 2.3「类型内失败可还原」一致）。
-//
-// 本模块不 import electron，纯 Node fs 操作（临时目录经 deps 注入——照 siteData.ts
-// 先例）；错误经 ImportEngineError 携带闭集原因码，error 文案仅调试留痕（用户可见
-// 反馈由编排层按 reason 组装，不走本模块的中文串）。
-
-import { copyFile, lstat, mkdir, readdir, readFile, rename, rm } from 'fs/promises'
-// 已知边界（审查 20261028170000 中-4，如实注记）：冲突替换的事务序列（rename 备份 →
-// 复制 → 校验 → 清备份）在进程硬崩溃（断电/被杀）窗口内中断时，目标站点可能停留在
-// 半迁移态且唯一恢复备份滞留临时区（msb-chrome-import-* 目录）——本模块不做启动期
-// 自动回卷（临时区路径含随机段且崩溃点不可知，自动恢复有误删风险），人工恢复路径：
-// 检查系统临时目录下 msb-chrome-import-* 残留（备份目录内为目标原快照），对照回滚
-// 失败告警中的站点路径手工恢复；正常失败路径（进程存活）的还原与备份保留不受影响。
-import type { Stats } from 'fs'
-import { join } from 'path'
+// 以站点默认桶为单位替换 IndexedDB 的 LevelDB 和 Blob。源快照只读，目标在会话
+// 静默期间关闭已打开的默认桶，再备份旧目录并替换。失败时恢复当站备份。
+import type { Stats } from 'node:fs'
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { webContents, type Session } from 'electron'
 import type {
   ChromeImportPolicy,
   ChromeImportReason,
@@ -60,13 +15,19 @@ import {
   type ImportEngineContext,
   type ImportEnginePrepare
 } from './types'
+import { createIndexedDbCloser } from './indexedDbRuntime'
 
-/**
- * 目标引擎支持的 IndexedDB schema version 上限（Electron 39 / Chromium 142.0.7444
- * 本机实测，步骤 1 §3.2：142 写 15、Chrome 156 写 16）。版本判定按字节而非 Chrome
- * 版本号映射；应用升级 Electron 后须随支持矩阵同步更新此值
- */
-export const IDB_SUPPORTED_SCHEMA_VERSION = 15
+// Electron 45 / Chromium 156。全局元数据分别记录后端 schema 和 Blink、V8 序列化版本。
+const SUPPORTED_SCHEMA_MIN = 3
+const SUPPORTED_SCHEMA_MAX = 5
+const SUPPORTED_BLINK_VERSION = 21
+const SUPPORTED_V8_VERSION = 16
+
+interface IdbFormat {
+  schema: number
+  blink: number
+  v8: number
+}
 
 /**
  * 站点 .leveldb 目录名白名单：origin 的 Chromium 序列化形态（scheme/host/port 的
@@ -77,11 +38,8 @@ const SITE_LEVELDB_NAME_RE = /^([A-Za-z0-9][A-Za-z0-9._-]*)\.indexeddb\.leveldb$
 const SITE_LEVELDB_SUFFIX = '.indexeddb.leveldb'
 const SITE_BLOB_SUFFIX = '.indexeddb.blob'
 
-/** 全局元数据键：4 字节 0 前缀（global metadata 域）+ 0x02（schema version），步骤 1 字节级验证 */
-const SCHEMA_VERSION_KEY = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x02])
-/** 版本键 value 已验证形态：首字节 varint 0x15 + int32 大端 version */
-const SCHEMA_VERSION_VALUE_TAG = 0x15
-const SCHEMA_VERSION_VALUE_MIN_BYTES = 5
+const SCHEMA_VERSION_KEY = Buffer.from([0, 0, 0, 0, 0])
+const DATA_VERSION_KEY = Buffer.from([0, 0, 0, 0, 2])
 
 /** LevelDB WAL 记录格式常量（32KB 块 + 7B 记录头；type 0/len 0 = 块尾 trailer） */
 const WAL_BLOCK_SIZE = 32768
@@ -100,8 +58,8 @@ const EBUSY_RETRY_WAIT_MS = 500
 export interface IdbSiteEntry {
   /** 站点 origin 的 Chromium 序列化形态（目录名前缀，如 http_127.0.0.1_48191） */
   origin: string
-  /** 源侧校验出的 schema version（apply 后目标侧复核须一致） */
-  schemaVersion: number
+  /** 源侧校验出的格式（apply 后目标侧复核须一致） */
+  format: IdbFormat
   /** 源 .leveldb 目录绝对路径 */
   sourceLevelDbDir: string
   /** 源 .blob 目录绝对路径；null = 源无 Blob（成对单位中 blob 侧可缺） */
@@ -142,6 +100,9 @@ export function createIndexedDbEngine(deps: {
       assertSafeProfileDir(context.profileDir)
       const profileDir = join(context.snapshotRoot, context.profileDir)
       const sourceIdbRoot = join(profileDir, 'IndexedDB')
+      const targetIdbRoot = join(context.partitionDir, 'IndexedDB')
+      if (await entryExists(targetIdbRoot))
+        await assertRealDir(targetIdbRoot, '目标 IndexedDB 目录')
       // 根链符号链接检查（快照根 → profile → IndexedDB）：任一级违规整单拒绝——
       // 快照以上层不可信则所有站点路径皆不可信，不降级为逐站点 unsupported
       await assertRealDir(context.snapshotRoot, '根目录')
@@ -194,27 +155,22 @@ export function createIndexedDbEngine(deps: {
             )
             continue
           }
-          // 版本门禁：手读 WAL 解 schema version，读不到拒绝、过新拒绝（宁拒勿拷）
-          const version = await readSiteSchemaVersion(sourceLevelDbDir)
-          if (version === null) {
+          const format = await readSiteFormat(sourceLevelDbDir)
+          if (!format || !isSupportedFormat(format)) {
             unsupported += 1
             console.warn(
-              `[chromeImport] IndexedDB 站点 schema version 读不到（拒绝导入）: ${origin}`
+              `[chromeImport] IndexedDB 快照格式不支持: ${origin} ${JSON.stringify(format)}`
             )
             continue
           }
-          if (version > IDB_SUPPORTED_SCHEMA_VERSION) {
+          // 默认桶使用 SQLite 时，复制同名 LevelDB 并不能替换 Chromium 实际打开的库。
+          if (await entryExists(join(targetIdbRoot, origin))) {
             unsupported += 1
-            console.warn(
-              `[chromeImport] IndexedDB 站点 schema version ${version} 新于目标支持的 ` +
-                `${IDB_SUPPORTED_SCHEMA_VERSION}（拒绝导入）: ${origin}`
-            )
             continue
           }
-          const targetIdbRoot = join(context.partitionDir, 'IndexedDB')
           sites.push({
             origin,
-            schemaVersion: version,
+            format,
             sourceLevelDbDir,
             sourceBlobDir: hasBlob ? sourceBlobDir : null,
             targetLevelDbDir: join(targetIdbRoot, candidate.name),
@@ -246,7 +202,7 @@ export function createIndexedDbEngine(deps: {
 
     // ---- apply：静默窗口内写入（前置契约见模块头注） ---------------------------
     async apply(
-      _context: ImportEngineContext,
+      context: ImportEngineContext,
       artifacts: IdbImportArtifacts,
       policy: ChromeImportPolicy
     ): Promise<ChromeImportScopeResult> {
@@ -264,6 +220,18 @@ export function createIndexedDbEngine(deps: {
           skipped: 0
         }
       }
+      const targetRoot = join(context.partitionDir, 'IndexedDB')
+      if (await entryExists(targetRoot)) await assertRealDir(targetRoot, '目标 IndexedDB 目录')
+      const writes = artifacts.sites.some((site) => site.kind === 'added' || policy === 'chrome')
+      if (
+        writes &&
+        webContents
+          .getAllWebContents()
+          .some((wc) => !wc.isDestroyed() && wc.session === context.session)
+      ) {
+        throw new ImportEngineError('target-locked', 'IndexedDB 目标会话仍有活动页面')
+      }
+      const closer = createIndexedDbCloser(context.session, context.partitionDir)
       const tempRoot = await deps.makeTempDir()
       let addedCount = 0
       let conflictsResolved = 0
@@ -272,54 +240,73 @@ export function createIndexedDbEngine(deps: {
       let failureError: string | null = null
       let rolledBack = false
       let rollbackFailed = false
-      for (let i = 0; i < artifacts.sites.length; i++) {
-        const site = artifacts.sites[i]
-        try {
-          if (site.kind === 'conflict') {
-            if (policy === 'session') {
-              // 完整保留目标（零动作），冲突已按所选裁决处置
+      try {
+        for (let i = 0; i < artifacts.sites.length; i++) {
+          const site = artifacts.sites[i]
+          try {
+            if (site.kind === 'conflict' && policy === 'session') {
               conflictsResolved += 1
               continue
             }
-            await replaceConflictSite(tempRoot, i, site)
-            conflictsResolved += 1
-          } else {
-            // added 站点：prepare 后目标出现同名目录 = 漂移。编排层复核为主，此处兜底
-            // 不扩大写入：跳过该站点如实计数，绝不向已有目录混拷
-            if (await entryExists(site.targetLevelDbDir)) {
-              skipped += 1
-              console.warn(
-                `[chromeImport] IndexedDB 站点目标已漂移为已存在（跳过）: ${site.origin}`
-              )
-              continue
+            if (await entryExists(join(targetRoot, site.origin))) {
+              throw new ImportEngineError('target-changed', 'IndexedDB 目标已切换存储格式')
             }
-            try {
-              await copySitePair(site)
-              await verifySite(site)
-              addedCount += 1
-            } catch (err) {
-              // 还原 = 目标回到「不存在」原状（added 站点原本无目录，无备份可恢复）
-              throw await restoreAddedSite(site, err)
+            assertNoRunningWorker(context.session, site.origin)
+            if (site.kind === 'conflict') {
+              if (!(await isRealDir(site.targetLevelDbDir))) {
+                throw new ImportEngineError('target-changed', 'IndexedDB 目标目录已变化')
+              }
+              if (
+                (await entryExists(site.targetBlobDir)) &&
+                !(await isRealDir(site.targetBlobDir))
+              ) {
+                throw new ImportEngineError('target-changed', 'IndexedDB 目标 Blob 目录已变化')
+              }
+              await closer.closeBucket(site.targetLevelDbDir)
+              assertNoRunningWorker(context.session, site.origin)
+              await replaceConflictSite(tempRoot, i, site)
+              conflictsResolved += 1
+            } else {
+              // added 站点：prepare 后目标出现同名目录 = 漂移。编排层复核为主，此处兜底
+              // 不扩大写入：跳过该站点如实计数，绝不向已有目录混拷
+              if (
+                (await entryExists(site.targetLevelDbDir)) ||
+                (await entryExists(site.targetBlobDir))
+              ) {
+                skipped += 1
+                console.warn(
+                  `[chromeImport] IndexedDB 站点目标已漂移为已存在（跳过）: ${site.origin}`
+                )
+                continue
+              }
+              try {
+                await copySitePair(site)
+                await verifySite(site)
+                addedCount += 1
+              } catch (err) {
+                // 还原 = 目标回到「不存在」原状（added 站点原本无目录，无备份可恢复）
+                throw await restoreAddedSite(site, err)
+              }
             }
+          } catch (err) {
+            if (err instanceof SiteFailure) {
+              rollbackFailed = err.rollbackFailed
+              rolledBack = !err.rollbackFailed
+              failureReason = err.rollbackFailed ? 'rollback-failed' : err.reason
+              failureError = err.message
+            } else {
+              // 写入前发现漂移、会话仍占用或关库失败。该站点的目录还未改动。
+              failureReason = err instanceof ImportEngineError ? err.reason : 'io-error'
+              failureError = err instanceof Error ? err.message : String(err)
+            }
+            // 该站点失败即止：失败站点（已还原、未导入）与后续未处理站点都计入 skipped
+            // ——统计只反映真正结果（计划 total = added + conflictsResolved + skipped 对得上）
+            skipped += artifacts.sites.length - i
+            break
           }
-        } catch (err) {
-          if (err instanceof SiteFailure) {
-            rollbackFailed = err.rollbackFailed
-            rolledBack = !err.rollbackFailed
-            failureReason = err.rollbackFailed ? 'rollback-failed' : err.reason
-            failureError = err.message
-          } else {
-            // 理论不可达（站点操作已全包裹）；防御口径：按 io-error 且尽力清理后视为已还原
-            rollbackFailed = false
-            rolledBack = true
-            failureReason = err instanceof ImportEngineError ? err.reason : 'io-error'
-            failureError = err instanceof Error ? err.message : String(err)
-          }
-          // 该站点失败即止：失败站点（已还原、未导入）与后续未处理站点都计入 skipped
-          // ——统计只反映真正结果（计划 total = added + conflictsResolved + skipped 对得上）
-          skipped += artifacts.sites.length - i
-          break
         }
+      } finally {
+        await closer.dispose()
       }
       let status: ChromeImportScopeResult['status']
       if (rollbackFailed) {
@@ -360,6 +347,15 @@ export function createIndexedDbEngine(deps: {
       // rollback-failed 时保留的备份目录——那是唯一恢复副本，dispose 同样不碰
       // （模块头注裁决）。此处只清空内存工件引用，重复调用幂等
       artifacts.sites.length = 0
+    }
+  }
+}
+
+function assertNoRunningWorker(session: Session, site: string): void {
+  for (const worker of Object.values(session.serviceWorkers.getAllRunning())) {
+    const url = new URL(worker.scope)
+    if (site === `${url.protocol.slice(0, -1)}_${url.hostname}_${url.port || '0'}`) {
+      throw new ImportEngineError('target-locked', 'IndexedDB 目标站点仍有运行中的 Service Worker')
     }
   }
 }
@@ -427,79 +423,90 @@ async function readManifestName(levelDbDir: string): Promise<string | null> {
   return /^MANIFEST-\d+$/.test(first) ? first : null
 }
 
-/**
- * 手读站点 WAL 解 schema version：按编号升序回放全部数据日志（后写覆盖前写）。
- * 返回 null = 任一 WAL 不可读或全部读完后版本键未命中（宁拒勿拷）。
- * 已知边界：已压实的库版本键只存于 .ldb SST，本函数读不到 → 调用方按
- * source-layout-unknown 拒绝该站点。
- */
-async function readSiteSchemaVersion(levelDbDir: string): Promise<number | null> {
+/** 压实后仅在 SST 中的元数据无法由此验证。遇到缺失版本字段时跳过该站点。 */
+async function readSiteFormat(levelDbDir: string): Promise<IdbFormat | null> {
   const entries = await readdir(levelDbDir, { withFileTypes: true })
-  const walFiles = entries
+  const files = entries
     .filter((entry) => entry.isFile() && WAL_FILE_NAME_RE.test(entry.name))
-    // 回放序按编号排序（后写覆盖前写）；保留原文件名读取（编号去前导零会拼错路径）
     .map((entry) => ({ name: entry.name, number: Number(WAL_FILE_NAME_RE.exec(entry.name)?.[1]) }))
     .sort((a, b) => a.number - b.number)
-  let version: number | null = null
-  for (const walFile of walFiles) {
-    let data: Buffer
-    try {
-      data = await readFile(join(levelDbDir, walFile.name))
-    } catch {
-      // WAL 存在却读不到：版本可能恰在不可读文件中被升级过，整站点按读不到拒绝
-      return null
-    }
-    for (const payload of parseWalRecordPayloads(data)) {
-      const found = scanWriteBatchForSchemaVersion(payload)
-      if (found !== null) version = found
+  const versions: Partial<Record<'schema' | 'data', bigint>> = {}
+  for (const file of files) {
+    const data = await readFile(join(levelDbDir, file.name)).catch(() => null)
+    if (!data) return null
+    const records = parseWalRecordPayloads(data)
+    if (!records) return null
+    for (const payload of records) {
+      if (!readFormatBatch(payload, versions)) return null
     }
   }
-  return version
+  if (versions.schema === undefined || versions.data === undefined) return null
+  return {
+    schema: Number(versions.schema),
+    blink: Number(versions.data & 0xffff_ffffn),
+    v8: Number(versions.data >> 32n)
+  }
+}
+
+function isSupportedFormat({ schema, blink, v8 }: IdbFormat): boolean {
+  return (
+    schema >= SUPPORTED_SCHEMA_MIN &&
+    schema <= SUPPORTED_SCHEMA_MAX &&
+    blink > 0 &&
+    blink <= SUPPORTED_BLINK_VERSION &&
+    v8 > 0 &&
+    v8 <= SUPPORTED_V8_VERSION
+  )
 }
 
 /**
  * 解析单个 WAL 文件的全部完整逻辑记录（LevelDB 记录格式，步骤 1 字节级验证）：
  * 32KB 块、7B 记录头（crc32c(4) + len(2LE) + type(1)）；type 0/len 0 为块尾
  * trailer 跳到下一块；type 5-8 为可回收记录（头部后多 1B log number）；跨块分片
- * （FIRST/MIDDLE/LAST）拼装。截断尾部/孤儿分片/未知类型即停，已解出部分保留——
- * 上层按「最终读不到版本键即拒绝」消费，不校验 CRC32C（结构性解析失败自然拒绝）。
+ * （FIRST/MIDDLE/LAST）拼装。截断记录、孤儿分片或未知类型使整份版本证据失效。
  */
-function parseWalRecordPayloads(data: Buffer): Buffer[] {
+function parseWalRecordPayloads(data: Buffer): Buffer[] | null {
   const payloads: Buffer[] = []
   let fragments: Buffer[] = []
   let pos = 0
   while (pos + WAL_RECORD_HEADER_SIZE <= data.length) {
+    const blockEnd = (Math.floor(pos / WAL_BLOCK_SIZE) + 1) * WAL_BLOCK_SIZE
+    if (pos + WAL_RECORD_HEADER_SIZE > blockEnd) {
+      pos = blockEnd
+      continue
+    }
     const recordType = data[pos + 6]
     const length = data.readUInt16LE(pos + 4)
-    if (recordType === 0 || length === 0) {
-      pos = (Math.floor(pos / WAL_BLOCK_SIZE) + 1) * WAL_BLOCK_SIZE
+    if (recordType === 0 && length === 0) {
+      pos = blockEnd
       continue
     }
     const recyclable = recordType >= 5 && recordType <= 8
     const payloadStart = pos + WAL_RECORD_HEADER_SIZE + (recyclable ? 1 : 0)
     const recordEnd = pos + WAL_RECORD_HEADER_SIZE + length
-    if (recordEnd > data.length || payloadStart > recordEnd) break
+    if (recordEnd > data.length || recordEnd > blockEnd || payloadStart > recordEnd) return null
     const payload = data.subarray(payloadStart, recordEnd)
     // 可回收记录 5-8 与常规 1-4 语义一一对应（多出的 log number 已跳过）
     const kind = recyclable ? recordType - 4 : recordType
     if (kind === 1) {
-      fragments = []
+      if (fragments.length !== 0) return null
       payloads.push(payload)
     } else if (kind === 2) {
+      if (fragments.length !== 0) return null
       fragments = [payload]
     } else if (kind === 3 || kind === 4) {
-      if (fragments.length === 0) break
+      if (fragments.length === 0) return null
       fragments.push(payload)
       if (kind === 4) {
         payloads.push(fragments.length === 1 ? fragments[0] : Buffer.concat(fragments))
         fragments = []
       }
     } else {
-      break
+      return null
     }
     pos = recordEnd
   }
-  return payloads
+  return fragments.length === 0 ? payloads : null
 }
 
 /** LEB128 varint32（LevelDB 批条目长度编码）；越界/超 5 字节返回 null */
@@ -516,59 +523,41 @@ function readVarint32(data: Buffer, pos: number): { value: number; next: number 
   return null
 }
 
-/**
- * 扫描单条 WriteBatch（payload = 8B seq + 4B count + 变长条目）中的版本键写入：
- * 命中全局元数据键 00 00 00 00 02 时解码其 value（[varint 0x15][int32 大端]），
- * 同批后写覆盖前写。结构中途不可信即停，保留已读到的值。未命中返回 null。
- */
-function scanWriteBatchForSchemaVersion(payload: Buffer): number | null {
-  if (payload.length < 12) return null
+/** WriteBatch 的 put/delete 决定元数据最后的可见值。Int 以变长小端整数存储。 */
+function readFormatBatch(
+  payload: Buffer,
+  versions: Partial<Record<'schema' | 'data', bigint>>
+): boolean {
+  if (payload.length < 12) return false
+  const count = payload.readUInt32LE(8)
   let pos = 12
-  let version: number | null = null
-  while (pos < payload.length) {
-    const tag = payload[pos]
-    pos += 1
+  for (let i = 0; i < count; i++) {
+    const tag = payload[pos++]
+    if (tag !== 0 && tag !== 1) return false
+    const keyLen = readVarint32(payload, pos)
+    if (!keyLen || keyLen.next + keyLen.value > payload.length) return false
+    pos = keyLen.next + keyLen.value
+    const key = payload.subarray(keyLen.next, pos)
+    const field = key.equals(SCHEMA_VERSION_KEY)
+      ? 'schema'
+      : key.equals(DATA_VERSION_KEY)
+        ? 'data'
+        : null
     if (tag === 0) {
-      // delete 条目：varint klen + key
-      const keyLen = readVarint32(payload, pos)
-      if (keyLen === null || keyLen.next + keyLen.value > payload.length) return version
-      pos = keyLen.next + keyLen.value
-    } else if (tag === 1) {
-      // put 条目：varint klen + key + varint vlen + value
-      const keyLen = readVarint32(payload, pos)
-      if (keyLen === null) return version
-      const keyStart = keyLen.next
-      const keyEnd = keyStart + keyLen.value
-      if (keyEnd > payload.length) return version
-      const valueLen = readVarint32(payload, keyEnd)
-      if (valueLen === null) return version
-      const valueEnd = valueLen.next + valueLen.value
-      if (valueEnd > payload.length) return version
-      if (
-        keyLen.value === SCHEMA_VERSION_KEY.length &&
-        payload.subarray(keyStart, keyEnd).equals(SCHEMA_VERSION_KEY)
-      ) {
-        const decoded = decodeSchemaVersionValue(payload.subarray(valueLen.next, valueEnd))
-        if (decoded !== null) version = decoded
-      }
-      pos = valueEnd
-    } else {
-      // 未知条目类型：其后不可信，保留已读到的
-      return version
+      if (field) delete versions[field]
+      continue
+    }
+    const len = readVarint32(payload, pos)
+    if (!len || len.next + len.value > payload.length) return false
+    pos = len.next + len.value
+    if (field) {
+      if (len.value === 0 || len.value > 8) return false
+      let value = 0n
+      for (let j = pos - 1; j >= len.next; j--) value = (value << 8n) | BigInt(payload[j])
+      versions[field] = value
     }
   }
-  return version
-}
-
-/** 版本键 value 解码：[varint 0x15][int32 大端 version]（步骤 1 验证形态）；不符按不可读拒绝 */
-function decodeSchemaVersionValue(value: Buffer): number | null {
-  if (value.length < SCHEMA_VERSION_VALUE_MIN_BYTES || value[0] !== SCHEMA_VERSION_VALUE_TAG) {
-    return null
-  }
-  const version = value.readUInt32BE(1)
-  // schema version 为小整数；0 或异常大值按不可读拒绝（宁拒勿猜）
-  if (version <= 0 || version > 0xffff) return null
-  return version
+  return pos === payload.length
 }
 
 // ---- 复制 / 校验 / 还原（apply 内部） ------------------------------------------
@@ -618,12 +607,14 @@ async function verifySite(site: IdbSiteEntry): Promise<void> {
       `目标校验失败（CURRENT/MANIFEST 缺失）: ${site.targetLevelDbDir}`
     )
   }
-  const version = await readSiteSchemaVersion(site.targetLevelDbDir)
-  if (version !== site.schemaVersion) {
-    throw new ImportEngineError(
-      'io-error',
-      `目标校验失败（schema version 不一致：源 ${site.schemaVersion} / 目标 ${version}）: ${site.origin}`
-    )
+  const format = await readSiteFormat(site.targetLevelDbDir)
+  if (
+    !format ||
+    format.schema !== site.format.schema ||
+    format.blink !== site.format.blink ||
+    format.v8 !== site.format.v8
+  ) {
+    throw new ImportEngineError('io-error', `目标 IndexedDB 格式与源不一致: ${site.origin}`)
   }
   if (site.sourceBlobDir !== null && !(await entryExists(site.targetBlobDir))) {
     throw new ImportEngineError('io-error', `目标校验失败（blob 目录缺失）: ${site.targetBlobDir}`)
@@ -762,8 +753,15 @@ async function moveDir(src: string, dest: string): Promise<void> {
     await rename(src, dest)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-    await copyTree(src, dest, false)
-    await rm(src, { recursive: true, force: true })
+    // 跨设备复制先落到同目录的暂存区，完整副本就位后才允许移除源。
+    const staging = await mkdtemp(join(dirname(dest), '.msb-idb-move-'))
+    try {
+      await copyTree(src, staging, false)
+      await rename(staging, dest)
+    } finally {
+      await rm(staging, { recursive: true, force: true })
+    }
+    await rmDirWithRetry(src)
   }
 }
 

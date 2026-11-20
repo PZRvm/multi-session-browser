@@ -1,6 +1,6 @@
 ---
 description: Electron 45.3.0 自身生成的 IndexedDB schema 16 快照仍被当前导入版本门禁拒绝
-status: open
+status: resolved
 ---
 
 # IndexedDB 导入拒绝 schema 16 快照
@@ -14,3 +14,9 @@ status: open
 Chromium 将后端 schema 与 Blink/V8 数据格式分别记录。当前告警中的 16 是 V8 序列化编号。用隔离夹具暂时核验了后端 schema 5、Blink 21、V8 16。空目标导入后读取、续写及重新打开通过。已有站点选择保留时旧值正确，选择覆盖时报告已经复制，但恢复的页面仍读取旧数据库里的值。实验改动已撤回，仍按现有兼容门禁跳过。
 
 后续需要测量 Chromium 的 IndexedDB 运行时句柄在覆盖前如何可靠关闭，以及如何限定在确认的站点存储内。版本信息只存于压实表时也需用可靠方案核验。结果框现在显示跳过的站点数。
+
+## 修复
+
+当前 Electron 的 LevelDB 快照在后端 schema、Blink 和 V8 三项可核验时支持 V8 16。覆盖前调用 Chromium 的非删除式关库，仅关闭匹配目标 LevelDB 路径的默认桶。已有会话恢复后立即读取新值。仅在压实表中记录版本的快照仍会因格式不可核验而跳过。
+
+[回归记录](../../summary/2026-11/2026-11-20-IndexedDB导入兼容与覆盖验收.md)

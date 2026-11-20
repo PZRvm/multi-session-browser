@@ -222,7 +222,7 @@ description: Master index of the book — the map of every document. Regenerate 
 
 ### notes/issue/
 
-**Open (16)**
+**Open (15)**
 
 - [20260912234627-阶段7-8合并独立窗口审查.md](notes/issue/2026-09/20260912234627-阶段7-8合并独立窗口审查.md) — "阶段7-8合并（独立窗口宿主与创建）审查清单"
 - [20260918125417-视频全屏功能审查.md](notes/issue/2026-09/20260918125417-视频全屏功能审查.md) — "代码审查：会话网页视频全屏功能实现"
@@ -236,12 +236,11 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261028170000-地址栏交互与Chrome站点数据导入.md](notes/issue/2026-10/20261028170000-地址栏交互与Chrome站点数据导入.md) — "代码审查：地址栏交互与 Chrome 站点数据导入"
 - [2026-11-16-浮动DevTools问题.md](notes/issue/2026-11/2026-11-16-浮动DevTools问题.md) — 登记浮动DevTools设备模拟失效、链接打开未接线和会话切换不跟随三项问题
 - [2026-11-17-商店入口旧TODO注释.md](notes/issue/2026-11/2026-11-17-商店入口旧TODO注释.md) — 设置页仍保留商店伴随插件待排期注释，已被受限preload自有按钮方案取代
-- [2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md](notes/issue/2026-11/2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md) — Electron 45.3.0 自身生成的 IndexedDB schema 16 快照仍被当前导入版本门禁拒绝
 - [20261110130000-Electron42与React修复版定向审阅.md](notes/issue/2026-11/20261110130000-Electron42与React修复版定向审阅.md) — 对Electron升级、受限preload和独立React修复版做定向审阅快照，保留原录屏解码与全阶段未准入状态
 - [20261111-host-smoke两例环境性失败.md](notes/issue/2026-11/20261111-host-smoke两例环境性失败.md) — host-smoke 33/35 的两例非代码失败：商店下载因子夜网络不可达、子frame一例渲染器preload偶发缺失待根因
 - [20261112014522-宿主机线并入双插件线合并审查.md](notes/issue/2026-11/20261112014522-宿主机线并入双插件线合并审查.md) — feature/extension-host并入preflight的两线合并审查：源码零交叉、四文档冲突已解，核心发现为Electron 42→45跨版本合并后的联合验证缺口与骨架文档脱节
 
-**Resolved (127)**
+**Resolved (128)**
 
 - [20260910192721-阶段1会话持久化审查.md](notes/issue/2026-09/20260910192721-阶段1会话持久化审查.md) — "阶段 1 会话持久化审查清单"
 - [20260911004439-阶段2浏览器内嵌.md](notes/issue/2026-09/20260911004439-阶段2浏览器内嵌.md) — "代码审查：阶段 2 浏览器内嵌（未提交改动 + 未跟踪文件全量）"
@@ -340,6 +339,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店按钮取消后停跳与旧语言加载文案.md](notes/issue/2026-11/2026-11-17-商店按钮取消后停跳与旧语言加载文案.md) — 商店安装按钮取消后可能被悬停动画锁住，点击加载文字也可能沿用创建时语言
 - [2026-11-17-扩展本地化名称占位符直接显示.md](notes/issue/2026-11/2026-11-17-扩展本地化名称占位符直接显示.md) — Dark Theme扩展名称为__MSG_extName__，安装与列表未解析语言文件导致占位符直接展示
 - [2026-11-19-Chrome导入后活跃localStorage未更新.md](notes/issue/2026-11/2026-11-19-Chrome导入后活跃localStorage未更新.md) — Chrome 导入写入 localStorage 后，已访问过同源存储的会话在重启应用前仍读到旧值
+- [2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md](notes/issue/2026-11/2026-11-19-IndexedDB导入版本门禁仍拒绝schema16.md) — Electron 45.3.0 自身生成的 IndexedDB schema 16 快照仍被当前导入版本门禁拒绝
 - [20261103163919-README徽章与忽略规则提交前审查.md](notes/issue/2026-11/20261103163919-README徽章与忽略规则提交前审查.md) — "代码审查：README 徽章与忽略规则提交前审查"
 - [20261103172012-v1.0.1双平台发布审查.md](notes/issue/2026-11/20261103172012-v1.0.1双平台发布审查.md) — "代码审查：v1.0.1 双平台发布"
 - [20261103174933-dev验证与main自动发布审查.md](notes/issue/2026-11/20261103174933-dev验证与main自动发布审查.md) — "代码审查：dev 验证与 main 自动发布"
@@ -410,6 +410,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口原生按钮避让.md](notes/learn/2026-11/2026-11-16-独立窗口原生按钮避让.md) — 独立窗口去标题栏须同时处理建窗选项、标签避让和Windows逐窗主题更新
 - [2026-11-17-main发布PR标题与检查事件.md](notes/learn/2026-11/2026-11-17-main发布PR标题与检查事件.md) — main发布PR的标题也须使用中文Clean Commit格式，修改标题后需新同步事件重跑策略检查
 - [2026-11-19-导入完成要等待会话恢复快照.md](notes/learn/2026-11/2026-11-19-导入完成要等待会话恢复快照.md) — 导入返回早于活跃会话快照时，即使数据已写入，历史也可能重拉失败
+- [2026-11-20-Chromium-IndexedDB关库与格式字段.md](notes/learn/2026-11/2026-11-20-Chromium-IndexedDB关库与格式字段.md) — 说明 Chromium IndexedDB 后端关库与文件级替换的顺序，以及两个独立的版本键
 - [2026-11-20-站点导入计数与串行耗时.md](notes/learn/2026-11/2026-11-20-站点导入计数与串行耗时.md) — 用全量来源计数与临时页面导航次数定位 Chrome localStorage 导入耗时
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
@@ -561,6 +562,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-20-Chrome导入冲突与批量进度验收.md](notes/summary/2026-11/2026-11-20-Chrome导入冲突与批量进度验收.md) — 记录 Chrome 导入冲突文字重叠、多站点等待的原因，以及隔离 Electron 验收结果
 - [2026-11-20-Chrome导入十站点并发验收.md](notes/summary/2026-11/2026-11-20-Chrome导入十站点并发验收.md) — 比较 Chrome localStorage 导入的四路与十路并发耗时，记录并发峰值和失败恢复
 - [2026-11-20-Chrome导入标签回归验收.md](notes/summary/2026-11/2026-11-20-Chrome导入标签回归验收.md) — Chrome 无冲突或冲突导入都在恢复标签后关闭原生加载窗口，结果框显示跳过条数和站点数
+- [2026-11-20-IndexedDB导入兼容与覆盖验收.md](notes/summary/2026-11/2026-11-20-IndexedDB导入兼容与覆盖验收.md) — 记录 Chromium 156 IndexedDB 快照的兼容修复、精确关库和真实 Electron 回归
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -625,6 +627,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [2026-11-17-插件名称本地化修复.md](plans/2026-11-17-插件名称本地化修复.md) — 按应用语言解析扩展名称并刷新三处展示，兼容旧占位符安装记录
 - [2026-11-19-会话导入与快捷交互.md](plans/2026-11-19-会话导入与快捷交互.md) — 修复 Chrome 导入后当前会话的数据可见性，并增加地址栏回车直达与双击会话行重命名
+- [2026-11-20-Chrome-IndexedDB导入兼容修复.md](plans/2026-11-20-Chrome-IndexedDB导入兼容修复.md) — 修复 Chrome IndexedDB 版本识别与已访问站点整库覆盖，并验证存储隔离及发布检查
 - [2026-11-20-Chrome导入冲突窗口与批量进度.md](plans/2026-11-20-Chrome导入冲突窗口与批量进度.md) — 修复导入冲突文字重叠，缩短多站点 localStorage 导入并显示实际进度
 - [2026-11-20-Chrome导入十站点并发.md](plans/2026-11-20-Chrome导入十站点并发.md) — 将 Chrome localStorage 导入的每阶段并发上限由 4 个站点提高至 10 个，并复测批量导入与还原
 - [2026-11-20-Chrome导入标签回归.md](plans/2026-11-20-Chrome导入标签回归.md) — 导入写入与会话恢复期间保留原生加载窗口，并验证标签操作和 IndexedDB 兼容边界
@@ -693,4 +696,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 568 documents -->
+<!-- 571 documents -->
