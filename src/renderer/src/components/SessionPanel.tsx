@@ -134,10 +134,10 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
           scopes: picked.scopes
         })
         planId = plan.planId
-        // dry-run 完成：关掉加载态选择 sheet（反馈轮三）；冲突则二次弹裁决 sheet
-        await closeWorkspacePicker()
         let policy: ChromeImportPolicy = 'session'
         if (plan.scopes.some((item) => item.conflicts > 0)) {
+          // 只有切换至冲突裁决时才提前关掉选择窗口。执行期间保持原生模态。
+          await closeWorkspacePicker()
           const verdict = await showWorkspacePicker({
             kind: 'chrome-import-conflict',
             sessionId: session.id,
@@ -156,7 +156,6 @@ function SessionPanel({ panelWidth }: SessionPanelProps): React.JSX.Element {
         if (result.results.some((item) => item.scope === 'history' && item.status === 'done')) {
           refetchHistory(session.id)
         }
-        await closeWorkspacePicker()
       } catch {
         // dry-run/execute 失败的原生错误框已由主进程失败点弹出，此处消化拒绝、清
         // 尚未执行的暂存并关掉可能残留的加载态 sheet

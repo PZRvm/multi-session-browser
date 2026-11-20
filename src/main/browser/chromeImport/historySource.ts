@@ -22,7 +22,7 @@ export interface ChromeHistorySource {
    * 只读读取指定 Chrome profile 目录的历史：按 last_visit_time 倒序取前 limit 条，
    * 过滤（仅 http/https、HISTORY_URL_MAX 内）后映射为 HistoryEntry
    */
-  read(profileDir: string, limit: number): Promise<HistoryEntry[]>
+  read(profileDir: string, limit: number): Promise<{ entries: HistoryEntry[]; skipped: number }>
 }
 
 export function createChromeHistorySource(deps: {
@@ -40,7 +40,7 @@ export function createChromeHistorySource(deps: {
         } catch (err) {
           // 主 History 缺失 = 该 profile 无历史（Guest Profile 等衍生目录形态）：
           // 按空集口径如实返回，不拦同 profile 其他 scope 的导入（审查中-4）
-          if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { entries: [], skipped: 0 }
           throw err
         }
         for (const suffix of ['-journal', '-wal', '-shm']) {
@@ -66,7 +66,7 @@ export function createChromeHistorySource(deps: {
           const entry = toEntry(row)
           if (entry !== null) entries.push(entry)
         }
-        return entries
+        return { entries, skipped: rows.length - entries.length }
       } finally {
         // 临时区用后即清（副本同样含浏览记录，不留痕）
         await rm(tempDir, { recursive: true, force: true })
@@ -100,10 +100,7 @@ function toEntry(row: Record<string, unknown>): HistoryEntry | null {
     return null
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-  if (url.length > HISTORY_URL_MAX) {
-    console.warn(`[chromeImport] 历史 URL 长度 ${url.length} 超上限 ${HISTORY_URL_MAX}，丢弃`)
-    return null
-  }
+  if (url.length > HISTORY_URL_MAX) return null
   const lastVisitedAt = webkitToUnixMs(row.last_visit_time)
   // 1601 纪元原始 0 / 损坏行换算为负 Unix 值：异常行整体丢弃（审查低-5——不伪造时间，
   // 也不让「史上最旧」脏条目入库挤占 2000 条额度）

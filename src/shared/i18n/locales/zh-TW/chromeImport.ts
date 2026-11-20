@@ -32,13 +32,14 @@ export const chromeImport: Dictionary['chromeImport'] = {
   },
   result: {
     sessionRestoreFailed: '工作階段視窗恢復失敗，匯入結果如下',
-    historyDone: '記錄匯入完成：新增 {added}，合併 {merged}',
+    historyDone: '記錄匯入完成：新增 {added}，合併 {merged}，略過 {skipped}',
     localStorageDone:
       'localStorage 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}',
     cookiesDone:
       'Cookie 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}，略過 {skipped}',
     indexedDbDone:
       'IndexedDB 匯入完成：匯入網站 {added}，衝突按裁決處置 {conflicts}，不支援 {unsupported}，略過 {skipped}',
+    indexedDbUnsupported: 'IndexedDB 未匯入：{count} 個網站的儲存格式或版本無法驗證或不相容',
     partial: '{scope} 部分完成：成功 {added}，其餘已還原或略過（{skipped}）',
     unsupported: '{scope} 不支援：來源資料格式或版本不受目前引擎支援',
     rollbackFailed:

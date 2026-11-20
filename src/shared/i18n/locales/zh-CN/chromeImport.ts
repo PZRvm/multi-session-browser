@@ -36,13 +36,14 @@ export const chromeImport = {
   /** 导入结果反馈（主进程按 execute 逐 scope 结果组装；分状态如实呈现） */
   result: {
     sessionRestoreFailed: '会话窗口恢复失败，导入结果如下',
-    historyDone: '历史导入完成：新增 {added}，合并 {merged}',
+    historyDone: '历史导入完成：新增 {added}，合并 {merged}，跳过 {skipped}',
     localStorageDone:
       'localStorage 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}',
     cookiesDone:
       'Cookie 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}，跳过 {skipped}',
     indexedDbDone:
       'IndexedDB 导入完成：导入站点 {added}，冲突按裁决处置 {conflicts}，不支持 {unsupported}，跳过 {skipped}',
+    indexedDbUnsupported: 'IndexedDB 未导入：{count} 个站点的存储格式或版本无法核验或不兼容',
     partial: '{scope} 部分完成：成功 {added}，其余已还原或跳过（{skipped}）',
     unsupported: '{scope} 不支持：源数据格式或版本不受当前引擎支持',
     rollbackFailed:

@@ -73,6 +73,7 @@ function isPickerKind(value: string): value is Exclude<WorkspacePickerKind, 'app
  */
 interface PendingPicker {
   requestId: string
+  importSessionId?: string
   /** 槽位预留期为 null，上下文组装完成后回填（payload 通道对 null 按无上下文兜底） */
   context: WorkspacePickerContext | null
   resolve: (result: WorkspacePickerResult) => void
@@ -82,12 +83,14 @@ interface PendingPicker {
 let pending: PendingPicker | null = null
 
 /**
- * keepOpen 加载态 sheet（反馈轮三）：pick 已收敛结论、sheet 留显加载态，关闭权移交
- * renderer 编排（workspacePickerClose 通道）；60s 兜底自动关防编排异常卡死模态。
- * 与 pending 互斥存在（pick keepOpen 时 pending 已前置清零）
+ * 提交后的导入加载窗口。切换到冲突裁决时由 renderer 关闭，执行时由主进程持有。
+ * 非空定时器表示执行尚未接手，允许 renderer 或兜底定时器关闭。
  */
-let managedSheet: BrowserWindow | null = null
-let managedTimer: ReturnType<typeof setTimeout> | null = null
+let managedImport: {
+  sheet: BrowserWindow
+  sessionId: string
+  timer: ReturnType<typeof setTimeout> | null
+} | null = null
 
 /** keepOpen 加载态兜底时长（对齐 dry-run 最坏路径：钥匙串授权等待上限 20s + 大体量
  *  源快照复制 + 四类型探测——审查 20261028170000 低-8；编排正常远快于此，兜底只防
@@ -95,12 +98,32 @@ let managedTimer: ReturnType<typeof setTimeout> | null = null
 const MANAGED_SHEET_FALLBACK_MS = 120_000
 
 /** 释放 keepOpen 引用与兜底定时器（关闭路径统一收口） */
-function releaseManagedSheet(): void {
-  managedSheet = null
-  if (managedTimer !== null) {
-    clearTimeout(managedTimer)
-    managedTimer = null
+function closeManagedImport(sheet: BrowserWindow): void {
+  if (managedImport?.sheet !== sheet) return
+  if (managedImport.timer !== null) clearTimeout(managedImport.timer)
+  managedImport = null
+  if (!sheet.isDestroyed()) sheet.destroy()
+}
+
+/** 写入开始后由该次导入持有窗口，关闭动作只作用于接手时的窗口。 */
+export function holdChromeImportPicker(
+  sender: Electron.WebContents,
+  sessionId: string
+): () => void {
+  const current = managedImport
+  if (
+    !current ||
+    current.timer === null ||
+    current.sessionId !== sessionId ||
+    current.sheet.isDestroyed() ||
+    current.sheet.getParentWindow()?.webContents !== sender
+  ) {
+    return () => {}
   }
+  clearTimeout(current.timer)
+  current.timer = null
+  current.sheet.setClosable(false)
+  return () => closeManagedImport(current.sheet)
 }
 
 /** 守卫失败统一抛出的业务错误（dialogs.ts 同款文案键） */
@@ -283,7 +306,7 @@ export function showUpdateDetailsWindow(
   update: UpdateSnapshot,
   deps: { getResolvedTheme: () => ResolvedTheme; getThemeColor: () => ThemeSystemId }
 ): Promise<WorkspacePickerResult> {
-  if (pending || managedSheet || parent.isDestroyed())
+  if (pending || managedImport || parent.isDestroyed())
     return Promise.resolve({ status: 'cancelled' })
   return new Promise((resolve) => {
     const requestId = randomUUID()
@@ -332,11 +355,19 @@ export function registerWorkspacePickerIpc(deps: {
             return { status: 'cancelled' }
           }
           return new Promise<WorkspacePickerResult>((resolve) => {
+            if (managedImport) {
+              resolve({ status: 'cancelled' })
+              return
+            }
             if (pending) {
               resolveCancelled('二次 show（模态生效前的并发窗口，防御面）')
             }
             const requestId = randomUUID()
-            pending = { requestId, context: null, resolve, sheet: null }
+            const importSessionId =
+              request.kind === 'chrome-import-select' || request.kind === 'chrome-import-conflict'
+                ? request.sessionId
+                : undefined
+            pending = { requestId, context: null, resolve, sheet: null, importSessionId }
             void (async () => {
               try {
                 const context = await buildContext(request, requestId)
@@ -483,20 +514,18 @@ export function registerWorkspacePickerIpc(deps: {
       if (wid === undefined || (wid !== null && typeof wid !== 'string')) throw invalidParams()
       result = { status: 'picked', workspaceId: wid }
     }
-    const { resolve } = pending
+    const { resolve, importSessionId } = pending
     const sheet = pending.sheet
     pending = null
     resolve(result)
-    if (payload.keepOpen === true) {
-      // 导入加载动画（反馈轮三）：提交后转加载态不关窗（sheet 页本地锁定控件），关闭
-      // 权移交 renderer 编排（workspacePickerClose）；120s 兜底自动关防编排异常卡死模态（对齐 dry-run 最坏路径）
-      managedSheet = sheet
-      managedTimer = setTimeout(() => {
+    if (payload.keepOpen === true && importSessionId) {
+      // 等待探测或执行接管。执行接管后取消该兜底，写入未结束时主窗保持模态。
+      const timer = setTimeout(() => {
         console.warn('[dialog] 导入加载态 sheet 超时未关闭，兜底自动关')
-        if (managedSheet && !managedSheet.isDestroyed()) managedSheet.close()
-        releaseManagedSheet()
+        closeManagedImport(sheet)
       }, MANAGED_SHEET_FALLBACK_MS)
-      managedTimer.unref?.()
+      timer.unref?.()
+      managedImport = { sheet, sessionId: importSessionId, timer }
       return { ok: true }
     }
     // 窗口关闭走 closed 钩子自清引用；此处 pending 已前置清零，钩子 no-op
@@ -504,13 +533,11 @@ export function registerWorkspacePickerIpc(deps: {
     return { ok: true }
   })
 
-  // close：keepOpen 加载态 sheet 的显式关闭（反馈轮三）——renderer 编排在 dry-run /
-  // execute 完成点触发；sender 白名单 = 主窗（编排来源）；已关/不存在 no-op
+  // renderer 只关闭尚未由执行接手的导入窗口，如切入冲突裁决或探测失败。
   ipcMain.handle(DIALOG_CHANNELS.workspacePickerClose, (event): { ok: true } => {
     const mainWindow = deps.getMainWindow()
     if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: true }
-    if (managedSheet && !managedSheet.isDestroyed()) managedSheet.close()
-    releaseManagedSheet()
+    if (managedImport?.timer) closeManagedImport(managedImport.sheet)
     return { ok: true }
   })
 
@@ -588,7 +615,7 @@ function openSheet(
   // 窗口任何路径关闭：keepOpen 加载态引用一并释放（兜底定时器同步清）；在途请求
   // 兜底以取消收敛
   sheet.once('closed', () => {
-    if (managedSheet === sheet) releaseManagedSheet()
+    closeManagedImport(sheet)
     if (pending && pending.sheet === sheet) {
       resolveCancelled('sheet 窗口关闭（Esc/关闭钮/父窗级联）')
     }

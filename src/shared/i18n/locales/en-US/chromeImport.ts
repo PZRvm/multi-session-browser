@@ -34,13 +34,15 @@ export const chromeImport: Dictionary['chromeImport'] = {
   },
   result: {
     sessionRestoreFailed: 'The session view could not be restored. Import results follow.',
-    historyDone: 'History imported: {added} added, {merged} merged',
+    historyDone: 'History imported: {added} added, {merged}, {skipped} skipped merged',
     localStorageDone:
       'localStorage imported: {added} added, {merged} merged, {conflicts}, unsupported {unsupported} conflicts resolved by your choice',
     cookiesDone:
       'Cookies imported: {added} added, {merged} merged, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
     indexedDbDone:
       'IndexedDB imported: {added} sites, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
+    indexedDbUnsupported:
+      'IndexedDB was skipped for {count} sites with unverified or incompatible storage formats or versions',
     partial:
       '{scope} partially completed: {added} succeeded, the rest restored or skipped ({skipped})',
     unsupported:
