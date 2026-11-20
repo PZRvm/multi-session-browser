@@ -201,7 +201,7 @@ try {
   await waitFor('选择导入范围', () =>
     picker(() => document.querySelector('#chrome-import-profile') !== null)
   )
-  await submitPicker(() => {
+  await picker(() => {
     for (const input of document.querySelectorAll('input[type=checkbox]')) {
       if (input.checked !== input.parentElement.textContent.includes('IndexedDB')) input.click()
     }
@@ -230,7 +230,7 @@ try {
   await remote(() => {
     globalThis.testResult = null
   })
-  await submitPicker(() => document.querySelector('.picker-btn-primary').click())
+  await picker(() => document.querySelector('.picker-btn-primary').click())
   const result = await waitFor('导入结果', () => remote(() => globalThis.testResult))
   assert.match(result.text, /IndexedDB 导入完成/)
   assert.equal(result.pickerStillOpen, false)
@@ -384,20 +384,21 @@ function shell(fn, ...args) {
   )
 }
 
-function picker(fn) {
-  return remote(
-    (code) => globalThis.testFind()?.webContents.executeJavaScript(code),
-    `(${fn.toString()})()`
-  )
-}
-
-async function submitPicker(fn) {
+async function picker(fn) {
   try {
-    await picker(fn)
+    return await remote(
+      (code) => globalThis.testFind()?.webContents.executeJavaScript(code),
+      `(${fn.toString()})()`
+    )
   } catch (error) {
-    // 窗口可能在提交脚本的返回值送达前被销毁。调用方继续断言下一窗口或导入结果。
-    if (!String(error).includes('Render frame was disposed before the request completed'))
-      throw error
+    // 选择窗和裁决窗的切换期间，轮询也可能命中正在销毁的旧窗口。
+    if (
+      /Render frame was disposed before the request completed|Object has been destroyed/.test(
+        String(error)
+      )
+    )
+      return undefined
+    throw error
   }
 }
 
