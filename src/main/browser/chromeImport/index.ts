@@ -28,6 +28,7 @@ import {
   type ChromeImportCancelResult,
   type ChromeImportOptions,
   type ChromeImportPlan,
+  type ChromeImportProgress,
   type ChromeImportPolicy,
   type ChromeImportResult,
   chromeImportScopeLabelKey,
@@ -43,10 +44,9 @@ import { dialogIconForDarwin } from '../../dialogs'
 import { loadSnapshot } from '../../store'
 import { logFailure } from '../../ipc-utils'
 import { partitionFor, type SessionBrowserRegistry } from '../registry'
-import type { ChromeSiteDataStats } from './siteData'
 import { createChromeDetector, defaultChromeRootDir } from './detect'
 import { createChromeHistorySource } from './historySource'
-import { createChromeSiteDataMerge } from './siteData'
+import { createChromeSiteDataMerge, type ChromeSiteDataArtifacts } from './siteData'
 import { createChromeSourceSnapshot, type ChromeSourceSnapshot } from './sourceSnapshot'
 import { createCookieSource } from './cookieSource'
 import { createCookieImportEngine, type CookieImportArtifacts } from './cookies'
@@ -102,8 +102,8 @@ interface StagedImport {
   scopePlans: ChromeImportScopePlan[]
   sourceSnapshot: ChromeSourceSnapshot
   historyEntries: HistoryEntry[]
-  /** localStorage scope 未勾选时为 null（勾选时恒有——dry-run 已算好冲突摘要） */
-  lsStats: ChromeSiteDataStats | null
+  skippedHistory: number
+  localStorageArtifacts: ChromeSiteDataArtifacts | null
   cookieArtifacts: CookieImportArtifacts | null
   idbArtifacts: IdbImportArtifacts | null
 }
@@ -250,6 +250,10 @@ function engineContext(
 export function registerChromeImportIpc(deps: {
   registry: SessionBrowserRegistry
   getPartitionDir: (sessionId: string) => string
+  holdPicker: (
+    sender: Electron.WebContents,
+    sessionId: string
+  ) => { close: () => void; report: (progress: ChromeImportProgress) => void } | undefined
   /** 主窗口解析（导入结果/错误的原生 information 框宿主，反馈轮改原生——渲染层 antd message 退役） */
   getMainWindow: () => BrowserWindow | null
 }): void {
@@ -303,9 +307,12 @@ export function registerChromeImportIpc(deps: {
           const snapshotProfile = captured.profilePath
           const scopePlans: ChromeImportScopePlan[] = []
           let historyEntries: HistoryEntry[] = []
-          let lsStats: ChromeSiteDataStats | null = null
+          let skippedHistory = 0
+          let localStorageArtifacts: ChromeSiteDataArtifacts | null = null
           if (options.scopes.includes('history')) {
-            historyEntries = await historySource.read(snapshotProfile, HISTORY_MAX_ENTRIES)
+            const history = await historySource.read(snapshotProfile, HISTORY_MAX_ENTRIES)
+            historyEntries = history.entries
+            skippedHistory = history.skipped
             const existing = await deps.registry.history.getEntries(options.sessionId)
             const preview = previewHistoryMerge(existing, historyEntries)
             scopePlans.push({
@@ -322,21 +329,14 @@ export function registerChromeImportIpc(deps: {
             })
           }
           if (options.scopes.includes('localStorage')) {
-            lsStats = await siteData.dryRun(
-              snapshotProfile,
+            const context = engineContext(
+              options.sessionId,
+              captured,
               deps.getPartitionDir(options.sessionId)
             )
-            scopePlans.push({
-              scope: 'localStorage',
-              unit: 'records',
-              total: lsStats.total,
-              added: lsStats.added,
-              merged: lsStats.merged,
-              conflicts: lsStats.conflictKeys,
-              conflictSites: lsStats.conflictOrigins,
-              unsupported: 0,
-              notes: []
-            })
+            const prepared = await siteData.prepare(context)
+            localStorageArtifacts = prepared.artifacts
+            scopePlans.push(prepared.plan)
           }
           if (options.scopes.includes('cookies')) {
             const context = engineContext(
@@ -364,7 +364,8 @@ export function registerChromeImportIpc(deps: {
             scopePlans,
             sourceSnapshot: captured,
             historyEntries,
-            lsStats,
+            skippedHistory,
+            localStorageArtifacts,
             cookieArtifacts,
             idbArtifacts
           })
@@ -390,7 +391,7 @@ export function registerChromeImportIpc(deps: {
   // 资源统一释放（finally：快照整树 + 引擎工件）
   handleUpdateMutation(
     CHROME_IMPORT_CHANNELS.execute,
-    async (_event, payload: unknown): Promise<ChromeImportResult> =>
+    async (event, payload: unknown): Promise<ChromeImportResult> =>
       logFailure(CHROME_IMPORT_CHANNELS.execute, payload, async () => {
         if (!isRecord(payload) || typeof payload.planId !== 'string') throw invalidImportParams()
         if (
@@ -406,7 +407,9 @@ export function registerChromeImportIpc(deps: {
           throw new Error(t('chromeImport.errors.busy'))
         }
         inFlight.add(entry.sessionId)
+        let picker: ReturnType<typeof deps.holdPicker>
         try {
+          picker = deps.holdPicker(event.sender, entry.sessionId)
           // 暂存窗口期（≤60s）会话可能已被删除——删除不受导入窗口守卫（守卫只在写入
           // 窗口生效），execute 入口复核存在性：已删会话的暂存一律拒绝，杜绝历史 JSON
           // 与分区存储半截目录的僵尸数据复活 + 对已删会话报成功（审查中-2）
@@ -417,7 +420,7 @@ export function registerChromeImportIpc(deps: {
           const policy = payload.policy as ChromeImportPolicy
           const partitionDir = deps.getPartitionDir(entry.sessionId)
           const context = engineContext(entry.sessionId, entry.sourceSnapshot, partitionDir)
-          const written: ChromeImportScopeResult[] = await deps.registry.runImportQuiesced(
+          const { result: written, restoreFailed } = await deps.registry.runImportQuiesced(
             entry.sessionId,
             async () => {
               const out: ChromeImportScopeResult[] = []
@@ -435,36 +438,28 @@ export function registerChromeImportIpc(deps: {
                     merged,
                     conflictsResolved: 0,
                     unsupported: 0,
-                    skipped: 0
+                    skipped: entry.skippedHistory
                   })
                 } catch (error) {
                   out.push(failedResult('history', error))
                 }
               }
-              if (entry.scopes.includes('localStorage') && entry.lsStats !== null) {
+              if (entry.localStorageArtifacts !== null) {
                 try {
-                  // 消费固定源副本（快照 profilePath）——与 dry-run 同一份数据，不回读
-                  // 用户 Chrome 原目录（计划 2.3：执行只消费主进程暂存的同一份数据）
-                  const applied = await siteData.execute(
-                    entry.sourceSnapshot.profilePath,
-                    partitionDir,
-                    policy
+                  out.push(
+                    await siteData.apply(
+                      context,
+                      entry.localStorageArtifacts,
+                      policy,
+                      picker?.report
+                    )
                   )
-                  out.push({
-                    scope: 'localStorage',
-                    unit: 'records',
-                    status: 'done',
-                    added: applied.added,
-                    merged: applied.merged,
-                    conflictsResolved: applied.conflictsResolved,
-                    unsupported: 0,
-                    skipped: 0
-                  })
                 } catch (error) {
                   out.push(failedResult('localStorage', error))
                 }
               }
               if (entry.scopes.includes('cookies') && entry.cookieArtifacts !== null) {
+                picker?.report({ stage: 'writingCookies' })
                 try {
                   out.push(await cookieEngine.apply(context, entry.cookieArtifacts, policy))
                 } catch (error) {
@@ -472,12 +467,14 @@ export function registerChromeImportIpc(deps: {
                 }
               }
               if (entry.scopes.includes('indexedDB') && entry.idbArtifacts !== null) {
+                picker?.report({ stage: 'writingIndexedDb' })
                 try {
                   out.push(await idbEngine.apply(context, entry.idbArtifacts, policy))
                 } catch (error) {
                   out.push(failedResult('indexedDB', error))
                 }
               }
+              picker?.report({ stage: 'restoringSession' })
               return out
             }
           )
@@ -497,10 +494,16 @@ export function registerChromeImportIpc(deps: {
             })
           }
           // 成功原生结果框：按类型/单位/状态汇总多行正文
-          showResultDialog(deps.getMainWindow, summarizeResults(results))
+          const summary = summarizeResults(results)
+          picker?.close()
+          showResultDialog(
+            deps.getMainWindow,
+            restoreFailed ? `${t('chromeImport.result.sessionRestoreFailed')}\n${summary}` : summary
+          )
           return { results }
         } catch (error) {
           // 失败原生框正文经兜底映射（审查中-1，同 dry-run 口径）；原始错误原样 rethrow
+          picker?.close()
           showResultDialog(deps.getMainWindow, resolveDialogBody(error))
           throw error
         } finally {
@@ -559,7 +562,7 @@ function scopeName(scope: ChromeImportScope): string {
 }
 
 /** 结果原因码 → 短句（闭集映射，随界面语言；未知码回退通用句） */
-function reasonText(reason: string | undefined): string {
+function reasonText(reason: string, scope: ChromeImportScope): string {
   switch (reason) {
     case 'source-version-newer':
       return t('chromeImport.result.reasonSourceVersionNewer')
@@ -570,8 +573,14 @@ function reasonText(reason: string | undefined): string {
       return t('chromeImport.result.reasonAuth')
     case 'target-changed':
       return t('chromeImport.result.reasonTargetChanged')
+    case 'target-locked':
+      return t('errors.sessionBusy')
     case 'io-error':
-      return t('chromeImport.result.reasonIo')
+      return t(
+        scope === 'localStorage'
+          ? 'chromeImport.result.reasonLocalStorageIo'
+          : 'chromeImport.result.reasonIo'
+      )
     case 'rollback-failed':
       return t('chromeImport.result.reasonRollback')
     default:
@@ -589,7 +598,11 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
       switch (item.scope) {
         case 'history':
           lines.push(
-            t('chromeImport.result.historyDone', { added: item.added, merged: item.merged })
+            t('chromeImport.result.historyDone', {
+              added: item.added,
+              merged: item.merged,
+              skipped: item.skipped
+            })
           )
           break
         case 'localStorage':
@@ -597,7 +610,8 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
             t('chromeImport.result.localStorageDone', {
               added: item.added,
               merged: item.merged,
-              conflicts: item.conflictsResolved
+              conflicts: item.conflictsResolved,
+              unsupported: item.unsupported
             })
           )
           break
@@ -628,7 +642,11 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
         t('chromeImport.result.partial', { scope: name, added: item.added, skipped: item.skipped })
       )
     } else if (item.status === 'unsupported') {
-      lines.push(t('chromeImport.result.unsupported', { scope: name }))
+      lines.push(
+        item.scope === 'indexedDB'
+          ? t('chromeImport.result.indexedDbUnsupported', { count: item.unsupported })
+          : t('chromeImport.result.unsupported', { scope: name })
+      )
     } else if (item.status === 'skipped') {
       lines.push(t('chromeImport.result.skipped', { scope: name }))
     } else if (item.reason === 'rollback-failed') {
@@ -637,7 +655,7 @@ function summarizeResults(results: ChromeImportScopeResult[]): string {
     } else {
       lines.push(
         item.reason !== undefined
-          ? `${t('chromeImport.result.failedReason', { scope: name })}${reasonText(item.reason)}`
+          ? `${t('chromeImport.result.failedReason', { scope: name })}${reasonText(item.reason, item.scope)}`
           : t('chromeImport.result.failed', { scope: name, error: item.error ?? '' })
       )
     }

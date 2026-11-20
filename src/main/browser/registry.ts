@@ -189,7 +189,10 @@ export interface SessionBrowserRegistry extends TabManager {
    * 会话的（closeSession 已摘 view 置空激活标记）重建恢复画面（clonePartition 失败恢复
    * 的 switchSession 先例同款）。克隆窗口期/并发重复导入一律拒绝
    */
-  runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T>
+  runImportQuiesced<T>(
+    id: string,
+    task: () => Promise<T>
+  ): Promise<{ result: T; restoreFailed: boolean }>
   /** 分区落盘目录解析（chromeImport 编排写 LS 用）：partitionDir 单源与读入口守卫不旁路 */
   getPartitionDir(id: string): string
   /** 启动恢复：读盘缓存各会话 lastUrl，恢复上次激活会话并重载其上次打开页 */
@@ -644,7 +647,7 @@ export function createSessionBrowserRegistry(deps: {
    */
   let switchGeneration = 0
 
-  function switchSession(id: string | null): void {
+  function switchSession(id: string | null): Promise<void> | void {
     initHandled = true
     if (id === activeSessionId) {
       // 同 id no-op 仍推进代号作废在途激活（审查中 2）：用户点回当前会话是最新意图，
@@ -678,7 +681,7 @@ export function createSessionBrowserRegistry(deps: {
       commitSwitch(null)
       return
     }
-    void trackUpdateWork(prepareActivation(id, generation))
+    return trackUpdateWork(prepareActivation(id, generation))
   }
 
   /** 激活链的异步前段：await 代理应用，完成后守卫仍有效才提交切换 */
@@ -878,22 +881,35 @@ export function createSessionBrowserRegistry(deps: {
    * 未落盘时直接动落盘会得到不一致副本）；task 抛错同样走 finally 释放守卫并恢复激活
    * 画面——导入失败不得把浏览器区冻结在「有快照无视图」态（clonePartition 失败恢复先例）
    */
-  async function runImportQuiesced<T>(id: string, task: () => Promise<T>): Promise<T> {
+  async function runImportQuiesced<T>(
+    id: string,
+    task: () => Promise<T>
+  ): Promise<{ result: T; restoreFailed: boolean }> {
     // 触发条件实为该会话克隆中（非导入）：文案用泛化的 errors.sessionBusy（克隆/导入
     // 两种占用），不用导入专用的 chromeImport.errors.busy（消费点保留在 inFlight 单飞）
     if (cloningIds.has(id)) throw new Error(t('errors.sessionBusy'))
     importingIds.add(id)
-    const wasActive = activeSessionId === id
+    let result: T
+    let restoreFailed = false
     try {
       await closeSession(id)
-      return await task()
+      result = await task()
     } finally {
       importingIds.delete(id)
-      // 先出守卫再切换：switchSession 的导入窗口守卫不再拦自己（同 id no-op 判据在先，
-      // 无副作用路径）。仅当窗口期内无人接管激活位（用户切走了别的会话）才恢复导入
-      // 会话画面，不覆盖用户的后续切换（审查低-1）
-      if (wasActive && activeSessionId === null) switchSession(id)
+      try {
+        // 运行时激活位可能为空，同时另一会话已选中但还在准备代理或扩展。
+        // 先查持久化选择，再用切换代号保护读盘间隙，沿同一激活链等待快照发布。
+        const generation = switchGeneration
+        const snapshot = await loadSnapshot(true)
+        if (generation === switchGeneration && snapshot.activeId === id && activeSessionId !== id) {
+          await switchSession(id)
+        }
+      } catch (error) {
+        restoreFailed = true
+        console.warn(`[registry] 导入后恢复会话 ${id} 失败:`, error)
+      }
     }
+    return { result, restoreFailed }
   }
 
   /** 分区目录单源解析（chromeImport 编排取写入口径）：partitionFor/partitionDir 守卫不旁路 */

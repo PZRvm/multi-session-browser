@@ -747,11 +747,15 @@ function Toolbar(): React.JSX.Element {
     }
   }
 
-  // 回车提交：只让明确接受的历史目标覆盖原文分类，自动展示的后缀不抢走搜索词。
+  // 回车可直接打开行内补全，使用历史记录保存的完整地址。
   const submitDraft = async (): Promise<void> => {
     if (searchMode) {
       const query = editableInput.trim()
       if (query) void submitUrl(buildSearchUrl(searchMode.engine, query))
+      return
+    }
+    if (completion) {
+      void submitUrl(completion.targetUrl)
       return
     }
     if (!editableInput.trim()) {
