@@ -49,11 +49,11 @@ export function createDragPreview(): DragPreview {
     const dark = payload.theme === 'dark'
     const bg = dark ? '#292a2d' : '#f1f3f4'
     const ink = dark ? '#e8eaed' : '#3c4043'
-    const dot = dark ? '#9aa0a6' : '#5f6368'
+    // favicon 缺省不再画占位点（2026-11-20 用户裁决：标签条同款移除），虚影图标区留空
     const favicon = safeFavicon(payload.faviconUrl)
     const icon = favicon
       ? `<img src="${escapeHtml(favicon)}" alt="" style="width:16px;height:16px;flex:none" draggable="false">`
-      : `<span style="width:6px;height:6px;border-radius:50%;background:${dot};flex:none"></span>`
+      : ''
     return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent">
 <div style="display:flex;align-items:center;gap:8px;height:100vh;padding:0 14px;box-sizing:border-box;background:${bg};border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif;font-size:12px;color:${ink};white-space:nowrap;overflow:hidden">${icon}<span style="overflow:hidden;text-overflow:ellipsis;flex:1">${escapeHtml(truncateTitle(payload.title))}</span></div>
 </body></html>`
