@@ -311,11 +311,11 @@ export const RENAME_FOOT_HEIGHT = 32
 export const PICKER_FORM_BORDER_TOP = 1
 export const PICKER_FORM_PAD_TOP = 12
 export const CHROME_IMPORT_LABEL_HEIGHT = 20
-export const CHROME_IMPORT_TITLE_HEIGHT = 20
-/** 冲突裁决基础句行高（.picker-conflict-desc 单行 11px 档） */
-export const CHROME_IMPORT_BASE_DESC_HEIGHT = 20
-/** 冲突裁决逐类型摘要行高（2026-10-28 四类型：每冲突类型一行，11px 单行档） */
-export const CHROME_IMPORT_SUMMARY_LINE_HEIGHT = 18
+export const CHROME_IMPORT_TITLE_HEIGHT = 22
+/** 冲突说明可换行，原生高度按两行估算。 */
+export const CHROME_IMPORT_BASE_DESC_HEIGHT = 36
+/** 每条摘要最多预留两行，实际内容可以自然换行。 */
+export const CHROME_IMPORT_SUMMARY_HEIGHT = 36
 export const CHROME_IMPORT_RADIO_HEIGHT = 28
 export const CHROME_IMPORT_SCOPE_HEIGHT = 28
 export const CHROME_IMPORT_SCOPES_GAP = 8
@@ -360,14 +360,15 @@ export function pickerWindowHeight(context: WorkspacePickerContext): number {
     // 一行；缺省一行 = 旧单类型防御面）
     const lineCount = Math.max(1, context.chromeConflictScopes?.length ?? 1)
     return (
-      PICKER_HEADER_HEIGHT_SINGLE +
+      2 * 16 + // .picker-body 上下内距
+      12 + // .picker-head 下距
       PICKER_FORM_BORDER_TOP +
       PICKER_FORM_PAD_TOP +
       CHROME_IMPORT_TITLE_HEIGHT +
       CHROME_IMPORT_SCOPES_GAP +
       CHROME_IMPORT_BASE_DESC_HEIGHT +
-      lineCount * CHROME_IMPORT_SUMMARY_LINE_HEIGHT +
-      RENAME_FORM_GAP +
+      4 +
+      lineCount * CHROME_IMPORT_SUMMARY_HEIGHT +
       CHROME_IMPORT_RADIO_HEIGHT +
       CHROME_IMPORT_SCOPES_GAP +
       CHROME_IMPORT_RADIO_HEIGHT +

@@ -20,9 +20,17 @@ export const chromeImport: Dictionary['chromeImport'] = {
     cancelBtn: '取消',
     loadFailed: '偵測失敗'
   },
+  progress: {
+    checkingStorage: '核對網站 {done}/{total}',
+    writingStorage: '寫入網站 {done}/{total}',
+    rollingBackStorage: '還原網站 {done}/{total}',
+    writingCookies: '正在匯入 Cookie',
+    writingIndexedDb: '正在匯入 IndexedDB',
+    restoringSession: '正在恢復工作階段'
+  },
   conflict: {
     title: '發現匯入衝突',
-    baseDesc: '以下內容與目前會話已有資料不同，請選擇以哪一側為準（同次匯入統一適用）：',
+    baseDesc: '請選擇本次匯入所有衝突的處理方式。',
     lineRecords: '{scope}：{count} 筆記錄與目前會話不同（涉及 {sites} 個網站）',
     lineSites:
       '{scope}：{count} 個網站的儲存快照與目前會話已有網站不同，整份替換將移除這些網站內目標專屬資料',
@@ -31,13 +39,15 @@ export const chromeImport: Dictionary['chromeImport'] = {
     confirmBtn: '確認匯入'
   },
   result: {
-    historyDone: '記錄匯入完成：新增 {added}，合併 {merged}',
+    sessionRestoreFailed: '工作階段視窗恢復失敗，匯入結果如下',
+    historyDone: '記錄匯入完成：新增 {added}，合併 {merged}，略過 {skipped}',
     localStorageDone:
-      'localStorage 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}',
+      'localStorage 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}',
     cookiesDone:
       'Cookie 匯入完成：新增 {added}，合併 {merged}，衝突按裁決處置 {conflicts}，不支援 {unsupported}，略過 {skipped}',
     indexedDbDone:
       'IndexedDB 匯入完成：匯入網站 {added}，衝突按裁決處置 {conflicts}，不支援 {unsupported}，略過 {skipped}',
+    indexedDbUnsupported: 'IndexedDB 未匯入：{count} 個網站的儲存格式或版本無法驗證或不相容',
     partial: '{scope} 部分完成：成功 {added}，其餘已還原或略過（{skipped}）',
     unsupported: '{scope} 不支援：來源資料格式或版本不受目前引擎支援',
     rollbackFailed:
@@ -49,6 +59,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     reasonAuth: '未能取得系統鑰匙圈授權解密',
     reasonTargetChanged: '目標會話資料已變化，請重新發起匯入',
     reasonIo: '檔案系統錯誤',
+    reasonLocalStorageIo: '瀏覽器儲存讀寫失敗',
     reasonRollback: '失敗還原未成功',
     reasonUnsupported: '不支援的資料格式'
   },

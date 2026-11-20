@@ -20,26 +20,34 @@ export const chromeImport: Dictionary['chromeImport'] = {
     cancelBtn: 'Cancel',
     loadFailed: 'Detection failed'
   },
+  progress: {
+    checkingStorage: 'Checking sites {done}/{total}',
+    writingStorage: 'Writing sites {done}/{total}',
+    rollingBackStorage: 'Restoring sites {done}/{total}',
+    writingCookies: 'Importing cookies',
+    writingIndexedDb: 'Importing IndexedDB',
+    restoringSession: 'Restoring session'
+  },
   conflict: {
     title: 'Import conflicts detected',
-    baseDesc:
-      'The following content differs from existing session data. Choose which side wins (applies to all types in this import):',
-    lineRecords:
-      '{scope}: {count} entries differ from the current session ({sites} sites involved)',
-    lineSites:
-      '{scope}: storage snapshots of {count} sites differ from existing ones; full replacement removes target-only data within those sites',
+    baseDesc: 'Choose one policy for all conflicts in this import.',
+    lineRecords: '{scope}: {count} conflicting entries across {sites} sites',
+    lineSites: '{scope}: {count} sites. Choosing Chrome replaces each site’s existing data.',
     useChrome: 'Use Chrome',
     useSession: 'Keep current session',
     confirmBtn: 'Import'
   },
   result: {
-    historyDone: 'History imported: {added} added, {merged} merged',
+    sessionRestoreFailed: 'The session view could not be restored. Import results follow.',
+    historyDone: 'History imported: {added} added, {merged}, {skipped} skipped merged',
     localStorageDone:
-      'localStorage imported: {added} added, {merged} merged, {conflicts} conflicts resolved by your choice',
+      'localStorage imported: {added} added, {merged} merged, {conflicts}, unsupported {unsupported} conflicts resolved by your choice',
     cookiesDone:
       'Cookies imported: {added} added, {merged} merged, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
     indexedDbDone:
       'IndexedDB imported: {added} sites, {conflicts} conflicts resolved, {unsupported} unsupported, {skipped} skipped',
+    indexedDbUnsupported:
+      'IndexedDB was skipped for {count} sites with unverified or incompatible storage formats or versions',
     partial:
       '{scope} partially completed: {added} succeeded, the rest restored or skipped ({skipped})',
     unsupported:
@@ -53,6 +61,7 @@ export const chromeImport: Dictionary['chromeImport'] = {
     reasonAuth: 'system keychain authorization for decryption was not granted',
     reasonTargetChanged: 'target session data changed, start the import again',
     reasonIo: 'file system error',
+    reasonLocalStorageIo: 'browser storage read or write failed',
     reasonRollback: 'failure rollback did not succeed',
     reasonUnsupported: 'unsupported data format'
   },

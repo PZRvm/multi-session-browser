@@ -10,7 +10,11 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerSessionIpc } from './sessions'
 import { registerDialogIpc } from './dialogs'
-import { registerWorkspacePickerIpc, showUpdateDetailsWindow } from './workspacePickerWindow'
+import {
+  holdChromeImportPicker,
+  registerWorkspacePickerIpc,
+  showUpdateDetailsWindow
+} from './workspacePickerWindow'
 import { registerBrowserIpc } from './browser/ipc'
 import { registerToolbarTooltipIpc } from './browser/toolbarTooltip'
 import { createTabDragController } from './browser/dragging'
@@ -773,7 +777,8 @@ app.whenReady().then(async () => {
   registerChromeImportIpc({
     registry: created,
     getPartitionDir: (sessionId) => created.getPartitionDir(sessionId),
-    getMainWindow: () => mainWindow
+    getMainWindow: () => mainWindow,
+    holdPicker: holdChromeImportPicker
   })
   // 快速截图（快速截图专项 20261009232146 步骤 5）：capture 截来源窗口作用域激活
   // Tab 入剪贴板 + save-last 最近一次截图落盘下载目录（captureId 单槽对账）。原页面

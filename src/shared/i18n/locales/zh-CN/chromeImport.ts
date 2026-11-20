@@ -23,9 +23,17 @@ export const chromeImport = {
     loadFailed: '检测失败'
   },
   /** 冲突裁决块（按类型/单位权威摘要 + 会话级一次二选一，2026-10-28 扩四类型） */
+  progress: {
+    checkingStorage: '核对站点 {done}/{total}',
+    writingStorage: '写入站点 {done}/{total}',
+    rollingBackStorage: '还原站点 {done}/{total}',
+    writingCookies: '正在导入 Cookie',
+    writingIndexedDb: '正在导入 IndexedDB',
+    restoringSession: '正在恢复会话'
+  },
   conflict: {
     title: '发现导入冲突',
-    baseDesc: '以下内容与当前会话已有数据不同，请选择以哪一侧为准（同次导入统一适用）：',
+    baseDesc: '请选择本次导入所有冲突的处理方式。',
     lineRecords: '{scope}：{count} 条记录与当前会话不同（涉及 {sites} 个站点）',
     lineSites:
       '{scope}：{count} 个站点的存储快照与当前会话已有站点不同，整份替换将移除这些站点内目标专有数据',
@@ -35,13 +43,15 @@ export const chromeImport = {
   },
   /** 导入结果反馈（主进程按 execute 逐 scope 结果组装；分状态如实呈现） */
   result: {
-    historyDone: '历史导入完成：新增 {added}，合并 {merged}',
+    sessionRestoreFailed: '会话窗口恢复失败，导入结果如下',
+    historyDone: '历史导入完成：新增 {added}，合并 {merged}，跳过 {skipped}',
     localStorageDone:
-      'localStorage 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}',
+      'localStorage 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}',
     cookiesDone:
       'Cookie 导入完成：新增 {added}，合并 {merged}，冲突按裁决处置 {conflicts}，不支持 {unsupported}，跳过 {skipped}',
     indexedDbDone:
       'IndexedDB 导入完成：导入站点 {added}，冲突按裁决处置 {conflicts}，不支持 {unsupported}，跳过 {skipped}',
+    indexedDbUnsupported: 'IndexedDB 未导入：{count} 个站点的存储格式或版本无法核验或不兼容',
     partial: '{scope} 部分完成：成功 {added}，其余已还原或跳过（{skipped}）',
     unsupported: '{scope} 不支持：源数据格式或版本不受当前引擎支持',
     rollbackFailed:
@@ -53,6 +63,7 @@ export const chromeImport = {
     reasonAuth: '未能获得系统钥匙串授权解密',
     reasonTargetChanged: '目标会话数据已变化，请重新发起导入',
     reasonIo: '文件系统错误',
+    reasonLocalStorageIo: '浏览器存储读写失败',
     reasonRollback: '失败还原未成功',
     reasonUnsupported: '不支持的数据格式'
   },

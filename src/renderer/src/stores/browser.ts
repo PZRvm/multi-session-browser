@@ -97,7 +97,7 @@ interface BrowserState {
   /** Enter/Shift+Enter 步进（findNext=false 沿 forward 换向）；栏未开或 query 为空 no-op */
   findNextStep: (forward: boolean) => void
   /** 导入完成后重拉当前作用域会话的历史镜像（Chrome 导入专项）：复用全量拉取链路 */
-  refetchHistory: () => void
+  refetchHistory: (sessionId: string) => void
   /** 快速截图：截当前激活 Tab 入剪贴板，成功置反馈条（含「下载」次动作），失败置
    *  danger 反馈（主进程已本地化的错误优先，兜底 browser.capture.failed） */
   capture: () => Promise<void>
@@ -289,7 +289,12 @@ const refreshHistory = (
     .getHistory()
     .then((entries) => {
       if (token !== historyPullToken) return
-      if (windowIdentity.mode === 'main' && get().sessionId !== requestedSession) return
+      if (
+        windowIdentity.mode === 'main' &&
+        (get().sessionId !== requestedSession ||
+          useSessionsStore.getState().activeId !== requestedSession)
+      )
+        return
       set({ history: entries })
     })
     .catch((error: unknown) => {
@@ -561,9 +566,9 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
   },
 
   // Chrome 导入专项：导入不经 recordVisit 链路（无逐条增量推送——2000 条推送风暴已
-  // 否决），完成后全量重拉一次。镜像本就只属于当前作用域会话：导入目标非激活会话时
-  // 本次重拉结果与导入无关，无害
-  refetchHistory: () => {
+  // 否决），完成后目标仍为当前会话才重拉。后台会话在下次激活时拉取。
+  refetchHistory: (sessionId) => {
+    if (get().sessionId !== sessionId || useSessionsStore.getState().activeId !== sessionId) return
     refreshHistory(set, get)
   },
 
