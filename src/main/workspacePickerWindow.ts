@@ -41,7 +41,12 @@ import {
   WORKSPACE_ID_RE,
   WORKSPACE_NAME_MAX
 } from '../shared/sessions'
-import { CHROME_IMPORT_POLICIES, CHROME_IMPORT_SCOPES } from '../shared/chromeImport'
+import {
+  CHROME_IMPORT_POLICIES,
+  CHROME_IMPORT_PROGRESS_CHANNEL,
+  CHROME_IMPORT_SCOPES,
+  type ChromeImportProgress
+} from '../shared/chromeImport'
 import { isRecord } from '../shared/guards'
 import { AVAILABLE_IMPORT_SCOPES, chromeDetector, peekStagedScopes } from './browser/chromeImport'
 import { getAppearanceBackgroundColor } from './appearance'
@@ -109,7 +114,7 @@ function closeManagedImport(sheet: BrowserWindow): void {
 export function holdChromeImportPicker(
   sender: Electron.WebContents,
   sessionId: string
-): () => void {
+): { close: () => void; report: (progress: ChromeImportProgress) => void } | undefined {
   const current = managedImport
   if (
     !current ||
@@ -118,12 +123,19 @@ export function holdChromeImportPicker(
     current.sheet.isDestroyed() ||
     current.sheet.getParentWindow()?.webContents !== sender
   ) {
-    return () => {}
+    return
   }
   clearTimeout(current.timer)
   current.timer = null
   current.sheet.setClosable(false)
-  return () => closeManagedImport(current.sheet)
+  return {
+    close: () => closeManagedImport(current.sheet),
+    report: (progress) => {
+      if (managedImport === current && !current.sheet.isDestroyed()) {
+        current.sheet.webContents.send(CHROME_IMPORT_PROGRESS_CHANNEL, progress)
+      }
+    }
+  }
 }
 
 /** 守卫失败统一抛出的业务错误（dialogs.ts 同款文案键） */

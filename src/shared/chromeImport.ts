@@ -55,6 +55,13 @@ export interface ChromeProfilesPayload {
 export const CHROME_IMPORT_SCOPES = ['history', 'localStorage', 'cookies', 'indexedDB'] as const
 export type ChromeImportScope = (typeof CHROME_IMPORT_SCOPES)[number]
 
+/** 执行进度只推送给正在显示的原生导入窗口。站点数来自已完成的实际操作。 */
+export const CHROME_IMPORT_PROGRESS_CHANNEL = 'dialog:chrome-import-progress'
+export type ChromeImportStoragePhase = 'checkingStorage' | 'writingStorage' | 'rollingBackStorage'
+export type ChromeImportProgress =
+  | { stage: ChromeImportStoragePhase; done: number; total: number }
+  | { stage: 'writingCookies' | 'writingIndexedDb' | 'restoringSession' }
+
 /** scope → 展示文案字典键的单源映射（主进程结果框与 sheet 页面各自用本侧 t() 取词，
  *  新增 scope 只改这里 + 字典——审查 20261028170000 低-4） */
 export function chromeImportScopeLabelKey(

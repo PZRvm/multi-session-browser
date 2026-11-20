@@ -26,6 +26,7 @@ import type {
   ChromeImportCancelResult,
   ChromeImportOptions,
   ChromeImportPlan,
+  ChromeImportProgress,
   ChromeImportResolution,
   ChromeImportResult,
   ChromeProfilesPayload
@@ -287,6 +288,7 @@ declare global {
         workspacePickerPayload(): Promise<WorkspacePickerContext | null>
         workspacePickerPick(payload: WorkspacePickerPickPayload): Promise<OkResult>
         workspacePickerClose(): Promise<OkResult>
+        onChromeImportProgress(callback: (progress: ChromeImportProgress) => void): () => void
       }
     }
   }

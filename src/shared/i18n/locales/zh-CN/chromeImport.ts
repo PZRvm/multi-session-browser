@@ -23,9 +23,17 @@ export const chromeImport = {
     loadFailed: '检测失败'
   },
   /** 冲突裁决块（按类型/单位权威摘要 + 会话级一次二选一，2026-10-28 扩四类型） */
+  progress: {
+    checkingStorage: '核对站点 {done}/{total}',
+    writingStorage: '写入站点 {done}/{total}',
+    rollingBackStorage: '还原站点 {done}/{total}',
+    writingCookies: '正在导入 Cookie',
+    writingIndexedDb: '正在导入 IndexedDB',
+    restoringSession: '正在恢复会话'
+  },
   conflict: {
     title: '发现导入冲突',
-    baseDesc: '以下内容与当前会话已有数据不同，请选择以哪一侧为准（同次导入统一适用）：',
+    baseDesc: '请选择本次导入所有冲突的处理方式。',
     lineRecords: '{scope}：{count} 条记录与当前会话不同（涉及 {sites} 个站点）',
     lineSites:
       '{scope}：{count} 个站点的存储快照与当前会话已有站点不同，整份替换将移除这些站点内目标专有数据',

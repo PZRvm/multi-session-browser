@@ -20,9 +20,17 @@ export const chromeImport: Dictionary['chromeImport'] = {
     cancelBtn: '取消',
     loadFailed: '偵測失敗'
   },
+  progress: {
+    checkingStorage: '核對網站 {done}/{total}',
+    writingStorage: '寫入網站 {done}/{total}',
+    rollingBackStorage: '還原網站 {done}/{total}',
+    writingCookies: '正在匯入 Cookie',
+    writingIndexedDb: '正在匯入 IndexedDB',
+    restoringSession: '正在恢復工作階段'
+  },
   conflict: {
     title: '發現匯入衝突',
-    baseDesc: '以下內容與目前會話已有資料不同，請選擇以哪一側為準（同次匯入統一適用）：',
+    baseDesc: '請選擇本次匯入所有衝突的處理方式。',
     lineRecords: '{scope}：{count} 筆記錄與目前會話不同（涉及 {sites} 個網站）',
     lineSites:
       '{scope}：{count} 個網站的儲存快照與目前會話已有網站不同，整份替換將移除這些網站內目標專屬資料',

@@ -20,14 +20,19 @@ export const chromeImport: Dictionary['chromeImport'] = {
     cancelBtn: 'Cancel',
     loadFailed: 'Detection failed'
   },
+  progress: {
+    checkingStorage: 'Checking sites {done}/{total}',
+    writingStorage: 'Writing sites {done}/{total}',
+    rollingBackStorage: 'Restoring sites {done}/{total}',
+    writingCookies: 'Importing cookies',
+    writingIndexedDb: 'Importing IndexedDB',
+    restoringSession: 'Restoring session'
+  },
   conflict: {
     title: 'Import conflicts detected',
-    baseDesc:
-      'The following content differs from existing session data. Choose which side wins (applies to all types in this import):',
-    lineRecords:
-      '{scope}: {count} entries differ from the current session ({sites} sites involved)',
-    lineSites:
-      '{scope}: storage snapshots of {count} sites differ from existing ones; full replacement removes target-only data within those sites',
+    baseDesc: 'Choose one policy for all conflicts in this import.',
+    lineRecords: '{scope}: {count} conflicting entries across {sites} sites',
+    lineSites: '{scope}: {count} sites. Choosing Chrome replaces each site’s existing data.',
     useChrome: 'Use Chrome',
     useSession: 'Keep current session',
     confirmBtn: 'Import'

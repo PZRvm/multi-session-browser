@@ -108,6 +108,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-标签默认等宽.md](changelogs/2026-11/2026-11-17-标签默认等宽.md) — 主窗和独立窗的标签默认等宽200px，空间不足时继续压缩
 - [2026-11-17-项目文档同步与剩余事项.md](changelogs/2026-11/2026-11-17-项目文档同步与剩余事项.md) — 同步最近标签与端口修复，校正更新和插件旧状态，并汇总非Windows剩余工作
 - [2026-11-19-会话导入与快捷交互.md](changelogs/2026-11/2026-11-19-会话导入与快捷交互.md) — Chrome 历史、Cookie 和 localStorage 导入后即时可见，地址栏回车直达并支持双击会话行重命名
+- [2026-11-20-Chrome导入冲突窗口与批量进度.md](changelogs/2026-11/2026-11-20-Chrome导入冲突窗口与批量进度.md) — 修复 Chrome 导入冲突文案重叠，显示站点进度并缩短批量导入时间
 - [2026-11-20-Chrome导入标签回归.md](changelogs/2026-11/2026-11-20-Chrome导入标签回归.md) — 保留 Chrome 导入加载窗口直到会话恢复，避免切换或新建标签时出现未选择会话
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
@@ -408,6 +409,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-16-独立窗口原生按钮避让.md](notes/learn/2026-11/2026-11-16-独立窗口原生按钮避让.md) — 独立窗口去标题栏须同时处理建窗选项、标签避让和Windows逐窗主题更新
 - [2026-11-17-main发布PR标题与检查事件.md](notes/learn/2026-11/2026-11-17-main发布PR标题与检查事件.md) — main发布PR的标题也须使用中文Clean Commit格式，修改标题后需新同步事件重跑策略检查
 - [2026-11-19-导入完成要等待会话恢复快照.md](notes/learn/2026-11/2026-11-19-导入完成要等待会话恢复快照.md) — 导入返回早于活跃会话快照时，即使数据已写入，历史也可能重拉失败
+- [2026-11-20-站点导入计数与串行耗时.md](notes/learn/2026-11/2026-11-20-站点导入计数与串行耗时.md) — 用全量来源计数与临时页面导航次数定位 Chrome localStorage 导入耗时
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -555,6 +557,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店详情页安装按钮.md](notes/summary/2026-11/2026-11-17-商店详情页安装按钮.md) — 商店详情新增自有安装按钮，真实Dark Reader下载验签及新会话加载通过，记录受限桥与验证边界
 - [2026-11-17-插件名称本地化修复.md](notes/summary/2026-11/2026-11-17-插件名称本地化修复.md) — 插件名称占位符已按应用语言解析，旧安装无需重装，三处显示及语言切换回归通过
 - [2026-11-19-会话导入与快捷交互阶段验收.md](notes/summary/2026-11/2026-11-19-会话导入与快捷交互阶段验收.md) — 记录 Chrome 历史、Cookie 与 localStorage 即时生效，以及地址栏回车和会话双击的实测
+- [2026-11-20-Chrome导入冲突与批量进度验收.md](notes/summary/2026-11/2026-11-20-Chrome导入冲突与批量进度验收.md) — 记录 Chrome 导入冲突文字重叠、多站点等待的原因，以及隔离 Electron 验收结果
 - [2026-11-20-Chrome导入标签回归验收.md](notes/summary/2026-11/2026-11-20-Chrome导入标签回归验收.md) — Chrome 无冲突或冲突导入都在恢复标签后关闭原生加载窗口，结果框显示跳过条数和站点数
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
@@ -620,6 +623,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-17-商店详情页安装按钮.md](plans/2026-11-17-商店详情页安装按钮.md) — L级实现官方商店详情页自有安装按钮，受限preload调用统一安装事务
 - [2026-11-17-插件名称本地化修复.md](plans/2026-11-17-插件名称本地化修复.md) — 按应用语言解析扩展名称并刷新三处展示，兼容旧占位符安装记录
 - [2026-11-19-会话导入与快捷交互.md](plans/2026-11-19-会话导入与快捷交互.md) — 修复 Chrome 导入后当前会话的数据可见性，并增加地址栏回车直达与双击会话行重命名
+- [2026-11-20-Chrome导入冲突窗口与批量进度.md](plans/2026-11-20-Chrome导入冲突窗口与批量进度.md) — 修复导入冲突文字重叠，缩短多站点 localStorage 导入并显示实际进度
 - [2026-11-20-Chrome导入标签回归.md](plans/2026-11-20-Chrome导入标签回归.md) — 导入写入与会话恢复期间保留原生加载窗口，并验证标签操作和 IndexedDB 兼容边界
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
@@ -686,4 +690,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 561 documents -->
+<!-- 565 documents -->

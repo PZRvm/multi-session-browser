@@ -28,6 +28,7 @@ import {
   type ChromeImportCancelResult,
   type ChromeImportOptions,
   type ChromeImportPlan,
+  type ChromeImportProgress,
   type ChromeImportPolicy,
   type ChromeImportResult,
   chromeImportScopeLabelKey,
@@ -249,7 +250,10 @@ function engineContext(
 export function registerChromeImportIpc(deps: {
   registry: SessionBrowserRegistry
   getPartitionDir: (sessionId: string) => string
-  holdPicker: (sender: Electron.WebContents, sessionId: string) => () => void
+  holdPicker: (
+    sender: Electron.WebContents,
+    sessionId: string
+  ) => { close: () => void; report: (progress: ChromeImportProgress) => void } | undefined
   /** 主窗口解析（导入结果/错误的原生 information 框宿主，反馈轮改原生——渲染层 antd message 退役） */
   getMainWindow: () => BrowserWindow | null
 }): void {
@@ -403,9 +407,9 @@ export function registerChromeImportIpc(deps: {
           throw new Error(t('chromeImport.errors.busy'))
         }
         inFlight.add(entry.sessionId)
-        let closePicker: (() => void) | undefined
+        let picker: ReturnType<typeof deps.holdPicker>
         try {
-          closePicker = deps.holdPicker(event.sender, entry.sessionId)
+          picker = deps.holdPicker(event.sender, entry.sessionId)
           // 暂存窗口期（≤60s）会话可能已被删除——删除不受导入窗口守卫（守卫只在写入
           // 窗口生效），execute 入口复核存在性：已删会话的暂存一律拒绝，杜绝历史 JSON
           // 与分区存储半截目录的僵尸数据复活 + 对已删会话报成功（审查中-2）
@@ -442,12 +446,20 @@ export function registerChromeImportIpc(deps: {
               }
               if (entry.localStorageArtifacts !== null) {
                 try {
-                  out.push(await siteData.apply(context, entry.localStorageArtifacts, policy))
+                  out.push(
+                    await siteData.apply(
+                      context,
+                      entry.localStorageArtifacts,
+                      policy,
+                      picker?.report
+                    )
+                  )
                 } catch (error) {
                   out.push(failedResult('localStorage', error))
                 }
               }
               if (entry.scopes.includes('cookies') && entry.cookieArtifacts !== null) {
+                picker?.report({ stage: 'writingCookies' })
                 try {
                   out.push(await cookieEngine.apply(context, entry.cookieArtifacts, policy))
                 } catch (error) {
@@ -455,12 +467,14 @@ export function registerChromeImportIpc(deps: {
                 }
               }
               if (entry.scopes.includes('indexedDB') && entry.idbArtifacts !== null) {
+                picker?.report({ stage: 'writingIndexedDb' })
                 try {
                   out.push(await idbEngine.apply(context, entry.idbArtifacts, policy))
                 } catch (error) {
                   out.push(failedResult('indexedDB', error))
                 }
               }
+              picker?.report({ stage: 'restoringSession' })
               return out
             }
           )
@@ -481,7 +495,7 @@ export function registerChromeImportIpc(deps: {
           }
           // 成功原生结果框：按类型/单位/状态汇总多行正文
           const summary = summarizeResults(results)
-          closePicker()
+          picker?.close()
           showResultDialog(
             deps.getMainWindow,
             restoreFailed ? `${t('chromeImport.result.sessionRestoreFailed')}\n${summary}` : summary
@@ -489,7 +503,7 @@ export function registerChromeImportIpc(deps: {
           return { results }
         } catch (error) {
           // 失败原生框正文经兜底映射（审查中-1，同 dry-run 口径）；原始错误原样 rethrow
-          closePicker?.()
+          picker?.close()
           showResultDialog(deps.getMainWindow, resolveDialogBody(error))
           throw error
         } finally {

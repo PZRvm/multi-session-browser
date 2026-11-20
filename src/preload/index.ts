@@ -40,12 +40,13 @@ import type {
   ExtensionsPanelPickPayload,
   ExtensionsPanelShowPayload
 } from '../shared/extensionsPanel'
-import { CHROME_IMPORT_CHANNELS } from '../shared/chromeImport'
+import { CHROME_IMPORT_CHANNELS, CHROME_IMPORT_PROGRESS_CHANNEL } from '../shared/chromeImport'
 import type {
   ChromeImportCancelPayload,
   ChromeImportCancelResult,
   ChromeImportOptions,
   ChromeImportPlan,
+  ChromeImportProgress,
   ChromeImportResolution,
   ChromeImportResult,
   ChromeProfilesPayload
@@ -648,10 +649,14 @@ const api = {
       ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPayload),
     workspacePickerPick: (payload: WorkspacePickerPickPayload): Promise<OkResult> =>
       ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerPick, payload),
-    // keepOpen 加载态 sheet 显式关闭（反馈轮三）：renderer 编排在 dry-run/execute
-    // 完成点触发；主进程对已关/不存在 no-op
     workspacePickerClose: (): Promise<OkResult> =>
-      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerClose)
+      ipcRenderer.invoke(DIALOG_CHANNELS.workspacePickerClose),
+    onChromeImportProgress: (callback: (progress: ChromeImportProgress) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, progress: ChromeImportProgress): void =>
+        callback(progress)
+      ipcRenderer.on(CHROME_IMPORT_PROGRESS_CHANNEL, handler)
+      return () => ipcRenderer.removeListener(CHROME_IMPORT_PROGRESS_CHANNEL, handler)
+    }
   }
 }
 

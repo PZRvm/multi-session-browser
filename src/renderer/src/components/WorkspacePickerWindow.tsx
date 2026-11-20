@@ -8,7 +8,11 @@ import {
   type WorkspacePickerContext
 } from '../../../shared/dialog'
 import { chromeImportScopeLabelKey } from '../../../shared/chromeImport'
-import type { ChromeImportPolicy, ChromeImportScope } from '../../../shared/chromeImport'
+import type {
+  ChromeImportPolicy,
+  ChromeImportProgress,
+  ChromeImportScope
+} from '../../../shared/chromeImport'
 import {
   normalizeProxyConfig,
   WORKSPACE_NAME_MAX,
@@ -69,9 +73,19 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   const [profileDir, setProfileDir] = useState('')
   const [scopesDraft, setScopesDraft] = useState<ChromeImportScope[]>(['history', 'localStorage'])
   const [policyDraft, setPolicyDraft] = useState<ChromeImportPolicy>('chrome')
-  // 导入加载态（反馈轮三）：提交（keepOpen）即置真——sheet 留显「导入中…」+ 控件
-  // 锁定，直到主进程收到 workspacePickerClose 关窗；60s 兜底自动关防编排异常
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState<ChromeImportProgress | null>(null)
+  useEffect(() => window.api.dialog.onChromeImportProgress(setImportProgress), [])
+  const progressStatus = importing && importProgress && (
+    <span className="picker-import-progress" role="status">
+      {'done' in importProgress
+        ? t(`chromeImport.progress.${importProgress.stage}`, {
+            done: importProgress.done,
+            total: importProgress.total
+          })
+        : t(`chromeImport.progress.${importProgress.stage}`)}
+    </span>
+  )
   // 独立代理草稿（2026-10-15 增量）：预填现值随载荷一次性落定（同重命名草稿
   // 先例，纯 sheet 本地瞬态，不经 effect 同步）；port 用 string 输入态
   const [proxyDraft, setProxyDraft] = useState<ProxyDraft>({
@@ -347,6 +361,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
               ))}
             </div>
             <div className="picker-foot">
+              {progressStatus}
               <button
                 type="button"
                 className="picker-btn"
@@ -386,7 +401,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
   // 逐冲突类型一行（记录类按条数/站点数、IndexedDB 按站点快照数并明示整份替换语义）
   if (context?.kind === 'chrome-import-conflict') {
     return (
-      <div className="picker-body" role="dialog" aria-label={title}>
+      <div className="picker-body picker-body--conflict" role="dialog" aria-label={title}>
         <header className="picker-head">
           <h1 className="picker-title">{t('chromeImport.conflict.title')}</h1>
           <p className="picker-conflict-desc">{t('chromeImport.conflict.baseDesc')}</p>
@@ -435,6 +450,7 @@ export default function WorkspacePickerWindow(): React.JSX.Element {
             </label>
           </div>
           <div className="picker-foot">
+            {progressStatus}
             <button
               type="button"
               className="picker-btn"

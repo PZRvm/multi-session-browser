@@ -2,10 +2,15 @@ import { cp, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ClassicLevel } from 'classic-level'
 import { webContents } from 'electron'
-import type { ChromeImportScopeResult } from '../../../shared/chromeImport'
+import type {
+  ChromeImportPolicy,
+  ChromeImportProgress,
+  ChromeImportScopeResult,
+  ChromeImportStoragePhase
+} from '../../../shared/chromeImport'
 import { t } from '../../i18n'
-import { withLocalStorage } from './localStorageRuntime'
-import { ImportEngineError, type ImportEngine } from './types'
+import { visitLocalStorageSites } from './localStorageRuntime'
+import { ImportEngineError, type ImportEngine, type ImportEngineContext } from './types'
 
 interface PreparedRecord {
   key: string
@@ -93,9 +98,15 @@ async function removeTemp(dir: string): Promise<void> {
   })
 }
 
-export function createChromeSiteDataMerge(deps: {
-  makeTempDir: () => Promise<string>
-}): Omit<ImportEngine<ChromeSiteDataArtifacts>, 'dispose'> {
+export function createChromeSiteDataMerge(deps: { makeTempDir: () => Promise<string> }): {
+  prepare: ImportEngine<ChromeSiteDataArtifacts>['prepare']
+  apply(
+    context: ImportEngineContext,
+    artifacts: ChromeSiteDataArtifacts,
+    policy: ChromeImportPolicy,
+    report?: (progress: ChromeImportProgress) => void
+  ): Promise<ChromeImportScopeResult>
+} {
   return {
     async prepare(context) {
       const sourcePath = join(context.snapshotRoot, context.profileDir, 'Local Storage', 'leveldb')
@@ -150,7 +161,7 @@ export function createChromeSiteDataMerge(deps: {
       }
     },
 
-    async apply({ session }, { sites, unsupported }, policy) {
+    async apply({ session }, { sites, unsupported }, policy, report) {
       const result: ChromeImportScopeResult = {
         scope: 'localStorage',
         unit: 'records',
@@ -172,11 +183,16 @@ export function createChromeSiteDataMerge(deps: {
       const touched = new Map<string, [string, string | null][]>()
       let backupDir: string | undefined
       let retainBackup = false
+      const progressFor = (stage: ChromeImportStoragePhase) => (done: number, total: number) =>
+        report?.({ stage, done, total })
+      const checkingStart = performance.now()
       try {
         session.flushStorageData()
-        await withLocalStorage(session, async (openArea) => {
-          for (const [origin, records] of sites) {
-            const actual = await (await openArea(origin)).read()
+        await visitLocalStorageSites(
+          session,
+          sites,
+          async (origin, records, area) => {
+            const actual = await area.read(records.map(({ key }) => key))
             const writes: PreparedRecord[] = []
             for (const record of records) {
               const { key, incoming, previous } = record
@@ -199,10 +215,12 @@ export function createChromeSiteDataMerge(deps: {
               }
             }
             if (writes.length > 0) pending.set(origin, writes)
-          }
-          if (pending.size === 0) return
-
-          // 精确还原受影响的键。先保存私有备份，进程中断时也能保留原值。
+          },
+          progressFor('checkingStorage')
+        )
+        const checkingMs = Math.round(performance.now() - checkingStart)
+        if (pending.size > 0) {
+          // 全部站点核对后，先持久化原值，再允许任何一个写入任务开始。
           backupDir = await deps.makeTempDir()
           const backup = Array.from(pending, ([origin, writes]) => ({
             origin,
@@ -212,30 +230,41 @@ export function createChromeSiteDataMerge(deps: {
             mode: 0o600,
             flush: true
           })
+        }
 
-          for (const [origin, writes] of pending) {
-            const area = await openArea(origin)
+        const writingStart = performance.now()
+        await visitLocalStorageSites(
+          session,
+          pending,
+          async (origin, writes, area) => {
             touched.set(
               origin,
               writes.map(({ key, previous }) => [key, previous])
             )
             await area.write(writes.map(({ key, incoming }) => [key, incoming]))
-          }
-        })
+          },
+          progressFor('writingStorage')
+        )
         if (touched.size > 0) session.flushStorageData()
+        const writingMs = Math.round(performance.now() - writingStart)
+        console.info(
+          `[chromeImport] localStorage 核对 ${sites.size} 个站点（${checkingMs} ms），写入 ${pending.size} 个站点（${writingMs} ms）`
+        )
         return result
       } catch (error) {
         if (touched.size > 0) {
           try {
-            await withLocalStorage(session, async (openArea) => {
-              for (const [origin, entries] of Array.from(touched).reverse()) {
-                try {
-                  await (await openArea(origin)).restore(entries)
-                } catch {
-                  retainBackup = true
-                }
-              }
-            })
+            await visitLocalStorageSites(
+              session,
+              touched,
+              async (_origin, entries, area) => area.restore(entries),
+              progressFor('rollingBackStorage'),
+              true
+            )
+          } catch {
+            retainBackup = true
+          }
+          try {
             session.flushStorageData()
           } catch {
             retainBackup = true
