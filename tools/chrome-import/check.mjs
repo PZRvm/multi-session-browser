@@ -201,7 +201,7 @@ try {
   await waitFor('选择导入范围', () =>
     picker(() => document.querySelector('#chrome-import-profile') !== null)
   )
-  await picker(() => {
+  await submitPicker(() => {
     for (const input of document.querySelectorAll('input[type=checkbox]')) {
       if (input.checked !== input.parentElement.textContent.includes('IndexedDB')) input.click()
     }
@@ -230,7 +230,7 @@ try {
   await remote(() => {
     globalThis.testResult = null
   })
-  await picker(() => document.querySelector('.picker-btn-primary').click())
+  await submitPicker(() => document.querySelector('.picker-btn-primary').click())
   const result = await waitFor('导入结果', () => remote(() => globalThis.testResult))
   assert.match(result.text, /IndexedDB 导入完成/)
   assert.equal(result.pickerStillOpen, false)
@@ -389,6 +389,16 @@ function picker(fn) {
     (code) => globalThis.testFind()?.webContents.executeJavaScript(code),
     `(${fn.toString()})()`
   )
+}
+
+async function submitPicker(fn) {
+  try {
+    await picker(fn)
+  } catch (error) {
+    // 窗口可能在提交脚本的返回值送达前被销毁。调用方继续断言下一窗口或导入结果。
+    if (!String(error).includes('Render frame was disposed before the request completed'))
+      throw error
+  }
 }
 
 async function waitFor(label, condition) {
