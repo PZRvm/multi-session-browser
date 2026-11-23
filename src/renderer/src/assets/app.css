@@ -2212,14 +2212,6 @@ img.chrome-tab-favicon {
   object-fit: contain;
 }
 
-/* favicon 缺省（about:blank 等未取到图标）时用灰阶占位圆点，不用远程占位图 */
-.chrome-tab-favicon-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--chrome-disabled);
-}
-
 /* 关闭钮：悬停所在 tab 时显现（始终占位，不引发标题回流）；最后一个 tab 禁用 */
 .chrome-tab-close {
   display: inline-flex;
@@ -3489,7 +3481,7 @@ body[data-role='capture-editor'] {
 }
 
 /* 圆形字形（反馈轮一 2026-10-14 用户裁决：椭圆工具 = 单纯圆形）：图集 6.3.4 无
-   Circle 系图标，CSS 字形兜底（.chrome-tab-favicon-dot 先例——非手写 SVG），色随
+   Circle 系图标，CSS 字形兜底（span + border 圆点先例——非手写 SVG），色随
    iconbtn currentColor */
 .chrome-capture-editor-glyph-circle {
   width: 14px;

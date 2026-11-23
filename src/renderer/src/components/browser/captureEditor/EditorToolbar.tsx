@@ -7,7 +7,7 @@
 //
 // 图标注记（反馈轮一 2026-10-14 用户裁决）：椭圆 = **单纯圆形**。@ant-design/icons
 // 6.3.4 图集无任何 Circle 系图标（实现前查证 es/icons 目录），故用 CSS 圆形字形
-//（span + border + border-radius:50%，.chrome-tab-favicon-dot CSS 点先例——非手写
+//（span + border + border-radius:50%，CSS 点字形先例——非手写
 // SVG，不违反「图标统一 @ant-design/icons」单源）；其余工具仍走图集：画笔
 // EditOutlined（铅笔形，反馈轮一新增）、马赛克 BlockOutlined、裁剪 ScissorOutlined。
 

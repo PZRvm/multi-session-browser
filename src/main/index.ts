@@ -1,4 +1,5 @@
 import { registerUpdates } from './updates'
+import { updatePolicy } from './updatePolicy'
 import { createUpdateTestContext } from './updateTestContext'
 import { isExtensionCaptureBusy } from './extensions/shims'
 import { isExtensionSessionUnavailable } from './extensions/runtime/lifecycle'
@@ -160,6 +161,7 @@ let captureFeedbackWindows: CaptureFeedbackWindows | null = null
 // 用户交互时、控制器已就绪），板头齿轮经设置域 open IPC 通道；主窗 closed 钩子经
 // 此引用级联关闭设置窗（whenReady 内创建，此前为 null）
 let settingsWindowController: SettingsWindowController | null = null
+let checkForAppUpdates: ReturnType<typeof registerUpdates> | undefined
 // 截图编辑子窗控制器（截图编辑器增量步骤 3）：单例编辑子窗的创建/聚焦/主窗级联——
 // 宿主 open-editor IPC 与反馈条「编辑」钮两入口都在 registerCaptureIpc 内经此引用
 // 触达（含编辑子窗专属通道的 sender 白名单判据）；主窗 closed 钩子级联关闭、退出前
@@ -244,6 +246,20 @@ function installAppMenu(t: TFunc): void {
               accelerator: 'CmdOrCtrl+,',
               click: () => settingsWindowController?.open()
             },
+            ...(updatePolicy.showHeaderEntry || updatePolicy.showSettingsEntry
+              ? [
+                  {
+                    label: t('updates.check'),
+                    click: (): void => {
+                      if (!checkForAppUpdates) return
+                      if (!mainWindow) createWindow()
+                      void checkForAppUpdates().catch((error: unknown) =>
+                        console.warn('应用菜单检查更新失败:', error)
+                      )
+                    }
+                  }
+                ]
+              : []),
             { type: 'separator' as const },
             { role: 'services' as const, label: t('menu.services') },
             { type: 'separator' as const },
@@ -804,7 +820,7 @@ app.whenReady().then(async () => {
     t,
     tmpDir: join(app.getPath('userData'), 'recording-tmp')
   })
-  registerUpdates({
+  checkForAppUpdates = registerUpdates({
     windows: () =>
       [
         mainWindow,

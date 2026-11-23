@@ -363,9 +363,7 @@ function TabItem({
       ) : tab.faviconUrl ? (
         // favicon 禁止自身成为拖拽源（img 原生可拖会劫持手势），保证整 Tab 拖拽一致
         <img className="chrome-tab-favicon" src={tab.faviconUrl} alt="" draggable={false} />
-      ) : (
-        <span className="chrome-tab-favicon chrome-tab-favicon-dot" />
-      )}
+      ) : null}
       <span className="chrome-tab-title">{title}</span>
       <button
         type="button"
