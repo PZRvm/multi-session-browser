@@ -18,8 +18,9 @@ export function registerUpdates(deps: {
   prepareRelaunch?(version: string): void
   cancelRelaunch?(): void
   showDetails(owner: BrowserWindow, state: UpdateSnapshot): Promise<WorkspacePickerResult>
-}): void {
+}): () => Promise<void> {
   let owner: BrowserWindow | null = null
+  let checkingFromMenu = false
   let confirming = false
   let promptedDownloadRevision = -1
   let notifiedErrorRevision = -1
@@ -250,8 +251,7 @@ export function registerUpdates(deps: {
     trusted(event, args)
     return controller.getState()
   })
-  ipcMain.handle(UPDATE_CHANNELS.details, async (event, ...args) => {
-    const win = trusted(event, args)
+  async function showDetails(win: BrowserWindow): Promise<UpdateSnapshot> {
     const state = controller.getState()
     const version = state.downloadedVersion ?? state.candidateVersion
     if (!version || state.status === 'disabled') return state
@@ -285,7 +285,11 @@ export function registerUpdates(deps: {
     }
     await showFailure(win, after)
     return after
-  })
+  }
+
+  ipcMain.handle(UPDATE_CHANNELS.details, async (event, ...args) =>
+    showDetails(trusted(event, args))
+  )
 
   async function showFailure(win: BrowserWindow, state: UpdateSnapshot): Promise<void> {
     if (!state.error || win.isDestroyed() || notifiedErrorRevision === state.revision) return
@@ -320,4 +324,37 @@ export function registerUpdates(deps: {
     setImmediate(() => {
       void controller.check()
     })
+
+  return async () => {
+    const current = controller.getState()
+    if (
+      checkingFromMenu ||
+      confirming ||
+      ['disabled', 'downloading', 'preparing', 'installing'].includes(current.status)
+    )
+      return
+
+    const windows = deps.windows()
+    const focused = BrowserWindow.getFocusedWindow()
+    const win = focused && windows.includes(focused) ? focused : windows[0]
+    if (!win) return
+
+    checkingFromMenu = true
+    try {
+      const state = current.downloadedVersion ? current : await controller.check()
+      if (win.isDestroyed()) return
+      if (state.error && !state.downloadedVersion) await showFailure(win, state)
+      else if (state.candidateVersion || state.downloadedVersion) await showDetails(win)
+      else if (state.status === 'up-to-date') {
+        await dialog.showMessageBox(win, {
+          type: 'info',
+          icon: dialogIconForDarwin(),
+          message: t('updates.latest'),
+          buttons: [t('updates.ok')]
+        })
+      }
+    } finally {
+      checkingFromMenu = false
+    }
+  }
 }

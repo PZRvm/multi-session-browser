@@ -111,6 +111,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-20-Chrome导入冲突窗口与批量进度.md](changelogs/2026-11/2026-11-20-Chrome导入冲突窗口与批量进度.md) — 修复 Chrome 导入冲突文案重叠，显示站点进度并缩短批量导入时间
 - [2026-11-20-Chrome导入十站点并发.md](changelogs/2026-11/2026-11-20-Chrome导入十站点并发.md) — 将 Chrome localStorage 导入的每阶段并发上限提高到十个站点
 - [2026-11-20-Chrome导入标签回归.md](changelogs/2026-11/2026-11-20-Chrome导入标签回归.md) — 保留 Chrome 导入加载窗口直到会话恢复，避免切换或新建标签时出现未选择会话
+- [2026-11-23-应用菜单检查更新.md](changelogs/2026-11/2026-11-23-应用菜单检查更新.md) — 在 macOS 应用菜单的设置下方加入检查更新入口
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -697,4 +698,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 572 documents -->
+<!-- 573 documents -->
