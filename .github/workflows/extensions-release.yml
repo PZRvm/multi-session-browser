@@ -6,6 +6,11 @@ name: Extensions Release
 # tag 约定 crx-<UTC 时间戳>；应用 v* Release 与本工作流互不干扰。
 on:
   workflow_dispatch:
+    inputs:
+      screenshot_only:
+        description: 仅发布截图插件
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,14 +42,18 @@ jobs:
           RECORDER_PEM_B64: ${{ secrets.RECORDER_PEM_B64 }}
           SCREENSHOT_PEM_B64: ${{ secrets.SCREENSHOT_PEM_B64 }}
         run: |
-          echo "$RECORDER_PEM_B64" | base64 -d > /tmp/recorder.pem
+          if [[ "${{ inputs.screenshot_only }}" != "true" ]]; then
+            echo "$RECORDER_PEM_B64" | base64 -d > /tmp/recorder.pem
+          fi
           echo "$SCREENSHOT_PEM_B64" | base64 -d > /tmp/screenshot.pem
       - name: 现场打包 CRX
         run: |
           mkdir -p dist/crx
-          node tools/extension-preflight/pack-release.mjs extensions/recorder /tmp/recorder.pem dist/crx/recorder.crx
-          node tools/extension-preflight/pack-release.mjs extensions/screenshot /tmp/screenshot.pem dist/crx/screenshot.crx
-          ( cd dist/crx && shasum -a 256 *.crx > SHA256SUMS.txt )
+          if [[ "${{ inputs.screenshot_only }}" != "true" ]]; then
+            node tools/extension-preflight/pack-release.mjs extensions/recorder /tmp/recorder.pem dist/crx/recorder.crx
+          fi
+          node tools/extension-preflight/pack-release.mjs extensions/screenshot /tmp/screenshot.pem dist/crx/screenshot.crx dist/crx/screenshot-chrome.zip
+          ( cd dist/crx && shasum -a 256 *.crx *.zip > SHA256SUMS.txt )
           rm -f /tmp/recorder.pem /tmp/screenshot.pem
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -53,24 +62,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: 发布 Release（非草稿直发）
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="crx-$(date -u +%Y%m%d%H%M)"
-          REC=$(node -e "console.log(JSON.parse(require('fs').readFileSync('extensions/recorder/manifest.json','utf8')).version)")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           SHOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('extensions/screenshot/manifest.json','utf8')).version)")
+          TITLE="多会话截图 v$SHOT"
+          REC_ROW=""
+          if [[ -f dist/crx/recorder.crx ]]; then
+            REC=$(node -e "console.log(JSON.parse(require('fs').readFileSync('extensions/recorder/manifest.json','utf8')).version)")
+            REC_ROW="| 多会话录屏 | $REC | \`recorder.crx\` |"
+            TITLE="多会话插件包 ${TAG#crx-}"
+          fi
           gh release create "$TAG" \
-            dist/crx/recorder.crx dist/crx/screenshot.crx dist/crx/SHA256SUMS.txt \
-            --title "多会话插件包 ${TAG#crx-}" \
+            dist/crx/*.crx dist/crx/*.zip dist/crx/SHA256SUMS.txt \
+            --title "$TITLE" \
+            --target "$GITHUB_SHA" \
             --latest=false \
-            --verify-tag=false \
             --notes "$(cat <<NOTES
           自研插件 CRX 独立发布（CI 现场打包，源码即本工作流检出提交）。
 
           | 插件 | 版本 | 文件 |
           | --- | --- | --- |
-          | 多会话录屏 | ${REC} | \`recorder.crx\` |
           | 多会话截图 | ${SHOT} | \`screenshot.crx\` |
+          $REC_ROW
+
+          截图插件先复制原始 PNG，再在工具栏下方提供下载和编辑入口。编辑器自动完整显示大图。
+          普通 Chrome 157 起支持后台复制。下载并解压 screenshot-chrome.zip，在开发者模式选择「加载已解压的扩展程序」。
+          多会话浏览器使用 screenshot.crx，需配合带截图 Popover 宿主接口的应用，公开版 1.1.11 及更早版本尚未包含该接口。
 
           设置「插件」→「导入插件」选择 .crx 安装，或拖入设置窗；SHA256SUMS.txt 提供校验和。
           同 pem 同 ID：覆盖安装即升级，已装旧版直接导入新版即可。
@@ -79,12 +100,13 @@ jobs:
       - name: 发布对账（字节数与 SHA256 逐文件核对）
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.publish.outputs.tag }}
         run: |
-          TAG=$(gh release list --limit 5 --json tagName --jq '.[] | select(.tagName | startswith("crx-")) | .tagName' | head -1)
           sleep 3
-          for f in recorder.crx screenshot.crx; do
-            LOCAL=$(shasum -a 256 "dist/crx/$f" | awk '{print $1}')
-            REMOTE=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$f\") | .digest")
+          for path in dist/crx/*.crx dist/crx/*.zip dist/crx/SHA256SUMS.txt; do
+            f=$(basename "$path")
+            LOCAL=$(shasum -a 256 "$path" | awk '{print $1}')
+            REMOTE=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$RELEASE_TAG" --jq ".assets[] | select(.name == \"$f\") | .digest")
             test "$REMOTE" = "sha256:$LOCAL" || { echo "校验不一致：$f"; exit 1; }
           done
-          echo "附件对账通过：$TAG"
+          echo "附件对账通过：$RELEASE_TAG"

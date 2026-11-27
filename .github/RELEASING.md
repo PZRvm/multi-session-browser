@@ -71,6 +71,7 @@ EdDSA 用于确认更新包来源，不能消除未公证应用首次安装时�
 ## 插件 CRX 独立发布（与应用发版解耦）
 
 - 触发：Actions 页「Extensions Release」手动运行（workflow_dispatch），或 `gh workflow run extensions-release.yml --ref <分支>`。**与应用 v* Release 互不干扰**——不是每次应用发版都带 CRX。
+- 只发布截图插件时传 `-f screenshot_only=true`。截图 Release 提供宿主导入的 `screenshot.crx` 和普通 Chrome 开发者模式使用的 `screenshot-chrome.zip`，两个包共用正式公钥派生的 ID。
 - 流程：CI 现场打包（`tools/extension-preflight/pack-release.mjs`，CRX2 签名复用 crx.mjs 单源；pem 经 repo Secrets `RECORDER_PEM_B64` / `SCREENSHOT_PEM_B64` 注入临时文件，步末清理）→ 非草稿直发 `crx-<UTC 时间戳>` tag 的独立 Release（附 SHA256SUMS.txt）→ 逐文件 SHA256 对账。
 - ID 稳定：同 pem 同 ID（与 Chrome `--pack-extension` 的 CRX3 同 ID），覆盖安装即升级。
 - 版本语义：CRX 版本读各插件 manifest（如 recorder 0.1.1 / screenshot 0.1.0），与应用 package.json 版本无关；打包脚本在 tools/ 下，不进应用版本的打包输入哈希。

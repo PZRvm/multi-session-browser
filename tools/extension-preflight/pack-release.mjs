@@ -3,7 +3,7 @@
  * 自研插件发布打包（2026-11-13，Release 附件配置化调研定稿：CI 现场打包 + 独立工作流
  * 发布——CRX 与应用版本解耦，不是每次应用发版都带 CRX）。
  *
- * 用法：node tools/extension-preflight/pack-release.mjs <插件源目录> <pem 路径> <输出 .crx>
+ * 用法：node tools/extension-preflight/pack-release.mjs <插件源目录> <pem 路径> <输出 .crx> [Chrome 解包 .zip]
  * 流程：源目录 zip（保留页面引用的 bundle，剔除 dotfiles）→ CRX2 签名（复用 crx.mjs 单源，
  * sha1 头 + pem 公钥——ID 由 pem 派生，与 Chrome --pack-extension 的 CRX3 同 ID，
  * 升级路径兼容）→ inspectCrx 自验（验签 + ID 对账）→ 打印 JSON（id/version/sha256）。
@@ -16,9 +16,9 @@ import { join, relative, dirname } from 'node:path'
 import AdmZip from 'adm-zip'
 import { makeCrx2, inspectCrx, extensionId } from './crx.mjs'
 
-const [srcDir, pemPath, outPath] = process.argv.slice(2)
+const [srcDir, pemPath, outPath, chromeZipPath] = process.argv.slice(2)
 if (!srcDir || !pemPath || !outPath) {
-  throw new Error('用法：node tools/extension-preflight/pack-release.mjs <源目录> <pem> <输出.crx>')
+  throw new Error('用法：node tools/extension-preflight/pack-release.mjs <源目录> <pem> <输出.crx> [解包.zip]')
 }
 
 /** 递归收集相对路径（跳过 dotfiles，保留页面引用的 bundle） */
@@ -54,7 +54,8 @@ const pemText = readFileSync(pemPath, 'utf8')
 const publicKey = createPublicKey(pemText)
 const privateKey = createPrivateKey(pemText)
 // extensionId 收 DER SPKI（与 makeCrx2 头内公钥同形态）
-const expectedId = extensionId(publicKey.export({ type: 'spki', format: 'der' }))
+const publicDer = publicKey.export({ type: 'spki', format: 'der' })
+const expectedId = extensionId(publicDer)
 
 const crx = makeCrx2(zipBuffer, publicKey, privateKey)
 
@@ -71,6 +72,14 @@ if (inspected.manifest.version !== manifest.version) {
 
 mkdirSync(dirname(outPath), { recursive: true })
 writeFileSync(outPath, crx)
+
+if (chromeZipPath) {
+  // 解压后在普通 Chrome 加载，使用正式签名公钥保持扩展 ID。
+  manifest.key = publicDer.toString('base64')
+  zip.updateFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n'))
+  mkdirSync(dirname(chromeZipPath), { recursive: true })
+  writeFileSync(chromeZipPath, zip.toBuffer())
+}
 
 const digest = createHash('sha256').update(crx).digest('hex')
 console.log(
