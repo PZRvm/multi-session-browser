@@ -67,6 +67,20 @@ export const browser = {
     /** 反馈条「编辑」入口钮（最右端，打开截图编辑子窗） */
     edit: '编辑'
   },
+  capturePlugin: {
+    title: '截图结果',
+    download: '下载图片',
+    edit: '编辑图片',
+    copyFailed: '截图已捕获，但未能复制到剪贴板',
+    copyUnavailable: '当前版本不支持后台复制图片',
+    copiedNoActions: '已复制到剪贴板，截图无法载入',
+    expired: '截图不存在或已过期',
+    downloading: '正在下载…',
+    downloaded: '图片已下载',
+    downloadFailed: '下载失败，请重试',
+    openingEditor: '正在打开编辑器…',
+    editorTitle: '截图编辑器'
+  },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
     loadFailed: '截图编辑器加载失败，请重试',

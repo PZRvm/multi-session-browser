@@ -7,12 +7,43 @@ import { existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { CDP } from '../extension-preflight/cdp.mjs'
 import { startSite } from '../extension-preflight/server.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '../..')
 const delay = (ms) => new Promise((ok) => setTimeout(ok, ms))
+const screenshotOnly = process.argv.includes('--screenshot-only')
+const englishEditorLabel = {
+  矩形: 'Rectangle',
+  撤销: 'Undo',
+  重做: 'Redo',
+  文字: 'Text',
+  裁剪: 'Crop',
+  复制到剪贴板: 'Copy to clipboard',
+  下载: 'Download'
+}
+
+async function startScreenshotSite() {
+  const server = createServer((_request, response) => {
+    response.setHeader('content-type', 'text/html; charset=utf-8')
+    response.end(
+      '<!doctype html><title>Screenshot fixture</title><style>' +
+        'html{background:#f4f6fa}body{margin:32px;height:480px;background:linear-gradient(120deg,#c32e5a,#297960)}</style>' +
+        '<script>window.testSite={label:"screenshot"}</script>'
+    )
+  })
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  return {
+    url: 'http://127.0.0.1:' + server.address().port,
+    close: () => new Promise((resolve) => server.close(resolve))
+  }
+}
 
 /** 本机 Chrome for Testing（前置验证下载的官方独立浏览器），可用时优先，不接触日常Chrome */
 function pickChrome() {
@@ -42,7 +73,7 @@ let cdp,
   child,
   site,
   log = ''
-try {
+async function runChecks() {
   // 编辑器 bundle 构建（esbuild 与前置同链路）
   await import(join(root, 'extensions/build.mjs'))
 
@@ -55,6 +86,8 @@ try {
       '--enable-unsafe-extension-debugging',
       '--no-first-run',
       '--no-default-browser-check',
+      '--lang=zh-CN',
+      ...(screenshotOnly ? ['--mute-audio'] : []),
       '--force-device-scale-factor=2',
       'about:blank'
     ],
@@ -81,14 +114,10 @@ try {
   const shotExt = await cdp.send('Extensions.loadUnpacked', {
     path: join(root, 'extensions/screenshot')
   })
-  const recExt = await cdp.send('Extensions.loadUnpacked', {
-    path: join(root, 'extensions/recorder')
-  })
-  const shotUrl = `chrome-extension://${shotExt.id}/`,
-    recUrl = `chrome-extension://${recExt.id}/`
-
-  await record('双插件图标资源与manifest接入', async () => {
-    for (const plugin of ['screenshot', 'recorder']) {
+  const shotUrl = 'chrome-extension://' + shotExt.id + '/'
+  const plugins = screenshotOnly ? ['screenshot'] : ['screenshot', 'recorder']
+  await record('插件图标资源与 manifest 接入', async () => {
+    for (const plugin of plugins) {
       const manifest = JSON.parse(await readFile(join(root, 'extensions', plugin, 'manifest.json')))
       for (const icons of [manifest.icons, manifest.action.default_icon]) {
         assert(icons && Object.keys(icons).length >= 2, '图标缺少多分辨率映射')
@@ -99,13 +128,13 @@ try {
         }
       }
     }
-    return { plugins: 2, designs: 4 }
+    return { plugins: plugins.length, designs: plugins.length * 2 }
   })
 
-  // 测试站点 + 固定视口（控制截图体积，避免storage.local配额压力）。
+  // 使用 Retina 测试视口产生高 DPI 截图。
   // 本 Chrome 中 filter 列表同一标签页出现 tab/page 两个 target：tab 型只用于
   // Extensions.triggerAction；attach/Emulation/evaluate 用 page 型。
-  site = await startSite()
+  site = screenshotOnly ? await startScreenshotSite() : await startSite()
   await cdp.send('Target.createTarget', { url: `${site.url}/?session=A` })
   let tabId, pageTargetId
   for (let i = 0; i < 50; i++) {
@@ -151,7 +180,7 @@ try {
   // ===== 截图插件 =====
   const editorSessions = []
   let expectedExportSize
-  const skipEditor = process.env.PLUGIN_CHECK_SKIP_EDITOR === '1'
+  const skipEditor = !screenshotOnly && process.env.PLUGIN_CHECK_SKIP_EDITOR === '1'
   /** 直接附着 Chrome popup。popup 无浏览器标签栏，但仍保留系统标题栏。 */
   async function attachEditor(urlPrefix, excludeIds) {
     let editorTarget
@@ -173,24 +202,188 @@ try {
     assert(await cdp.evaluate("!!document.querySelector('canvas')", session), '编辑器未挂载画布')
     return { targetId: editorTarget.targetId, session, url: editorTarget.url }
   }
-  if (!skipEditor)
-    await record('截图插件直接打开编辑器且无浮动与PiP', async () => {
-      await cdp.send('Target.activateTarget', { targetId: tabId })
+  const screenshotWorkerErrors = []
+  const screenshotWorkers = new Set()
+  if (!skipEditor) {
+    cdp.socket.on('message', (raw) => {
+      const message = JSON.parse(raw)
+      if (message.method === 'Target.targetCreated') {
+        const info = message.params.targetInfo
+        if (info.type === 'service_worker' && info.url.startsWith(shotUrl)) {
+          void cdp
+            .attach(info.targetId)
+            .then(async (session) => {
+              screenshotWorkers.add(session)
+              await cdp.send('Runtime.enable', {}, session)
+            })
+            .catch(() => undefined)
+        }
+      }
+      if (
+        message.method === 'Runtime.consoleAPICalled' &&
+        screenshotWorkers.has(message.sessionId)
+      ) {
+        screenshotWorkerErrors.push(message.params.args.map((arg) => arg.value ?? arg.description))
+      }
+    })
+    await cdp.send('Target.setDiscoverTargets', { discover: true })
+  }
+
+  async function openScreenshotResult() {
+    const results = (targets) =>
+      targets.filter(
+        (info) => info.type === 'page' && info.url.startsWith(shotUrl + 'result.html?')
+      )
+    const targets = async () => (await cdp.send('Target.getTargets', { filter: [{}] })).targetInfos
+    const alreadyOpen = new Set(results(await targets()).map((info) => info.targetId))
+    await cdp.send('Target.activateTarget', { targetId: tabId })
+    await cdp.send('Page.bringToFront', {}, target)
+    const worker = await attachWorker(shotExt.id)
+    for (let i = 0; i < 45; i++) {
+      if (await cdp.evaluate('!!globalThis.chrome?.windows?.getAll', worker)) break
+      await delay(100)
+    }
+    // 独立编辑窗可能仍在前台。每次重试都先激活实际承载待截标签的普通窗口。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await cdp.evaluate(
+        '(async () => { const [w] = await chrome.windows.getAll({windowTypes:["normal"]}); ' +
+          'const tab = (await chrome.tabs.query({windowId:w.id,active:true}))[0]; ' +
+          'await chrome.windows.update(w.id,{focused:true}); return tab.id })()',
+        worker
+      )
+      await cdp.send('Page.bringToFront', {}, target)
+      await delay(220)
       await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      const attached = await attachEditor(`${shotUrl}editor.html?captureId=`, [])
+      for (let i = 0; i < 35; i++) {
+        const result = results(await targets()).find((info) => !alreadyOpen.has(info.targetId))
+        if (result) {
+          const session = await cdp.attach(result.targetId)
+          for (let tick = 0; tick < 80; tick++) {
+            if (await cdp.evaluate("document.querySelector('#actions')?.hidden === false", session))
+              return { ...result, session }
+            await delay(100)
+          }
+          throw new Error(await cdp.evaluate('document.body.innerText', session))
+        }
+        await delay(100)
+      }
+    }
+    throw new Error('截图结果窗未出现 ' + JSON.stringify(screenshotWorkerErrors))
+  }
+
+  async function expectResultClosed(result) {
+    for (let i = 0; i < 80; i++) {
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      if (!targetInfos.some((info) => info.targetId === result.targetId)) return
+      await delay(100)
+    }
+    throw new Error('截图结果窗未关闭')
+  }
+
+  async function editScreenshotResult(result, excludeIds) {
+    await cdp.evaluate("document.querySelector('#edit').click()", result.session)
+    const attached = await attachEditor(shotUrl + 'editor.html?captureId=', excludeIds)
+    await expectResultClosed(result)
+    return attached
+  }
+
+  if (!skipEditor)
+    await record('截图先复制，结果窗下载原图并按需打开编辑器', async () => {
+      const result = await openScreenshotResult()
+      const params = new URL(result.url).searchParams
+      const captureId = params.get('captureId')
+      assert.equal(params.get('status'), 'copied')
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      assert(!targetInfos.some((info) => info.url.startsWith(shotUrl + 'editor.html')))
+      await cdp.send('Page.bringToFront', {}, result.session)
+      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }, result.session)
+      await cdp.send('Browser.grantPermissions', {
+        origin: shotUrl,
+        permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite']
+      })
+      const contexts = await cdp.evaluate(
+        'chrome.runtime.getContexts({contextTypes:["POPUP"]})',
+        result.session
+      )
+      assert(
+        contexts.some((context) => context.documentUrl === result.url),
+        '截图结果必须是工具栏 Popover'
+      )
+      const popover = await cdp.send('Page.captureScreenshot', { format: 'png' }, result.session)
+      await writeFile(join(output, 'screenshot-popover.png'), Buffer.from(popover.data, 'base64'))
+      const getOriginal = async (id) => {
+        const { loadCapture } = await import(globalThis.chrome.runtime.getURL('capture-store.js'))
+        const original = await loadCapture(id)
+        const clipboard = (await navigator.clipboard.read()).find((item) =>
+          item.types.includes('image/png')
+        )
+        const bitmap = await createImageBitmap(await clipboard.getType('image/png'))
+        const raw = await original.blob.arrayBuffer()
+        const hash = Array.from(
+          new Uint8Array(await crypto.subtle.digest('SHA-256', raw)),
+          (value) => value.toString(16).padStart(2, '0')
+        ).join('')
+        const size = { width: bitmap.width, height: bitmap.height }
+        bitmap.close()
+        return { width: original.width, height: original.height, hash, size }
+      }
+      const source = await cdp.evaluate(
+        '(' + getOriginal.toString() + ')(' + JSON.stringify(captureId) + ')',
+        result.session
+      )
+      assert.deepEqual(source.size, { width: source.width, height: source.height })
+      const priorDownloads = await cdp.evaluate(
+        'chrome.downloads.search({}).then(items => items.map(item => item.id))',
+        result.session
+      )
+      await cdp.evaluate("document.querySelector('#download').click()", result.session)
+      let originalFile
+      for (let i = 0; i < 80; i++) {
+        const item = await cdp.evaluate(
+          'chrome.downloads.search({state:"complete"}).then(items => items.find(item => !' +
+            JSON.stringify(priorDownloads) +
+            '.includes(item.id)))',
+          result.session
+        )
+        if (item) {
+          originalFile = item.filename
+          break
+        }
+        await delay(100)
+      }
+      assert(originalFile, '原始 PNG 下载未完成')
+      assert.equal(
+        createHash('sha256')
+          .update(await readFile(originalFile))
+          .digest('hex'),
+        source.hash
+      )
+      const attached = await editScreenshotResult(result, [])
       editorSessions.push(attached)
       const layout = await cdp.evaluate(
         `(async () => {
         const c = document.querySelector('canvas'), rect = c.getBoundingClientRect()
+        const viewport = document.querySelector('.chrome-capture-editor-canvas').getBoundingClientRect()
         return { type: (await chrome.windows.getCurrent()).type,
           toolsTop: document.querySelector('.chrome-capture-editor-topbar').getBoundingClientRect().top,
           floating: !!document.querySelector('#pip-fallback, .pip-lights'),
           pip: !!window.documentPictureInPicture?.window,
-          canvas: { width: c.width, displayWidth: rect.width, dpr: devicePixelRatio } }
+          canvas: { width: c.width, displayWidth: rect.width, displayHeight: rect.height, dpr: devicePixelRatio },
+          viewport: { width: viewport.width, height: viewport.height } }
       })()`,
         attached.session
       )
-      assert.equal(layout.type, 'popup', '应使用直接编辑的 popup')
+      assert.equal(layout.type, 'popup')
+      assert(layout.canvas.displayWidth <= layout.viewport.width + 1)
+      assert(layout.canvas.displayHeight <= layout.viewport.height + 1)
+      assert(
+        Math.abs(
+          layout.canvas.displayWidth / layout.canvas.displayHeight - source.width / source.height
+        ) < 0.02
+      )
+      assert(
+        layout.canvas.displayWidth < source.width || layout.canvas.displayHeight < source.height
+      )
       assert.equal(layout.toolsTop, 0, '页内工具区应贴顶，无额外空白行')
       assert.equal(layout.floating, false, '不应有浮动入口或仿三灯')
       assert.equal(layout.pip, false, '不应迁移到 PiP')
@@ -201,7 +394,45 @@ try {
       const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }, attached.session)
       await writeFile(join(output, 'editor-popup.png'), Buffer.from(shot.data, 'base64'))
       await writeFile(join(output, 'editor-layout.json'), JSON.stringify(layout, null, 2))
-      return { editorUrl: attached.url, layout, nativeTitleBar: 'Chrome管理，未隐藏' }
+      return { editorUrl: attached.url, source, layout }
+    })
+
+  if (!skipEditor)
+    await record('编辑窗口缩小时继续完整显示大图', async () => {
+      const { session, targetId } = editorSessions[0]
+      const { windowId, bounds } = await cdp.send('Browser.getWindowForTarget', { targetId })
+      const measure = () =>
+        cdp.evaluate(
+          `(() => {
+          const host = document.querySelector('.chrome-capture-editor-canvas')
+          const hostSize = host.getBoundingClientRect()
+          const stage = host.querySelector('canvas').getBoundingClientRect()
+          return { width: hostSize.width, height: hostSize.height, imageWidth: stage.width,
+            imageHeight: stage.height, left: stage.left-hostSize.left, top: stage.top-hostSize.top }
+        })()`,
+          session
+        )
+      const before = await measure()
+      try {
+        await cdp.send('Browser.setWindowBounds', { windowId, bounds: { width: 740, height: 530 } })
+        for (let i = 0; i < 40; i++) {
+          const after = await measure()
+          if (after.width < before.width && after.imageWidth < before.imageWidth) {
+            assert(after.left >= -1 && after.top >= -1)
+            assert(after.left + after.imageWidth <= after.width + 1)
+            assert(after.top + after.imageHeight <= after.height + 1)
+            return { before, after }
+          }
+          await delay(100)
+        }
+        throw new Error('窗口缩小后画布未适配')
+      } finally {
+        await cdp.send('Browser.setWindowBounds', {
+          windowId,
+          bounds: { width: bounds.width, height: bounds.height }
+        })
+        await delay(300)
+      }
     })
 
   if (!skipEditor)
@@ -258,13 +489,13 @@ try {
       const DOC = 'document'
       const click = (label) =>
         evaluate(
-          `(() => { const b = [...${DOC}.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`
+          `(() => { const b = [...${DOC}.querySelectorAll('button')].find(b => ${JSON.stringify([label, englishEditorLabel[label]])}.some(l => b.getAttribute('aria-label') === l || b.textContent === l)); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`
         )
       const canvasData = () =>
         evaluate(`[...${DOC}.querySelectorAll('canvas')].map(c=>c.toDataURL()).join('')`)
       const canUndoRedo = () =>
         evaluate(
-          `(() => { const b = (l) => ${DOC}.querySelector('button[aria-label=' + JSON.stringify(l) + ']'); return { undo: !b('撤销').disabled, redo: !b('重做').disabled } })()`
+          `(() => { const b = (...labels) => [...${DOC}.querySelectorAll('button')].find(button => labels.includes(button.getAttribute('aria-label'))); return { undo: !b('撤销','Undo').disabled, redo: !b('重做','Redo').disabled } })()`
         )
       /** 向画布派发指针事件，坐标按当前显示比例现算。 */
       async function draw(x, y, w, h) {
@@ -380,7 +611,7 @@ try {
       // popup 内操作与读取真实系统剪贴板，不替换复制/下载的实际行为。
       const click = (label) =>
         cdp.evaluate(
-          `(() => { const d = document; const b = [...d.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(label)} || b.textContent === ${JSON.stringify(label)}); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`,
+          `(() => { const d = document; const b = [...d.querySelectorAll('button')].find(b => ${JSON.stringify([label, englishEditorLabel[label]])}.some(l => b.getAttribute('aria-label') === l || b.textContent === l)); if (!b) throw new Error('按钮未找到：' + ${JSON.stringify(label)}); b.click() })()`,
           session
         )
       await click('复制到剪贴板')
@@ -390,7 +621,12 @@ try {
           `(async()=>{try{const items=await navigator.clipboard.read();const blob=await items[0].getType('image/png');const image=await createImageBitmap(blob);return {width:image.width,height:image.height,size:blob.size}}catch{return null}})()`,
           session
         )
-        if (clipboard) break
+        if (
+          clipboard &&
+          Math.abs(clipboard.width - expectedExportSize.width) <= 1 &&
+          Math.abs(clipboard.height - expectedExportSize.height) <= 1
+        )
+          break
         await delay(100)
       }
       const exportError = await cdp.evaluate(
@@ -414,6 +650,7 @@ try {
         'chrome.downloads.search({limit:100})',
         await attachWorker(shotExt.id)
       )
+      const previousIds = new Set(downloadsBefore.map((item) => item.id))
       await click('下载')
       let download
       for (let i = 0; i < 50; i++) {
@@ -421,7 +658,9 @@ try {
           'chrome.downloads.search({limit:100,orderBy:["-startTime"]})',
           await attachWorker(shotExt.id)
         )
-        download = rows.find((v) => v.state === 'complete' && v.mime === 'image/png')
+        download = rows.find(
+          (v) => v.state === 'complete' && v.mime === 'image/png' && !previousIds.has(v.id)
+        )
         if (download) break
         await delay(100)
       }
@@ -442,19 +681,18 @@ try {
       let text = ''
       for (let i = 0; i < 50; i++) {
         text = await cdp.evaluate("document.getElementById('root')?.textContent ?? ''", session)
-        if (text.includes('截图不存在或已过期')) break
+        if (/截图不存在或已过期|The screenshot is missing or has expired/.test(text)) break
         await delay(100)
       }
-      assert(text.includes('截图不存在或已过期'), '过期快照未被拒绝：' + text.slice(0, 200))
+      assert.match(text, /截图不存在或已过期|The screenshot is missing or has expired/)
       await cdp.send('Target.closeTarget', { targetId: stale.targetId })
       return { rejected: true }
     })
   if (!skipEditor)
     await record('第二张截图快照独立', async () => {
-      await cdp.send('Target.activateTarget', { targetId: tabId })
-      await cdp.send('Extensions.triggerAction', { id: shotExt.id, targetId: tabId })
-      const attached = await attachEditor(
-        `${shotUrl}editor.html?captureId=`,
+      const result = await openScreenshotResult()
+      const attached = await editScreenshotResult(
+        result,
         editorSessions.map((s) => s.targetId)
       )
       editorSessions.push(attached)
@@ -467,6 +705,30 @@ try {
       return { second: editorSessions[1].url }
     })
 
+  if (!skipEditor)
+    await record('Esc 关闭结果窗且不打开编辑器', async () => {
+      const result = await openScreenshotResult()
+      await cdp.evaluate(
+        "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))",
+        result.session
+      )
+      await expectResultClosed(result)
+      const { targetInfos } = await cdp.send('Target.getTargets', { filter: [{}] })
+      const editors = targetInfos.filter(
+        (info) => info.type === 'page' && info.url.startsWith(shotUrl + 'editor.html')
+      )
+      assert.equal(editors.length, editorSessions.length)
+    })
+
+  if (screenshotOnly) {
+    assert.equal(pageErrors.length, 0, '测试页有运行时异常：' + pageErrors.join(';'))
+    return
+  }
+
+  const recExt = await cdp.send('Extensions.loadUnpacked', {
+    path: join(root, 'extensions/recorder')
+  })
+  const recUrl = 'chrome-extension://' + recExt.id + '/'
   // ===== 录屏插件 =====
   async function attachWorker(extId) {
     for (let i = 0; i < 40; i++) {
@@ -784,6 +1046,10 @@ try {
   })
 
   assert.equal(pageErrors.length, 0, '测试页有运行时异常：' + pageErrors.join(';'))
+}
+
+try {
+  await runChecks()
 } catch (error) {
   results.fatal = String(error).slice(0, 2000)
   console.error(error)

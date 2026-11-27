@@ -18,6 +18,8 @@ import { dirname, join } from 'node:path'
 import { app, type Session } from 'electron'
 import {
   EXT_SHIM_CAPTURE_TAB,
+  EXT_SHIM_SCREENSHOT_COPY,
+  EXT_SHIM_SCREENSHOT_RESULT,
   EXT_SHIM_CONTEXTS,
   EXT_SHIM_DOWNLOAD,
   EXT_SHIM_OFFSCREEN_CREATE,
@@ -188,6 +190,10 @@ function __msbExposeShimBridge() {
       return unwrap(result, 'CAPTURE_FAILED').dataUrl
     },
     download: downloadWithMeta,
+    captureAndCopy: async (token, windowId, tabId) =>
+      unwrap(await invokeShim('${EXT_SHIM_SCREENSHOT_COPY}', { token, windowId, tabId }), 'CAPTURE_FAILED'),
+    showScreenshotResult: async (token, params) =>
+      unwrap(await invokeShim('${EXT_SHIM_SCREENSHOT_RESULT}', { token, ...params }), 'RESULT_FAILED'),
     tabStream: async () =>
       unwrap(await invokeShim('${EXT_SHIM_TAB_STREAM}', {}), 'TAB_CAPTURE_FAILED').streamId,
     contexts: async () => {

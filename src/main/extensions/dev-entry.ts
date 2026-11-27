@@ -58,26 +58,13 @@ export interface ExtensionsHandle {
 let handle: ExtensionsHandle | undefined
 const restartNotifiedSessions = new WeakSet<Session>()
 
-/** 库 windows.create 需宿主 impl.createWindow（缺省抛 "createWindow is not implemented"）。
- *  自研截图插件编辑器窗经 SW 内 chrome.windows.create 走此链。宿主默认实现：按扩展 ID
- *  反查挂载会话，建 BrowserWindow 加载 chrome-extension:// URL（会话级 guarded preload
- *  自动生效，编辑器页拿到 shim 完备的 chrome）。返回 window 供引擎纳入 window 表面。 */
-function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow> {
-  const d = details as { url?: unknown; width?: unknown; height?: unknown; type?: unknown }
+/** 扩展窗口使用请求所属的原生会话，避免未打包扩展在多个分区共用 ID 时取错分区。 */
+async function createExtensionWindow(session: Session, details: unknown): Promise<BrowserWindow> {
+  assertExtensionSessionLive(session)
+  const d = details as { url?: unknown; width?: unknown; height?: unknown }
   const url = typeof d?.url === 'string' ? d.url : ''
   const extId = /^chrome-extension:\/\/([a-p]{32})\//.exec(url)?.[1]
-  if (!extId) return Promise.reject(new Error('INVALID_EXTENSION_URL'))
-  const h = handle
-  let session: Session | undefined
-  if (h) {
-    for (const s of h.mounted.values()) {
-      if (s.extensions.getExtension(extId)) {
-        session = s
-        break
-      }
-    }
-  }
-  if (!session) return Promise.reject(new Error('EXTENSION_NOT_MOUNTED'))
+  if (!extId || !session.extensions.getExtension(extId)) throw new Error('INVALID_EXTENSION_URL')
   const width = typeof d.width === 'number' ? Math.min(Math.max(d.width, 200), 2000) : 800
   const height = typeof d.height === 'number' ? Math.min(Math.max(d.height, 150), 1600) : 600
   const win = new BrowserWindow({
@@ -93,12 +80,15 @@ function createExtensionWindow(details: unknown): Promise<Electron.BrowserWindow
   win.once('ready-to-show', () => {
     if (!win.isDestroyed() && !process.argv.includes('--agent-debug')) win.show()
   })
-  win.loadURL(url).catch((error) => {
-    // 加载失败（目标文件缺失等）销毁空窗并留痕，不留 unhandled rejection（审查清单 2.6）
-    console.warn('[extensions] 扩展窗加载失败:', url.slice(0, 60), String(error).slice(0, 120))
+  try {
+    await win.loadURL(url)
+    assertExtensionSessionLive(session)
+    if (win.isDestroyed()) throw new Error('EXTENSION_WINDOW_CLOSED')
+    return win
+  } catch (error) {
     if (!win.isDestroyed()) win.destroy()
-  })
-  return Promise.resolve(win)
+    throw error
+  }
 }
 
 /** 库的 options/welcome 页保留在来源分区；不借用当前激活会话。 */
@@ -143,10 +133,8 @@ export function getExtensionsHandle(engineOptions?: EngineOptions): ExtensionsHa
         createTabForSession: createExtensionTab,
         manifest: createManifestStore(paths.manifestFile),
         packagesRoot: paths.packagesRoot,
-        engineOptions: {
-          createWindow: createExtensionWindow,
-          ...engineOptions
-        }
+        createWindowForSession: createExtensionWindow,
+        engineOptions
       }),
       paths,
       mounted: new Map(),

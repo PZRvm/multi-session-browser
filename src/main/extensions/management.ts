@@ -31,6 +31,7 @@ import {
 import { isValidExtensionId } from './install/manifest-store'
 import { getCurrentLanguage, onMainLanguageChanged } from '../i18n'
 import { isUsableExtensionName, resolveLocalizedName } from './localizedName'
+import { authorizeScreenshotAction } from './shims'
 
 export interface ManagementDeps {
   getStoreTheme(): StorePageTheme
@@ -314,50 +315,25 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
     activePopup.id = ''
     if (w && !w.isDestroyed()) destroy ? w.destroy() : w.close()
   }
-  const openExtensionPopup = async (
+  const presentActionPopup = (
     sender: WebContents,
-    extensionId: string,
-    anchor: { x: number; y: number }
-  ): Promise<{ ok: boolean; error?: string }> => {
-    const target = deps.getPopupTarget(sender)
-    if (!target || target.wc.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
-    const { win: mainWin, wc, partition } = target
-    const engine = handle.runtime.getEngine(partition)
-    // 面板传安装 ID；实际加载 ID 是分区副本路径派生 ID（多分区隔离），先重映射
-    const loadedId = await handle.runtime.resolveLoadedId(partition, extensionId)
-    if (!engine || !loadedId || !wc.session.extensions.getExtension(loadedId))
-      return { ok: false, error: 'EXTENSION_NOT_LOADED' }
-    engine.addTab(wc, mainWin)
-    engine.selectTab(wc)
-    // 同插件重复点击 = 关闭（Chrome 切换语义）
-    if (
-      activePopup.win &&
-      !activePopup.win.isDestroyed() &&
-      activePopup.id === extensionId &&
-      activePopup.win.getParentWindow() === mainWin
-    ) {
-      closeActivePopup()
-      return { ok: true }
+    {
+      mainWin,
+      wc,
+      extensionId,
+      loadedId,
+      anchor,
+      popupPath
+    }: {
+      mainWin: BrowserWindow
+      wc: WebContents
+      extensionId: string
+      loadedId: string
+      anchor: { x: number; y: number }
+      popupPath: string
     }
+  ): void => {
     closeActivePopup()
-    const popupPath = readPopupPath(extensionId)
-    if (!popupPath) {
-      // popup-less 插件（自研截图）：派发 chrome.action.onClicked（引擎
-      // activateBrowserAction 无 popup 分支同构——tabDetails 供 SW 组装截图目标）。
-      // tabDetailsCache 被导航失效删除后 getTabDetails 会按当前 URL 重建。
-      const ctx = (
-        engine as unknown as {
-          ctx?: {
-            store?: { getTabDetails?: (wc: Electron.WebContents) => unknown }
-            router?: { sendEvent: (id: string, event: string, ...args: unknown[]) => void }
-          }
-        }
-      ).ctx
-      const details = ctx?.store?.getTabDetails?.(wc) ?? { id: wc.id, windowId: mainWin.id }
-      if (!ctx?.router) return { ok: false, error: 'NO_ACTION_DISPATCH' }
-      ctx.router.sendEvent(loadedId, 'browserAction.onClicked', details)
-      return { ok: true }
-    }
     const session = wc.session
     const url = `chrome-extension://${loadedId}/${popupPath.replace(/^\//, '')}`
     const win = new BrowserWindow({
@@ -443,6 +419,77 @@ export function registerExtensionsManagement(deps: ManagementDeps): void {
       }
     })
     void win.loadURL(url).catch(() => closeThisPopup())
+  }
+  let popupRequest = 0
+  const openExtensionPopup = async (
+    sender: WebContents,
+    extensionId: string,
+    anchor: { x: number; y: number }
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const request = ++popupRequest
+    const target = deps.getPopupTarget(sender)
+    if (!target || target.wc.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    const { win: mainWin, wc, partition } = target
+    const engine = handle.runtime.getEngine(partition)
+    // 面板传安装 ID；实际加载 ID 是分区副本路径派生 ID（多分区隔离），先重映射
+    const loadedId = await handle.runtime.resolveLoadedId(partition, extensionId)
+    if (!engine || !loadedId || !wc.session.extensions.getExtension(loadedId))
+      return { ok: false, error: 'EXTENSION_NOT_LOADED' }
+    if (request !== popupRequest || wc.isDestroyed() || mainWin.isDestroyed())
+      return { ok: false, error: 'NO_ACTIVE_TAB' }
+    engine.addTab(wc, mainWin)
+    engine.selectTab(wc)
+    // 同插件重复点击 = 关闭（Chrome 切换语义）
+    if (
+      activePopup.win &&
+      !activePopup.win.isDestroyed() &&
+      activePopup.id === extensionId &&
+      activePopup.win.getParentWindow() === mainWin
+    ) {
+      closeActivePopup()
+      return { ok: true }
+    }
+    closeActivePopup()
+    const popupPath = readPopupPath(extensionId)
+    if (!popupPath) {
+      // popup-less 插件（自研截图）：派发 chrome.action.onClicked（引擎
+      // activateBrowserAction 无 popup 分支同构——tabDetails 供 SW 组装截图目标）。
+      // tabDetailsCache 被导航失效删除后 getTabDetails 会按当前 URL 重建。
+      const ctx = (
+        engine as unknown as {
+          ctx?: {
+            store?: { getTabDetails?: (wc: Electron.WebContents) => unknown }
+            router?: { sendEvent: (id: string, event: string, ...args: unknown[]) => void }
+          }
+        }
+      ).ctx
+      const details = ctx?.store?.getTabDetails?.(wc) ?? { id: wc.id, windowId: mainWin.id }
+      if (!ctx?.router) return { ok: false, error: 'NO_ACTION_DISPATCH' }
+      if (wc.isDestroyed() || mainWin.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+      const isCurrent = (): boolean => {
+        if (sender.isDestroyed() || mainWin.isDestroyed()) return false
+        const current = deps.getPopupTarget(sender)
+        return current?.win === mainWin && current.wc === wc
+      }
+      const token = authorizeScreenshotAction(loadedId, mainWin.id, wc, isCurrent, (params) => {
+        if (request !== popupRequest || !isCurrent()) return
+        presentActionPopup(sender, {
+          mainWin,
+          wc,
+          extensionId,
+          loadedId,
+          anchor,
+          popupPath: 'result.html?' + params
+        })
+      })
+      ctx.router.sendEvent(
+        loadedId,
+        'browserAction.onClicked',
+        token ? { ...(details as object), msbScreenshotAction: token } : details
+      )
+      return { ok: true }
+    }
+    presentActionPopup(sender, { mainWin, wc, extensionId, loadedId, anchor, popupPath })
     return { ok: true }
   }
   ipcMain.handle(

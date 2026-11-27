@@ -1,0 +1,70 @@
+:root {
+  color-scheme: light dark;
+  font:
+    13px system-ui,
+    sans-serif;
+  background: #ffffff;
+  color: #24262a;
+  --button-background: #fff;
+  --button-hover: #e8eef5;
+  --button-border: #abb4be;
+  --focus: #315e92;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    background: #1e2126;
+    color: #eceef1;
+    --button-background: #202124;
+    --button-hover: #383f49;
+    --button-border: #747c88;
+    --focus: #a8c7fa;
+  }
+}
+
+body {
+  margin: 0;
+  width: 300px;
+}
+
+main {
+  box-sizing: border-box;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+#actions:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  background: var(--button-background);
+}
+
+button:not(:disabled):hover {
+  background: var(--button-hover);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.65;
+}

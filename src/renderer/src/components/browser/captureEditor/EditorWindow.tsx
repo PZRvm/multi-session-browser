@@ -6,7 +6,7 @@
 // 取图和产出后的续编均读取本窗绑定快照；新截图由其他编辑窗承载。
 // 每次成功产出后重取本窗成品，标注已烘焙故重置历史，窗口保留可继续编辑。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CopyOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { CaptureEditImagePayload } from '../../../../../shared/capture'
 import { DICTIONARIES, createT, type DictKey } from '../../../../../shared/i18n'
@@ -80,9 +80,15 @@ function initialHistoryOf(payload: CaptureEditImagePayload): EditorHistory {
 interface EditorWindowProps {
   /** 插件开启滚轮缩放；原生编辑窗保持现有交互。 */
   wheelZoom?: boolean
+  fitCanvas?: boolean
+  onLoad?: (loaded: boolean) => void
 }
 
-function EditorWindow({ wheelZoom = false }: EditorWindowProps): React.JSX.Element {
+function EditorWindow({
+  wheelZoom = false,
+  fitCanvas = false,
+  onLoad
+}: EditorWindowProps): React.JSX.Element {
   const t = useT()
 
   // 建窗 query 的显示缩放系数（主进程按图幅与工作区现算，只缩不放）；缺省/非法
@@ -92,7 +98,8 @@ function EditorWindow({ wheelZoom = false }: EditorWindowProps): React.JSX.Eleme
     return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 1) : 1
   }, [])
   const [zoom, setZoom] = useState(1)
-  const scale = baseScale * zoom
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null)
+  const reportedLoad = useRef(false)
   const canvasHostRef = useRef<HTMLElement | null>(null)
 
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -157,6 +164,36 @@ function EditorWindow({ wheelZoom = false }: EditorWindowProps): React.JSX.Eleme
   }, [])
 
   const view = history?.present.view ?? null
+  const fitScale =
+    fitCanvas && view && canvasSize
+      ? Math.min(baseScale, canvasSize.width / view.width, canvasSize.height / view.height)
+      : baseScale
+  const scale = fitScale * zoom
+  const canvasReady = !!image && (!fitCanvas || !!canvasSize)
+
+  useLayoutEffect(() => {
+    const host = canvasHostRef.current
+    if (!fitCanvas || !host) return
+    const measure = (): void => {
+      // 手动放大出现滚动条时，保持适配基准不受滚动条反向影响。
+      const { width, height } = host.getBoundingClientRect()
+      if (width <= 0 || height <= 0) return
+      setCanvasSize((current) =>
+        current?.width === width && current.height === height ? current : { width, height }
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [fitCanvas, image])
+
+  useEffect(() => {
+    if (!onLoad || reportedLoad.current || (!canvasReady && !loadError)) return
+    reportedLoad.current = true
+    onLoad(canvasReady)
+  }, [canvasReady, loadError, onLoad])
+
   const annotations: Annotation[] = history?.present.annotations ?? []
   const canUndo = (history?.past.length ?? 0) > 0
   const canRedo = (history?.future.length ?? 0) > 0
@@ -370,23 +407,25 @@ function EditorWindow({ wheelZoom = false }: EditorWindowProps): React.JSX.Eleme
       )}
       <main className="chrome-capture-editor-canvas" ref={canvasHostRef}>
         {/* key=captureId：产出成功续编后重挂清 Stage 内部草稿/选区/文本编辑态 */}
-        <AnnotationStage
-          key={captureId ?? 'boot'}
-          ref={stageHandleRef}
-          image={image}
-          view={view}
-          scale={scale}
-          tool={tool}
-          mosaicMode={mosaicMode}
-          weightIndex={weightIndex}
-          color={color}
-          fontSizeIndex={fontSizeIndex}
-          annotations={annotations}
-          onAnnotationsChange={handleAnnotationsChange}
-          onCropConfirm={handleCropConfirm}
-          onCropExit={() => setTool('rectangle')}
-          onCropStackChange={handleCropStackChange}
-        />
+        {canvasReady && (
+          <AnnotationStage
+            key={captureId ?? 'boot'}
+            ref={stageHandleRef}
+            image={image}
+            view={view}
+            scale={scale}
+            tool={tool}
+            mosaicMode={mosaicMode}
+            weightIndex={weightIndex}
+            color={color}
+            fontSizeIndex={fontSizeIndex}
+            annotations={annotations}
+            onAnnotationsChange={handleAnnotationsChange}
+            onCropConfirm={handleCropConfirm}
+            onCropExit={() => setTool('rectangle')}
+            onCropStackChange={handleCropStackChange}
+          />
+        )}
       </main>
     </div>
   )

@@ -112,6 +112,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-20-Chrome导入十站点并发.md](changelogs/2026-11/2026-11-20-Chrome导入十站点并发.md) — 将 Chrome localStorage 导入的每阶段并发上限提高到十个站点
 - [2026-11-20-Chrome导入标签回归.md](changelogs/2026-11/2026-11-20-Chrome导入标签回归.md) — 保留 Chrome 导入加载窗口直到会话恢复，避免切换或新建标签时出现未选择会话
 - [2026-11-23-应用菜单检查更新.md](changelogs/2026-11/2026-11-23-应用菜单检查更新.md) — 在 macOS 应用菜单的设置下方加入检查更新入口
+- [2026-11-27-截图插件工具栏Popover.md](changelogs/2026-11/2026-11-27-截图插件工具栏Popover.md) — 截图插件先复制 PNG，再在工具栏提供下载和编辑入口，编辑窗自动完整显示大图
 - [20261110-修复录屏并补验插件前置.md](changelogs/2026-11/20261110-修复录屏并补验插件前置.md) — 修复奇数采集尺寸和分块Promise，补齐Mac插件商店编辑器及音频证据，保持整体前置未准入
 - [20261110-升级Electron与独立React图标修复.md](changelogs/2026-11/20261110-升级Electron与独立React图标修复.md) — 工作树内升级Electron42并增加独立React图标fork和双端验证，记录原录屏解码遗留
 - [20261110-统一BoCode计划与清理旧技能.md](changelogs/2026-11/20261110-统一BoCode计划与清理旧技能.md) — 按真实验证更新插件计划Todo并统一BoCode流程，删除两项项目级旧计划技能
@@ -159,6 +160,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [ADR-009-history-favicon-cache.md](docs/decisions/ADR-009-history-favicon-cache.md) — 历史建议图标由主进程沿会话Session获取，分区内缓存，子窗仅显示图片数据
 - [ADR-010-devtools-host-compatibility.md](docs/decisions/ADR-010-devtools-host-compatibility.md) — 用户允许用官方DevTools加宿主兼容层修复浮动设备模拟，内部布局桥只开放给可信工具主frame
 - [ADR-011-store-page-install.md](docs/decisions/ADR-011-store-page-install.md) — 官方商店详情使用隔离世界自有按钮，远程安装请求只经受限桥进入统一事务
+- [ADR-012-截图插件单次点击授权.md](docs/decisions/ADR-012-截图插件单次点击授权.md) — Electron 截图插件的后台复制和工具栏结果共用一次点击授权，来源绑定到实际标签和会话分区
 - [README.md](docs/decisions/README.md) — How to write an ADR here — sections, naming, numbering, and when a decision needs a record
 
 ### docs/design/
@@ -415,6 +417,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-19-导入完成要等待会话恢复快照.md](notes/learn/2026-11/2026-11-19-导入完成要等待会话恢复快照.md) — 导入返回早于活跃会话快照时，即使数据已写入，历史也可能重拉失败
 - [2026-11-20-Chromium-IndexedDB关库与格式字段.md](notes/learn/2026-11/2026-11-20-Chromium-IndexedDB关库与格式字段.md) — 说明 Chromium IndexedDB 后端关库与文件级替换的顺序，以及两个独立的版本键
 - [2026-11-20-站点导入计数与串行耗时.md](notes/learn/2026-11/2026-11-20-站点导入计数与串行耗时.md) — 用全量来源计数与临时页面导航次数定位 Chrome localStorage 导入耗时
+- [2026-11-27-截图插件后台复制与工具栏Popover.md](notes/learn/2026-11/2026-11-27-截图插件后台复制与工具栏Popover.md) — 普通 Chrome 和 Electron 的截图插件后台可写真实 PNG，工具栏 Popover 需要活跃的来源窗口
 - [20261106-地址栏路由使用编辑原文.md](notes/learn/2026-11/20261106-地址栏路由使用编辑原文.md) — 自动历史后缀不应改变默认搜索路由，待导航文本则必须纳入编辑快照
 - [20261106-网址分类要在实际渲染端复验.md](notes/learn/2026-11/20261106-网址分类要在实际渲染端复验.md) — Electron 39 渲染端与 Node URL 对主机空格的接受规则不同，纯 Node 样例通过不能代替真实地址栏验证
 - [20261106131016-独立窗口合并回主窗口.md](notes/learn/2026-11/20261106131016-独立窗口合并回主窗口.md) — "独立窗口合并回主窗口 功能调研报告"
@@ -566,6 +569,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-20-Chrome导入十站点并发验收.md](notes/summary/2026-11/2026-11-20-Chrome导入十站点并发验收.md) — 比较 Chrome localStorage 导入的四路与十路并发耗时，记录并发峰值和失败恢复
 - [2026-11-20-Chrome导入标签回归验收.md](notes/summary/2026-11/2026-11-20-Chrome导入标签回归验收.md) — Chrome 无冲突或冲突导入都在恢复标签后关闭原生加载窗口，结果框显示跳过条数和站点数
 - [2026-11-20-IndexedDB导入兼容与覆盖验收.md](notes/summary/2026-11/2026-11-20-IndexedDB导入兼容与覆盖验收.md) — 记录 Chromium 156 IndexedDB 快照的兼容修复、精确关库和真实 Electron 回归
+- [2026-11-27-截图插件工具栏Popover.md](notes/summary/2026-11/2026-11-27-截图插件工具栏Popover.md) — 截图插件改成先复制再显示工具栏 Popover，macOS 已验证两端和同 ID CRX 升级
 - [20261103232809-阶段验收.md](notes/summary/2026-11/20261103232809-阶段验收.md) — "截图编辑多窗口修复开发计划的阶段验收"
 - [20261104005204-阶段验收.md](notes/summary/2026-11/20261104005204-阶段验收.md) — "截图编辑多窗口修复审查的阶段验收"
 - [20261106132247-阶段验收.md](notes/summary/2026-11/20261106132247-阶段验收.md) — "独立窗口合并回主窗口开发计划的阶段验收"
@@ -634,6 +638,7 @@ description: Master index of the book — the map of every document. Regenerate 
 - [2026-11-20-Chrome导入冲突窗口与批量进度.md](plans/2026-11-20-Chrome导入冲突窗口与批量进度.md) — 修复导入冲突文字重叠，缩短多站点 localStorage 导入并显示实际进度
 - [2026-11-20-Chrome导入十站点并发.md](plans/2026-11-20-Chrome导入十站点并发.md) — 将 Chrome localStorage 导入的每阶段并发上限由 4 个站点提高至 10 个，并复测批量导入与还原
 - [2026-11-20-Chrome导入标签回归.md](plans/2026-11-20-Chrome导入标签回归.md) — 导入写入与会话恢复期间保留原生加载窗口，并验证标签操作和 IndexedDB 兼容边界
+- [2026-11-27-截图插件结果弹窗与编辑器适配.md](plans/2026-11-27-截图插件结果弹窗与编辑器适配.md) — 截图插件先复制原图再从工具栏弹出下载和编辑入口，编辑器扩大默认窗口并在打开时完整显示大图
 - [20260910183402-阶段1会话持久化开发计划.md](plans/20260910183402-阶段1会话持久化开发计划.md) — "阶段 1 开发计划：会话持久化"
 - [20260910211644-阶段2浏览器内嵌开发计划.md](plans/20260910211644-阶段2浏览器内嵌开发计划.md) — "阶段 2 开发计划：浏览器内嵌（右侧浏览器基础功能）"
 - [20260911014828-阶段3开发者模式对接开发计划.md](plans/20260911014828-阶段3开发者模式对接开发计划.md) — "阶段 3 开发计划：开发者模式对接（chrome 开发者工具）"
@@ -699,4 +704,4 @@ description: Master index of the book — the map of every document. Regenerate 
 - [20261112-自研插件宿主集成.md](plans/20261112-自研插件宿主集成.md) — 自研截图/录屏插件宿主内功能打通——库缺的五个核心 API（captureVisibleTab/tabCapture/offscreen/getContexts/tab源授流）由宿主 shim 层补齐
 - [README.md](plans/README.md) — Plans directory usage — implementation plans land here after Phase 2 approval, with naming and the plan template
 
-<!-- 574 documents -->
+<!-- 579 documents -->

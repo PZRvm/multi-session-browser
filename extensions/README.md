@@ -6,10 +6,10 @@
 
 ## 截图插件（screenshot/）
 
-- `background.js`：action 点击 → `tabs.captureVisibleTab` → 快照入库（captureId 绑定）→ 以独立 popup 打开编辑器。普通 Chrome 仍保留系统标题栏与原生红绿灯；扩展 API 不能隐藏系统标题栏或移动原生按钮。按来源页 CSS 宽度与截图像素宽度计算初始比例，保持页面文字大小，超出窗口的内容滚动查看。
-- `editor.html` + `src/editor-entry.tsx`：复用生产 `EditorWindow` 全套编辑器；适配器只实现 `getEditImage/editCopy/editDownload`（快照绑定本窗 captureId，过期拒绝），复制走 Clipboard API，下载走 `chrome.downloads`。
-- 视觉主题：`plugin-theme.css` 雾蓝配色，直接编辑，不再提供「浮动」按钮、Document PiP 或仿三灯。画布区 Ctrl/⌘+滚轮缩放为初始比例的 0.25–4 倍，由 Konva 重绘，普通滚轮滚动；不用 CSS 放大低分辨率位图。
-- 构建产物 `out/` 不入库（仓库已忽略out），构建命令：`node extensions/build.mjs`（esbuild，与前置验证同链路）。
+- 点击工具栏图标即截取当前标签可视区并复制原始 PNG。结果在工具栏 Popover 提供「下载图片」「编辑图片」。按 Esc 或点击外部可关闭结果。
+- 普通 Chrome 157 起支持后台复制 PNG。Chrome 127–156 会提示后台复制不可用，仍可下载和编辑。本应用使用支持截图 Popover 的宿主版本。
+- 下载保存原始 PNG。编辑打开独立窗口，目标尺寸为 1440 × 960，受屏幕工作区限制。首屏完整显示原图，Ctrl/⌘+滚轮调整预览比例，标注与导出使用图像像素坐标。
+- `node extensions/build.mjs` 构建编辑器和结果页。Chrome 截图回归独立运行 `node tools/plugin-preflight/check-plugins.mjs --screenshot-only`。
 
 ## 录屏插件（recorder/）
 
@@ -33,4 +33,4 @@
 
 ## 验证
 
-Chrome 真机检查：`node tools/plugin-preflight/check-plugins.mjs`（详见该目录）。前置验证工具链（CDP/测试站点/媒体校验）复用 `tools/extension-preflight/` 现有模块，不修改其源码。
+单独验证录屏时，开始前先静音专用测试标签页。前置验证工具链（CDP/测试站点/媒体校验）复用 `tools/extension-preflight/` 现有模块，不修改其源码。

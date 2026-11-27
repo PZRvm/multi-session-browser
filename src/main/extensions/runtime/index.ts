@@ -40,6 +40,7 @@ export interface EngineOptions {
 }
 
 export interface RuntimeDeps {
+  createWindowForSession?: (session: Session, details: unknown) => Promise<BaseWindow>
   createTabForSession?: (session: Session, details: unknown) => Promise<[WebContents, BaseWindow]>
   manifest: ManifestStore
   packagesRoot: string
@@ -125,6 +126,9 @@ export function createExtensionRuntime(deps: RuntimeDeps): ExtensionRuntime {
         const options = {
           session,
           ...deps.engineOptions,
+          ...(deps.createWindowForSession && !deps.engineOptions?.createWindow
+            ? { createWindow: (details: unknown) => deps.createWindowForSession!(session, details) }
+            : {}),
           ...(deps.createTabForSession && !deps.engineOptions?.createTab
             ? { createTab: (details: unknown) => deps.createTabForSession!(session, details) }
             : {})

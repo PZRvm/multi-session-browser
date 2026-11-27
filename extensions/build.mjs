@@ -11,16 +11,21 @@ const assets = join(here, 'screenshot/out')
 await mkdir(assets, { recursive: true })
 const esbuild = createRequire(join(root, 'package.json'))('esbuild')
 await esbuild.build({
-  entryPoints: [join(here, 'screenshot/src/editor-entry.tsx')],
+  entryPoints: {
+    editor: join(here, 'screenshot/src/editor-entry.tsx'),
+    result: join(here, 'screenshot/src/result-entry.ts')
+  },
   bundle: true,
   platform: 'browser',
   format: 'esm',
   jsx: 'automatic',
   define: { 'process.env.NODE_ENV': '"development"' },
-  outfile: join(assets, 'editor.js')
+  outdir: assets
 })
 await cp(join(root, 'src/renderer/src/assets/app.css'), join(assets, 'editor.css'))
 // 入口自检：产物存在且非空
-const js = await readFile(join(assets, 'editor.js'), 'utf8')
-if (js.length < 1000) throw new Error('编辑器bundle异常过小')
+for (const file of ['editor.js', 'result.js']) {
+  const js = await readFile(join(assets, file), 'utf8')
+  if (js.length < 1000) throw new Error('截图插件构建文件异常过小: ' + file)
+}
 console.log('截图插件编辑器bundle已构建：extensions/screenshot/out/')

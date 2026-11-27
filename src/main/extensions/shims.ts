@@ -34,7 +34,8 @@ import { assertUpdateWritable, isUpdatePreparing, trackUpdateWork } from '../upd
  * 加载进绑定会话才受理。payload 的 extId 不参与授权；普通网页即使获得 IPC 传输
  * 或自报合法扩展 ID 也不能通过。
  */
-import { app, BrowserWindow, ipcMain, webContents } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, ipcMain, webContents } from 'electron'
+import { getCurrentLanguage } from '../i18n'
 import type { SessionProxyEngine } from '../browser/proxy'
 import { createManifestStore } from './install/manifest-store'
 import { randomUUID } from 'node:crypto'
@@ -43,6 +44,8 @@ import { writeFile } from 'node:fs/promises'
 import type { Session, WebContents } from 'electron'
 
 export const EXT_SHIM_CAPTURE_TAB = 'msb-ext-shim-capture-visible-tab'
+export const EXT_SHIM_SCREENSHOT_COPY = 'msb-ext-shim-screenshot-copy'
+export const EXT_SHIM_SCREENSHOT_RESULT = 'msb-ext-shim-screenshot-result'
 export const EXT_SHIM_DOWNLOAD = 'msb-ext-shim-download'
 export const EXT_SHIM_TAB_STREAM = 'msb-ext-shim-tab-stream'
 export const EXT_SHIM_OFFSCREEN_CREATE = 'msb-ext-shim-offscreen-create'
@@ -113,34 +116,162 @@ function resolveExtensionId(event: ShimEvent, session: Session | undefined): str
 type ShimEvent = Electron.IpcMainInvokeEvent | Electron.IpcMainServiceWorkerInvokeEvent
 type ShimImpl = (event: ShimEvent, payload: unknown, session?: Session) => unknown
 
+async function capturePagePng(page: WebContents): Promise<Uint8Array<ArrayBuffer>> {
+  // 隐藏窗或首帧未合成时 capturePage 可能暂时返回空图。
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (page.isDestroyed()) throw new Error('NO_ACTIVE_TAB')
+    try {
+      const image = await page.capturePage(undefined, { stayHidden: true, stayAwake: true })
+      if (!image.isEmpty()) return new Uint8Array(image.toPNG())
+    } catch {
+      if (attempt === 2) break
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    }
+  }
+  throw new Error('CAPTURE_FAILED')
+}
+
 const captureImpl: ShimImpl = async (event, raw, session) => {
   try {
-    const payload = raw as { windowId?: unknown; extId?: unknown }
-    const extId = resolveExtensionId(event, session)
-    if (!extId) return { ok: false, error: 'UNAUTHORIZED' }
+    const payload = raw as { windowId?: unknown }
+    if (!resolveExtensionId(event, session)) return { ok: false, error: 'UNAUTHORIZED' }
     const windowId =
       typeof payload?.windowId === 'number' && Number.isInteger(payload.windowId)
         ? payload.windowId
         : null
     const page = shimDeps?.resolveActivePage(windowId)
-    if (!page || page.isDestroyed()) return { ok: false, error: 'NO_ACTIVE_TAB' }
-    // capturePage 在合成器未就绪/窗口被遮挡时会抖动（display surface / UnknownVizError），
-    // stayHidden+stayAwake 保持页面可采集（窗口隐藏/遮挡场景），轻量重试覆盖首帧窗口期
-    let image: Electron.NativeImage | undefined
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        image = await page.capturePage(undefined, { stayHidden: true, stayAwake: true })
-        if (!image.isEmpty()) break
-      } catch {
-        if (attempt === 2) throw new Error('CAPTURE_FAILED')
-        await new Promise((r) => setTimeout(r, 150))
-      }
-    }
-    if (!image || image.isEmpty()) return { ok: false, error: 'CAPTURE_FAILED' }
-    return { ok: true, dataUrl: image.toDataURL() }
+    if (!page) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    const png = await capturePagePng(page)
+    return { ok: true, dataUrl: 'data:image/png;base64,' + Buffer.from(png).toString('base64') }
   } catch (error) {
     return { ok: false, error: String((error as Error).message ?? error).slice(0, 160) }
   }
+}
+
+interface ScreenshotAction {
+  extensionId: string
+  windowId: number
+  page: WebContents
+  isCurrent: () => boolean
+  present: (params: URLSearchParams) => void
+  taken: boolean
+  outcome?: 'copied' | 'copy-failed' | 'capture-failed'
+  order: number
+}
+
+const screenshotActions = new WeakMap<Session, Map<string, ScreenshotAction>>()
+let screenshotOrder = 0
+let lastCopiedScreenshot = 0
+let screenshotClipboardQueue = Promise.resolve()
+
+/** 一次性授权仅来自可信工具栏派发，能力限定到该扩展和当时选中的网页。 */
+export function authorizeScreenshotAction(
+  extensionId: string,
+  windowId: number,
+  page: WebContents,
+  isCurrent: () => boolean,
+  present: (params: URLSearchParams) => void
+): string | undefined {
+  const session = page.session
+  const permissions = session.extensions.getExtension(extensionId)?.manifest.permissions
+  if (!permissions?.includes('activeTab') || !permissions.includes('clipboardWrite'))
+    return undefined
+  const actions = screenshotActions.get(session) ?? new Map<string, ScreenshotAction>()
+  const token = randomUUID()
+  screenshotActions.set(session, actions)
+  actions.set(token, {
+    extensionId,
+    windowId,
+    page,
+    isCurrent,
+    present,
+    taken: false,
+    order: ++screenshotOrder
+  })
+  setTimeout(() => actions.delete(token), 10_000).unref()
+  return token
+}
+
+const screenshotCopyImpl: ShimImpl = async (event, raw, session) => {
+  if (!session || !('serviceWorker' in event)) return { ok: false, error: 'UNAUTHORIZED' }
+  const extensionId = resolveExtensionId(event, session)
+  const { token, tabId, windowId } = (raw ?? {}) as {
+    token?: unknown
+    tabId?: unknown
+    windowId?: unknown
+  }
+  const actions = screenshotActions.get(session)
+  const action = typeof token === 'string' ? actions?.get(token) : undefined
+  if (
+    !extensionId ||
+    !action ||
+    action.taken ||
+    action.extensionId !== extensionId ||
+    action.windowId !== windowId ||
+    action.page.id !== tabId ||
+    !session.extensions.getExtension(extensionId)?.manifest.permissions?.includes('clipboardWrite')
+  )
+    return { ok: false, error: 'UNAUTHORIZED' }
+  action.taken = true
+  const isCurrent = (): boolean =>
+    !isExtensionSessionUnavailable(session) &&
+    !action.page.isDestroyed() &&
+    !!session.extensions.getExtension(extensionId) &&
+    action.isCurrent()
+  try {
+    if (!isCurrent()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    const png = await capturePagePng(action.page)
+    if (!isCurrent()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    let copied = false
+    const copy = screenshotClipboardQueue.then(async () => {
+      if (action.order < lastCopiedScreenshot || !isCurrent()) return
+      await clipboard.write([
+        new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })
+      ])
+      lastCopiedScreenshot = action.order
+      copied = true
+    })
+    screenshotClipboardQueue = copy.catch(() => undefined)
+    await copy.catch(() => undefined)
+    if (!isCurrent()) return { ok: false, error: 'NO_ACTIVE_TAB' }
+    action.outcome = copied ? 'copied' : 'copy-failed'
+    return {
+      ok: true,
+      copied,
+      dataUrl: 'data:image/png;base64,' + Buffer.from(png).toString('base64')
+    }
+  } catch {
+    action.outcome = 'capture-failed'
+    return { ok: false, error: 'CAPTURE_FAILED' }
+  }
+}
+
+const screenshotResultImpl: ShimImpl = (event, raw, session) => {
+  if (!session || !('serviceWorker' in event)) return { ok: false, error: 'UNAUTHORIZED' }
+  const extensionId = resolveExtensionId(event, session)
+  const { token, captureId, status } = (raw ?? {}) as {
+    token?: unknown
+    captureId?: unknown
+    status?: unknown
+  }
+  const actions = screenshotActions.get(session)
+  const action = typeof token === 'string' ? actions?.get(token) : undefined
+  if (!extensionId || !action?.taken || action.extensionId !== extensionId || !action.isCurrent())
+    return { ok: false, error: 'UNAUTHORIZED' }
+  // 结果状态以主进程的采集和写入回执为准，Worker 只补扩展快照 ID。
+  const hasCapture = typeof captureId === 'string' && /^[a-f0-9-]{36}$/.test(captureId)
+  const validStatus =
+    action.outcome &&
+    ((status === action.outcome &&
+      (status === 'capture-failed' ? captureId === undefined : hasCapture)) ||
+      (status === 'copied-no-actions' && action.outcome === 'copied' && captureId === undefined) ||
+      (status === 'capture-failed' && action.outcome === 'copy-failed' && captureId === undefined))
+  if (!validStatus || typeof status !== 'string') return { ok: false, error: 'INVALID_RESULT' }
+  actions?.delete(token as string)
+  const params = new URLSearchParams({ status, lang: getCurrentLanguage() })
+  if (typeof captureId === 'string') params.set('captureId', captureId)
+  action.present(params)
+  return { ok: true }
 }
 
 const downloadImpl: ShimImpl = async (event, raw, session) => {
@@ -452,6 +583,8 @@ export function registerExtensionShims(deps: ExtensionShimsDeps): void {
 const SW_SHIM_CHANNELS: Array<[string, ShimImpl]> = [
   [EXT_SHIM_PROXY, proxyImpl],
   [EXT_SHIM_CAPTURE_TAB, captureImpl],
+  [EXT_SHIM_SCREENSHOT_COPY, screenshotCopyImpl],
+  [EXT_SHIM_SCREENSHOT_RESULT, screenshotResultImpl],
   [EXT_SHIM_DOWNLOAD, downloadImpl],
   [EXT_SHIM_TAB_STREAM, tabStreamImpl],
   [EXT_SHIM_OFFSCREEN_CREATE, offscreenCreateImpl],
@@ -540,6 +673,8 @@ export async function assertSessionCaptureIdle(session: Session): Promise<void> 
 }
 
 export function disposeSessionShims(session: Session): void {
+  screenshotActions.get(session)?.clear()
+  screenshotActions.delete(session)
   sessionShimCleanup.get(session)?.()
   sessionShimCleanup.delete(session)
   for (const [id, target] of pendingTargets) {

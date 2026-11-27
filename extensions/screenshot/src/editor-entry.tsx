@@ -1,73 +1,98 @@
-// 截图插件编辑器页入口：复用生产 EditorWindow，浏览器/扩展 API 承担取图、复制与下载。
-// 适配器语义对齐生产 window.api.capture：快照绑定本窗 captureId，产出成功后续编，
-// 过期/未知 captureId 拒绝（对应协议v1 SNAPSHOT_STALE 语义）。
-// 窗口由 Chrome popup 直接承载，不再迁移 Document PiP。
-// 配色 = 雾蓝系（plugin-theme.css 对账 themeSystems.ts mist）。
 import { createRoot } from 'react-dom/client'
 import EditorWindow from '../../../src/renderer/src/components/browser/captureEditor/EditorWindow'
-import '../../../src/renderer/src/assets/app.css'
+import { bootstrapLanguage } from '../../../src/renderer/src/stores/i18n'
+import { DICTIONARIES } from '../../../src/shared/i18n'
 import type { CaptureEditImagePayload } from '../../../src/shared/capture'
+import { loadCapture, pngDataUrl, saveCapture, trimCaptures } from '../capture-store.js'
+import { pluginLanguage } from './language'
 
-/** 本窗当前快照（内存权威，续编后更新；页面重载后按 storage 快照重新起步） */
+const params = new URLSearchParams(location.search)
+const captureId = params.get('captureId')
+const handoff = params.get('handoff')
+const language = pluginLanguage(params)
+const messages = DICTIONARIES[language].browser.capturePlugin
+const root = document.getElementById('root')!
+
+document.documentElement.lang = language
+document.title = messages.editorTitle
+bootstrapLanguage(language)
+
 let payload: CaptureEditImagePayload | null = null
-let generation = 0
 
-/** 产出入库（新 captureId 递增代次），续编读取本窗现值 */
-async function apply(input: { captureId: string; dataUrl: string }): Promise<void> {
-  if (!payload || input.captureId !== payload.captureId) throw new Error('截图已过期')
-  const image = await createImageBitmap(await (await fetch(input.dataUrl)).blob())
-  const next: CaptureEditImagePayload = {
-    captureId: `${input.captureId}-g${++generation}`,
+function current(): CaptureEditImagePayload {
+  if (!payload) throw new Error(messages.expired)
+  return payload
+}
+
+function notifyResult(loaded: boolean): void {
+  if (!handoff) return
+  const channel = new BroadcastChannel('screenshot-editor:' + handoff)
+  channel.postMessage(loaded ? captureId : null)
+  channel.close()
+}
+
+async function apply(input: { captureId: string; dataUrl: string }, blob: Blob): Promise<void> {
+  if (input.captureId !== current().captureId) throw new Error(messages.expired)
+  const image = await createImageBitmap(blob)
+  const next = {
+    captureId: crypto.randomUUID(),
     dataUrl: input.dataUrl,
     width: image.width,
     height: image.height
   }
   image.close()
-  payload = next
-  await chrome.runtime.sendMessage({
-    type: 'screenshot.save',
-    payload: { ...next, createdAt: Date.now() }
+  await saveCapture({
+    captureId: next.captureId,
+    width: next.width,
+    height: next.height,
+    blob,
+    createdAt: Date.now()
   })
-}
-
-function reject(message: string): never {
-  throw new Error(message)
+  payload = next
+  void trimCaptures().catch((error) => console.warn('截图缓存清理失败', error))
 }
 
 async function start(): Promise<void> {
-  const root = document.getElementById('root')!
-  const captureId = new URLSearchParams(window.location.search).get('captureId') ?? ''
-  const response = await chrome.runtime.sendMessage({ type: 'screenshot.load', captureId })
-  if (!response?.ok) reject(response?.error ?? '截图不存在或已过期')
-  payload = response.payload
-
+  const capture = await loadCapture(captureId)
+  if (!capture) throw new Error(messages.expired)
+  payload = {
+    captureId: capture.captureId,
+    width: capture.width,
+    height: capture.height,
+    dataUrl: await pngDataUrl(capture.blob)
+  }
   window.api = {
     capture: {
-      getEditImage: async () => {
-        if (!payload) reject('截图不存在或已过期')
-        return { ...payload }
-      },
+      getEditImage: async () => ({ ...current() }),
       editCopy: async (input) => {
-        if (!payload || input.captureId !== payload.captureId) reject('截图已过期')
+        if (input.captureId !== current().captureId) throw new Error(messages.expired)
         const blob = await (await fetch(input.dataUrl)).blob()
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        await apply(input)
+        await apply(input, blob)
       },
       editDownload: async (input) => {
-        if (!payload || input.captureId !== payload.captureId) reject('截图已过期')
-        const filename = `screenshot-${payload.captureId}.png`
-        await chrome.downloads.download({ url: input.dataUrl, filename, saveAs: false })
-        await apply(input)
+        if (input.captureId !== current().captureId) throw new Error(messages.expired)
+        const filename = 'screenshot-' + input.captureId + '.png'
+        const blob = await (await fetch(input.dataUrl)).blob()
+        await chrome.downloads.download({
+          url: input.dataUrl,
+          filename,
+          saveAs: false,
+          conflictAction: 'uniquify'
+        })
+        await apply(input, blob)
         return { path: filename }
       }
     }
   } as typeof window.api
 
   document.body.classList.add('plugin-editor')
-  createRoot(root).render(<EditorWindow wheelZoom />)
+  createRoot(root).render(<EditorWindow wheelZoom fitCanvas onLoad={notifyResult} />)
 }
 
 void start().catch((error) => {
-  // EditorWindow 挂载前失败没有取图链错误条，直接呈现原始错误，不伪造内容
-  document.getElementById('root')!.textContent = String(error)
+  console.warn('截图编辑器无法载入', error)
+  root.setAttribute('role', 'alert')
+  root.textContent = messages.expired
+  notifyResult(false)
 })

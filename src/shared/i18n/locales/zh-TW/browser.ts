@@ -70,6 +70,20 @@ export const browser: Dictionary['browser'] = {
     /** 反馈条「编辑」入口钮（最右端，打开截图编辑子窗） */
     edit: '編輯'
   },
+  capturePlugin: {
+    title: '截圖結果',
+    download: '下載圖片',
+    edit: '編輯圖片',
+    copyFailed: '已擷取截圖，但無法複製到剪貼簿',
+    copyUnavailable: '目前版本不支援背景複製圖片',
+    copiedNoActions: '已複製到剪貼簿，無法載入截圖',
+    expired: '截圖不存在或已過期',
+    downloading: '正在下載…',
+    downloaded: '圖片已下載',
+    downloadFailed: '下載失敗，請重試',
+    openingEditor: '正在開啟編輯器…',
+    editorTitle: '截圖編輯器'
+  },
   /** 截图编辑子窗（独立窗，微信式标注六工具 + 复制/下载产出） */
   captureEditor: {
     loadFailed: '截圖編輯器載入失敗，請重試',

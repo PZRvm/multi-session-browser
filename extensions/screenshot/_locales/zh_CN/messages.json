@@ -1,0 +1,8 @@
+{
+  "screenshotDescription": {
+    "message": "截取当前标签页并复制到剪贴板，可下载或编辑截图"
+  },
+  "screenshotAction": {
+    "message": "截取当前页面"
+  }
+}

@@ -4,7 +4,7 @@
  * 发布——CRX 与应用版本解耦，不是每次应用发版都带 CRX）。
  *
  * 用法：node tools/extension-preflight/pack-release.mjs <插件源目录> <pem 路径> <输出 .crx>
- * 流程：源目录 zip（剔除 out/ 构建产物与 dotfiles）→ CRX2 签名（复用 crx.mjs 单源，
+ * 流程：源目录 zip（保留页面引用的 bundle，剔除 dotfiles）→ CRX2 签名（复用 crx.mjs 单源，
  * sha1 头 + pem 公钥——ID 由 pem 派生，与 Chrome --pack-extension 的 CRX3 同 ID，
  * 升级路径兼容）→ inspectCrx 自验（验签 + ID 对账）→ 打印 JSON（id/version/sha256）。
  * PEM 绝不入库、绝不出现在产物目录；CI 侧经 Secrets 注入临时文件，步末清理。
@@ -21,7 +21,7 @@ if (!srcDir || !pemPath || !outPath) {
   throw new Error('用法：node tools/extension-preflight/pack-release.mjs <源目录> <pem> <输出.crx>')
 }
 
-/** 递归收集相对路径（剔除 out/ 构建产物、dotfiles、.DS_Store） */
+/** 递归收集相对路径（跳过 dotfiles，保留页面引用的 bundle） */
 function walk(dir, base = dir, acc = []) {
   for (const entry of readdirSync(dir)) {
     if (entry === 'out' || entry.startsWith('.')) continue
@@ -35,10 +35,19 @@ function walk(dir, base = dir, acc = []) {
 
 const files = walk(srcDir)
 const manifest = JSON.parse(readFileSync(join(srcDir, 'manifest.json'), 'utf8'))
+const assets = new Set(files)
+for (const page of ['editor.html', 'result.html'].filter((name) => assets.has(name))) {
+  const html = readFileSync(join(srcDir, page), 'utf8')
+  for (const [, asset] of html.matchAll(/(?:src|href)="(out\/[a-zA-Z0-9._-]+)"/g)) {
+    if (!statSync(join(srcDir, asset), { throwIfNoEntry: false })?.isFile())
+      throw new Error(page + ' 缺少构建文件 ' + asset)
+    assets.add(asset)
+  }
+}
 
 // 目录 zip：路径用 posix 分隔（CRX 解包跨平台一致）
 const zip = new AdmZip()
-for (const rel of files) zip.addFile(rel, readFileSync(join(srcDir, rel)))
+for (const rel of assets) zip.addFile(rel, readFileSync(join(srcDir, rel)))
 const zipBuffer = zip.toBuffer()
 
 const pemText = readFileSync(pemPath, 'utf8')
