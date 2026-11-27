@@ -55,8 +55,6 @@ export const browser: Dictionary['browser'] = {
   },
   capturePlugin: {
     title: 'Screenshot',
-    download: 'Download image',
-    edit: 'Edit image',
     copyFailed: 'Screenshot captured. Could not copy to the clipboard.',
     copyUnavailable: 'Background image copying is unavailable in this version',
     copiedNoActions: 'Copied to the clipboard. The screenshot could not be loaded.',

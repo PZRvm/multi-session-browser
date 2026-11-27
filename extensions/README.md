@@ -6,7 +6,7 @@
 
 ## 截图插件（screenshot/）
 
-- 点击工具栏图标即截取当前标签可视区并复制原始 PNG。结果在工具栏 Popover 提供「下载图片」「编辑图片」。按 Esc 或点击外部可关闭结果。
+- 点击工具栏图标即截取当前标签可视区并复制原始 PNG。工具栏 Popover 同一行显示复制状态和「下载」「编辑」。按 Esc 或点击外部可关闭结果。
 - 普通 Chrome 157 起支持后台复制 PNG。Chrome 127–156 会提示后台复制不可用，仍可下载和编辑。本应用使用支持截图 Popover 的宿主版本。
 - 下载保存原始 PNG。编辑打开独立窗口，目标尺寸为 1440 × 960，受屏幕工作区限制。首屏完整显示原图，Ctrl/⌘+滚轮调整预览比例，标注与导出使用图像像素坐标。
 - `node extensions/build.mjs` 构建编辑器和结果页。Chrome 截图回归独立运行 `node tools/plugin-preflight/check-plugins.mjs --screenshot-only`。

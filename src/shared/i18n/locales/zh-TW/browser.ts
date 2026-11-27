@@ -72,8 +72,6 @@ export const browser: Dictionary['browser'] = {
   },
   capturePlugin: {
     title: '截圖結果',
-    download: '下載圖片',
-    edit: '編輯圖片',
     copyFailed: '已擷取截圖，但無法複製到剪貼簿',
     copyUnavailable: '目前版本不支援背景複製圖片',
     copiedNoActions: '已複製到剪貼簿，無法載入截圖',

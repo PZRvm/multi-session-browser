@@ -16,8 +16,8 @@ const edit = document.querySelector<HTMLButtonElement>('#edit')!
 
 document.documentElement.lang = language
 document.title = resultMessages.title
-download.textContent = resultMessages.download
-edit.textContent = resultMessages.edit
+download.textContent = messages.download
+edit.textContent = messages.edit
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !event.isComposing) window.close()
 })

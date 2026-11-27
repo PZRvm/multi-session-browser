@@ -24,34 +24,38 @@
 
 body {
   margin: 0;
-  width: 300px;
+  width: 280px;
 }
 
 main {
   box-sizing: border-box;
-  display: grid;
-  align-content: center;
-  gap: 12px;
-  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
 }
 
 p {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 #actions:not([hidden]) {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex: none;
+  gap: 6px;
 }
 
 button {
-  min-height: 32px;
-  padding: 4px 12px;
+  min-height: 24px;
+  padding: 0 8px;
   border: 1px solid var(--button-border);
   border-radius: 4px;
   font: inherit;
+  white-space: nowrap;
   color: inherit;
   background: var(--button-background);
 }

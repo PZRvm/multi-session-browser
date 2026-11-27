@@ -69,8 +69,6 @@ export const browser = {
   },
   capturePlugin: {
     title: '截图结果',
-    download: '下载图片',
-    edit: '编辑图片',
     copyFailed: '截图已捕获，但未能复制到剪贴板',
     copyUnavailable: '当前版本不支持后台复制图片',
     copiedNoActions: '已复制到剪贴板，截图无法载入',
